@@ -34,3 +34,12 @@ def test_seeded_environments_are_equal_after_equal_actions() -> None:
         assert np.array_equal(observation["objects"][:35], observation["objects"][35:])
         if any(environment.done()):
             break
+
+
+def test_greedy_baseline_returns_legal_local_indices() -> None:
+    environment = VectorEnv(4, width=7, height=5, seed=19)
+    observation = environment.observe()
+    actions = np.asarray(environment.greedy_actions(), dtype=np.uint64)
+    counts = np.diff(observation["action_offsets"])
+    assert np.all(actions < counts)
+    environment.step(actions)

@@ -110,10 +110,12 @@ dependencies = [
 name = "antiyoy-python"
 version = "0.1.0"
 dependencies = [
+ "antiyoy-agents",
  "antiyoy-core",
  "antiyoy-rl",
  "numpy",
  "pyo3",
+ "rayon",
  "serde_json",
 ]
 

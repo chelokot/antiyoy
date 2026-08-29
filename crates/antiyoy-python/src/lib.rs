@@ -1,11 +1,13 @@
 #![forbid(unsafe_code)]
 
+use antiyoy_agents::{Agent, GreedyAgent};
 use antiyoy_core::Rules;
 use antiyoy_rl::{BatchEnv, BatchObservation, StepResult};
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
+use rayon::prelude::*;
 
 #[pyclass(module = "antiyoy_rl._native")]
 struct VectorEnv {
@@ -93,6 +95,35 @@ impl VectorEnv {
             .game(0)
             .ok_or_else(|| PyRuntimeError::new_err("environment batch is empty"))?;
         serde_json::to_string(game.rules()).map_err(runtime_error)
+    }
+
+    fn greedy_actions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u64>>> {
+        let indices = py.detach(|| {
+            (0..self.batch.len())
+                .into_par_iter()
+                .map(|index| {
+                    let game = self
+                        .batch
+                        .game(index)
+                        .ok_or_else(|| PyRuntimeError::new_err("environment index disappeared"))?;
+                    let actions = self
+                        .batch
+                        .legal_actions(index)
+                        .ok_or_else(|| PyRuntimeError::new_err("legal action index disappeared"))?;
+                    let mut agent = GreedyAgent::new("greedy");
+                    let selected = agent.select_action(game, actions);
+                    let position = actions
+                        .iter()
+                        .position(|action| *action == selected)
+                        .ok_or_else(|| {
+                            PyRuntimeError::new_err("greedy action is not in the legal action list")
+                        })?;
+                    u64::try_from(position)
+                        .map_err(|_| PyRuntimeError::new_err("action index does not fit u64"))
+                })
+                .collect::<PyResult<Vec<_>>>()
+        })?;
+        Ok(PyArray1::from_vec(py, indices))
     }
 }
 

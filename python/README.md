@@ -47,3 +47,11 @@ python train.py --environments 64 --updates 1000 --device cuda \
 This trainer is an executable baseline for validating the complete ROCm path;
 checkpoint strength must be established by held-out mirrored tournaments before
 publishing an Elo number.
+
+```bash
+python evaluate.py ../models/universal-a2c.pt --games 64 --baseline greedy
+```
+
+Evaluation alternates model seats, uses held-out seeds, and reports the raw
+win/draw/loss score plus an Elo difference against the named baseline. It does
+not assign an absolute leaderboard rating to an uncalibrated baseline.
