@@ -55,7 +55,8 @@ python train.py --environments 64 --updates 1000 --device cuda \
   --procedural --width 31 --height 21 --players 4 \
   --profiles classic_generic_2022 classic_slay_2022 online_duel_v1 \
     online_experimental_v2_260801 \
-  --imitation-updates 500 --imitation-teacher search --search-nodes 2048 \
+  --imitation-updates 500 --imitation-teacher search \
+  --imitation-rollin policy --search-nodes 2048 \
   --rollout-steps 16 --epochs 2 \
   --checkpoint ../models/universal-ppo.pt
 ```
@@ -78,6 +79,12 @@ computes independent environments through Rayon. Node, beam, branch, and turn
 depth budgets are explicit CLI parameters and are stored in the checkpoint.
 Held-out mirrored matches still determine whether the resulting model exceeds
 its teacher.
+
+`--imitation-rollin teacher` follows the expert trajectory and is the default
+behavioral-cloning curriculum. `--imitation-rollin policy` performs online
+DAgger-style recovery training: search labels every current state, while the
+policy's own greedy action advances the environment. This exposes compounding
+errors and loops that are absent from clean teacher trajectories.
 
 Measure target-generation cost before a large run:
 

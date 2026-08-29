@@ -51,6 +51,7 @@ class TrainingConfig:
     clip_ratio: float
     imitation_updates: int
     imitation_teacher: str
+    imitation_rollin: str
     search_nodes: int
     search_beam_width: int
     search_branch_width: int
@@ -181,6 +182,8 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("imitation_updates must not be negative")
     if config.imitation_teacher not in {"greedy", "search"}:
         raise ValueError("imitation_teacher must be greedy or search")
+    if config.imitation_rollin not in {"teacher", "policy"}:
+        raise ValueError("imitation_rollin must be teacher or policy")
     if config.search_nodes < 2:
         raise ValueError("search_nodes must be at least two")
     if config.search_beam_width < 1:
@@ -296,10 +299,12 @@ def pretrain_teacher(
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
-        accuracy = float((distribution.logits.argmax(dim=1) == targets).float().mean().item())
+        policy_actions = distribution.logits.argmax(dim=1)
+        accuracy = float((policy_actions == targets).float().mean().item())
         loss_average += (float(loss.item()) - loss_average) / update
         accuracy_average += (accuracy - accuracy_average) / update
-        result = environment.step(targets.cpu().numpy().astype(np.uint64))
+        rollin_actions = targets if config.imitation_rollin == "teacher" else policy_actions
+        result = environment.step(rollin_actions.cpu().numpy().astype(np.uint64))
         done = np.logical_or(result["terminal"], result["truncated"])
         for index in np.flatnonzero(done):
             environment.reset(int(index), reset_seed)
@@ -464,7 +469,10 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             )
     parameters = sum(parameter.numel() for parameter in model.parameters())
     summary: dict[str, float | int | str] = {
-        "algorithm": f"{config.imitation_teacher}_distilled_perspective_ppo_gae"
+        "algorithm": (
+            f"{config.imitation_teacher}_distilled_"
+            f"{config.imitation_rollin}_rollin_perspective_ppo_gae"
+        )
         if config.imitation_updates > 0
         else "perspective_ppo_gae",
         "updates": config.updates,
@@ -475,6 +483,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "optimizer_steps": config.updates * config.rollout_steps * config.epochs,
         "imitation_updates": config.imitation_updates,
         "imitation_teacher": config.imitation_teacher,
+        "imitation_rollin": config.imitation_rollin,
         "imitation_transitions": imitation_transitions,
         "imitation_seconds": imitation_seconds,
         "imitation_transitions_per_second": (
@@ -542,6 +551,9 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--imitation-updates", type=int, default=0)
     parser.add_argument(
         "--imitation-teacher", choices=("greedy", "search"), default="greedy"
+    )
+    parser.add_argument(
+        "--imitation-rollin", choices=("teacher", "policy"), default="teacher"
     )
     parser.add_argument("--search-nodes", type=int, default=2048)
     parser.add_argument("--search-beam-width", type=int, default=32)
