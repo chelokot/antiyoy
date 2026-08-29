@@ -86,12 +86,20 @@ const DEFAULT_CONFIG: LiveConfig = {
 };
 const PLAYER_NAMES = ["CYAN", "AMBER", "VIOLET", "CORAL", "LIME", "BLUE", "PINK", "SILVER"] as const;
 const MODEL_URL = "https://github.com/chelokot/antiyoy/releases/tag/model-v0.1.0-alpha.1";
-const MODEL_RESULTS = [
-  ["Classic Generic", "+229"],
-  ["Online Default", "±0"],
-  ["Online Duel", "+83"],
-  ["Experimental v2", "−206"],
-] as const;
+const MODEL_RESULTS = {
+  greedy: [
+    ["Classic Generic", "+229"],
+    ["Online Default", "±0"],
+    ["Online Duel", "+83"],
+    ["Experimental v2", "−206"],
+  ],
+  search: [
+    ["Classic Generic", "+470"],
+    ["Online Default", "+44"],
+    ["Online Duel", "−720*"],
+    ["Experimental v2", "−720*"],
+  ],
+} as const;
 
 function parseState(serialized: string): StateView {
   return JSON.parse(serialized) as StateView;
@@ -220,6 +228,7 @@ export default function Arena() {
   const [humanMode, setHumanMode] = useState(false);
   const [draftConfig, setDraftConfig] = useState<LiveConfig>(DEFAULT_CONFIG);
   const [activeConfig, setActiveConfig] = useState<LiveConfig>(DEFAULT_CONFIG);
+  const [ratingBaseline, setRatingBaseline] = useState<keyof typeof MODEL_RESULTS>("greedy");
 
   useEffect(() => {
     let disposed = false;
@@ -466,11 +475,12 @@ export default function Arena() {
           <div className="mt-8 border-t border-white/10 pt-5"><p className="eyebrow">TERRITORY</p><div className="mt-4 space-y-3 text-xs">{territories.map((cells, player) => <Bar label={playerLabel(player)} value={cells} width={`${territoryShares[player]}%`} player={player} key={player} />)}</div></div>
           <div className="engine-note"><p className="eyebrow text-[#d8ff3e]">SAME CORE</p><p className="mt-2 text-sm leading-6 text-[#b8c0ba]">Every displayed transition is executed by the headless Rust environment compiled to WebAssembly.</p></div>
           <div className="model-card">
-            <div className="flex items-center justify-between gap-3"><p className="eyebrow text-[#d8ff3e]">ALPHA POLICY</p><span className="font-mono text-[0.65rem] text-[#8d9690]">128 games</span></div>
+            <div className="flex items-center justify-between gap-3"><p className="eyebrow text-[#d8ff3e]">ALPHA POLICY</p><span className="font-mono text-[0.65rem] text-[#8d9690]">{ratingBaseline === "greedy" ? "128/profile" : "32–64/profile"}</span></div>
             <p className="mt-2 text-sm font-semibold">distilled-ppo · 0.91M</p>
-            <dl className="mt-4 space-y-2 font-mono text-xs">{MODEL_RESULTS.map(([profile, elo]) => <Row label={profile} value={`${elo} Elo`} accent={elo.startsWith("+")} key={profile} />)}</dl>
+            <div className="mt-4 grid grid-cols-2 gap-2"><button className={`control ${ratingBaseline === "greedy" ? "control-active" : ""}`} type="button" aria-pressed={ratingBaseline === "greedy"} onClick={() => setRatingBaseline("greedy")}>vs greedy</button><button className={`control ${ratingBaseline === "search" ? "control-active" : ""}`} type="button" aria-pressed={ratingBaseline === "search"} onClick={() => setRatingBaseline("search")}>vs search</button></div>
+            <dl className="mt-4 space-y-2 font-mono text-xs">{MODEL_RESULTS[ratingBaseline].map(([profile, elo]) => <Row label={profile} value={`${elo} Elo`} accent={elo.startsWith("+")} key={profile} />)}</dl>
             <a className="model-download" href={MODEL_URL} target="_blank" rel="noreferrer">Download verified checkpoint ↗</a>
-            <p className="mt-3 text-[0.65rem] leading-5 text-[#77817b]">Relative to the native greedy baseline. Experimental, not an absolute rating.</p>
+            <p className="mt-3 text-[0.65rem] leading-5 text-[#77817b]">Paired relative Elo against the selected native baseline. * Edge-corrected after 0:32. Not an absolute rating.</p>
           </div>
         </aside>
 
