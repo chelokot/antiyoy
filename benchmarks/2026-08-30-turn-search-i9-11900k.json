@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "kind": "mirrored_turn_search_evaluation",
+  "commit": "a400c69b1edb8a4584d8e5b091a4b6ace0cc1ae5",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_threads": 1,
+    "operating_system": "Fedora Silverblue 44",
+    "architecture": "x86_64",
+    "process_priority": "nice 10"
+  },
+  "configuration": {
+    "map": "symmetric_duel_v1",
+    "width": 11,
+    "height": 9,
+    "pairs_per_profile": 16,
+    "games_per_profile": 32,
+    "seed": 60000,
+    "action_limit": 1000,
+    "search_nodes": 4096,
+    "baseline": "greedy",
+    "seat_assignment": "mirrored"
+  },
+  "profiles": [
+    {
+      "profile": "classic_generic_2022",
+      "wins": 31,
+      "draws": 0,
+      "losses": 1,
+      "score": 0.96875,
+      "relative_elo": 596.5446775337091,
+      "actions_per_second": 712.9564238503318
+    },
+    {
+      "profile": "classic_slay_2022",
+      "wins": 32,
+      "draws": 0,
+      "losses": 0,
+      "score": 1.0,
+      "relative_elo_with_edge_correction": 719.7362197814326,
+      "actions_per_second": 744.9454816827971
+    },
+    {
+      "profile": "online_default_v1",
+      "wins": 32,
+      "draws": 0,
+      "losses": 0,
+      "score": 1.0,
+      "relative_elo_with_edge_correction": 719.7362197814326,
+      "actions_per_second": 708.5332079421504
+    },
+    {
+      "profile": "online_classic_v1",
+      "wins": 32,
+      "draws": 0,
+      "losses": 0,
+      "score": 1.0,
+      "relative_elo_with_edge_correction": 719.7362197814326,
+      "actions_per_second": 730.3576137460718
+    },
+    {
+      "profile": "online_duel_v1",
+      "wins": 24,
+      "draws": 0,
+      "losses": 8,
+      "score": 0.75,
+      "relative_elo": 190.84850188786498,
+      "actions_per_second": 901.8103888956623
+    },
+    {
+      "profile": "online_experimental_v1",
+      "wins": 24,
+      "draws": 0,
+      "losses": 8,
+      "score": 0.75,
+      "relative_elo": 190.84850188786498,
+      "actions_per_second": 952.6012218442248
+    },
+    {
+      "profile": "online_experimental_v2_260801",
+      "wins": 32,
+      "draws": 0,
+      "losses": 0,
+      "score": 1.0,
+      "relative_elo_with_edge_correction": 719.7362197814326,
+      "actions_per_second": 782.6487101082897
+    }
+  ],
+  "aggregate": {
+    "games": 224,
+    "wins": 207,
+    "draws": 0,
+    "losses": 17,
+    "score": 0.9241071428571429,
+    "relative_elo": 434.20856963145764
+  },
+  "conclusion": "The deterministic whole-turn search beats the greedy baseline in every compatibility profile on held-out mirrored seeds. Relative Elo values are paired-baseline measurements, not absolute leaderboard ratings."
+}
