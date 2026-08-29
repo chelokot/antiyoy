@@ -45,7 +45,7 @@ test("ships the generated engine and social card", async () => {
   assert.match(packageJson, /"build:wasm"/);
 });
 
-test("executes a deterministic transition in the compiled WebAssembly engine", async () => {
+test("executes greedy and whole-turn search in the compiled WebAssembly engine", async () => {
   const moduleUrl = new URL("../lib/antiyoy-wasm/antiyoy_wasm.js", import.meta.url);
   moduleUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const bindings = await import(moduleUrl.href);
@@ -53,11 +53,17 @@ test("executes a deterministic transition in the compiled WebAssembly engine", a
   await bindings.default({ module_or_path: bytes });
   const game = new bindings.WasmGame(11, 9, 47n);
   const initial = JSON.parse(game.state_json());
-  const next = JSON.parse(game.step_bot());
+  let next = initial;
+  for (let action = 0; next.active_player === 0 && action < 100; action += 1) {
+    next = JSON.parse(game.step_bot());
+  }
   assert.equal(initial.cells.length, 99);
   assert.equal(initial.round, 1);
   assert.ok(initial.legal_actions.length > 0);
+  assert.equal(next.active_player, 1);
   assert.notDeepEqual(next, initial);
+  const searchReply = JSON.parse(game.step_bot());
+  assert.notDeepEqual(searchReply, next);
   game.free();
 });
 

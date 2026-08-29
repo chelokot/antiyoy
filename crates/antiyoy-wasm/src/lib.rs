@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use antiyoy_agents::{Agent, GreedyAgent, RandomAgent};
+use antiyoy_agents::{Agent, GreedyAgent, SearchAgent};
 use antiyoy_core::{Action, Game, GeneratorConfig, PlayerId, Rules, Scenario};
 use antiyoy_protocol::{GameView, Replay};
 use serde::Serialize;
@@ -17,13 +17,12 @@ struct ReplayMetadata {
 
 #[wasm_bindgen]
 pub struct WasmGame {
-    seed: u64,
     rules: Rules,
     scenario: Scenario,
     game: Game,
     legal_actions: Vec<Action>,
     greedy: GreedyAgent,
-    random: RandomAgent,
+    search: SearchAgent,
 }
 
 #[wasm_bindgen]
@@ -33,7 +32,7 @@ impl WasmGame {
         let rules = Rules::classic_generic();
         let scenario = Scenario::symmetric_duel(width, height, seed)
             .map_err(|error| JsError::new(&error.to_string()))?;
-        Self::from_scenario(seed, rules, scenario)
+        Self::from_scenario(rules, scenario)
     }
 
     pub fn procedural(
@@ -54,13 +53,13 @@ impl WasmGame {
         let scenario = config
             .generate()
             .map_err(|error| JsError::new(&error.to_string()))?;
-        Self::from_scenario(seed, Rules::classic_generic(), scenario)
+        Self::from_scenario(Rules::classic_generic(), scenario)
     }
 
     pub fn reset(&mut self) -> Result<String, JsError> {
         self.game = Game::new(self.rules.clone(), self.scenario.clone())
             .map_err(|error| JsError::new(&error.to_string()))?;
-        self.random = RandomAgent::new("random", self.seed ^ 1);
+        self.search = SearchAgent::new("turn-search");
         self.state_json()
     }
 
@@ -94,7 +93,7 @@ impl WasmGame {
         let action = if self.game.active_player() == PlayerId(0) {
             self.greedy.select_action(&self.game, &self.legal_actions)
         } else {
-            self.random.select_action(&self.game, &self.legal_actions)
+            self.search.select_action(&self.game, &self.legal_actions)
         };
         self.game
             .step(action)
@@ -104,17 +103,16 @@ impl WasmGame {
 }
 
 impl WasmGame {
-    fn from_scenario(seed: u64, rules: Rules, scenario: Scenario) -> Result<Self, JsError> {
+    fn from_scenario(rules: Rules, scenario: Scenario) -> Result<Self, JsError> {
         let game = Game::new(rules.clone(), scenario.clone())
             .map_err(|error| JsError::new(&error.to_string()))?;
         Ok(Self {
-            seed,
             rules,
             scenario,
             game,
             legal_actions: Vec::new(),
             greedy: GreedyAgent::new("greedy"),
-            random: RandomAgent::new("random", seed ^ 1),
+            search: SearchAgent::new("turn-search"),
         })
     }
 }
