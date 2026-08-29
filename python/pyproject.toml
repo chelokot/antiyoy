@@ -1,0 +1,16 @@
+[build-system]
+requires = ["maturin>=1.15,<2"]
+build-backend = "maturin"
+
+[project]
+name = "antiyoy-rl"
+version = "0.1.0"
+description = "High-throughput vector environments for Antiyoy reinforcement learning"
+requires-python = ">=3.11"
+dependencies = ["numpy>=2"]
+
+[tool.maturin]
+manifest-path = "../crates/antiyoy-python/Cargo.toml"
+python-source = "."
+module-name = "antiyoy_rl._native"
+features = ["pyo3/extension-module"]

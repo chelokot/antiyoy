@@ -1,0 +1,36 @@
+import json
+
+import numpy as np
+
+from antiyoy_rl import OBSERVATION_VERSION, VectorEnv
+
+
+def test_observation_and_step_contract() -> None:
+    environment = VectorEnv(4, width=7, height=5, seed=47)
+    observation = environment.observe()
+    assert observation["version"] == OBSERVATION_VERSION
+    assert observation["cell_offsets"].tolist() == [0, 35, 70, 105, 140]
+    assert observation["owners"].shape == (140,)
+    actions = np.zeros(4, dtype=np.uint64)
+    result = environment.step(actions)
+    assert result["actors"].tolist() == [0, 0, 0, 0]
+    assert result["terminal"].tolist() == [0, 0, 0, 0]
+    assert json.loads(environment.rules_json())["schema_version"] == 1
+
+
+def test_seeded_environments_are_equal_after_equal_actions() -> None:
+    environment = VectorEnv(2, width=7, height=5, seed=91)
+    environment.reset(1, 91)
+    for _ in range(20):
+        observation = environment.observe()
+        offsets = observation["action_offsets"]
+        first_count = int(offsets[1] - offsets[0])
+        second_count = int(offsets[2] - offsets[1])
+        assert first_count == second_count
+        selected = first_count // 2
+        environment.step(np.array([selected, selected], dtype=np.uint64))
+        observation = environment.observe()
+        assert np.array_equal(observation["owners"][:35], observation["owners"][35:])
+        assert np.array_equal(observation["objects"][:35], observation["objects"][35:])
+        if any(environment.done()):
+            break

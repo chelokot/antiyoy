@@ -20,6 +20,12 @@ pub enum ActionKind {
     PlantTree,
 }
 
+impl ActionKind {
+    pub const fn code(self) -> u8 {
+        self as u8
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ActionFeatures {
     pub kind: ActionKind,
@@ -259,6 +265,10 @@ impl BatchEnv {
 
     pub fn episode_steps(&self, index: usize) -> Option<u32> {
         self.episode_steps.get(index).copied()
+    }
+
+    pub fn is_done(&self, index: usize) -> Option<bool> {
+        self.done.get(index).copied()
     }
 
     pub fn reset_with_seed(&mut self, index: usize, seed: u64) -> Result<(), BatchError> {

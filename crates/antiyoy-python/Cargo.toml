@@ -1,0 +1,25 @@
+[package]
+name = "antiyoy-python"
+description = "Python and NumPy bindings for the Antiyoy RL environment"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "_native"
+crate-type = ["cdylib"]
+test = false
+doctest = false
+
+[dependencies]
+antiyoy-core.workspace = true
+antiyoy-rl.workspace = true
+numpy.workspace = true
+pyo3.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

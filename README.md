@@ -25,6 +25,7 @@ the same Rust rules engine.
 | `antiyoy-core` | Deterministic rules, state transitions, map generation, observations |
 | `antiyoy-agents` | Baseline policies sharing the authoritative legal-action stream |
 | `antiyoy-rl` | Parallel environments, tensor observations, action features, rewards |
+| `antiyoy-python` | GIL-releasing NumPy bindings built with PyO3 and Maturin |
 | `antiyoy-eval` | Symmetric matches, tournaments, adjudication, and ratings |
 | `antiyoy-protocol` | Versioned replay and network messages |
 | `antiyoy-cli` | Headless games, validation, tournaments, and benchmarks |
@@ -43,6 +44,15 @@ RAYON_NUM_THREADS=8 cargo run --release -p antiyoy-cli -- \
 
 The versioned tensor contract is documented in [`docs/rl.md`](docs/rl.md).
 Reproducible machine results live under [`benchmarks/`](benchmarks/).
+
+Python trainers can install the native environment in an active virtual
+environment:
+
+```bash
+cd python
+maturin develop --release
+pytest -q tests
+```
 
 ## Status
 
