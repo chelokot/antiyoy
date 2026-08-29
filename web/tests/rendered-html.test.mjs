@@ -53,7 +53,7 @@ test("executes a deterministic transition in the compiled WebAssembly engine", a
   const next = JSON.parse(game.step_bot());
   assert.equal(initial.cells.length, 99);
   assert.equal(initial.round, 1);
-  assert.ok(initial.legal_actions > 0);
+  assert.ok(initial.legal_actions.length > 0);
   assert.notDeepEqual(next, initial);
   game.free();
 });

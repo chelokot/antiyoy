@@ -90,6 +90,21 @@ pub struct Rules {
 }
 
 impl Rules {
+    pub fn from_profile(profile: RulesProfile) -> Option<Self> {
+        match profile {
+            RulesProfile::ClassicGeneric => Some(Self::classic_generic()),
+            RulesProfile::ClassicSlay => Some(Self::classic_slay()),
+            RulesProfile::OnlineDefaultV1 => Some(Self::online_default_v1()),
+            RulesProfile::OnlineClassicV1 => Some(Self::online_classic_v1()),
+            RulesProfile::OnlineDuelV1 => Some(Self::online_duel_v1()),
+            RulesProfile::OnlineExperimentalV1 => Some(Self::online_experimental_v1()),
+            RulesProfile::OnlineExperimentalV2_260801 => {
+                Some(Self::online_experimental_v2_260801())
+            }
+            RulesProfile::Custom => None,
+        }
+    }
+
     pub fn classic_generic() -> Self {
         Self {
             schema_version: 5,

@@ -1,55 +1,10 @@
 #![forbid(unsafe_code)]
 
 use antiyoy_agents::{Agent, GreedyAgent, RandomAgent};
-use antiyoy_core::{Action, Game, HexId, Object, PlayerId, Rules, Scenario};
-use antiyoy_protocol::Replay;
+use antiyoy_core::{Action, Game, PlayerId, Rules, Scenario};
+use antiyoy_protocol::{GameView, Replay};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
-
-#[derive(Serialize)]
-struct CellView {
-    id: u16,
-    owner: Option<u8>,
-    object: Object,
-    strength: u8,
-    ready: bool,
-    province: Option<u16>,
-    defense: u8,
-}
-
-#[derive(Serialize)]
-struct ProvinceView {
-    id: u16,
-    owner: u8,
-    money: i64,
-    income: i64,
-    upkeep: i64,
-    profit: i64,
-    capital: u16,
-    size: usize,
-}
-
-#[derive(Serialize)]
-struct StateView {
-    width: u16,
-    height: u16,
-    round: u32,
-    active_player: u8,
-    terminal: bool,
-    winner: Option<u8>,
-    cells: Vec<CellView>,
-    provinces: Vec<ProvinceView>,
-    relations: Vec<RelationView>,
-    legal_actions: usize,
-}
-
-#[derive(Serialize)]
-struct RelationView {
-    first: u8,
-    second: u8,
-    relation: antiyoy_core::Relation,
-    proposal: Option<antiyoy_core::Relation>,
-}
 
 #[derive(Serialize)]
 struct ReplayMetadata {
@@ -99,7 +54,7 @@ impl WasmGame {
     }
 
     pub fn state_json(&mut self) -> Result<String, JsError> {
-        state_json(&self.game, &mut self.legal_actions)
+        state_json(&self.game)
     }
 
     pub fn legal_actions_json(&mut self) -> Result<String, JsError> {
@@ -142,7 +97,6 @@ pub struct WasmReplay {
     replay: Replay,
     game: Game,
     frame: usize,
-    legal_actions: Vec<Action>,
 }
 
 #[wasm_bindgen]
@@ -159,7 +113,6 @@ impl WasmReplay {
             replay,
             game,
             frame: 0,
-            legal_actions: Vec::new(),
         })
     }
 
@@ -196,67 +149,13 @@ impl WasmReplay {
                 .map_err(|error| JsError::new(&error.to_string()))?;
             self.frame += 1;
         }
-        state_json(&self.game, &mut self.legal_actions)
+        state_json(&self.game)
     }
 }
 
-fn state_json(game: &Game, legal_actions: &mut Vec<Action>) -> Result<String, JsError> {
-    game.legal_actions(legal_actions);
-    let view = StateView {
-        width: game.topology().width(),
-        height: game.topology().height(),
-        round: game.round(),
-        active_player: game.active_player().0,
-        terminal: game.is_terminal(),
-        winner: game.winner().map(|player| player.0),
-        cells: game
-            .cells()
-            .iter()
-            .copied()
-            .zip(0_u16..)
-            .map(|(cell, id)| CellView {
-                id,
-                owner: (!cell.owner().is_neutral()).then_some(cell.owner().0),
-                object: cell.object(),
-                strength: cell.unit().strength(),
-                ready: cell.unit().is_ready(),
-                province: cell.province().is_some().then_some(cell.province().0),
-                defense: game.hex_defense(HexId(id)).unwrap_or_default(),
-            })
-            .collect(),
-        provinces: game
-            .provinces()
-            .iter()
-            .map(|province| ProvinceView {
-                id: province.id().0,
-                owner: province.owner().0,
-                money: province.money(),
-                income: game.province_income(province.id()).unwrap_or_default(),
-                upkeep: game.province_upkeep(province.id()).unwrap_or_default(),
-                profit: game.province_profit(province.id()).unwrap_or_default(),
-                capital: province.capital().0,
-                size: province.hexes().len(),
-            })
-            .collect(),
-        relations: (0..game.player_count())
-            .flat_map(|first| {
-                (0..game.player_count()).map(move |second| {
-                    let first = PlayerId(first);
-                    let second = PlayerId(second);
-                    RelationView {
-                        first: first.0,
-                        second: second.0,
-                        relation: game
-                            .relation(first, second)
-                            .expect("relation indices originate from the game player count"),
-                        proposal: game.proposal(first, second),
-                    }
-                })
-            })
-            .collect(),
-        legal_actions: legal_actions.len(),
-    };
-    serde_json::to_string(&view).map_err(|error| JsError::new(&error.to_string()))
+fn state_json(game: &Game) -> Result<String, JsError> {
+    serde_json::to_string(&GameView::from_game(game))
+        .map_err(|error| JsError::new(&error.to_string()))
 }
 
 fn profile_name(profile: antiyoy_core::RulesProfile) -> &'static str {

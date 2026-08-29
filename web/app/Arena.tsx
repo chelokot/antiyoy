@@ -10,6 +10,7 @@ type WasmModule = typeof import("@/lib/antiyoy-wasm/antiyoy_wasm");
 
 type CellView = {
   id: number;
+  playable: boolean;
   owner: number | null;
   object: string;
   strength: number;
@@ -44,7 +45,7 @@ type StateView = {
     relation: string;
     proposal: string | null;
   }>;
-  legal_actions: number;
+  legal_actions: unknown[];
 };
 
 type ReplayMetadata = {
@@ -274,7 +275,7 @@ export default function Arena() {
       <div className="arena-layout">
         <aside className="arena-sidebar arena-sidebar-left">
           <p className="eyebrow">{replayMetadata === null ? "LIVE SELF-PLAY" : "VERIFIED REPLAY"}</p><h2 className="mt-2 text-xl font-semibold">{replayMetadata === null ? "greedy-baseline" : "training trace"}</h2><p className="mt-1 text-sm text-[#8d9690]">{replayMetadata === null ? "versus seeded-random" : `${replayMetadata.frames} deterministic actions`}</p>
-          <div className="mt-8 space-y-5"><Metric label="RULESET" value={replayMetadata?.rules_profile ?? "classic_generic_2022"} /><Metric label="SEED" value={`${replayMetadata?.seed ?? 47} · reproducible`} /><Metric label="ROUND" value={state === null ? "loading" : `${state.round} · ${PLAYER_NAMES[state.active_player]} to move`} /><Metric label="LEGAL ACTIONS" value={state?.legal_actions.toString() ?? "…"} accent /></div>
+          <div className="mt-8 space-y-5"><Metric label="RULESET" value={replayMetadata?.rules_profile ?? "classic_generic_2022"} /><Metric label="SEED" value={`${replayMetadata?.seed ?? 47} · reproducible`} /><Metric label="ROUND" value={state === null ? "loading" : `${state.round} · ${PLAYER_NAMES[state.active_player]} to move`} /><Metric label="LEGAL ACTIONS" value={state?.legal_actions.length.toString() ?? "…"} accent /></div>
           <div className="mt-8 border-t border-white/10 pt-5"><p className="eyebrow">TERRITORY</p><div className="mt-4 space-y-3 text-xs"><Bar label="Cyan" value={cyanCells} width={`${cyanShare}%`} kind="cyan" /><Bar label="Amber" value={amberCells} width={`${100 - cyanShare}%`} kind="amber" /></div></div>
           <div className="engine-note"><p className="eyebrow text-[#d8ff3e]">SAME CORE</p><p className="mt-2 text-sm leading-6 text-[#b8c0ba]">Every displayed transition is executed by the headless Rust environment compiled to WebAssembly.</p></div>
           <div className="model-card">

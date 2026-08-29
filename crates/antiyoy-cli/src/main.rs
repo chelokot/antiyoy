@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use antiyoy_agents::{GreedyAgent, RandomAgent};
-use antiyoy_core::Rules;
+use antiyoy_core::{Rules, RulesProfile};
 use antiyoy_eval::{
     Elo, League as RatingLeague, MatchOutcome, Rating, Standing, run_match, score_for_first,
     symmetric_duel,
@@ -115,15 +115,16 @@ enum RulesKind {
 
 impl RulesKind {
     fn rules(self) -> Rules {
-        match self {
-            Self::ClassicGeneric => Rules::classic_generic(),
-            Self::ClassicSlay => Rules::classic_slay(),
-            Self::OnlineDefaultV1 => Rules::online_default_v1(),
-            Self::OnlineClassicV1 => Rules::online_classic_v1(),
-            Self::OnlineDuelV1 => Rules::online_duel_v1(),
-            Self::OnlineExperimentalV1 => Rules::online_experimental_v1(),
-            Self::OnlineExperimentalV2 => Rules::online_experimental_v2_260801(),
-        }
+        let profile = match self {
+            Self::ClassicGeneric => RulesProfile::ClassicGeneric,
+            Self::ClassicSlay => RulesProfile::ClassicSlay,
+            Self::OnlineDefaultV1 => RulesProfile::OnlineDefaultV1,
+            Self::OnlineClassicV1 => RulesProfile::OnlineClassicV1,
+            Self::OnlineDuelV1 => RulesProfile::OnlineDuelV1,
+            Self::OnlineExperimentalV1 => RulesProfile::OnlineExperimentalV1,
+            Self::OnlineExperimentalV2 => RulesProfile::OnlineExperimentalV2_260801,
+        };
+        Rules::from_profile(profile).expect("CLI exposes only bundled rules profiles")
     }
 }
 
