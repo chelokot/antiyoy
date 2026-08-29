@@ -238,19 +238,20 @@ fn state_json(game: &Game, legal_actions: &mut Vec<Action>) -> Result<String, Js
                 size: province.hexes().len(),
             })
             .collect(),
-        relations: game
-            .relations()
-            .iter()
-            .copied()
-            .zip(game.proposals().iter().copied())
-            .enumerate()
-            .map(|(index, (relation, proposal))| RelationView {
-                first: u8::try_from(index / usize::from(game.player_count()))
-                    .expect("relation rows are bounded by the u8 player count"),
-                second: u8::try_from(index % usize::from(game.player_count()))
-                    .expect("relation columns are bounded by the u8 player count"),
-                relation,
-                proposal,
+        relations: (0..game.player_count())
+            .flat_map(|first| {
+                (0..game.player_count()).map(move |second| {
+                    let first = PlayerId(first);
+                    let second = PlayerId(second);
+                    RelationView {
+                        first: first.0,
+                        second: second.0,
+                        relation: game
+                            .relation(first, second)
+                            .expect("relation indices originate from the game player count"),
+                        proposal: game.proposal(first, second),
+                    }
+                })
             })
             .collect(),
         legal_actions: legal_actions.len(),

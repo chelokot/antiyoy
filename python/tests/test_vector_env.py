@@ -11,10 +11,10 @@ def test_observation_and_step_contract() -> None:
     observation = environment.observe()
     assert observation["version"] == OBSERVATION_VERSION
     assert observation["cell_offsets"].tolist() == [0, 35, 70, 105, 140]
-    assert observation["relation_offsets"].tolist() == [0, 4, 8, 12, 16]
+    assert observation["relation_offsets"].tolist() == [0, 0, 0, 0, 0]
     assert observation["player_counts"].tolist() == [2, 2, 2, 2]
-    assert observation["relations"].shape == (16,)
-    assert observation["proposals"].shape == (16,)
+    assert observation["relations"].shape == (0,)
+    assert observation["proposals"].shape == (0,)
     assert observation["owners"].shape == (140,)
     assert observation["visible"].shape == (140,)
     assert set(np.unique(observation["visible"])).issubset({0, 1})

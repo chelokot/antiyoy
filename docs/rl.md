@@ -31,7 +31,8 @@ authoritative arrays remain available for centralized critics.
 Province arrays contain owner, exact signed treasury and profit, capital hex, and
 size. The representation is lossless for authoritative game state used by a
 policy and does not normalize or clamp configurable economic values.
-`relation_offsets` partitions square per-environment matrices. `relations` uses
+`relation_offsets` partitions square per-environment matrices; an environment
+with diplomacy disabled has an empty range and incurs no matrix copy. `relations` uses
 war/neutral/friend/alliance codes `0..3`; directed `proposals` uses the same
 codes and `255` for no pending offer. `player_counts` defines each matrix side.
 

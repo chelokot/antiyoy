@@ -467,14 +467,16 @@ impl BatchEnv {
             output
                 .actions
                 .extend(actions.iter().copied().map(ActionFeatures::from));
-            output
-                .relations
-                .extend(game.relations().iter().map(|relation| *relation as u8));
-            output.proposals.extend(
-                game.proposals()
-                    .iter()
-                    .map(|proposal| proposal.map_or(u8::MAX, |relation| relation as u8)),
-            );
+            if game.rules().diplomacy.enabled {
+                output
+                    .relations
+                    .extend(game.relations().iter().map(|relation| *relation as u8));
+                output.proposals.extend(
+                    game.proposals()
+                        .iter()
+                        .map(|proposal| proposal.map_or(u8::MAX, |relation| relation as u8)),
+                );
+            }
             output.cell_offsets.push(output.owners.len());
             output.province_offsets.push(output.province_money.len());
             output.action_offsets.push(output.actions.len());
@@ -599,7 +601,7 @@ mod tests {
         assert_eq!(observation.cell_offsets, [0, 35, 70, 105]);
         assert_eq!(observation.province_offsets.len(), 4);
         assert_eq!(observation.action_offsets.len(), 4);
-        assert_eq!(observation.relation_offsets, [0, 4, 8, 12]);
+        assert_eq!(observation.relation_offsets, [0, 0, 0, 0]);
         assert_eq!(observation.player_counts, [2, 2, 2]);
         assert_eq!(observation.owners.len(), 105);
         assert_eq!(observation.actions.len(), observation.action_offsets[3]);

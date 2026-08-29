@@ -17,14 +17,19 @@ struct Component {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+struct DiplomacyState {
+    relations: Vec<Relation>,
+    proposals: Vec<Option<Relation>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Game {
     rules: Rules,
     topology: Topology,
     player_count: u8,
     cells: Vec<Cell>,
     provinces: Vec<Province>,
-    relations: Vec<Relation>,
-    proposals: Vec<Option<Relation>>,
+    diplomacy: Option<Box<DiplomacyState>>,
     active_player: PlayerId,
     round: u32,
     random: DeterministicRng,
@@ -38,15 +43,19 @@ impl Game {
         Self::validate_scenario(&rules, &scenario)?;
 
         let player_count = scenario.player_count;
-        let relations = Self::initial_relations(player_count, rules.diplomacy.initial_relation);
+        let diplomacy = rules.diplomacy.enabled.then(|| {
+            Box::new(DiplomacyState {
+                relations: Self::initial_relations(player_count, rules.diplomacy.initial_relation),
+                proposals: vec![None; usize::from(player_count) * usize::from(player_count)],
+            })
+        });
         let mut game = Self {
             rules,
             topology: scenario.topology,
             player_count,
             cells: scenario.cells.into_iter().map(Cell::from).collect(),
             provinces: Vec::new(),
-            relations,
-            proposals: vec![None; usize::from(player_count) * usize::from(player_count)],
+            diplomacy,
             active_player: PlayerId(0),
             round: 1,
             random: DeterministicRng::new(scenario.seed),
@@ -84,21 +93,36 @@ impl Game {
     }
 
     pub fn relation(&self, first: PlayerId, second: PlayerId) -> Option<Relation> {
-        self.relation_index(first, second)
-            .map(|index| self.relations[index])
+        let index = self.relation_index(first, second)?;
+        Some(self.diplomacy.as_ref().map_or_else(
+            || {
+                if first == second {
+                    Relation::Alliance
+                } else {
+                    self.rules.diplomacy.initial_relation
+                }
+            },
+            |diplomacy| diplomacy.relations[index],
+        ))
     }
 
     pub fn proposal(&self, from: PlayerId, to: PlayerId) -> Option<Relation> {
-        self.relation_index(from, to)
-            .and_then(|index| self.proposals[index])
+        let index = self.relation_index(from, to)?;
+        self.diplomacy
+            .as_ref()
+            .and_then(|diplomacy| diplomacy.proposals[index])
     }
 
     pub fn relations(&self) -> &[Relation] {
-        &self.relations
+        self.diplomacy
+            .as_ref()
+            .map_or(&[], |diplomacy| diplomacy.relations.as_slice())
     }
 
     pub fn proposals(&self) -> &[Option<Relation>] {
-        &self.proposals
+        self.diplomacy
+            .as_ref()
+            .map_or(&[], |diplomacy| diplomacy.proposals.as_slice())
     }
 
     pub const fn round(&self) -> u32 {
@@ -457,7 +481,10 @@ impl Game {
             let index = self
                 .relation_index(self.active_player, target)
                 .ok_or(ActionError::InvalidPlayer(target.0))?;
-            self.proposals[index] = Some(proposal);
+            self.diplomacy
+                .as_mut()
+                .ok_or(ActionError::Disabled)?
+                .proposals[index] = Some(proposal);
             return Ok(());
         }
         match command {
@@ -478,7 +505,10 @@ impl Game {
                 let index = self
                     .relation_index(target, self.active_player)
                     .ok_or(ActionError::InvalidPlayer(target.0))?;
-                self.proposals[index] = None;
+                self.diplomacy
+                    .as_mut()
+                    .ok_or(ActionError::Disabled)?
+                    .proposals[index] = None;
             }
             DiplomacyCommand::ProposeNeutral
             | DiplomacyCommand::ProposeFriendship
@@ -499,10 +529,11 @@ impl Game {
         let reverse = self
             .relation_index(second, first)
             .ok_or(ActionError::InvalidPlayer(first.0))?;
-        self.relations[forward] = relation;
-        self.relations[reverse] = relation;
-        self.proposals[forward] = None;
-        self.proposals[reverse] = None;
+        let diplomacy = self.diplomacy.as_mut().ok_or(ActionError::Disabled)?;
+        diplomacy.relations[forward] = relation;
+        diplomacy.relations[reverse] = relation;
+        diplomacy.proposals[forward] = None;
+        diplomacy.proposals[reverse] = None;
         Ok(())
     }
 

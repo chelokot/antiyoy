@@ -196,8 +196,6 @@ class UniversalPolicy(nn.Module):
         rule_features: Tensor,
         device: torch.device,
     ) -> Tensor:
-        relations = torch.as_tensor(observation["relations"], dtype=torch.long, device=device)
-        proposals = torch.as_tensor(observation["proposals"], dtype=torch.long, device=device)
         relation_offsets = np.asarray(observation["relation_offsets"], dtype=np.int64)
         player_counts = np.asarray(observation["player_counts"], dtype=np.int64)
         active_players = np.asarray(observation["active_players"], dtype=np.int64)
@@ -209,16 +207,22 @@ class UniversalPolicy(nn.Module):
         enabled = enabled_features > 0
         if not bool(torch.any(enabled).item()):
             return torch.zeros((player_counts.size, self.hidden), device=device)
+        relations = torch.as_tensor(observation["relations"], dtype=torch.long, device=device)
+        proposals = torch.as_tensor(observation["proposals"], dtype=torch.long, device=device)
+        present = np.flatnonzero(np.diff(relation_offsets) > 0)
         environment_indices_numpy = np.repeat(
-            np.arange(player_counts.size, dtype=np.int64), player_counts
+            present.astype(np.int64), player_counts[present]
         )
         outgoing_numpy = np.concatenate(
             [
                 int(relation_offsets[environment])
                 + int(active) * int(players)
                 + np.arange(int(players), dtype=np.int64)
-                for environment, (players, active) in enumerate(
-                    zip(player_counts, active_players, strict=True)
+                for environment, players, active in zip(
+                    present,
+                    player_counts[present],
+                    active_players[present],
+                    strict=True,
                 )
             ]
         )
@@ -227,14 +231,18 @@ class UniversalPolicy(nn.Module):
                 int(relation_offsets[environment])
                 + np.arange(int(players), dtype=np.int64) * int(players)
                 + int(active)
-                for environment, (players, active) in enumerate(
-                    zip(player_counts, active_players, strict=True)
+                for environment, players, active in zip(
+                    present,
+                    player_counts[present],
+                    active_players[present],
+                    strict=True,
                 )
             ]
         )
         environment_indices = torch.as_tensor(
             environment_indices_numpy, dtype=torch.long, device=device
         )
+        present_indices = torch.as_tensor(present, dtype=torch.long, device=device)
         outgoing = torch.as_tensor(outgoing_numpy, dtype=torch.long, device=device)
         incoming = torch.as_tensor(incoming_numpy, dtype=torch.long, device=device)
         outgoing_proposals = torch.where(proposals[outgoing] == 255, 4, proposals[outgoing])
@@ -246,9 +254,11 @@ class UniversalPolicy(nn.Module):
         )
         contexts = torch.zeros((player_counts.size, self.hidden), device=device)
         contexts.index_add_(0, environment_indices, vectors)
-        contexts /= torch.as_tensor(
-            player_counts, dtype=torch.float32, device=device
+        divisors = torch.ones((player_counts.size, 1), device=device)
+        divisors[present_indices] = torch.as_tensor(
+            player_counts[present], dtype=torch.float32, device=device
         ).reshape(-1, 1)
+        contexts /= divisors
         return contexts * enabled.to(dtype=torch.float32).reshape(-1, 1)
 
     def _province_features(
