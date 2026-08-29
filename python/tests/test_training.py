@@ -9,6 +9,7 @@ from python.train import (
     Rollout,
     TrainingConfig,
     make_environment,
+    recovery_checkpoint_path,
     rollout_targets,
     validate_config,
 )
@@ -43,6 +44,7 @@ def training_config() -> TrainingConfig:
         imitation_updates=0,
         imitation_teacher="greedy",
         imitation_rollin="teacher",
+        checkpoint_every=0,
         search_nodes=256,
         search_beam_width=12,
         search_branch_width=20,
@@ -117,6 +119,19 @@ def test_training_allows_imitation_without_ppo() -> None:
 def test_training_rejects_empty_curriculum() -> None:
     with pytest.raises(ValueError, match="at least one"):
         validate_config(replace(training_config(), updates=0, imitation_updates=0))
+
+
+def test_training_rejects_checkpoint_interval_without_destination() -> None:
+    with pytest.raises(ValueError, match="requires a checkpoint"):
+        validate_config(
+            replace(training_config(), checkpoint=None, checkpoint_every=10)
+        )
+
+
+def test_recovery_checkpoint_uses_one_hidden_sibling() -> None:
+    assert recovery_checkpoint_path(Path("runs/policy.pt")) == Path(
+        "runs/.policy.latest.pt"
+    )
 
 
 def test_training_rejects_invalid_search_teacher_configuration() -> None:

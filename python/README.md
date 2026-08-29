@@ -100,6 +100,13 @@ the exact model and optimizer state while changing the profile schedule. The
 trainer rejects incompatible checkpoint, observation, and rule-feature
 versions before allocating a rollout.
 
+For interruptible shared-GPU jobs, `--checkpoint-every N` atomically replaces
+one hidden recovery checkpoint beside the requested final path every `N`
+imitation or PPO updates. Successful completion removes it, so checkpointing
+cannot accumulate files. Recovery restores exact weights and optimizer state;
+the resumed command intentionally starts a new environment batch and curriculum
+segment.
+
 Use `--initialize CHECKPOINT` for weights-only transfer from a compatible
 checkpoint while creating a fresh optimizer. This accepts the published
 checkpoint-v4/observation-v6 alpha through the same zero-column diplomacy

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import cast
@@ -53,6 +54,7 @@ class TrainingConfig:
     imitation_updates: int
     imitation_teacher: str
     imitation_rollin: str
+    checkpoint_every: int
     search_nodes: int
     search_beam_width: int
     search_branch_width: int
@@ -181,6 +183,10 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("clip_ratio must be positive")
     if config.imitation_updates < 0:
         raise ValueError("imitation_updates must not be negative")
+    if config.checkpoint_every < 0:
+        raise ValueError("checkpoint_every must not be negative")
+    if config.checkpoint_every > 0 and config.checkpoint is None:
+        raise ValueError("checkpoint_every requires a checkpoint path")
     if config.updates < 0:
         raise ValueError("updates must not be negative")
     if config.updates == 0 and config.imitation_updates == 0:
@@ -281,6 +287,7 @@ def pretrain_teacher(
     config: TrainingConfig,
     reset_seed: int,
     device: torch.device,
+    checkpoint_callback: Callable[[int, float, float], None] | None = None,
 ) -> tuple[int, float, float]:
     loss_average = 0.0
     accuracy_average = 0.0
@@ -316,6 +323,8 @@ def pretrain_teacher(
         for index in np.flatnonzero(done):
             environment.reset(int(index), reset_seed)
             reset_seed += 1
+        if checkpoint_callback is not None:
+            checkpoint_callback(update, loss_average, accuracy_average)
         if update == 1 or update % 100 == 0 or update == config.imitation_updates:
             print(
                 json.dumps(
@@ -439,6 +448,44 @@ def load_training_checkpoint(
     return checkpoint
 
 
+def recovery_checkpoint_path(path: Path) -> Path:
+    return path.with_name(f".{path.stem}.latest{path.suffix}")
+
+
+def save_training_checkpoint(
+    path: Path,
+    model: UniversalPolicy,
+    optimizer: torch.optim.Optimizer,
+    environment: VectorEnv,
+    config: TrainingConfig,
+    summary: dict[str, float | int | str],
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp")
+    torch.save(
+        {
+            "model": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "checkpoint_version": CHECKPOINT_VERSION,
+            "observation_version": OBSERVATION_VERSION,
+            "rule_features": RULE_FEATURES,
+            "training_rules_jsons": environment.rules_jsons(),
+            "training_generators_jsons": environment.generator_jsons(),
+            "config": {
+                **asdict(config),
+                "initialize": (
+                    str(config.initialize) if config.initialize is not None else None
+                ),
+                "resume": str(config.resume) if config.resume is not None else None,
+                "checkpoint": str(config.checkpoint),
+            },
+            "summary": summary,
+        },
+        temporary,
+    )
+    temporary.replace(path)
+
+
 def train(config: TrainingConfig) -> dict[str, float | int | str]:
     validate_config(config)
     np.random.seed(config.seed)
@@ -456,6 +503,29 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     imitation_loss = 0.0
     imitation_accuracy = 0.0
     imitation_started = time.perf_counter()
+    recovery_path = (
+        recovery_checkpoint_path(config.checkpoint)
+        if config.checkpoint is not None and config.checkpoint_every > 0
+        else None
+    )
+
+    def save_imitation_recovery(update: int, loss: float, accuracy: float) -> None:
+        if recovery_path is None or update % config.checkpoint_every != 0:
+            return
+        save_training_checkpoint(
+            recovery_path,
+            model,
+            optimizer,
+            environment,
+            config,
+            {
+                "stage": "imitation",
+                "imitation_update": update,
+                "imitation_loss": loss,
+                "imitation_accuracy": accuracy,
+            },
+        )
+
     if config.imitation_updates > 0:
         reset_seed, imitation_loss, imitation_accuracy = pretrain_teacher(
             environment,
@@ -465,6 +535,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             config,
             reset_seed,
             device,
+            save_imitation_recovery,
         )
     imitation_seconds = time.perf_counter() - imitation_started
     imitation_transitions = config.imitation_updates * config.environments
@@ -498,14 +569,28 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
                 ),
                 flush=True,
             )
+        if recovery_path is not None and update % config.checkpoint_every == 0:
+            save_training_checkpoint(
+                recovery_path,
+                model,
+                optimizer,
+                environment,
+                config,
+                {
+                    "stage": "ppo",
+                    "ppo_update": update,
+                    "mean_reward": reward_average,
+                    "mean_loss": loss_average,
+                },
+            )
     parameters = sum(parameter.numel() for parameter in model.parameters())
+    algorithm = "perspective_ppo_gae"
+    if config.imitation_updates > 0:
+        algorithm = f"{config.imitation_teacher}_distilled_{config.imitation_rollin}_rollin"
+        if config.updates > 0:
+            algorithm += "_perspective_ppo_gae"
     summary: dict[str, float | int | str] = {
-        "algorithm": (
-            f"{config.imitation_teacher}_distilled_"
-            f"{config.imitation_rollin}_rollin_perspective_ppo_gae"
-        )
-        if config.imitation_updates > 0
-        else "perspective_ppo_gae",
+        "algorithm": algorithm,
         "updates": config.updates,
         "environments": config.environments,
         "map_generator": "procedural_v1" if config.procedural else "symmetric_duel_v1",
@@ -531,28 +616,16 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "resumed_from": str(config.resume) if config.resume is not None else "",
     }
     if config.checkpoint is not None:
-        config.checkpoint.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(
-            {
-                "model": model.state_dict(),
-                "optimizer": optimizer.state_dict(),
-                "checkpoint_version": CHECKPOINT_VERSION,
-                "observation_version": OBSERVATION_VERSION,
-                "rule_features": RULE_FEATURES,
-                "training_rules_jsons": environment.rules_jsons(),
-                "training_generators_jsons": environment.generator_jsons(),
-                "config": {
-                    **asdict(config),
-                    "initialize": (
-                        str(config.initialize) if config.initialize is not None else None
-                    ),
-                    "resume": str(config.resume) if config.resume is not None else None,
-                    "checkpoint": str(config.checkpoint),
-                },
-                "summary": summary,
-            },
+        save_training_checkpoint(
             config.checkpoint,
+            model,
+            optimizer,
+            environment,
+            config,
+            summary,
         )
+        if recovery_path is not None:
+            recovery_path.unlink(missing_ok=True)
         summary["checkpoint"] = str(config.checkpoint)
     return summary
 
@@ -590,6 +663,7 @@ def parse_args() -> TrainingConfig:
     parser.add_argument(
         "--imitation-rollin", choices=("teacher", "policy"), default="teacher"
     )
+    parser.add_argument("--checkpoint-every", type=int, default=0)
     parser.add_argument("--search-nodes", type=int, default=2048)
     parser.add_argument("--search-beam-width", type=int, default=32)
     parser.add_argument("--search-branch-width", type=int, default=48)
