@@ -1,0 +1,47 @@
+{
+  "schema_version": 2,
+  "commit": "9489bae082ef96e86c768f17ef3fc2ee27b9a782",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_threads": 8,
+    "operating_system": "Fedora Silverblue 44",
+    "architecture": "x86_64",
+    "process_priority": "nice 10"
+  },
+  "workloads": [
+    {
+      "command": "RAYON_NUM_THREADS=8 antiyoy rl-bench --environments 256 --transitions 1000000 --json",
+      "result": {
+        "map": "symmetric_duel_v1",
+        "width": 11,
+        "height": 9,
+        "players": 2,
+        "playable_hexes_per_environment": 99,
+        "environments": 256,
+        "transitions": 1000000,
+        "observation_batches": 3907,
+        "setup_seconds": 0.001279765,
+        "elapsed_seconds": 5.202789505,
+        "transitions_per_second": 192204.58545151155,
+        "checksum": 11498816508858475694
+      }
+    },
+    {
+      "command": "RAYON_NUM_THREADS=8 antiyoy rl-bench --map procedural --width 31 --height 21 --players 4 --environments 256 --transitions 1000000 --json",
+      "result": {
+        "map": "procedural_v1",
+        "width": 31,
+        "height": 21,
+        "players": 4,
+        "playable_hexes_per_environment": 424,
+        "environments": 256,
+        "transitions": 1000000,
+        "observation_batches": 3907,
+        "setup_seconds": 0.018705452,
+        "elapsed_seconds": 16.10155954,
+        "transitions_per_second": 62105.785313265376,
+        "checksum": 3333062723318938795
+      }
+    }
+  ]
+}
