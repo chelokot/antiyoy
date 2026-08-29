@@ -1,8 +1,8 @@
 #![forbid(unsafe_code)]
 
 use antiyoy_core::{
-    Action, ActionError, ConfigError, DiplomacyCommand, Game, HexId, Object, PlayerId, Rules,
-    Scenario, Structure, Transition,
+    Action, ActionError, ConfigError, DiplomacyCommand, Game, GenerationError, GeneratorConfig,
+    HexId, Object, PlayerId, Rules, Scenario, Structure, Transition,
 };
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -193,6 +193,8 @@ pub enum BatchError {
     },
     #[error("scenario configuration failed: {0}")]
     Configuration(#[from] ConfigError),
+    #[error("scenario generation failed: {0}")]
+    Generation(#[from] GenerationError),
     #[error("legal action failed: {0}")]
     Action(#[from] ActionError),
 }
@@ -207,6 +209,7 @@ struct PlayerMetrics {
 pub struct BatchEnv {
     rules: Vec<Rules>,
     scenarios: Vec<Scenario>,
+    generators: Vec<Option<GeneratorConfig>>,
     games: Vec<Game>,
     legal_actions: Vec<Vec<Action>>,
     episode_steps: Vec<u32>,
@@ -255,6 +258,7 @@ impl BatchEnv {
         Ok(Self {
             rules,
             scenarios,
+            generators: vec![None; environments],
             games,
             legal_actions,
             episode_steps: vec![0; environments],
@@ -303,6 +307,41 @@ impl BatchEnv {
         Self::new_mixed(rules, scenarios, action_limit)
     }
 
+    pub fn procedural(
+        rules: Rules,
+        environments: usize,
+        config: &GeneratorConfig,
+        action_limit: u32,
+    ) -> Result<Self, BatchError> {
+        if environments == 0 {
+            return Err(BatchError::Empty);
+        }
+        Self::procedural_mixed(vec![rules; environments], config, action_limit)
+    }
+
+    pub fn procedural_mixed(
+        rules: Vec<Rules>,
+        config: &GeneratorConfig,
+        action_limit: u32,
+    ) -> Result<Self, BatchError> {
+        if rules.is_empty() {
+            return Err(BatchError::Empty);
+        }
+        let mut generators = Vec::with_capacity(rules.len());
+        let mut scenarios = Vec::with_capacity(rules.len());
+        let mut seed = config.seed;
+        for _ in &rules {
+            let mut environment_config = config.clone();
+            environment_config.seed = seed;
+            scenarios.push(environment_config.generate()?);
+            generators.push(Some(environment_config));
+            seed = seed.wrapping_add(1);
+        }
+        let mut batch = Self::new_mixed(rules, scenarios, action_limit)?;
+        batch.generators = generators;
+        Ok(batch)
+    }
+
     pub fn len(&self) -> usize {
         self.games.len()
     }
@@ -319,6 +358,10 @@ impl BatchEnv {
         self.games.get(index)
     }
 
+    pub fn generator_config(&self, index: usize) -> Option<&GeneratorConfig> {
+        self.generators.get(index).and_then(Option::as_ref)
+    }
+
     pub fn legal_actions(&self, index: usize) -> Option<&[Action]> {
         self.legal_actions.get(index).map(Vec::as_slice)
     }
@@ -332,15 +375,24 @@ impl BatchEnv {
     }
 
     pub fn reset_with_seed(&mut self, index: usize, seed: u64) -> Result<(), BatchError> {
-        let scenario = self
-            .scenarios
-            .get_mut(index)
-            .ok_or(BatchError::InvalidEnvironment {
+        if index >= self.games.len() {
+            return Err(BatchError::InvalidEnvironment {
                 index,
                 environments: self.games.len(),
-            })?;
-        scenario.seed = seed;
-        self.games[index] = Game::new(self.rules[index].clone(), scenario.clone())?;
+            });
+        }
+        let (scenario, generator) = if let Some(mut config) = self.generators[index].clone() {
+            config.seed = seed;
+            (config.generate()?, Some(config))
+        } else {
+            let mut scenario = self.scenarios[index].clone();
+            scenario.seed = seed;
+            (scenario, None)
+        };
+        let game = Game::new(self.rules[index].clone(), scenario.clone())?;
+        self.scenarios[index] = scenario;
+        self.generators[index] = generator;
+        self.games[index] = game;
         self.episode_steps[index] = 0;
         self.done[index] = false;
         self.games[index].legal_actions(&mut self.legal_actions[index]);
@@ -588,7 +640,7 @@ fn reward_components(
 
 #[cfg(test)]
 mod tests {
-    use antiyoy_core::{Action, DiplomacyCommand, PlayerId, Rules};
+    use antiyoy_core::{Action, DiplomacyCommand, GeneratorConfig, PlayerId, Rules};
 
     use super::{ActionFeatures, ActionKind, BatchEnv, BatchObservation};
 
@@ -681,6 +733,44 @@ mod tests {
         assert_eq!(
             environment.game(1).expect("second game").rules(),
             &Rules::online_duel_v1()
+        );
+    }
+
+    #[test]
+    fn procedural_batch_randomizes_maps_and_reset_reproduces_a_seed() {
+        let config = GeneratorConfig {
+            width: 17,
+            height: 13,
+            players: 4,
+            seed: 800,
+            land_density_per_million: 600_000,
+            ..GeneratorConfig::default()
+        };
+        let mut environment = BatchEnv::procedural(Rules::online_default_v1(), 2, &config, 500)
+            .expect("valid procedural batch");
+        let first = environment.game(0).expect("first game").clone();
+        let second = environment.game(1).expect("second game");
+        assert_ne!(first.topology(), second.topology());
+        assert_eq!(first.topology().playable_hexes().len(), 133);
+        assert_eq!(second.topology().playable_hexes().len(), 133);
+        assert_eq!(
+            environment
+                .generator_config(1)
+                .expect("procedural config")
+                .seed,
+            801
+        );
+
+        environment
+            .reset_with_seed(1, config.seed)
+            .expect("valid procedural reset");
+        assert_eq!(environment.game(1), Some(&first));
+        assert_eq!(
+            environment
+                .generator_config(1)
+                .expect("procedural config")
+                .seed,
+            config.seed
         );
     }
 }
