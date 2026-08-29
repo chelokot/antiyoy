@@ -58,6 +58,11 @@ teaches a common tactical prior from the native baseline before PPO self-play;
 held-out mirrored matches still determine whether the resulting model actually
 matches or exceeds that baseline.
 
+Use `--resume CHECKPOINT --checkpoint NEW_CHECKPOINT` to continue a run with
+the exact model and optimizer state while changing the profile schedule. The
+trainer rejects incompatible checkpoint, observation, and rule-feature
+versions before allocating a rollout.
+
 This trainer is an executable baseline for validating the complete ROCm path;
 checkpoint strength must be established by held-out mirrored tournaments before
 publishing an Elo number.

@@ -48,6 +48,7 @@ class TrainingConfig:
     profiles: list[str] | None
     fog: bool
     device: str
+    resume: Path | None
     checkpoint: Path | None
 
 
@@ -291,6 +292,23 @@ def optimize_rollout(
     return loss_sum / optimizer_steps, entropy_sum / optimizer_steps
 
 
+def restore_checkpoint(
+    path: Path,
+    model: UniversalPolicy,
+    optimizer: torch.optim.Optimizer,
+    device: torch.device,
+) -> None:
+    checkpoint = torch.load(path, map_location=device, weights_only=False)
+    if checkpoint["checkpoint_version"] != CHECKPOINT_VERSION:
+        raise ValueError("resume checkpoint format does not match this trainer")
+    if checkpoint["observation_version"] != OBSERVATION_VERSION:
+        raise ValueError("resume checkpoint observation contract does not match")
+    if checkpoint["rule_features"] != RULE_FEATURES:
+        raise ValueError("resume checkpoint rule feature width does not match")
+    model.load_state_dict(checkpoint["model"])
+    optimizer.load_state_dict(checkpoint["optimizer"])
+
+
 def train(config: TrainingConfig) -> dict[str, float | int | str]:
     validate_config(config)
     np.random.seed(config.seed)
@@ -299,6 +317,8 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     environment = make_environment(config)
     model = UniversalPolicy(config.hidden, config.layers).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+    if config.resume is not None:
+        restore_checkpoint(config.resume, model, optimizer, device)
     rules = encode_rules_batch(environment.rules_jsons(), device)
     reset_seed = config.seed + config.environments
     imitation_loss = 0.0
@@ -359,6 +379,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "mean_reward": reward_average,
         "mean_loss": loss_average,
         "device": str(device),
+        "resumed_from": str(config.resume) if config.resume is not None else "",
     }
     if config.checkpoint is not None:
         config.checkpoint.parent.mkdir(parents=True, exist_ok=True)
@@ -370,7 +391,11 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
                 "observation_version": OBSERVATION_VERSION,
                 "rule_features": RULE_FEATURES,
                 "training_rules_jsons": environment.rules_jsons(),
-                "config": {**asdict(config), "checkpoint": str(config.checkpoint)},
+                "config": {
+                    **asdict(config),
+                    "resume": str(config.resume) if config.resume is not None else None,
+                    "checkpoint": str(config.checkpoint),
+                },
                 "summary": summary,
             },
             config.checkpoint,
@@ -406,6 +431,7 @@ def parse_args() -> TrainingConfig:
     profiles.add_argument("--profiles", nargs="+")
     parser.add_argument("--fog", action="store_true")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument("--resume", type=Path)
     parser.add_argument("--checkpoint", type=Path)
     arguments = vars(parser.parse_args())
     if arguments["profile"] is None and arguments["profiles"] is None:

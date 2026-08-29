@@ -33,6 +33,7 @@ def training_config() -> TrainingConfig:
         profiles=None,
         fog=False,
         device="cpu",
+        resume=None,
         checkpoint=Path("unused.pt"),
     )
 
