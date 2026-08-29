@@ -24,6 +24,7 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(html, /classic_generic_2022/);
   assert.match(html, /ALPHA POLICY/);
   assert.match(html, /Download verified checkpoint/);
+  assert.match(html, /Load replay/);
   assert.match(html, /\/og\.png/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton/);
 });
@@ -36,6 +37,7 @@ test("ships the generated engine and social card", async () => {
     access(new URL("../public/og.png", import.meta.url)),
   ]);
   assert.match(bindings, /class WasmGame/);
+  assert.match(bindings, /class WasmReplay/);
   assert.match(packageJson, /"name": "antiyoy-arena-lab"/);
   assert.match(packageJson, /"build:wasm"/);
 });
@@ -54,4 +56,28 @@ test("executes a deterministic transition in the compiled WebAssembly engine", a
   assert.ok(initial.legal_actions > 0);
   assert.notDeepEqual(next, initial);
   game.free();
+});
+
+test("verifies and seeks through a binary replay in WebAssembly", async () => {
+  const moduleUrl = new URL("../lib/antiyoy-wasm/antiyoy_wasm.js", import.meta.url);
+  moduleUrl.searchParams.set("replay-test", `${process.pid}-${Date.now()}`);
+  const bindings = await import(moduleUrl.href);
+  const [wasm, replayBytes] = await Promise.all([
+    readFile(new URL("../lib/antiyoy-wasm/antiyoy_wasm_bg.wasm", import.meta.url)),
+    readFile(new URL("fixtures/duel-24.antiyoy", import.meta.url)),
+  ]);
+  await bindings.default({ module_or_path: wasm });
+  const replay = new bindings.WasmReplay(replayBytes);
+  const metadata = JSON.parse(replay.metadata_json());
+  const initial = JSON.parse(replay.seek(0));
+  const final = JSON.parse(replay.seek(24));
+  const rewound = JSON.parse(replay.seek(3));
+  assert.equal(metadata.seed, "47");
+  assert.equal(metadata.rules_profile, "classic_generic_2022");
+  assert.equal(metadata.frames, 24);
+  assert.equal(replay.frame_count(), 24);
+  assert.equal(initial.cells.length, 35);
+  assert.notDeepEqual(final, initial);
+  assert.notDeepEqual(rewound, final);
+  replay.free();
 });

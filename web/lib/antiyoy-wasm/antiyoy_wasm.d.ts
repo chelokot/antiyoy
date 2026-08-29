@@ -12,6 +12,15 @@ export class WasmGame {
     step_bot(): string;
 }
 
+export class WasmReplay {
+    free(): void;
+    [Symbol.dispose](): void;
+    frame_count(): number;
+    metadata_json(): string;
+    constructor(bytes: Uint8Array);
+    seek(frame: number): string;
+}
+
 export function engine_version(): number;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -25,9 +34,15 @@ export interface InitOutput {
     readonly wasmgame_legal_actions_json: (a: number, b: number) => void;
     readonly wasmgame_step: (a: number, b: number, c: number) => void;
     readonly wasmgame_step_bot: (a: number, b: number) => void;
+    readonly __wbg_wasmreplay_free: (a: number, b: number) => void;
+    readonly wasmreplay_new: (a: number, b: number, c: number) => void;
+    readonly wasmreplay_frame_count: (a: number) => number;
+    readonly wasmreplay_metadata_json: (a: number, b: number) => void;
+    readonly wasmreplay_seek: (a: number, b: number, c: number) => void;
     readonly engine_version: () => number;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
     readonly __wbindgen_export: (a: number, b: number, c: number) => void;
+    readonly __wbindgen_export2: (a: number, b: number) => number;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;

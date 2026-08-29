@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { WasmGame as WasmGameType } from "@/lib/antiyoy-wasm/antiyoy_wasm";
+import type {
+  WasmGame as WasmGameType,
+  WasmReplay as WasmReplayType,
+} from "@/lib/antiyoy-wasm/antiyoy_wasm";
+
+type WasmModule = typeof import("@/lib/antiyoy-wasm/antiyoy_wasm");
 
 type CellView = {
   id: number;
@@ -34,6 +39,14 @@ type StateView = {
   cells: CellView[];
   provinces: ProvinceView[];
   legal_actions: number;
+};
+
+type ReplayMetadata = {
+  seed: string;
+  frames: number;
+  engine_version: number;
+  format_version: number;
+  rules_profile: string;
 };
 
 const WIDTH = 11;
@@ -75,12 +88,15 @@ function pieceGlyph(cell: CellView): string {
 }
 
 export default function Arena() {
+  const wasmModule = useRef<WasmModule | null>(null);
   const game = useRef<WasmGameType | null>(null);
+  const replay = useRef<WasmReplayType | null>(null);
   const [state, setState] = useState<StateView | null>(null);
   const [selectedId, setSelectedId] = useState(Math.floor((WIDTH * HEIGHT) / 2));
   const [playing, setPlaying] = useState(false);
   const [actions, setActions] = useState(0);
   const [engineVersion, setEngineVersion] = useState<number | null>(null);
+  const [replayMetadata, setReplayMetadata] = useState<ReplayMetadata | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -90,6 +106,7 @@ export default function Arena() {
       if (disposed) {
         return;
       }
+      wasmModule.current = module;
       const instance = new module.WasmGame(WIDTH, HEIGHT, SEED);
       game.current = instance;
       setEngineVersion(module.engine_version());
@@ -99,12 +116,30 @@ export default function Arena() {
     });
     return () => {
       disposed = true;
+      replay.current?.free();
+      replay.current = null;
       game.current?.free();
       game.current = null;
+      wasmModule.current = null;
     };
   }, []);
 
   const step = useCallback(() => {
+    const replayInstance = replay.current;
+    if (replayInstance !== null && replayMetadata !== null) {
+      const nextFrame = Math.min(actions + 1, replayMetadata.frames);
+      try {
+        setState(parseState(replayInstance.seek(nextFrame)));
+        setActions(nextFrame);
+        if (nextFrame === replayMetadata.frames) {
+          setPlaying(false);
+        }
+      } catch (reason: unknown) {
+        setPlaying(false);
+        setError(reason instanceof Error ? reason.message : String(reason));
+      }
+      return;
+    }
     const instance = game.current;
     if (instance === null) {
       return;
@@ -120,7 +155,7 @@ export default function Arena() {
       setPlaying(false);
       setError(reason instanceof Error ? reason.message : String(reason));
     }
-  }, []);
+  }, [actions, replayMetadata]);
 
   useEffect(() => {
     if (!playing) {
@@ -131,10 +166,70 @@ export default function Arena() {
   }, [playing, step]);
 
   const reset = useCallback(() => {
+    if (replay.current !== null) {
+      setState(parseState(replay.current.seek(0)));
+      setActions(0);
+      setPlaying(false);
+      setError(null);
+      return;
+    }
     if (game.current === null) {
       return;
     }
     setState(parseState(game.current.reset()));
+    setActions(0);
+    setPlaying(false);
+    setError(null);
+  }, []);
+
+  const seekReplay = useCallback((frame: number) => {
+    if (replay.current === null) {
+      return;
+    }
+    try {
+      setState(parseState(replay.current.seek(frame)));
+      setActions(frame);
+      setPlaying(false);
+      setError(null);
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    }
+  }, []);
+
+  const loadReplay = useCallback(async (file: File | undefined) => {
+    const bindings = wasmModule.current;
+    if (file === undefined || bindings === null) {
+      return;
+    }
+    let candidate: WasmReplayType | null = null;
+    try {
+      candidate = new bindings.WasmReplay(new Uint8Array(await file.arrayBuffer()));
+      const instance = candidate;
+      const metadata = JSON.parse(instance.metadata_json()) as ReplayMetadata;
+      const initialState = parseState(instance.seek(0));
+      replay.current?.free();
+      replay.current = instance;
+      candidate = null;
+      setReplayMetadata(metadata);
+      setState(initialState);
+      setSelectedId(Math.floor(initialState.cells.length / 2));
+      setActions(0);
+      setPlaying(false);
+      setError(null);
+    } catch (reason: unknown) {
+      candidate?.free();
+      setError(reason instanceof Error ? reason.message : String(reason));
+    }
+  }, []);
+
+  const restoreLive = useCallback(() => {
+    replay.current?.free();
+    replay.current = null;
+    setReplayMetadata(null);
+    if (game.current !== null) {
+      setState(parseState(game.current.reset()));
+    }
+    setSelectedId(Math.floor((WIDTH * HEIGHT) / 2));
     setActions(0);
     setPlaying(false);
     setError(null);
@@ -153,8 +248,8 @@ export default function Arena() {
   const province = selected?.province === null || selected === null
     ? null
     : state?.provinces.find((candidate) => candidate.id === selected.province) ?? null;
-  const selectedQ = selectedId % WIDTH;
-  const selectedR = Math.floor(selectedId / WIDTH);
+  const selectedQ = selectedId % (state?.width ?? WIDTH);
+  const selectedR = Math.floor(selectedId / (state?.width ?? WIDTH));
   const cyanCells = state?.cells.filter((cell) => cell.owner === 0).length ?? 0;
   const amberCells = state?.cells.filter((cell) => cell.owner === 1).length ?? 0;
   const controlledCells = cyanCells + amberCells;
@@ -172,8 +267,8 @@ export default function Arena() {
 
       <div className="arena-layout">
         <aside className="arena-sidebar arena-sidebar-left">
-          <p className="eyebrow">LIVE SELF-PLAY</p><h2 className="mt-2 text-xl font-semibold">greedy-baseline</h2><p className="mt-1 text-sm text-[#8d9690]">versus seeded-random</p>
-          <div className="mt-8 space-y-5"><Metric label="RULESET" value="classic_generic_2022" /><Metric label="SEED" value="47 · reproducible" /><Metric label="ROUND" value={state === null ? "loading" : `${state.round} · ${PLAYER_NAMES[state.active_player]} to move`} /><Metric label="LEGAL ACTIONS" value={state?.legal_actions.toString() ?? "…"} accent /></div>
+          <p className="eyebrow">{replayMetadata === null ? "LIVE SELF-PLAY" : "VERIFIED REPLAY"}</p><h2 className="mt-2 text-xl font-semibold">{replayMetadata === null ? "greedy-baseline" : "training trace"}</h2><p className="mt-1 text-sm text-[#8d9690]">{replayMetadata === null ? "versus seeded-random" : `${replayMetadata.frames} deterministic actions`}</p>
+          <div className="mt-8 space-y-5"><Metric label="RULESET" value={replayMetadata?.rules_profile ?? "classic_generic_2022"} /><Metric label="SEED" value={`${replayMetadata?.seed ?? 47} · reproducible`} /><Metric label="ROUND" value={state === null ? "loading" : `${state.round} · ${PLAYER_NAMES[state.active_player]} to move`} /><Metric label="LEGAL ACTIONS" value={state?.legal_actions.toString() ?? "…"} accent /></div>
           <div className="mt-8 border-t border-white/10 pt-5"><p className="eyebrow">TERRITORY</p><div className="mt-4 space-y-3 text-xs"><Bar label="Cyan" value={cyanCells} width={`${cyanShare}%`} kind="cyan" /><Bar label="Amber" value={amberCells} width={`${100 - cyanShare}%`} kind="amber" /></div></div>
           <div className="engine-note"><p className="eyebrow text-[#d8ff3e]">SAME CORE</p><p className="mt-2 text-sm leading-6 text-[#b8c0ba]">Every displayed transition is executed by the headless Rust environment compiled to WebAssembly.</p></div>
           <div className="model-card">
@@ -186,7 +281,7 @@ export default function Arena() {
         </aside>
 
         <section className="board-panel">
-          <div className="board-controls"><button className="control control-primary" type="button" disabled={state === null || state.terminal} onClick={() => setPlaying((current) => !current)}>{playing ? "Ⅱ Pause" : "▶ Play"}</button><button className="control" type="button" disabled={state === null || state.terminal || playing} onClick={step}>Step</button><button className="control" type="button" disabled={state === null} onClick={reset}>Reset</button></div>
+          <div className="board-controls"><button className="control control-primary" type="button" disabled={state === null || state.terminal || (replayMetadata !== null && actions === replayMetadata.frames)} onClick={() => setPlaying((current) => !current)}>{playing ? "Ⅱ Pause" : "▶ Play"}</button><button className="control" type="button" disabled={state === null || state.terminal || playing || (replayMetadata !== null && actions === replayMetadata.frames)} onClick={step}>Step</button><button className="control" type="button" disabled={state === null} onClick={reset}>Reset</button>{replayMetadata === null ? <label className="control cursor-pointer">Load replay<input className="sr-only" type="file" accept=".antiyoy,application/octet-stream" onChange={(event) => void loadReplay(event.target.files?.[0])} /></label> : <button className="control" type="button" onClick={restoreLive}>Live game</button>}</div>
           <div className="board-scroll" aria-label="Interactive hex game board">
             <div className="hex-board">
               {rows.map((row, rowIndex) => <div className="hex-row" key={rowIndex}>{row.map((cell) => <Hex cell={cell} selected={cell.id === selectedId} onSelect={setSelectedId} key={cell.id} />)}</div>)}
@@ -194,7 +289,7 @@ export default function Arena() {
           </div>
           {state?.terminal && <div className="result-banner">{state.winner === null ? "DRAW" : `${PLAYER_NAMES[state.winner]} WINS`} · {actions} ACTIONS</div>}
           {error !== null && <div className="error-banner">WASM ERROR · {error}</div>}
-          <div className="timeline"><div className="flex items-center justify-between font-mono text-[0.65rem] text-[#8d9690]"><span>ACTION {actions}</span><span>{state?.terminal ? "TERMINAL" : "DETERMINISTIC TRACE"}</span></div><div className="mt-3 h-1.5 overflow-hidden bg-white/10"><div className="territory-progress" style={{ width: `${cyanShare}%` }} /></div></div>
+          <div className="timeline"><div className="flex items-center justify-between font-mono text-[0.65rem] text-[#8d9690]"><span>ACTION {actions}{replayMetadata === null ? "" : ` / ${replayMetadata.frames}`}</span><span>{state?.terminal ? "TERMINAL" : replayMetadata === null ? "DETERMINISTIC TRACE" : "REPLAY VERIFIED"}</span></div>{replayMetadata === null ? <div className="mt-3 h-1.5 overflow-hidden bg-white/10"><div className="territory-progress" style={{ width: `${cyanShare}%` }} /></div> : <input className="replay-scrubber" type="range" min="0" max={replayMetadata.frames} value={actions} aria-label="Replay action" onChange={(event) => seekReplay(Number(event.target.value))} />}</div>
         </section>
 
         <aside className="arena-sidebar arena-sidebar-right">

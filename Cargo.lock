@@ -137,6 +137,7 @@ version = "0.1.0"
 dependencies = [
  "antiyoy-agents",
  "antiyoy-core",
+ "antiyoy-protocol",
  "getrandom",
  "serde",
  "serde_json",

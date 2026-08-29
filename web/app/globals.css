@@ -39,6 +39,7 @@ button { font: inherit; }
 .unit { display: grid; width: 1.75rem; height: 1.75rem; z-index: 1; place-items: center; border: 0.1rem solid rgb(255 255 255 / 80%); border-radius: 50%; background: rgb(6 10 11 / 70%); font-family: var(--font-geist-mono), monospace; font-size: 0.7rem; font-weight: 800; }
 .piece { z-index: 1; font-size: 1.35rem; text-shadow: 0 0.15rem 0 rgb(0 0 0 / 30%); }
 .timeline { position: absolute; right: 1.25rem; bottom: 1.25rem; left: 1.25rem; border: 0.0625rem solid rgb(255 255 255 / 10%); background: rgb(0 0 0 / 45%); padding: 0.75rem; backdrop-filter: blur(0.5rem); }
+.replay-scrubber { width: 100%; margin-top: 0.75rem; accent-color: #d8ff3e; }
 .territory-progress { height: 100%; background: #17a5ac; transition: width 180ms ease; }
 .result-banner, .error-banner { position: absolute; z-index: 4; top: 5rem; left: 50%; transform: translateX(-50%); border: 0.0625rem solid #d8ff3e; background: #0b0f0d; padding: 0.75rem 1.25rem; color: #d8ff3e; font-family: var(--font-geist-mono), monospace; font-size: 0.75rem; letter-spacing: 0.12em; }
 .error-banner { max-width: calc(100% - 2rem); border-color: #ff8f63; color: #ffb399; }

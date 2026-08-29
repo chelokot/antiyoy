@@ -61,6 +61,8 @@ cargo run --release -p antiyoy-cli -- league \
 
 Any stored game can be checked independently with
 `cargo run --release -p antiyoy-cli -- verify <replay>`.
+The live WebAssembly arena accepts the same `.antiyoy` file and provides
+play/pause, single-step, backward seek, and clickable per-hex state inspection.
 
 Python trainers can install the native environment in an active virtual
 environment:
