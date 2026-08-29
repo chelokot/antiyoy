@@ -41,9 +41,15 @@ reward components supplied by Rust.
 
 ```bash
 python train.py --environments 64 --updates 1000 --device cuda \
-  --profile online_duel_v1 \
+  --profiles classic_generic_2022 classic_slay_2022 online_duel_v1 \
+    online_experimental_v2_260801 \
   --checkpoint ../models/universal-a2c.pt
 ```
+
+The profile list is cycled across the vector batch and each environment keeps
+its rules through resets. Add `--fog` to train from the active player's exact
+visibility projection; full-state mode is the faster default for centralized
+self-play.
 
 This trainer is an executable baseline for validating the complete ROCm path;
 checkpoint strength must be established by held-out mirrored tournaments before

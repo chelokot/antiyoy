@@ -9,7 +9,12 @@ import numpy as np
 import torch
 
 from antiyoy_rl import OBSERVATION_VERSION, VectorEnv
-from antiyoy_rl.model import RULE_FEATURES, UniversalPolicy, action_distribution, encode_rules
+from antiyoy_rl.model import (
+    RULE_FEATURES,
+    UniversalPolicy,
+    action_distribution,
+    encode_rules_batch,
+)
 from train import CHECKPOINT_VERSION
 
 
@@ -19,6 +24,7 @@ def evaluate(
     seed: int,
     device_name: str,
     baseline: str,
+    profile: str | None,
 ) -> dict[str, float | int | str]:
     device = torch.device(device_name)
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
@@ -32,17 +38,17 @@ def evaluate(
     model = UniversalPolicy(config["hidden"], config["layers"]).to(device)
     model.load_state_dict(checkpoint["model"])
     model.eval()
+    evaluation_profile = profile or config["profile"] or config["profiles"][0]
     environment = VectorEnv(
         games,
         width=config["width"],
         height=config["height"],
         seed=seed,
         action_limit=config["action_limit"],
-        profile=config["profile"],
+        profile=evaluation_profile,
+        fog=config["fog"],
     )
-    if environment.rules_json() != checkpoint["rules_json"]:
-        raise ValueError("checkpoint rules do not match the evaluation environment")
-    rules = encode_rules(environment.rules_json(), device)
+    rules = encode_rules_batch(environment.rules_jsons(), device)
     model_seats = np.arange(games, dtype=np.uint8) % 2
     finished = np.zeros(games, dtype=np.bool_)
     wins = 0
@@ -95,6 +101,7 @@ def evaluate(
         "elo_delta": elo_delta,
         "transitions": transitions,
         "device": str(device),
+        "profile": evaluation_profile,
     }
 
 
@@ -105,6 +112,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=100000)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--baseline", choices=("greedy", "random"), default="greedy")
+    parser.add_argument("--profile")
     arguments = parser.parse_args()
     print(
         json.dumps(
@@ -114,6 +122,7 @@ def main() -> None:
                 arguments.seed,
                 arguments.device,
                 arguments.baseline,
+                arguments.profile,
             ),
             sort_keys=True,
         )

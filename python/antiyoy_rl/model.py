@@ -13,6 +13,16 @@ RULE_FEATURES = 42
 
 
 def encode_rules(serialized: str, device: torch.device) -> Tensor:
+    return encode_rules_batch([serialized], device)[0]
+
+
+def encode_rules_batch(serialized: list[str], device: torch.device) -> Tensor:
+    values = [_rule_values(value) for value in serialized]
+    tensor = torch.tensor(values, dtype=torch.float32, device=device)
+    return torch.sign(tensor) * torch.log1p(torch.abs(tensor))
+
+
+def _rule_values(serialized: str) -> list[float]:
     rules = json.loads(serialized)
     economy = rules["economy"]
     combat = rules["combat"]
@@ -60,8 +70,7 @@ def encode_rules(serialized: str, device: torch.device) -> Tensor:
     ]
     if len(values) != RULE_FEATURES:
         raise ValueError(f"expected {RULE_FEATURES} rule features, received {len(values)}")
-    tensor = torch.tensor(values, dtype=torch.float32, device=device)
-    return torch.sign(tensor) * torch.log1p(torch.abs(tensor))
+    return values
 
 
 class HexBlock(nn.Module):
@@ -161,7 +170,11 @@ class UniversalPolicy(nn.Module):
             grid = block(grid, grid_mask)
         denominator = grid_mask.sum(dim=(2, 3)).clamp_min(1)
         pooled = (grid * grid_mask).sum(dim=(2, 3)) / denominator
-        rules = self.rule_projection(rule_features).reshape(1, self.hidden).expand(environments, -1)
+        rules = self.rule_projection(rule_features)
+        if rules.ndim == 1:
+            rules = rules.reshape(1, self.hidden).expand(environments, -1)
+        elif rules.shape[0] != environments:
+            raise ValueError("rule feature rows must match the environment count")
         global_features = pooled + rules
         flat_cells = grid.permute(0, 2, 3, 1).reshape(environments * cell_count, self.hidden)
         logits = self._action_logits(observation, flat_cells, global_features, cell_count, device)

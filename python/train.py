@@ -10,10 +10,15 @@ import torch
 from torch import Tensor
 
 from antiyoy_rl import OBSERVATION_VERSION, VectorEnv
-from antiyoy_rl.model import RULE_FEATURES, UniversalPolicy, action_distribution, encode_rules
+from antiyoy_rl.model import (
+    RULE_FEATURES,
+    UniversalPolicy,
+    action_distribution,
+    encode_rules_batch,
+)
 
 
-CHECKPOINT_VERSION = 2
+CHECKPOINT_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -33,7 +38,9 @@ class TrainingConfig:
     territory_weight: float
     treasury_weight: float
     unit_weight: float
-    profile: str
+    profile: str | None
+    profiles: list[str] | None
+    fog: bool
     device: str
     checkpoint: Path | None
 
@@ -55,17 +62,32 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     np.random.seed(config.seed)
     torch.manual_seed(config.seed)
     device = torch.device(config.device)
-    environment = VectorEnv(
-        config.environments,
-        width=config.width,
-        height=config.height,
-        seed=config.seed,
-        action_limit=config.action_limit,
-        profile=config.profile,
-    )
+    if config.profiles is None:
+        environment = VectorEnv(
+            config.environments,
+            width=config.width,
+            height=config.height,
+            seed=config.seed,
+            action_limit=config.action_limit,
+            profile=config.profile,
+            fog=config.fog,
+        )
+    else:
+        schedule = [
+            config.profiles[index % len(config.profiles)]
+            for index in range(config.environments)
+        ]
+        environment = VectorEnv.mixed(
+            schedule,
+            width=config.width,
+            height=config.height,
+            seed=config.seed,
+            action_limit=config.action_limit,
+            fog=config.fog,
+        )
     model = UniversalPolicy(config.hidden, config.layers).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
-    rules = encode_rules(environment.rules_json(), device)
+    rules = encode_rules_batch(environment.rules_jsons(), device)
     reset_seed = config.seed + config.environments
     reward_average = 0.0
     loss_average = 0.0
@@ -134,7 +156,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
                 "checkpoint_version": CHECKPOINT_VERSION,
                 "observation_version": OBSERVATION_VERSION,
                 "rule_features": RULE_FEATURES,
-                "rules_json": environment.rules_json(),
+                "training_rules_jsons": environment.rules_jsons(),
                 "config": {**asdict(config), "checkpoint": str(config.checkpoint)},
                 "summary": summary,
             },
@@ -161,11 +183,16 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--territory-weight", type=float, default=0.03)
     parser.add_argument("--treasury-weight", type=float, default=0.002)
     parser.add_argument("--unit-weight", type=float, default=0.01)
-    parser.add_argument("--profile", default="classic_generic_2022")
+    profiles = parser.add_mutually_exclusive_group()
+    profiles.add_argument("--profile")
+    profiles.add_argument("--profiles", nargs="+")
+    parser.add_argument("--fog", action="store_true")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--checkpoint", type=Path)
-    arguments = parser.parse_args()
-    return TrainingConfig(**vars(arguments))
+    arguments = vars(parser.parse_args())
+    if arguments["profile"] is None and arguments["profiles"] is None:
+        arguments["profile"] = "classic_generic_2022"
+    return TrainingConfig(**arguments)
 
 
 if __name__ == "__main__":
