@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "kind": "universal_training_smoke_test",
+  "commit": "82b25b2618e84bc5ec0d782559dfa8706fb470a9",
+  "system": {
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "vram_bytes": 25753026560,
+    "pytorch": "2.9.1+rocm6.4",
+    "allocated_cpu_threads": 8
+  },
+  "training": {
+    "algorithm": "greedy_distilled_perspective_ppo_gae",
+    "profiles": [
+      "classic_generic_2022",
+      "classic_slay_2022",
+      "online_default_v1",
+      "online_classic_v1",
+      "online_duel_v1",
+      "online_experimental_v1",
+      "online_experimental_v2_260801"
+    ],
+    "environments": 128,
+    "imitation_updates": 500,
+    "imitation_transitions": 64000,
+    "imitation_accuracy_mean": 0.7367031249999997,
+    "ppo_updates": 10,
+    "rollout_steps": 16,
+    "ppo_transitions": 20480,
+    "optimizer_steps": 320,
+    "parameters": 914690,
+    "mean_reward": 0.020664549525827167,
+    "mean_loss": 0.029902912729085077
+  },
+  "checkpoint": {
+    "sha256": "65591b4bbd6cd7ce3f1b4b8ef126c25245fdf2d36e089d51547484419314a182",
+    "size_bytes": 11199843,
+    "published": false
+  },
+  "held_out_vs_greedy": [
+    {
+      "profile": "classic_generic_2022",
+      "games": 128,
+      "wins": 101,
+      "draws": 0,
+      "losses": 27,
+      "score": 0.7890625,
+      "relative_elo": 229.1830438494621
+    },
+    {
+      "profile": "online_default_v1",
+      "games": 128,
+      "wins": 64,
+      "draws": 0,
+      "losses": 64,
+      "score": 0.5,
+      "relative_elo": 0.0
+    },
+    {
+      "profile": "online_duel_v1",
+      "games": 128,
+      "wins": 61,
+      "draws": 36,
+      "losses": 31,
+      "score": 0.6171875,
+      "relative_elo": 82.9724045047711
+    },
+    {
+      "profile": "online_experimental_v2_260801",
+      "games": 128,
+      "wins": 0,
+      "draws": 60,
+      "losses": 68,
+      "score": 0.234375,
+      "relative_elo": -205.64192838913294
+    }
+  ],
+  "conclusion": "The distilled PPO checkpoint exceeds its greedy teacher on Classic Generic and Duel, ties it on Online Default, and remains substantially weaker on Experimental v2. Relative Elo values are paired-baseline measurements, not absolute leaderboard ratings."
+}

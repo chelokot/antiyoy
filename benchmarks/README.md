@@ -23,3 +23,8 @@ Training smoke tests are also checked in as metadata-only records. They include
 the model hash and held-out results but never commit checkpoints. A smoke test
 validates the learning path; it is not a release candidate or a calibrated
 leaderboard entry.
+
+Universal curriculum records report each compatibility profile separately.
+Aggregate training loss is never used to select a checkpoint: held-out mirrored
+games against a named baseline are authoritative, including regressions and
+profiles on which a candidate remains weak.
