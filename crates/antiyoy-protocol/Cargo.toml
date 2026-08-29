@@ -1,0 +1,19 @@
+[package]
+name = "antiyoy-protocol"
+description = "Versioned replay and multiplayer protocol"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+antiyoy-core.workspace = true
+postcard.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
+

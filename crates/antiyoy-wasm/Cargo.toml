@@ -1,0 +1,23 @@
+[package]
+name = "antiyoy-wasm"
+description = "WebAssembly bindings for the Antiyoy simulation core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+antiyoy-core.workspace = true
+getrandom.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+wasm-bindgen.workspace = true
+
+[lints]
+workspace = true
+
