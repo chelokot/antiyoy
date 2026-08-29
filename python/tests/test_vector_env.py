@@ -85,6 +85,29 @@ def test_search_teacher_rejects_invalid_configuration() -> None:
         environment.search_actions(node_budget=1)
 
 
+def test_search_teacher_skips_inactive_environments() -> None:
+    environment = VectorEnv(2, width=7, height=5, seed=37)
+    actions = np.asarray(
+        environment.search_actions(
+            node_budget=256,
+            beam_width=12,
+            branch_width=20,
+            maximum_actions_per_turn=12,
+            active_mask=np.array([0, 1], dtype=np.uint8),
+        ),
+        dtype=np.uint64,
+    )
+    assert actions[0] == 0
+    counts = np.diff(environment.observe()["action_offsets"])
+    assert actions[1] < counts[1]
+
+
+def test_search_teacher_rejects_wrong_active_mask_length() -> None:
+    environment = VectorEnv(2, width=7, height=5, seed=41)
+    with pytest.raises(ValueError, match="active mask has length 1, expected 2"):
+        environment.search_actions(active_mask=np.array([1], dtype=np.uint8))
+
+
 @pytest.mark.parametrize(
     ("profile", "expected_profile"),
     [

@@ -77,6 +77,7 @@ def evaluate(
                     beam_width=search_beam_width,
                     branch_width=search_branch_width,
                     maximum_actions_per_turn=search_maximum_actions_per_turn,
+                    active_mask=np.logical_not(finished).astype(np.uint8),
                 ),
                 dtype=np.uint64,
             )

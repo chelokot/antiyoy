@@ -131,3 +131,7 @@ the state still matches exactly. Configuration changes rebuild all teacher
 agents atomically. Search runs without the GIL and parallelizes over independent
 environments with Rayon; node, beam, branch, and maximum turn-action limits are
 caller controlled.
+
+Evaluation workers may pass an `active_mask` NumPy `uint8` vector. Masked
+arenas return action index zero without running search, removing the long-tail
+cost after their result has already been recorded.

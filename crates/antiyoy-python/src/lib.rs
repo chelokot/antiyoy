@@ -376,7 +376,7 @@ impl VectorEnv {
         Ok(PyArray1::from_vec(py, indices))
     }
 
-    #[pyo3(signature = (node_budget=2048, beam_width=32, branch_width=48, maximum_actions_per_turn=24))]
+    #[pyo3(signature = (node_budget=2048, beam_width=32, branch_width=48, maximum_actions_per_turn=24, active_mask=None))]
     fn search_actions<'py>(
         &mut self,
         py: Python<'py>,
@@ -384,6 +384,7 @@ impl VectorEnv {
         beam_width: usize,
         branch_width: usize,
         maximum_actions_per_turn: usize,
+        active_mask: Option<PyReadonlyArray1<'py, u8>>,
     ) -> PyResult<Bound<'py, PyArray1<u64>>> {
         let config = SearchConfig {
             node_budget,
@@ -398,12 +399,30 @@ impl VectorEnv {
                 .map_err(|error| PyValueError::new_err(error.to_string()))?;
             self.search_config = Some(config);
         }
+        let active = active_mask
+            .map(|mask| {
+                let values = mask
+                    .as_slice()
+                    .map_err(|error| PyValueError::new_err(error.to_string()))?;
+                if values.len() != self.batch.len() {
+                    return Err(PyValueError::new_err(format!(
+                        "active mask has length {}, expected {}",
+                        values.len(),
+                        self.batch.len()
+                    )));
+                }
+                Ok(values.iter().map(|value| *value != 0).collect::<Vec<_>>())
+            })
+            .transpose()?;
         let batch = &self.batch;
         let indices = py.detach(|| {
             self.search_agents
                 .par_iter_mut()
                 .enumerate()
                 .map(|(index, agent)| {
+                    if active.as_ref().is_some_and(|mask| !mask[index]) {
+                        return Ok(0);
+                    }
                     let game = batch
                         .game(index)
                         .ok_or_else(|| PyRuntimeError::new_err("environment index disappeared"))?;
