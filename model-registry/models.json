@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "models": [
+    {
+      "id": "universal-distilled-ppo-2026-08-29",
+      "asset": "universal-distilled-ppo-2026-08-29.pt",
+      "url": "https://github.com/chelokot/antiyoy/releases/download/model-v0.1.0-alpha.1/universal-distilled-ppo-2026-08-29.pt",
+      "sha256": "65591b4bbd6cd7ce3f1b4b8ef126c25245fdf2d36e089d51547484419314a182",
+      "size_bytes": 11199843,
+      "checkpoint_version": 4,
+      "engine_version": 4,
+      "observation_version": 6,
+      "status": "experimental",
+      "relative_elo_vs_greedy": {
+        "classic_generic_2022": 229.1830438494621,
+        "online_default_v1": 0.0,
+        "online_duel_v1": 82.9724045047711,
+        "online_experimental_v2_260801": -205.64192838913294
+      }
+    }
+  ]
+}

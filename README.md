@@ -55,6 +55,22 @@ maturin develop --release
 pytest -q tests
 ```
 
+## Downloadable policies
+
+The model registry contains immutable release assets with size and SHA-256
+verification. Fetch the current experimental universal policy with:
+
+```bash
+python python/fetch_model.py
+PYTHONPATH=python python python/evaluate.py \
+  models/universal-distilled-ppo-2026-08-29.pt \
+  --games 128 --baseline greedy --profile online_duel_v1
+```
+
+This checkpoint is not assigned an absolute Elo. Its held-out relative ratings
+against the native greedy baseline are recorded per profile under
+[`benchmarks/`](benchmarks/); Experimental v2 remains below that baseline.
+
 ## Status
 
 The engine is under active construction. The compatibility matrix in
