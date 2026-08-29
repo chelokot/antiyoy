@@ -41,6 +41,11 @@ def training_config() -> TrainingConfig:
         epochs=1,
         clip_ratio=0.2,
         imitation_updates=0,
+        imitation_teacher="greedy",
+        search_nodes=256,
+        search_beam_width=12,
+        search_branch_width=20,
+        search_maximum_actions_per_turn=12,
         entropy_weight=0.01,
         value_weight=0.5,
         territory_weight=0.03,
@@ -101,3 +106,10 @@ def test_training_rejects_invalid_procedural_density() -> None:
     )
     with pytest.raises(ValueError, match="densities"):
         validate_config(config)
+
+
+def test_training_rejects_invalid_search_teacher_configuration() -> None:
+    with pytest.raises(ValueError, match="imitation_teacher"):
+        validate_config(replace(training_config(), imitation_teacher="unknown"))
+    with pytest.raises(ValueError, match="search_nodes"):
+        validate_config(replace(training_config(), search_nodes=1))

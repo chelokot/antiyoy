@@ -49,6 +49,11 @@ class TrainingConfig:
     epochs: int
     clip_ratio: float
     imitation_updates: int
+    imitation_teacher: str
+    search_nodes: int
+    search_beam_width: int
+    search_branch_width: int
+    search_maximum_actions_per_turn: int
     entropy_weight: float
     value_weight: float
     territory_weight: float
@@ -173,6 +178,16 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("clip_ratio must be positive")
     if config.imitation_updates < 0:
         raise ValueError("imitation_updates must not be negative")
+    if config.imitation_teacher not in {"greedy", "search"}:
+        raise ValueError("imitation_teacher must be greedy or search")
+    if config.search_nodes < 2:
+        raise ValueError("search_nodes must be at least two")
+    if config.search_beam_width < 1:
+        raise ValueError("search_beam_width must be positive")
+    if config.search_branch_width < 2:
+        raise ValueError("search_branch_width must be at least two")
+    if config.search_maximum_actions_per_turn < 1:
+        raise ValueError("search_maximum_actions_per_turn must be positive")
     if config.profiles is not None and not config.profiles:
         raise ValueError("profiles must not be empty")
     if config.procedural and config.players < 2:
@@ -247,21 +262,31 @@ def collect_rollout(
     )
 
 
-def pretrain_greedy(
+def pretrain_teacher(
     environment: VectorEnv,
     model: UniversalPolicy,
     optimizer: torch.optim.Optimizer,
     rules: Tensor,
-    updates: int,
+    config: TrainingConfig,
     reset_seed: int,
     device: torch.device,
 ) -> tuple[int, float, float]:
     loss_average = 0.0
     accuracy_average = 0.0
-    for update in range(1, updates + 1):
+    for update in range(1, config.imitation_updates + 1):
         observation = environment.observe()
+        selected = (
+            environment.greedy_actions()
+            if config.imitation_teacher == "greedy"
+            else environment.search_actions(
+                node_budget=config.search_nodes,
+                beam_width=config.search_beam_width,
+                branch_width=config.search_branch_width,
+                maximum_actions_per_turn=config.search_maximum_actions_per_turn,
+            )
+        )
         targets = torch.as_tensor(
-            environment.greedy_actions(), dtype=torch.long, device=device
+            selected, dtype=torch.long, device=device
         )
         logits, _ = model(observation, rules)
         distribution = action_distribution(logits, observation["action_offsets"])
@@ -278,11 +303,11 @@ def pretrain_greedy(
         for index in np.flatnonzero(done):
             environment.reset(int(index), reset_seed)
             reset_seed += 1
-        if update == 1 or update % 100 == 0 or update == updates:
+        if update == 1 or update % 100 == 0 or update == config.imitation_updates:
             print(
                 json.dumps(
                     {
-                        "stage": "greedy_distillation",
+                        "stage": f"{config.imitation_teacher}_distillation",
                         "update": update,
                         "loss": float(loss.item()),
                         "accuracy": accuracy,
@@ -394,12 +419,12 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     imitation_loss = 0.0
     imitation_accuracy = 0.0
     if config.imitation_updates > 0:
-        reset_seed, imitation_loss, imitation_accuracy = pretrain_greedy(
+        reset_seed, imitation_loss, imitation_accuracy = pretrain_teacher(
             environment,
             model,
             optimizer,
             rules,
-            config.imitation_updates,
+            config,
             reset_seed,
             device,
         )
@@ -435,7 +460,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             )
     parameters = sum(parameter.numel() for parameter in model.parameters())
     summary: dict[str, float | int | str] = {
-        "algorithm": "greedy_distilled_perspective_ppo_gae"
+        "algorithm": f"{config.imitation_teacher}_distilled_perspective_ppo_gae"
         if config.imitation_updates > 0
         else "perspective_ppo_gae",
         "updates": config.updates,
@@ -445,6 +470,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "transitions": config.updates * config.rollout_steps * config.environments,
         "optimizer_steps": config.updates * config.rollout_steps * config.epochs,
         "imitation_updates": config.imitation_updates,
+        "imitation_teacher": config.imitation_teacher,
         "imitation_loss": imitation_loss,
         "imitation_accuracy": imitation_accuracy,
         "mean_reward": reward_average,
@@ -503,6 +529,13 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--clip-ratio", type=float, default=0.2)
     parser.add_argument("--imitation-updates", type=int, default=0)
+    parser.add_argument(
+        "--imitation-teacher", choices=("greedy", "search"), default="greedy"
+    )
+    parser.add_argument("--search-nodes", type=int, default=2048)
+    parser.add_argument("--search-beam-width", type=int, default=32)
+    parser.add_argument("--search-branch-width", type=int, default=48)
+    parser.add_argument("--search-maximum-actions-per-turn", type=int, default=24)
     parser.add_argument("--entropy-weight", type=float, default=0.01)
     parser.add_argument("--value-weight", type=float, default=0.5)
     parser.add_argument("--territory-weight", type=float, default=0.03)
