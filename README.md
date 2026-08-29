@@ -55,6 +55,24 @@ RAYON_NUM_THREADS=8 cargo run --release -p antiyoy-cli -- \
 The versioned tensor contract is documented in [`docs/rl.md`](docs/rl.md).
 Reproducible machine results live under [`benchmarks/`](benchmarks/).
 
+## Deterministic search agent
+
+The native whole-turn agent combines bounded beam search with a complete greedy
+turn as its fallback candidate. It caches the chosen action sequence only while
+the authoritative state matches exactly, so interactive and tournament play
+remain deterministic. Search size is an explicit compute knob:
+
+```bash
+cargo run --release -p antiyoy-cli -- compare \
+  --pairs 16 --width 11 --height 9 --rules online-duel-v1 \
+  --first search --second greedy --search-nodes 4096 --json
+```
+
+The held-out mirrored evaluation under [`benchmarks/`](benchmarks/) covers all
+seven compatibility profiles and reports paired relative Elo rather than an
+unsubstantiated absolute rating. The browser uses the same search agent at 2048
+nodes for human games and live self-play.
+
 ## Auditable leagues
 
 The league runner persists a versioned JSON leaderboard and one compact binary
@@ -75,7 +93,8 @@ play/pause, single-step, backward seek, and clickable per-hex state inspection.
 Its live map panel also creates reproducible two-to-eight-player
 `procedural_v1` scenarios entirely in WASM, with editable dimensions, seed, and
 land density. Human mode derives every destination action from the core's legal
-mask and advances all bot opponents until control returns to the player.
+mask and advances search-controlled opponents until control returns to the
+player.
 
 ## Multiplayer rooms
 
