@@ -6,6 +6,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://antiyoy-arena-lab.chelokot.chatgpt.site"),
   title: "Antiyoy Arena Lab",
   description: "Inspect deterministic self-play, policies, state, and ratings from the Antiyoy RL environment.",
   openGraph: {

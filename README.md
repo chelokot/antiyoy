@@ -7,6 +7,8 @@ The project is organized around one invariant: the interactive game, headless
 simulation, training workers, replay viewer, and multiplayer server all execute
 the same Rust rules engine.
 
+[Open the live WebAssembly arena](https://antiyoy-arena-lab.chelokot.chatgpt.site)
+
 ## Direction
 
 - Exact compatibility profiles for classic generic and slay rules.
