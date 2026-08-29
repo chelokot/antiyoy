@@ -14,9 +14,28 @@ RAYON_NUM_THREADS=8 target/release/antiyoy rl-bench \
   --environments 256 --transitions 1000000 --json
 ```
 
-Throughput comparisons are meaningful only when the commit, environment count,
-map dimensions, observation version, thread budget, and action-selection stream
-match. The checksum detects transition or selection drift; it is not a
+The same runner accepts the complete `procedural_v1` map configuration. For
+example, a four-player connected-map workload is:
+
+```bash
+RAYON_NUM_THREADS=8 target/release/antiyoy rl-bench \
+  --map procedural --width 31 --height 21 --players 4 \
+  --land-density-per-million 650000 \
+  --starting-province-size 5 --starting-money 10 \
+  --tree-density-per-million 150000 \
+  --neutral-tower-density-per-million 20000 \
+  --neutral-capital-density-per-million 10000 \
+  --grave-density-per-million 15000 \
+  --environments 256 --transitions 1000000 --json
+```
+
+`setup_seconds` isolates batch and map generation from steady-state transition
+throughput. Every result records generator name, dimensions, player count, and
+exact playable hex count; do not compare records with different values.
+
+Throughput comparisons are meaningful only when the commit, generator config,
+environment count, observation version, thread budget, and action-selection
+stream match. The checksum detects transition or selection drift; it is not a
 cryptographic state digest.
 
 Training smoke tests are also checked in as metadata-only records. They include

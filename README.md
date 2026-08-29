@@ -44,6 +44,14 @@ RAYON_NUM_THREADS=8 cargo run --release -p antiyoy-cli -- \
   rl-bench --environments 256 --transitions 500000 --json
 ```
 
+Benchmark procedural four-player domain randomization separately:
+
+```bash
+RAYON_NUM_THREADS=8 cargo run --release -p antiyoy-cli -- \
+  rl-bench --map procedural --width 31 --height 21 --players 4 \
+  --environments 256 --transitions 500000 --json
+```
+
 The versioned tensor contract is documented in [`docs/rl.md`](docs/rl.md).
 Reproducible machine results live under [`benchmarks/`](benchmarks/).
 

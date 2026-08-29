@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use antiyoy_agents::{GreedyAgent, RandomAgent};
-use antiyoy_core::{Rules, RulesProfile};
+use antiyoy_core::{GeneratorConfig, Rules, RulesProfile};
 use antiyoy_eval::{
     Elo, League as RatingLeague, MatchOutcome, Rating, Standing, run_match, score_for_first,
     symmetric_duel,
@@ -10,7 +10,7 @@ use antiyoy_eval::{
 use antiyoy_protocol::{Digest, Replay};
 use antiyoy_rl::{BatchEnv, BatchObservation};
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde::Serialize;
 
 #[derive(Debug, Parser)]
@@ -91,6 +91,8 @@ enum Command {
         transitions: u64,
         #[arg(long, default_value_t = 1_000)]
         action_limit: u32,
+        #[command(flatten)]
+        map: RlMapArgs,
         #[arg(long)]
         json: bool,
     },
@@ -100,6 +102,85 @@ enum Command {
 enum AgentKind {
     Greedy,
     Random,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum RlMapKind {
+    Symmetric,
+    Procedural,
+}
+
+#[derive(Clone, Debug, Args)]
+struct RlMapArgs {
+    #[arg(long, value_enum, default_value_t = RlMapKind::Symmetric)]
+    map: RlMapKind,
+    #[arg(long, default_value_t = 11)]
+    width: u16,
+    #[arg(long, default_value_t = 9)]
+    height: u16,
+    #[arg(long, default_value_t = 2)]
+    players: u8,
+    #[arg(long, default_value_t = 650_000)]
+    land_density_per_million: u32,
+    #[arg(long, default_value_t = 5)]
+    starting_province_size: u16,
+    #[arg(long, default_value_t = 10)]
+    starting_money: i64,
+    #[arg(long, default_value_t = 150_000)]
+    tree_density_per_million: u32,
+    #[arg(long, default_value_t = 20_000)]
+    neutral_tower_density_per_million: u32,
+    #[arg(long, default_value_t = 10_000)]
+    neutral_capital_density_per_million: u32,
+    #[arg(long, default_value_t = 15_000)]
+    grave_density_per_million: u32,
+}
+
+impl RlMapArgs {
+    fn create_batch(&self, environments: usize, action_limit: u32) -> Result<BatchEnv> {
+        match self.map {
+            RlMapKind::Symmetric => {
+                anyhow::ensure!(
+                    self.players == 2,
+                    "symmetric maps require exactly two players"
+                );
+                Ok(BatchEnv::symmetric_duels(
+                    Rules::classic_generic(),
+                    environments,
+                    self.width,
+                    self.height,
+                    1,
+                    action_limit,
+                )?)
+            }
+            RlMapKind::Procedural => Ok(BatchEnv::procedural(
+                Rules::classic_generic(),
+                environments,
+                &GeneratorConfig {
+                    schema_version: antiyoy_core::GENERATOR_SCHEMA_VERSION,
+                    width: self.width,
+                    height: self.height,
+                    players: self.players,
+                    seed: 1,
+                    land_density_per_million: self.land_density_per_million,
+                    starting_province_size: self.starting_province_size,
+                    starting_money: self.starting_money,
+                    tree_density_per_million: self.tree_density_per_million,
+                    neutral_tower_density_per_million: self.neutral_tower_density_per_million,
+                    neutral_capital_density_per_million: self.neutral_capital_density_per_million,
+                    grave_density_per_million: self.grave_density_per_million,
+                },
+                action_limit,
+            )?),
+        }
+    }
+
+    const fn name(&self) -> &'static str {
+        match self.map {
+            RlMapKind::Symmetric => "symmetric_duel_v1",
+            RlMapKind::Procedural => "procedural_v1",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -156,9 +237,15 @@ struct LeagueSummary {
 
 #[derive(Debug, Serialize)]
 struct RlBenchmarkSummary {
+    map: &'static str,
+    width: u16,
+    height: u16,
+    players: u8,
+    playable_hexes_per_environment: usize,
     environments: usize,
     transitions: u64,
     observation_batches: u64,
+    setup_seconds: f64,
     elapsed_seconds: f64,
     transitions_per_second: f64,
     checksum: u64,
@@ -225,8 +312,9 @@ fn main() -> Result<()> {
             environments,
             transitions,
             action_limit,
+            map,
             json,
-        } => rl_bench(environments, transitions, action_limit, json)?,
+        } => rl_bench(environments, transitions, action_limit, &map, json)?,
     }
     Ok(())
 }
@@ -468,16 +556,23 @@ fn bench(games: u32, action_limit: u32) -> Result<()> {
 }
 
 #[expect(clippy::cast_precision_loss)]
-fn rl_bench(environments: usize, transitions: u64, action_limit: u32, json: bool) -> Result<()> {
+fn rl_bench(
+    environments: usize,
+    transitions: u64,
+    action_limit: u32,
+    map: &RlMapArgs,
+    json: bool,
+) -> Result<()> {
     anyhow::ensure!(transitions > 0, "transitions must be greater than zero");
-    let mut batch = BatchEnv::symmetric_duels(
-        Rules::classic_generic(),
-        environments,
-        11,
-        9,
-        1,
-        action_limit,
-    )?;
+    let setup_started = Instant::now();
+    let mut batch = map.create_batch(environments, action_limit)?;
+    let setup_seconds = setup_started.elapsed().as_secs_f64();
+    let playable_hexes_per_environment = batch
+        .game(0)
+        .context("benchmark batch must contain an environment")?
+        .topology()
+        .playable_hexes()
+        .len();
     let mut observation = BatchObservation::default();
     let mut random_state = 0x4d59_5df4_d0f3_3173_u64;
     let mut completed = 0_u64;
@@ -535,9 +630,15 @@ fn rl_bench(environments: usize, transitions: u64, action_limit: u32, json: bool
     }
     let elapsed = started.elapsed();
     let summary = RlBenchmarkSummary {
+        map: map.name(),
+        width: map.width,
+        height: map.height,
+        players: map.players,
+        playable_hexes_per_environment,
         environments,
         transitions: completed,
         observation_batches,
+        setup_seconds,
         elapsed_seconds: elapsed.as_secs_f64(),
         transitions_per_second: completed as f64 / elapsed.as_secs_f64(),
         checksum,
