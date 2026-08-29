@@ -40,9 +40,10 @@ Each checked item must have a focused engine test.
 | `online_experimental_v2_260801` | `0 / 7` | `8 + 2F` | `36` | Never | Adjacent to own capital/farm |
 
 `F` is the number of farms already present in the connected province. The
-numeric profiles, knight override, construction readiness, and Duel placement
-restriction are implemented and regression-tested. Online province split
-selection, turn timing, vegetation, diplomacy, and fog remain unchecked until
+numeric profiles, knight override, construction readiness, Duel placement
+restriction, split-treasury selection, singleton structure behavior, empty
+first round, and income-before-grave timing are implemented and
+regression-tested. Online vegetation, diplomacy, and fog remain unchecked until
 their differential fixtures are committed.
 
 ## Extensions

@@ -50,8 +50,14 @@ impl Game {
 
         game.rebuild_provinces(true);
         game.apply_treasuries(&scenario.treasuries)?;
-        game.balance_first_round();
-        game.begin_turn(false);
+        if !game.rules.lifecycle.skip_first_round_income {
+            game.balance_first_round();
+        }
+        if game.rules.lifecycle.skip_first_round_income {
+            game.prepare_active_units();
+        } else {
+            game.begin_turn(false, false);
+        }
         Ok(game)
     }
 
@@ -403,6 +409,7 @@ impl Game {
             self.cells[target.index()].object = Object::Empty;
             self.cells[target.index()].unit = Unit::new(moving_unit.strength(), false);
             self.rebuild_provinces(false);
+            self.eliminate_singleton_units_after_capture();
         }
         Ok(())
     }
@@ -463,6 +470,7 @@ impl Game {
             self.cells[target.index()].object = Object::Empty;
             self.cells[target.index()].unit = Unit::new(strength, false);
             self.rebuild_provinces(false);
+            self.eliminate_singleton_units_after_capture();
         }
         Ok(())
     }
@@ -716,11 +724,18 @@ impl Game {
 
         let previous = self.active_player;
         self.active_player = self.next_player_with_province();
-        if self.active_player.0 <= previous.0 {
+        let new_round = self.active_player.0 <= previous.0;
+        if new_round {
             self.round += 1;
-            self.expand_trees();
+            if !self.rules.lifecycle.income_before_grave_conversion {
+                self.expand_trees();
+            }
         }
-        self.begin_turn(true);
+        let collect_income = !self.rules.lifecycle.skip_first_round_income || self.round > 1;
+        self.begin_turn(
+            collect_income,
+            new_round && self.rules.lifecycle.income_before_grave_conversion,
+        );
     }
 
     fn next_player_with_province(&self) -> PlayerId {
@@ -737,30 +752,33 @@ impl Game {
         self.active_player
     }
 
-    fn begin_turn(&mut self, collect_income: bool) {
-        self.transform_graves();
+    fn begin_turn(&mut self, collect_income: bool, grow_trees_after_income: bool) {
         let province_ids: Vec<ProvinceId> = self
             .provinces
             .iter()
             .filter(|province| province.owner == self.active_player)
             .map(|province| province.id)
             .collect();
-        for province_id in province_ids {
-            let profit = self.province_profit(province_id).unwrap_or_default();
+
+        if self.rules.lifecycle.income_before_grave_conversion {
             if collect_income {
-                self.provinces[province_id.index()].money += profit;
+                self.collect_income(&province_ids);
             }
-            if self.provinces[province_id.index()].money < 0 {
-                self.provinces[province_id.index()].money = 0;
-                let hexes = self.provinces[province_id.index()].hexes.clone();
-                for hex in hexes {
-                    if self.cells[hex.index()].unit.is_present() {
-                        self.starve_unit(hex);
-                    }
-                }
+            if grow_trees_after_income {
+                self.expand_trees();
+            }
+            self.transform_graves();
+        } else {
+            self.transform_graves();
+            if collect_income {
+                self.collect_income(&province_ids);
             }
         }
+        self.resolve_bankruptcy(&province_ids);
+        self.prepare_active_units();
+    }
 
+    fn prepare_active_units(&mut self) {
         let isolated: Vec<HexId> = self
             .topology
             .playable_hexes()
@@ -794,6 +812,49 @@ impl Game {
             .collect();
         for (hex, ready) in readiness {
             self.cells[hex.index()].unit.set_ready(ready);
+        }
+    }
+
+    fn collect_income(&mut self, province_ids: &[ProvinceId]) {
+        let profits: Vec<i64> = province_ids
+            .iter()
+            .map(|province_id| self.province_profit(*province_id).unwrap_or_default())
+            .collect();
+        for (province_id, profit) in province_ids.iter().copied().zip(profits) {
+            self.provinces[province_id.index()].money += profit;
+        }
+    }
+
+    fn resolve_bankruptcy(&mut self, province_ids: &[ProvinceId]) {
+        for province_id in province_ids.iter().copied() {
+            if self.provinces[province_id.index()].money < 0 {
+                self.provinces[province_id.index()].money = 0;
+                let hexes = self.provinces[province_id.index()].hexes.clone();
+                for hex in hexes {
+                    if self.cells[hex.index()].unit.is_present() {
+                        self.starve_unit(hex);
+                    }
+                }
+            }
+        }
+    }
+
+    fn eliminate_singleton_units_after_capture(&mut self) {
+        if !self.rules.lifecycle.eliminate_singleton_units_after_capture {
+            return;
+        }
+        let singletons: Vec<HexId> = self
+            .topology
+            .playable_hexes()
+            .iter()
+            .copied()
+            .filter(|hex| {
+                let cell = self.cells[hex.index()];
+                cell.province == ProvinceId::NONE && cell.unit.is_present()
+            })
+            .collect();
+        for hex in singletons {
+            self.starve_unit(hex);
         }
     }
 
@@ -1000,33 +1061,12 @@ impl Game {
         }
         components.sort_by_key(|component| component.hexes[0]);
 
-        let mut money = vec![0_i64; components.len()];
-        if initial {
-            money.fill(self.rules.economy.starting_money);
-        } else {
-            for old_province in &old_provinces {
-                if self.cells[old_province.capital.index()].owner != old_province.owner {
-                    continue;
-                }
-                let destination = components
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, component)| component.owner == old_province.owner)
-                    .filter(|(_, component)| {
-                        component
-                            .hexes
-                            .iter()
-                            .any(|hex| old_membership[hex.index()] == old_province.id)
-                    })
-                    .max_by_key(|(_, component)| {
-                        (component.hexes.len(), std::cmp::Reverse(component.hexes[0]))
-                    })
-                    .map(|(index, _)| index);
-                if let Some(destination) = destination {
-                    money[destination] += old_province.money;
-                }
-            }
-        }
+        let money = self.province_money_after_rebuild(
+            initial,
+            &components,
+            &old_provinces,
+            &old_membership,
+        );
 
         let mut provinces = Vec::with_capacity(components.len());
         for (index, component) in components.into_iter().enumerate() {
@@ -1051,6 +1091,66 @@ impl Game {
         self.provinces = provinces;
     }
 
+    fn province_money_after_rebuild(
+        &self,
+        initial: bool,
+        components: &[Component],
+        old_provinces: &[Province],
+        old_membership: &[ProvinceId],
+    ) -> Vec<i64> {
+        if initial {
+            return vec![self.rules.economy.starting_money; components.len()];
+        }
+        let mut money = vec![0_i64; components.len()];
+        for old_province in old_provinces {
+            let candidates: Vec<(usize, &Component)> = components
+                .iter()
+                .enumerate()
+                .filter(|(_, component)| component.owner == old_province.owner)
+                .filter(|(_, component)| {
+                    component
+                        .hexes
+                        .iter()
+                        .any(|hex| old_membership[hex.index()] == old_province.id)
+                })
+                .collect();
+            if let Some(destination) = self.money_destination(old_province, &candidates) {
+                money[destination] += old_province.money;
+            }
+        }
+        money
+    }
+
+    fn money_destination(
+        &self,
+        old_province: &Province,
+        candidates: &[(usize, &Component)],
+    ) -> Option<usize> {
+        if self.rules.lifecycle.split_money_follows_capital_then_farms {
+            return candidates
+                .iter()
+                .find(|(_, component)| component.hexes.contains(&old_province.capital))
+                .map(|(index, _)| *index)
+                .or_else(|| {
+                    candidates
+                        .iter()
+                        .max_by_key(|(index, component)| {
+                            (self.farm_count(&component.hexes), std::cmp::Reverse(*index))
+                        })
+                        .map(|(index, _)| *index)
+                });
+        }
+        if self.cells[old_province.capital.index()].owner != old_province.owner {
+            return None;
+        }
+        candidates
+            .iter()
+            .max_by_key(|(_, component)| {
+                (component.hexes.len(), std::cmp::Reverse(component.hexes[0]))
+            })
+            .map(|(index, _)| *index)
+    }
+
     fn select_capital(
         &mut self,
         component: &Component,
@@ -1068,7 +1168,12 @@ impl Game {
                     .filter(|id| id.is_some())
                     .and_then(|id| old_provinces.get(id.index()))
                     .map_or(0, |province| province.hexes.len());
-                (old_size, std::cmp::Reverse(*hex))
+                let farm_support = if self.rules.lifecycle.merge_capital_prefers_farm_support {
+                    self.adjacent_friendly_farms(*hex, component.owner)
+                } else {
+                    0
+                };
+                (farm_support, old_size, std::cmp::Reverse(*hex))
             });
         if let Some(existing) = existing {
             return existing;
@@ -1108,10 +1213,31 @@ impl Game {
             let object = self.cells[hex.index()].object;
             if object == Object::Capital {
                 self.cells[hex.index()].object = self.tree_for_hex(*hex);
-            } else if object.is_building() {
+            } else if object.is_building() && !self.rules.lifecycle.singleton_buildings_persist {
                 self.cells[hex.index()].object = Object::Empty;
             }
         }
+    }
+
+    fn farm_count(&self, hexes: &[HexId]) -> usize {
+        hexes
+            .iter()
+            .filter(|hex| self.cells[hex.index()].object == Object::Farm)
+            .count()
+    }
+
+    fn adjacent_friendly_farms(&self, hex: HexId, owner: PlayerId) -> usize {
+        self.topology
+            .neighbours(hex)
+            .into_iter()
+            .flatten()
+            .copied()
+            .filter(|neighbour| neighbour.is_valid())
+            .filter(|neighbour| {
+                let cell = self.cells[neighbour.index()];
+                cell.owner == owner && cell.object == Object::Farm
+            })
+            .count()
     }
 }
 
@@ -1246,6 +1372,102 @@ mod tests {
             .expect("surviving enemy province");
         assert_eq!(enemy.money, 0);
         assert_ne!(enemy.capital, HexId(0));
+    }
+
+    #[test]
+    fn online_capital_capture_moves_treasury_to_a_surviving_fragment() {
+        let scenario = split_fixture_scenario();
+        let mut game = Game::new(Rules::online_default_v1(), scenario).expect("valid game");
+        let enemy_money = game.province_at(HexId(0)).expect("enemy province").money;
+
+        game.step(Action::Recruit {
+            province: HexId(5),
+            target: HexId(0),
+            strength: 4,
+        })
+        .expect("knight captures online capital");
+
+        assert_eq!(
+            game.provinces()
+                .iter()
+                .filter(|province| province.owner == PlayerId(1))
+                .map(|province| province.money)
+                .sum::<i64>(),
+            enemy_money
+        );
+    }
+
+    #[test]
+    fn online_singleton_tower_persists_after_capital_capture() {
+        let topology = Topology::rectangle(4, 1).expect("valid topology");
+        let mut scenario = Scenario::empty(topology, 2, 17);
+        for hex in [0, 1] {
+            scenario.cells[hex] = InitialCell::owned(PlayerId(0));
+        }
+        for hex in [2, 3] {
+            scenario.cells[hex] = InitialCell::owned(PlayerId(1));
+        }
+        scenario.cells[0].object = Object::Capital;
+        scenario.cells[2].object = Object::Capital;
+        scenario.cells[3].object = Object::Tower;
+        scenario.treasuries.push(Treasury {
+            province: HexId(0),
+            money: 100,
+        });
+
+        let mut classic =
+            Game::new(Rules::classic_generic(), scenario.clone()).expect("classic game");
+        classic
+            .step(Action::Recruit {
+                province: HexId(0),
+                target: HexId(2),
+                strength: 4,
+            })
+            .expect("classic capital capture");
+        assert_eq!(
+            classic.cell(HexId(3)).expect("singleton").object(),
+            Object::Empty
+        );
+
+        let mut online = Game::new(Rules::online_default_v1(), scenario).expect("online game");
+        online
+            .step(Action::Recruit {
+                province: HexId(0),
+                target: HexId(2),
+                strength: 4,
+            })
+            .expect("online capital capture");
+        assert_eq!(
+            online.cell(HexId(3)).expect("singleton").object(),
+            Object::Tower
+        );
+    }
+
+    #[test]
+    fn online_turn_income_precedes_grave_conversion_after_the_empty_first_round() {
+        let topology = Topology::rectangle(4, 1).expect("valid topology");
+        let mut scenario = Scenario::empty(topology, 2, 29);
+        for hex in [0, 1] {
+            scenario.cells[hex] = InitialCell::owned(PlayerId(0));
+        }
+        for hex in [2, 3] {
+            scenario.cells[hex] = InitialCell::owned(PlayerId(1));
+        }
+        scenario.cells[0].object = Object::Capital;
+        scenario.cells[1].object = Object::Grave;
+        scenario.cells[3].object = Object::Capital;
+
+        let mut online = Game::new(Rules::online_default_v1(), scenario).expect("online game");
+        assert_eq!(online.province_at(HexId(0)).expect("province").money, 10);
+        online
+            .step(Action::EndTurn)
+            .expect("player zero first turn");
+        assert_eq!(online.province_at(HexId(2)).expect("province").money, 10);
+        online.step(Action::EndTurn).expect("player one first turn");
+
+        assert_eq!(online.round(), 2);
+        assert_eq!(online.province_at(HexId(0)).expect("province").money, 12);
+        assert!(online.cell(HexId(1)).expect("grave hex").object().is_tree());
     }
 
     #[test]
@@ -1513,6 +1735,10 @@ mod tests {
     }
 
     fn split_fixture() -> Game {
+        Game::new(Rules::classic_generic(), split_fixture_scenario()).expect("valid game")
+    }
+
+    fn split_fixture_scenario() -> Scenario {
         let topology = Topology::rectangle(5, 2).expect("valid topology");
         let mut scenario = Scenario::empty(topology, 2, 13);
         for hex in 0..5 {
@@ -1533,6 +1759,6 @@ mod tests {
                 money: 100,
             },
         ];
-        Game::new(Rules::classic_generic(), scenario).expect("valid game")
+        scenario
     }
 }

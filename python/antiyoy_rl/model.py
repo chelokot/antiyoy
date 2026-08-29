@@ -9,7 +9,7 @@ from torch import Tensor, nn
 from torch.nn import functional as functional
 
 
-RULE_FEATURES = 32
+RULE_FEATURES = 38
 
 
 def encode_rules(serialized: str, device: torch.device) -> Tensor:
@@ -17,6 +17,7 @@ def encode_rules(serialized: str, device: torch.device) -> Tensor:
     economy = rules["economy"]
     combat = rules["combat"]
     vegetation = rules["vegetation"]
+    lifecycle = rules["lifecycle"]
     values = [
         rules["minimum_province_size"],
         economy["starting_money"],
@@ -46,6 +47,12 @@ def encode_rules(serialized: str, device: torch.device) -> Tensor:
         vegetation["pine_minimum_neighbours"],
         vegetation["pine_spread_per_million"] / 1_000_000,
         vegetation["palm_spread_per_million"] / 1_000_000,
+        int(lifecycle["split_money_follows_capital_then_farms"]),
+        int(lifecycle["merge_capital_prefers_farm_support"]),
+        int(lifecycle["singleton_buildings_persist"]),
+        int(lifecycle["eliminate_singleton_units_after_capture"]),
+        int(lifecycle["skip_first_round_income"]),
+        int(lifecycle["income_before_grave_conversion"]),
     ]
     if len(values) != RULE_FEATURES:
         raise ValueError(f"expected {RULE_FEATURES} rule features, received {len(values)}")

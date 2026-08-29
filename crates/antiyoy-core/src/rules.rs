@@ -57,6 +57,16 @@ pub struct VegetationRules {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct LifecycleRules {
+    pub split_money_follows_capital_then_farms: bool,
+    pub merge_capital_prefers_farm_support: bool,
+    pub singleton_buildings_persist: bool,
+    pub eliminate_singleton_units_after_capture: bool,
+    pub skip_first_round_income: bool,
+    pub income_before_grave_conversion: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Rules {
     pub schema_version: u16,
     pub profile: RulesProfile,
@@ -64,12 +74,13 @@ pub struct Rules {
     pub economy: EconomyRules,
     pub combat: CombatRules,
     pub vegetation: VegetationRules,
+    pub lifecycle: LifecycleRules,
 }
 
 impl Rules {
     pub fn classic_generic() -> Self {
         Self {
-            schema_version: 2,
+            schema_version: 3,
             profile: RulesProfile::ClassicGeneric,
             minimum_province_size: 2,
             economy: EconomyRules {
@@ -105,6 +116,14 @@ impl Rules {
                 pine_spread_per_million: 200_000,
                 palm_spread_per_million: 300_000,
             },
+            lifecycle: LifecycleRules {
+                split_money_follows_capital_then_farms: false,
+                merge_capital_prefers_farm_support: false,
+                singleton_buildings_persist: false,
+                eliminate_singleton_units_after_capture: false,
+                skip_first_round_income: false,
+                income_before_grave_conversion: false,
+            },
         }
     }
 
@@ -127,6 +146,14 @@ impl Rules {
     pub fn online_default_v1() -> Self {
         let mut rules = Self::classic_generic();
         rules.profile = RulesProfile::OnlineDefaultV1;
+        rules.lifecycle = LifecycleRules {
+            split_money_follows_capital_then_farms: true,
+            merge_capital_prefers_farm_support: true,
+            singleton_buildings_persist: true,
+            eliminate_singleton_units_after_capture: true,
+            skip_first_round_income: true,
+            income_before_grave_conversion: true,
+        };
         rules
     }
 
