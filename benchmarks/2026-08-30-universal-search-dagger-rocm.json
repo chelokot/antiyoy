@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "kind": "universal_search_dagger_beta",
+  "training_commits": [
+    "084b7b8d70bba0ea144b64c3406595c9e7b1ce58",
+    "3fba0988f0ec167217a40c6d744279744fb941aa"
+  ],
+  "evaluation_commit": "72b3bfd1555d3edba1f086da85fa94913e95f734",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 8,
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "pytorch": "2.9.1+rocm6.4",
+    "process_priority": "nice 10"
+  },
+  "training": {
+    "stages": [
+      {
+        "teacher": "deterministic_whole_turn_search",
+        "rollin": "teacher",
+        "profiles": "all_7_versioned_profiles",
+        "map": "procedural_v1",
+        "width": 31,
+        "height": 21,
+        "players": 4,
+        "environments": 128,
+        "imitation_updates": 500,
+        "imitation_transitions": 64000,
+        "imitation_accuracy_mean": 0.5927968750000006,
+        "imitation_seconds": 63.30812999099726,
+        "ppo_updates": 10,
+        "ppo_transitions": 20480
+      },
+      {
+        "teacher": "deterministic_whole_turn_search",
+        "rollin": "policy",
+        "profiles": [
+          "classic_generic_2022",
+          "online_default_v1",
+          "online_duel_v1",
+          "online_experimental_v2_260801"
+        ],
+        "map": "procedural_v1",
+        "width": 31,
+        "height": 21,
+        "players": 4,
+        "environments": 32,
+        "imitation_updates": 1000,
+        "imitation_transitions": 32000,
+        "imitation_accuracy_mean": 0.4955625000000002,
+        "imitation_seconds": 318.81920342094963,
+        "ppo_updates": 10,
+        "ppo_transitions": 5120
+      }
+    ],
+    "search_nodes": 2048,
+    "search_beam_width": 32,
+    "search_branch_width": 48,
+    "search_maximum_actions_per_turn": 24,
+    "parameters": 916482
+  },
+  "checkpoint": {
+    "asset": "universal-search-dagger-2026-08-30.pt",
+    "sha256": "f83e8d97fcca9df3890d173c67fcc85a506d38d1770521896d4542264fbceee4",
+    "size_bytes": 11109163,
+    "checkpoint_version": 5,
+    "engine_version": 5,
+    "observation_version": 7
+  },
+  "arena": {
+    "generator": "symmetric_duel_v1",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "action_limit": 1000,
+    "games_per_profile": 32,
+    "baseline": "deterministic_whole_turn_search",
+    "search_nodes": 2048
+  },
+  "held_out_vs_search": [
+    {
+      "profile": "classic_generic_2022",
+      "seed": 120000,
+      "wins": 24,
+      "draws": 0,
+      "losses": 8,
+      "truncations": 0,
+      "score": 0.75,
+      "relative_elo": 190.84850188786498
+    },
+    {
+      "profile": "classic_slay_2022",
+      "seed": 120000,
+      "wins": 16,
+      "draws": 1,
+      "losses": 15,
+      "truncations": 1,
+      "score": 0.515625,
+      "relative_elo": 10.86089841744591
+    },
+    {
+      "profile": "online_default_v1",
+      "seed": 130000,
+      "wins": 31,
+      "draws": 0,
+      "losses": 1,
+      "truncations": 0,
+      "score": 0.96875,
+      "relative_elo": 596.5446775337091
+    },
+    {
+      "profile": "online_classic_v1",
+      "seed": 130000,
+      "wins": 19,
+      "draws": 3,
+      "losses": 10,
+      "truncations": 3,
+      "score": 0.640625,
+      "relative_elo": 100.42240828085703
+    },
+    {
+      "profile": "online_duel_v1",
+      "seed": 130000,
+      "wins": 10,
+      "draws": 0,
+      "losses": 22,
+      "truncations": 0,
+      "score": 0.3125,
+      "relative_elo": -136.9690723288825
+    },
+    {
+      "profile": "online_experimental_v1",
+      "seed": 130000,
+      "wins": 10,
+      "draws": 0,
+      "losses": 22,
+      "truncations": 0,
+      "score": 0.3125,
+      "relative_elo": -136.9690723288825
+    },
+    {
+      "profile": "online_experimental_v2_260801",
+      "seed": 130000,
+      "wins": 16,
+      "draws": 0,
+      "losses": 16,
+      "truncations": 0,
+      "score": 0.5,
+      "relative_elo": 0.0
+    }
+  ],
+  "aggregate": {
+    "games": 224,
+    "wins": 126,
+    "draws": 4,
+    "losses": 94,
+    "truncations": 4,
+    "terminal_draws": 0,
+    "score": 0.5714285714285714,
+    "relative_elo": 49.97549464331997
+  },
+  "conclusion": "The beta policy beats search-2048 in aggregate across all seven versioned profiles and closes the alpha policy's complete Experimental v2 failure, but remains below search on Duel and Experimental v1. Ratings are paired relative measurements on the recorded arena, not absolute Elo."
+}

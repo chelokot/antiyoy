@@ -159,18 +159,22 @@ actual winner; the complete contract is in
 ## Downloadable policies
 
 The model registry contains immutable release assets with size and SHA-256
-verification. Fetch the current experimental universal policy with:
+verification. Fetch the current universal beta policy with:
 
 ```bash
 python python/fetch_model.py
 PYTHONPATH=python python python/evaluate.py \
-  models/universal-distilled-ppo-2026-08-29.pt \
-  --games 128 --baseline greedy --profile online_duel_v1
+  models/universal-search-dagger-2026-08-30.pt \
+  --games 32 --baseline search --search-nodes 2048 \
+  --profile online_experimental_v2_260801 \
+  --width 11 --height 9 --action-limit 1000
 ```
 
-This checkpoint is not assigned an absolute Elo. Its held-out relative ratings
-against the native greedy baseline are recorded per profile under
-[`benchmarks/`](benchmarks/); Experimental v2 remains below that baseline.
+This checkpoint is not assigned an absolute Elo. It scores 126–4–94 against
+the native 2048-node search baseline across all seven versioned profiles on the
+recorded arena, for +50 paired relative Elo in aggregate. Per-profile results,
+including weaker Duel and Experimental v1 play, are recorded under
+[`benchmarks/`](benchmarks/).
 
 ## Status
 

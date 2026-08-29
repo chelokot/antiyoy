@@ -2,6 +2,27 @@
   "schema_version": 1,
   "models": [
     {
+      "id": "universal-search-dagger-2026-08-30",
+      "asset": "universal-search-dagger-2026-08-30.pt",
+      "url": "https://github.com/chelokot/antiyoy/releases/download/model-v0.2.0-beta.1/universal-search-dagger-2026-08-30.pt",
+      "sha256": "f83e8d97fcca9df3890d173c67fcc85a506d38d1770521896d4542264fbceee4",
+      "size_bytes": 11109163,
+      "checkpoint_version": 5,
+      "engine_version": 5,
+      "observation_version": 7,
+      "status": "beta",
+      "relative_elo_vs_search_2048": {
+        "aggregate": 49.97549464331997,
+        "classic_generic_2022": 190.84850188786498,
+        "classic_slay_2022": 10.86089841744591,
+        "online_default_v1": 596.5446775337091,
+        "online_classic_v1": 100.42240828085703,
+        "online_duel_v1": -136.9690723288825,
+        "online_experimental_v1": -136.9690723288825,
+        "online_experimental_v2_260801": 0.0
+      }
+    },
+    {
       "id": "universal-distilled-ppo-2026-08-29",
       "asset": "universal-distilled-ppo-2026-08-29.pt",
       "url": "https://github.com/chelokot/antiyoy/releases/download/model-v0.1.0-alpha.1/universal-distilled-ppo-2026-08-29.pt",
@@ -10,7 +31,7 @@
       "checkpoint_version": 4,
       "engine_version": 4,
       "observation_version": 6,
-      "status": "experimental",
+      "status": "legacy-experimental",
       "relative_elo_vs_greedy": {
         "classic_generic_2022": 229.1830438494621,
         "online_default_v1": 0.0,

@@ -22,8 +22,8 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(html, /Deterministic policy evaluation/);
   assert.match(html, /RUST WASM/);
   assert.match(html, /classic_generic_2022/);
-  assert.match(html, /ALPHA POLICY/);
-  assert.match(html, /vs search/);
+  assert.match(html, /BETA POLICY/);
+  assert.match(html, /vs search-2048/);
   assert.match(html, /Paired relative Elo/);
   assert.match(html, /Download verified checkpoint/);
   assert.match(html, /Load replay/);
