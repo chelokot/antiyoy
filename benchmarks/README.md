@@ -18,3 +18,8 @@ Throughput comparisons are meaningful only when the commit, environment count,
 map dimensions, observation version, thread budget, and action-selection stream
 match. The checksum detects transition or selection drift; it is not a
 cryptographic state digest.
+
+Training smoke tests are also checked in as metadata-only records. They include
+the model hash and held-out results but never commit checkpoints. A smoke test
+validates the learning path; it is not a release candidate or a calibrated
+leaderboard entry.

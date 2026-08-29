@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "kind": "training_smoke_test",
+  "commit": "d98289318b88625eb760367a1a15069c6e037a05",
+  "system": {
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "vram_bytes": 25753026560,
+    "pytorch": "2.9.1+rocm6.4",
+    "allocated_cpu_threads": 8
+  },
+  "training": {
+    "algorithm": "one_step_perspective_aware_a2c",
+    "environments": 64,
+    "updates": 200,
+    "map": [11, 9],
+    "hidden": 128,
+    "layers": 4,
+    "parameters": 912770,
+    "mean_reward": 0.013567030476406216,
+    "mean_loss": -0.024827521899715068
+  },
+  "checkpoint": {
+    "sha256": "06bda6cc29c56dc2e7018f987a1635ec9d5d55e6fb9e999d60d89643f82d395d",
+    "size_bytes": 11015023,
+    "published": false
+  },
+  "held_out_evaluation": [
+    {
+      "baseline": "random",
+      "games": 64,
+      "wins": 28,
+      "draws": 36,
+      "losses": 0,
+      "score": 0.71875,
+      "relative_elo": 162.9941306313072
+    },
+    {
+      "baseline": "greedy",
+      "games": 16,
+      "wins": 0,
+      "draws": 0,
+      "losses": 16,
+      "score": 0.0,
+      "relative_elo_with_edge_correction": -596.5446775337091
+    }
+  ],
+  "conclusion": "The complete ROCm training and mirrored evaluation path works, but this checkpoint is not competitive with greedy search and must not be assigned a leaderboard rating."
+}
