@@ -54,6 +54,12 @@ pub struct Verification {
     pub final_digest: Digest,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerifiedReplay {
+    pub verification: Verification,
+    pub game: Game,
+}
+
 #[derive(Debug, Error)]
 pub enum ReplayError {
     #[error("replay serialization failed: {0}")]
@@ -111,6 +117,10 @@ impl Replay {
     }
 
     pub fn verify(&self) -> Result<Verification, ReplayError> {
+        Ok(self.play()?.verification)
+    }
+
+    pub fn play(&self) -> Result<VerifiedReplay, ReplayError> {
         self.validate_header()?;
         let mut game = Game::new(self.header.rules.clone(), self.header.scenario.clone())?;
         let initial_digest = Digest::of_game(&game)?;
@@ -139,9 +149,12 @@ impl Replay {
             }
         }
 
-        Ok(Verification {
-            frames: self.frames.len(),
-            final_digest,
+        Ok(VerifiedReplay {
+            verification: Verification {
+                frames: self.frames.len(),
+                final_digest,
+            },
+            game,
         })
     }
 

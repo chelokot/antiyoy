@@ -91,6 +91,8 @@ dependencies = [
  "antiyoy-agents",
  "antiyoy-core",
  "antiyoy-protocol",
+ "blake3",
+ "postcard",
  "serde",
  "thiserror",
 ]

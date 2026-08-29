@@ -3,7 +3,10 @@ use std::time::Instant;
 
 use antiyoy_agents::{GreedyAgent, RandomAgent};
 use antiyoy_core::Rules;
-use antiyoy_eval::{Elo, MatchOutcome, Rating, run_match, score_for_first, symmetric_duel};
+use antiyoy_eval::{
+    Elo, League as RatingLeague, MatchOutcome, Rating, Standing, run_match, score_for_first,
+    symmetric_duel,
+};
 use antiyoy_protocol::{Digest, Replay};
 use antiyoy_rl::{BatchEnv, BatchObservation};
 use anyhow::{Context, Result};
@@ -52,6 +55,26 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    League {
+        #[arg(long, default_value = "league.json")]
+        state: PathBuf,
+        #[arg(long, default_value = "replays")]
+        replay_dir: PathBuf,
+        #[arg(long, default_value_t = 100)]
+        games: u32,
+        #[arg(long, default_value_t = 1)]
+        seed: u64,
+        #[arg(long, default_value_t = 11)]
+        width: u16,
+        #[arg(long, default_value_t = 9)]
+        height: u16,
+        #[arg(long, default_value_t = 2_000)]
+        action_limit: u32,
+        #[arg(long, value_enum, default_value_t = RulesKind::ClassicGeneric)]
+        rules: RulesKind,
+        #[arg(long)]
+        json: bool,
+    },
     Verify {
         replay: PathBuf,
     },
@@ -79,6 +102,31 @@ enum AgentKind {
     Random,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum RulesKind {
+    ClassicGeneric,
+    ClassicSlay,
+    OnlineDefaultV1,
+    OnlineClassicV1,
+    OnlineDuelV1,
+    OnlineExperimentalV1,
+    OnlineExperimentalV2,
+}
+
+impl RulesKind {
+    fn rules(self) -> Rules {
+        match self {
+            Self::ClassicGeneric => Rules::classic_generic(),
+            Self::ClassicSlay => Rules::classic_slay(),
+            Self::OnlineDefaultV1 => Rules::online_default_v1(),
+            Self::OnlineClassicV1 => Rules::online_classic_v1(),
+            Self::OnlineDuelV1 => Rules::online_duel_v1(),
+            Self::OnlineExperimentalV1 => Rules::online_experimental_v1(),
+            Self::OnlineExperimentalV2 => Rules::online_experimental_v2_260801(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 struct PlaySummary {
     first: String,
@@ -96,6 +144,13 @@ struct TournamentSummary {
     draws: u32,
     greedy: Rating,
     random: Rating,
+}
+
+#[derive(Debug, Serialize)]
+struct LeagueSummary {
+    games_added: u32,
+    total_games: usize,
+    standings: Vec<Standing>,
 }
 
 #[derive(Debug, Serialize)]
@@ -139,6 +194,27 @@ fn main() -> Result<()> {
             action_limit,
             json,
         } => tournament(games, seed, width, height, action_limit, json)?,
+        Command::League {
+            state,
+            replay_dir,
+            games,
+            seed,
+            width,
+            height,
+            action_limit,
+            rules,
+            json,
+        } => league(
+            &state,
+            &replay_dir,
+            games,
+            seed,
+            width,
+            height,
+            action_limit,
+            rules,
+            json,
+        )?,
         Command::Verify { replay } => verify(&replay)?,
         Command::Bench {
             games,
@@ -266,6 +342,82 @@ fn tournament(
         random: random_rating,
     };
     print_value(&summary, json)?;
+    Ok(())
+}
+
+#[expect(clippy::too_many_arguments)]
+fn league(
+    state_path: &Path,
+    replay_dir: &Path,
+    games: u32,
+    seed: u64,
+    width: u16,
+    height: u16,
+    action_limit: u32,
+    rules_kind: RulesKind,
+    json: bool,
+) -> Result<()> {
+    let mut league = if state_path.try_exists()? {
+        let bytes = std::fs::read(state_path)
+            .with_context(|| format!("failed to read league from {}", state_path.display()))?;
+        serde_json::from_slice::<RatingLeague>(&bytes)
+            .with_context(|| format!("failed to decode league from {}", state_path.display()))?
+    } else {
+        RatingLeague::default()
+    };
+    league.validate()?;
+    std::fs::create_dir_all(replay_dir)
+        .with_context(|| format!("failed to create replay directory {}", replay_dir.display()))?;
+
+    for game_index in 0..games {
+        let game_seed = seed + u64::from(game_index);
+        let scenario = symmetric_duel(width, height, game_seed)?;
+        let report = if game_index % 2 == 0 {
+            run_match(
+                rules_kind.rules(),
+                scenario,
+                &mut GreedyAgent::new("greedy"),
+                &mut RandomAgent::new("random", game_seed ^ 1),
+                action_limit,
+            )?
+        } else {
+            run_match(
+                rules_kind.rules(),
+                scenario,
+                &mut RandomAgent::new("random", game_seed ^ 1),
+                &mut GreedyAgent::new("greedy"),
+                action_limit,
+            )?
+        };
+        let match_id = league.record(&report)?.id;
+        let replay_path = replay_dir.join(format!("{match_id}.antiyoy"));
+        write_atomic(&replay_path, &report.replay.encode()?)?;
+    }
+
+    let encoded = serde_json::to_vec_pretty(&league)?;
+    write_atomic(state_path, &encoded)?;
+    let summary = LeagueSummary {
+        games_added: games,
+        total_games: league.matches.len(),
+        standings: league.standings(),
+    };
+    print_value(&summary, json)?;
+    Ok(())
+}
+
+fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create directory {}", parent.display()))?;
+    }
+    let temporary = path.with_extension("tmp");
+    std::fs::write(&temporary, bytes)
+        .with_context(|| format!("failed to write temporary file {}", temporary.display()))?;
+    std::fs::rename(&temporary, path)
+        .with_context(|| format!("failed to replace {}", path.display()))?;
     Ok(())
 }
 

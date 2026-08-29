@@ -46,6 +46,22 @@ RAYON_NUM_THREADS=8 cargo run --release -p antiyoy-cli -- \
 The versioned tensor contract is documented in [`docs/rl.md`](docs/rl.md).
 Reproducible machine results live under [`benchmarks/`](benchmarks/).
 
+## Auditable leagues
+
+The league runner persists a versioned JSON leaderboard and one compact binary
+replay per rated match. A result enters Elo only after the engine replays every
+action and verifies the final state and declared outcome. Exact duplicate
+matches are rejected.
+
+```bash
+cargo run --release -p antiyoy-cli -- league \
+  --games 100 --rules online-duel-v1 \
+  --state runs/duel/league.json --replay-dir runs/duel/replays --json
+```
+
+Any stored game can be checked independently with
+`cargo run --release -p antiyoy-cli -- verify <replay>`.
+
 Python trainers can install the native environment in an active virtual
 environment:
 

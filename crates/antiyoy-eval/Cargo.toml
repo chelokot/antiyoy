@@ -12,9 +12,10 @@ repository.workspace = true
 antiyoy-agents.workspace = true
 antiyoy-core.workspace = true
 antiyoy-protocol.workspace = true
+blake3.workspace = true
+postcard.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 
 [lints]
 workspace = true
-
