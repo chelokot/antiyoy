@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import cast
@@ -418,6 +419,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     reset_seed = config.seed + config.environments
     imitation_loss = 0.0
     imitation_accuracy = 0.0
+    imitation_started = time.perf_counter()
     if config.imitation_updates > 0:
         reset_seed, imitation_loss, imitation_accuracy = pretrain_teacher(
             environment,
@@ -428,6 +430,8 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             reset_seed,
             device,
         )
+    imitation_seconds = time.perf_counter() - imitation_started
+    imitation_transitions = config.imitation_updates * config.environments
     reward_average = 0.0
     loss_average = 0.0
     for update in range(1, config.updates + 1):
@@ -471,6 +475,13 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "optimizer_steps": config.updates * config.rollout_steps * config.epochs,
         "imitation_updates": config.imitation_updates,
         "imitation_teacher": config.imitation_teacher,
+        "imitation_transitions": imitation_transitions,
+        "imitation_seconds": imitation_seconds,
+        "imitation_transitions_per_second": (
+            imitation_transitions / imitation_seconds
+            if imitation_transitions > 0
+            else 0.0
+        ),
         "imitation_loss": imitation_loss,
         "imitation_accuracy": imitation_accuracy,
         "mean_reward": reward_average,
