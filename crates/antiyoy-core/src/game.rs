@@ -171,19 +171,32 @@ impl Game {
         }
         output.push(Action::EndTurn);
 
+        let mut distances = vec![usize::MAX; self.cells.len()];
+        let mut queue = VecDeque::with_capacity(self.cells.len());
+
         for province in self
             .provinces
             .iter()
             .filter(|province| province.owner == self.active_player)
         {
             for target in self.topology.playable_hexes().iter().copied() {
+                if !self.is_recruitment_target(province.id, target) {
+                    continue;
+                }
                 for strength in 1..=self.rules.combat.maximum_unit_strength {
+                    let cost = self.rules.economy.unit_price_per_level * i64::from(strength);
+                    if province.money < cost {
+                        break;
+                    }
                     let action = Action::Recruit {
                         province: province.capital,
                         target,
                         strength,
                     };
-                    if self.can_recruit(province.capital, target, strength).is_ok() {
+                    if self
+                        .validate_destination(strength, province.id, target)
+                        .is_ok()
+                    {
                         output.push(action);
                     }
                 }
@@ -206,8 +219,19 @@ impl Game {
             if cell.owner != self.active_player || !cell.unit.is_ready() {
                 continue;
             }
+            self.mark_movement_targets(
+                source,
+                usize::from(self.rules.combat.movement_range),
+                &mut distances,
+                &mut queue,
+            );
             for target in self.topology.playable_hexes().iter().copied() {
-                if self.can_move(source, target).is_ok() {
+                if source != target
+                    && distances[target.index()] != usize::MAX
+                    && self
+                        .validate_destination(cell.unit.strength(), cell.province, target)
+                        .is_ok()
+                {
                     output.push(Action::Move { source, target });
                 }
             }
@@ -398,7 +422,7 @@ impl Game {
         if self.provinces[province_id.index()].money < cost {
             return Err(ActionError::InsufficientFunds);
         }
-        if !self.is_reachable(province_anchor, target, self.topology.len()) {
+        if !self.is_recruitment_target(province_id, target) {
             return Err(ActionError::Unreachable);
         }
         self.validate_destination(strength, province_id, target)
@@ -576,6 +600,56 @@ impl Game {
             }
         }
         false
+    }
+
+    fn is_recruitment_target(&self, province: ProvinceId, target: HexId) -> bool {
+        self.cells[target.index()].province == province
+            || self
+                .topology
+                .neighbours(target)
+                .into_iter()
+                .flatten()
+                .copied()
+                .filter(|hex| hex.is_valid())
+                .any(|hex| self.cells[hex.index()].province == province)
+    }
+
+    fn mark_movement_targets(
+        &self,
+        source: HexId,
+        maximum_distance: usize,
+        distances: &mut [usize],
+        queue: &mut VecDeque<HexId>,
+    ) {
+        distances.fill(usize::MAX);
+        queue.clear();
+        let owner = self.cells[source.index()].owner;
+        let source_province = self.cells[source.index()].province;
+        distances[source.index()] = 0;
+        queue.push_back(source);
+        while let Some(current) = queue.pop_front() {
+            let next_distance = distances[current.index()] + 1;
+            if next_distance > maximum_distance {
+                continue;
+            }
+            for neighbour in self
+                .topology
+                .neighbours(current)
+                .into_iter()
+                .flatten()
+                .copied()
+                .filter(|hex| hex.is_valid())
+            {
+                if distances[neighbour.index()] != usize::MAX {
+                    continue;
+                }
+                distances[neighbour.index()] = next_distance;
+                let cell = self.cells[neighbour.index()];
+                if cell.owner == owner && cell.province == source_province {
+                    queue.push_back(neighbour);
+                }
+            }
+        }
     }
 
     fn can_attack(&self, strength: u8, target: HexId) -> bool {
@@ -1209,6 +1283,72 @@ mod tests {
             strength: 4,
         })
         .expect("generic knight bypasses defense");
+    }
+
+    #[test]
+    fn optimized_legal_actions_match_reference_trajectory() {
+        let scenario = Scenario::symmetric_duel(11, 9, 73).expect("valid duel");
+        let mut game = Game::new(Rules::classic_generic(), scenario).expect("valid game");
+        let mut optimized = Vec::new();
+        for step in 0..200 {
+            game.legal_actions(&mut optimized);
+            let reference = legal_actions_reference(&game);
+            assert_eq!(optimized, reference, "legal action mismatch at step {step}");
+            if game.is_terminal() {
+                break;
+            }
+            let selected = (step * 17 + 3) % optimized.len();
+            game.step(optimized[selected])
+                .expect("listed action is legal");
+        }
+    }
+
+    fn legal_actions_reference(game: &Game) -> Vec<Action> {
+        let mut actions = Vec::new();
+        if game.terminal {
+            return actions;
+        }
+        actions.push(Action::EndTurn);
+        for province in game
+            .provinces
+            .iter()
+            .filter(|province| province.owner == game.active_player)
+        {
+            for target in game.topology.playable_hexes().iter().copied() {
+                for strength in 1..=game.rules.combat.maximum_unit_strength {
+                    let action = Action::Recruit {
+                        province: province.capital,
+                        target,
+                        strength,
+                    };
+                    if game.can_recruit(province.capital, target, strength).is_ok() {
+                        actions.push(action);
+                    }
+                }
+            }
+            for target in province.hexes.iter().copied() {
+                for structure in [Structure::Farm, Structure::Tower, Structure::StrongTower] {
+                    if game.can_build(target, structure).is_ok() {
+                        actions.push(Action::Build { target, structure });
+                    }
+                }
+                if game.can_plant_tree(target).is_ok() {
+                    actions.push(Action::PlantTree { target });
+                }
+            }
+        }
+        for source in game.topology.playable_hexes().iter().copied() {
+            let cell = game.cells[source.index()];
+            if cell.owner != game.active_player || !cell.unit.is_ready() {
+                continue;
+            }
+            for target in game.topology.playable_hexes().iter().copied() {
+                if game.can_move(source, target).is_ok() {
+                    actions.push(Action::Move { source, target });
+                }
+            }
+        }
+        actions
     }
 
     fn split_fixture() -> Game {
