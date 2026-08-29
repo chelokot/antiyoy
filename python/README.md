@@ -153,3 +153,18 @@ python evaluate_suite.py ../models/universal-search-dagger-2026-08-30.pt \
 The suite hashes the checkpoint, records the fixed arena and search budget,
 keeps per-profile/per-seed action and timeout diagnostics, and exits nonzero
 when the optional aggregate regression gate fails. Its JSON output is atomic.
+
+## Play against a checkpoint
+
+After installing the training extra and native extension, launch the local
+neural arena with:
+
+```bash
+python play_policy.py --profile online_experimental_v2_260801
+```
+
+The default beta is downloaded through `fetch_model.py` with exact size and
+SHA-256 verification. The stdlib HTTP server binds to loopback, opens a browser,
+renders every observable hex and legal command, rejects stale revisions, and
+runs complete opponent turns under a lock. Use `--no-browser` for a remote SSH
+forward or automated smoke test.

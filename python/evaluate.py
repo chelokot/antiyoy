@@ -45,6 +45,23 @@ def named_action_counts(counts: np.ndarray) -> dict[str, int]:
     }
 
 
+def load_policy(
+    checkpoint_path: Path, device: torch.device
+) -> tuple[UniversalPolicy, dict[str, object]]:
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    if checkpoint["checkpoint_version"] not in (4, CHECKPOINT_VERSION):
+        raise ValueError("checkpoint format version does not match this evaluator")
+    if checkpoint["observation_version"] not in (6, OBSERVATION_VERSION):
+        raise ValueError("checkpoint observation version does not match the native environment")
+    if checkpoint["rule_features"] not in (42, RULE_FEATURES):
+        raise ValueError("checkpoint rule feature width does not match the policy")
+    config = checkpoint["config"]
+    model = UniversalPolicy(config["hidden"], config["layers"]).to(device)
+    load_policy_state(model, checkpoint["model"])
+    model.eval()
+    return model, config
+
+
 def evaluate(
     checkpoint_path: Path,
     games: int,
@@ -61,17 +78,7 @@ def evaluate(
     action_limit: int | None,
 ) -> dict[str, object]:
     device = torch.device(device_name)
-    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    if checkpoint["checkpoint_version"] not in (4, CHECKPOINT_VERSION):
-        raise ValueError("checkpoint format version does not match this evaluator")
-    if checkpoint["observation_version"] not in (6, OBSERVATION_VERSION):
-        raise ValueError("checkpoint observation version does not match the native environment")
-    if checkpoint["rule_features"] not in (42, RULE_FEATURES):
-        raise ValueError("checkpoint rule feature width does not match the policy")
-    config = checkpoint["config"]
-    model = UniversalPolicy(config["hidden"], config["layers"]).to(device)
-    load_policy_state(model, checkpoint["model"])
-    model.eval()
+    model, config = load_policy(checkpoint_path, device)
     evaluation_profile = profile or config["profile"] or config["profiles"][0]
     evaluation_width = config["width"] if width is None else width
     evaluation_height = config["height"] if height is None else height

@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Antiyoy Neural Policy Arena</title>
+  <style>
+    :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #080b0d; color: #e9eee9; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.5rem; border-bottom: 0.0625rem solid #27302b; background: #0d1215; }
+    h1, h2, p { margin: 0; }
+    h1 { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 1rem; }
+    h2 { margin-bottom: 1rem; font-size: 0.72rem; letter-spacing: 0.14em; color: #d8ff3e; }
+    .badge { padding: 0.4rem 0.65rem; border: 0.0625rem solid #425143; border-radius: 999rem; color: #d8ff3e; font-size: 0.7rem; }
+    .layout { display: grid; grid-template-columns: minmax(14rem, 18rem) minmax(24rem, 1fr) minmax(16rem, 21rem); min-height: calc(100vh - 4rem); }
+    aside { padding: 1.25rem; background: #0d1215; border-right: 0.0625rem solid #27302b; }
+    aside:last-child { border-right: 0; border-left: 0.0625rem solid #27302b; }
+    .metric { margin-bottom: 1rem; }
+    .label { display: block; margin-bottom: 0.3rem; color: #77817b; font-size: 0.63rem; letter-spacing: 0.12em; }
+    .value { font-size: 0.78rem; overflow-wrap: anywhere; }
+    .board-panel { min-width: 0; padding: 1rem; overflow: auto; background: radial-gradient(circle at 50% 42%, #17201b, #080b0d 65%); }
+    .board { min-width: max-content; padding: 2rem; }
+    .hex-row { display: flex; height: 3.25rem; }
+    .hex-row:nth-child(even) { margin-left: 2rem; }
+    .hex { position: relative; width: 4rem; height: 3.65rem; margin-right: 0.12rem; border: 0; clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%); background: #28312c; cursor: pointer; transition: filter 120ms ease, transform 120ms ease; }
+    .hex:hover { filter: brightness(1.2); transform: scale(1.04); z-index: 2; }
+    .hex.selected { outline: none; background-image: linear-gradient(#ffffff30, #ffffff30); filter: drop-shadow(0 0 0.45rem #d8ff3e); }
+    .hex.unplayable { visibility: hidden; pointer-events: none; }
+    .hex.owner-0 { background-color: #19b8c5; color: #061013; }
+    .hex.owner-1 { background-color: #e7aa36; color: #171006; }
+    .piece { display: block; font-size: 0.75rem; font-weight: 800; }
+    .coords { display: block; margin-top: 0.2rem; font-size: 0.48rem; opacity: 0.75; }
+    .actions { display: grid; gap: 0.5rem; max-height: 48vh; overflow: auto; }
+    .action { width: 100%; padding: 0.7rem; border: 0.0625rem solid #344039; border-radius: 0.35rem; background: #151c18; text-align: left; cursor: pointer; font-size: 0.72rem; }
+    .action:hover:not(:disabled) { border-color: #d8ff3e; }
+    .action:disabled { opacity: 0.45; cursor: wait; }
+    .reset { display: flex; gap: 0.5rem; margin-top: 1.25rem; }
+    .reset input { width: 100%; min-width: 0; padding: 0.55rem; border: 0.0625rem solid #344039; border-radius: 0.35rem; background: #080b0d; color: inherit; }
+    .reset button { padding: 0.55rem 0.75rem; border: 0; border-radius: 0.35rem; background: #d8ff3e; color: #11160f; cursor: pointer; }
+    .status { margin: 1rem 0; padding: 0.75rem; border: 0.0625rem solid #344039; color: #b8c0ba; font-size: 0.72rem; line-height: 1.5; }
+    .status.error { border-color: #e36767; color: #ffaaaa; }
+    .province { margin-top: 1rem; padding-top: 1rem; border-top: 0.0625rem solid #27302b; font-size: 0.72rem; line-height: 1.7; color: #b8c0ba; }
+    @media (max-width: 62rem) { .layout { grid-template-columns: 15rem 1fr; } aside:last-child { grid-column: 1 / -1; border-left: 0; border-top: 0.0625rem solid #27302b; } }
+    @media (max-width: 44rem) { .layout { display: block; } aside, aside:last-child { border: 0; border-bottom: 0.0625rem solid #27302b; } .board-panel { min-height: 32rem; } }
+  </style>
+</head>
+<body>
+  <header><h1>Antiyoy Neural Policy Arena</h1><span class="badge">HUMAN CYAN · BETA AMBER</span></header>
+  <main class="layout">
+    <aside>
+      <h2>MATCH</h2>
+      <div class="metric"><span class="label">CHECKPOINT</span><span class="value" id="checkpoint">loading</span></div>
+      <div class="metric"><span class="label">PROFILE</span><span class="value" id="profile">loading</span></div>
+      <div class="metric"><span class="label">SEED</span><span class="value" id="seed">loading</span></div>
+      <div class="metric"><span class="label">ROUND</span><span class="value" id="round">loading</span></div>
+      <div class="metric"><span class="label">LEGAL ACTIONS</span><span class="value" id="legal">loading</span></div>
+      <div class="status" id="status">Loading deterministic state…</div>
+      <form class="reset" id="reset-form"><input id="seed-input" type="number" min="0" step="1" aria-label="New seed"><button type="submit">Reset</button></form>
+    </aside>
+    <section class="board-panel"><div class="board" id="board" aria-label="Interactive hex board"></div></section>
+    <aside>
+      <h2>SELECTED HEX</h2>
+      <div class="metric"><span class="label">CELL</span><span class="value" id="selected">Select a playable hex</span></div>
+      <div class="province" id="province">Province data will appear here.</div>
+      <h2 style="margin-top: 1.5rem">LEGAL COMMANDS</h2>
+      <div class="actions" id="actions"></div>
+    </aside>
+  </main>
+  <script>
+    const objectNames = ["empty", "capital", "farm", "tower", "strong tower", "pine", "palm", "grave"];
+    const objectMarks = ["", "C", "F", "T", "T+", "♠", "♣", "†"];
+    const actionNames = ["End turn", "Move", "Recruit", "Build", "Plant tree", "Diplomacy"];
+    let state = null;
+    let selectedCell = null;
+    let busy = false;
+
+    async function request(path, options = {}) {
+      const response = await fetch(path, options);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? `HTTP ${response.status}`);
+      return payload;
+    }
+
+    function setStatus(message, error = false) {
+      const element = document.getElementById("status");
+      element.textContent = message;
+      element.classList.toggle("error", error);
+    }
+
+    function pieceLabel(cell) {
+      if (cell.unit > 0) return `U${cell.unit}${cell.ready ? "•" : ""}`;
+      return objectMarks[cell.object];
+    }
+
+    function actionLabel(action) {
+      const name = actionNames[action.kind];
+      if (action.kind === 0) return name;
+      if (action.kind === 1) return `${name} ${action.source} → ${action.target}`;
+      if (action.kind === 2) return `${name} U${action.parameter} in P${action.source} → ${action.target}`;
+      if (action.kind === 3) return `${name} type ${action.parameter} → ${action.target}`;
+      if (action.kind === 4) return `${name} → ${action.target}`;
+      return `${name} ${action.parameter} → player ${action.target}`;
+    }
+
+    function renderBoard() {
+      const board = document.getElementById("board");
+      board.replaceChildren();
+      for (let row = 0; row < state.height; row += 1) {
+        const rowElement = document.createElement("div");
+        rowElement.className = "hex-row";
+        for (let column = 0; column < state.width; column += 1) {
+          const cell = state.cells[row * state.width + column];
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = `hex ${cell.playable ? "" : "unplayable"} ${cell.owner === null ? "" : `owner-${cell.owner}`} ${selectedCell === cell.id ? "selected" : ""}`;
+          button.title = `hex ${cell.id} · ${objectNames[cell.object]} · defense ${cell.defense}`;
+          button.disabled = !cell.playable;
+          button.addEventListener("click", () => { selectedCell = cell.id; render(); });
+          const piece = document.createElement("span");
+          piece.className = "piece";
+          piece.textContent = pieceLabel(cell);
+          const coordinates = document.createElement("span");
+          coordinates.className = "coords";
+          coordinates.textContent = `${column},${row}`;
+          button.append(piece, coordinates);
+          rowElement.append(button);
+        }
+        board.append(rowElement);
+      }
+    }
+
+    function renderSelection() {
+      const cell = selectedCell === null ? null : state.cells[selectedCell];
+      document.getElementById("selected").textContent = cell === null ? "Select a playable hex" : `#${cell.id} · ${cell.owner === null ? "neutral" : `player ${cell.owner}`} · ${objectNames[cell.object]} · unit ${cell.unit} · defense ${cell.defense}`;
+      const province = cell?.province === null || cell === null ? null : state.provinces[cell.province];
+      document.getElementById("province").textContent = province === null ? "No connected province." : `Province ${province.id} · owner ${province.owner} · $${province.money} · ${province.profit >= 0 ? "+" : ""}${province.profit}/turn · ${province.size} hexes`;
+    }
+
+    function renderActions() {
+      const container = document.getElementById("actions");
+      container.replaceChildren();
+      const relevant = state.actions.filter((action) => action.kind === 0 || selectedCell === null || action.target === selectedCell || (action.kind === 1 && action.source === selectedCell));
+      for (const action of relevant) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "action";
+        button.disabled = busy || state.terminal || state.truncated || state.active_player !== 0;
+        button.textContent = actionLabel(action);
+        button.addEventListener("click", () => performAction(action.index));
+        container.append(button);
+      }
+      if (relevant.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "value";
+        empty.textContent = "No command touches this hex.";
+        container.append(empty);
+      }
+    }
+
+    function render() {
+      document.getElementById("checkpoint").textContent = state.checkpoint;
+      document.getElementById("profile").textContent = state.profile;
+      document.getElementById("seed").textContent = state.seed;
+      document.getElementById("round").textContent = `${state.round} · player ${state.active_player}`;
+      document.getElementById("legal").textContent = state.actions.length;
+      document.getElementById("seed-input").value = state.seed;
+      if (state.terminal) setStatus(state.winner === null ? "Terminal draw." : `${state.winner === 0 ? "You win" : "Neural beta wins"}.`);
+      else if (state.truncated) setStatus("Action limit reached: draw.");
+      else if (busy) setStatus("Neural beta is planning its complete reply…");
+      else setStatus("Your move. Select a hex, then a legal command.");
+      renderBoard();
+      renderSelection();
+      renderActions();
+    }
+
+    async function performAction(index) {
+      if (busy) return;
+      busy = true;
+      render();
+      try {
+        state = await request("/api/action", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ index, revision: state.revision }) });
+        busy = false;
+        render();
+      } catch (error) {
+        busy = false;
+        render();
+        setStatus(error.message, true);
+      }
+    }
+
+    document.getElementById("reset-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (busy) return;
+      busy = true;
+      setStatus("Generating deterministic match…");
+      try {
+        state = await request("/api/reset", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ seed: Number(document.getElementById("seed-input").value) }) });
+        selectedCell = null;
+        busy = false;
+        render();
+      } catch (error) {
+        busy = false;
+        render();
+        setStatus(error.message, true);
+      }
+    });
+
+    request("/api/state").then((payload) => { state = payload; render(); }).catch((error) => setStatus(error.message, true));
+  </script>
+</body>
+</html>

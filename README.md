@@ -176,6 +176,17 @@ recorded arena, for +50 paired relative Elo in aggregate. Per-profile results,
 including weaker Duel and Experimental v1 play, are recorded under
 [`benchmarks/`](benchmarks/).
 
+Play against the neural beta in a local browser (cyan moves first):
+
+```bash
+python python/play_policy.py --profile online_experimental_v2_260801
+```
+
+The launcher fetches and SHA-verifies the registry default when it is missing,
+binds only to `127.0.0.1`, opens an interactive hex board, and runs every amber
+reply through the checkpoint. Pass `--checkpoint`, `--seed`, `--device`, or
+`--no-browser` to override the defaults.
+
 ## Status
 
 The engine is under active construction. The compatibility matrix in
