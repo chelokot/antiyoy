@@ -9,6 +9,11 @@ const MAXIMUM_CONFIGURED_UNIT_STRENGTH: u8 = 4;
 pub enum RulesProfile {
     ClassicGeneric,
     ClassicSlay,
+    OnlineDefaultV1,
+    OnlineClassicV1,
+    OnlineDuelV1,
+    OnlineExperimentalV1,
+    OnlineExperimentalV2_260801,
     Custom,
 }
 
@@ -38,6 +43,9 @@ pub struct CombatRules {
     pub towers_enabled: bool,
     pub strong_towers_enabled: bool,
     pub tree_planting_enabled: bool,
+    pub recruited_units_ready_on_owned_empty: bool,
+    pub recruited_merge_preserves_readiness: bool,
+    pub foreign_recruit_requires_economic_neighbour: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -61,7 +69,7 @@ pub struct Rules {
 impl Rules {
     pub fn classic_generic() -> Self {
         Self {
-            schema_version: 1,
+            schema_version: 2,
             profile: RulesProfile::ClassicGeneric,
             minimum_province_size: 2,
             economy: EconomyRules {
@@ -87,6 +95,9 @@ impl Rules {
                 towers_enabled: true,
                 strong_towers_enabled: true,
                 tree_planting_enabled: true,
+                recruited_units_ready_on_owned_empty: true,
+                recruited_merge_preserves_readiness: true,
+                foreign_recruit_requires_economic_neighbour: false,
             },
             vegetation: VegetationRules {
                 enabled: true,
@@ -110,6 +121,42 @@ impl Rules {
         rules.combat.tree_planting_enabled = false;
         rules.vegetation.pine_spread_per_million = 800_000;
         rules.vegetation.palm_spread_per_million = 1_000_000;
+        rules
+    }
+
+    pub fn online_default_v1() -> Self {
+        let mut rules = Self::classic_generic();
+        rules.profile = RulesProfile::OnlineDefaultV1;
+        rules
+    }
+
+    pub fn online_classic_v1() -> Self {
+        let mut rules = Self::classic_slay();
+        rules.profile = RulesProfile::OnlineClassicV1;
+        rules
+    }
+
+    pub fn online_duel_v1() -> Self {
+        let mut rules = Self::online_default_v1();
+        rules.profile = RulesProfile::OnlineDuelV1;
+        rules.combat.recruited_units_ready_on_owned_empty = false;
+        rules.combat.recruited_merge_preserves_readiness = false;
+        rules.combat.foreign_recruit_requires_economic_neighbour = true;
+        rules
+    }
+
+    pub fn online_experimental_v1() -> Self {
+        let mut rules = Self::online_duel_v1();
+        rules.profile = RulesProfile::OnlineExperimentalV1;
+        rules
+    }
+
+    pub fn online_experimental_v2_260801() -> Self {
+        let mut rules = Self::online_experimental_v1();
+        rules.profile = RulesProfile::OnlineExperimentalV2_260801;
+        rules.economy.clear_hex_income = 0;
+        rules.economy.farm_hex_income = 7;
+        rules.economy.farm_base_price = 8;
         rules
     }
 
@@ -162,11 +209,26 @@ mod tests {
         assert!(slay.combat.towers_enabled);
         assert!(!slay.combat.strong_towers_enabled);
         assert!(!slay.combat.strongest_unit_ignores_defense);
+
+        let duel = Rules::online_duel_v1();
+        assert!(!duel.combat.recruited_units_ready_on_owned_empty);
+        assert!(!duel.combat.recruited_merge_preserves_readiness);
+        assert!(duel.combat.foreign_recruit_requires_economic_neighbour);
+
+        let experimental = Rules::online_experimental_v2_260801();
+        assert_eq!(experimental.economy.clear_hex_income, 0);
+        assert_eq!(experimental.economy.farm_hex_income, 7);
+        assert_eq!(experimental.economy.farm_base_price, 8);
     }
 
     #[test]
     fn bundled_profiles_are_valid() {
         assert_eq!(Rules::classic_generic().validate(), Ok(()));
         assert_eq!(Rules::classic_slay().validate(), Ok(()));
+        assert_eq!(Rules::online_default_v1().validate(), Ok(()));
+        assert_eq!(Rules::online_classic_v1().validate(), Ok(()));
+        assert_eq!(Rules::online_duel_v1().validate(), Ok(()));
+        assert_eq!(Rules::online_experimental_v1().validate(), Ok(()));
+        assert_eq!(Rules::online_experimental_v2_260801().validate(), Ok(()));
     }
 }

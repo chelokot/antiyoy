@@ -9,7 +9,7 @@ from torch import Tensor, nn
 from torch.nn import functional as functional
 
 
-RULE_FEATURES = 29
+RULE_FEATURES = 32
 
 
 def encode_rules(serialized: str, device: torch.device) -> Tensor:
@@ -39,6 +39,9 @@ def encode_rules(serialized: str, device: torch.device) -> Tensor:
         int(combat["towers_enabled"]),
         int(combat["strong_towers_enabled"]),
         int(combat["tree_planting_enabled"]),
+        int(combat["recruited_units_ready_on_owned_empty"]),
+        int(combat["recruited_merge_preserves_readiness"]),
+        int(combat["foreign_recruit_requires_economic_neighbour"]),
         int(vegetation["enabled"]),
         vegetation["pine_minimum_neighbours"],
         vegetation["pine_spread_per_million"] / 1_000_000,

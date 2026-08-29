@@ -11,7 +11,8 @@ the same Rust rules engine.
 
 ## Direction
 
-- Exact compatibility profiles for classic generic and slay rules.
+- Versioned compatibility profiles for Classic, Slay, Online, Duel, and
+  Experimental v1/v2 economies and construction rules.
 - Compact deterministic state and actions with stable binary replays.
 - Batched headless environments and Python bindings for RL training.
 - Browser rendering through WebAssembly with no duplicate game logic.

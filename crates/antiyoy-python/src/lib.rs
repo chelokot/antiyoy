@@ -30,6 +30,11 @@ impl VectorEnv {
         let rules = match profile {
             "classic_generic_2022" => Rules::classic_generic(),
             "classic_slay_2022" => Rules::classic_slay(),
+            "online_default_v1" => Rules::online_default_v1(),
+            "online_classic_v1" => Rules::online_classic_v1(),
+            "online_duel_v1" => Rules::online_duel_v1(),
+            "online_experimental_v1" => Rules::online_experimental_v1(),
+            "online_experimental_v2_260801" => Rules::online_experimental_v2_260801(),
             _ => {
                 return Err(PyValueError::new_err(format!(
                     "unknown rules profile: {profile}"

@@ -180,7 +180,7 @@ impl Game {
             .filter(|province| province.owner == self.active_player)
         {
             for target in self.topology.playable_hexes().iter().copied() {
-                if !self.is_recruitment_target(province.id, target) {
+                if !self.is_recruitment_zone_target(province.id, target) {
                     continue;
                 }
                 for strength in 1..=self.rules.combat.maximum_unit_strength {
@@ -393,8 +393,11 @@ impl Game {
                 self.provinces[source_province.index()].money += self.rules.economy.tree_cut_reward;
             }
             self.cells[target.index()].object = Object::Empty;
-            let strength = moving_unit.strength() + self.cells[target.index()].unit.strength();
-            self.cells[target.index()].unit = Unit::new(strength, false);
+            let target_unit = self.cells[target.index()].unit;
+            let strength = moving_unit.strength() + target_unit.strength();
+            let ready =
+                target_unit.is_present() && moving_unit.is_ready() && target_unit.is_ready();
+            self.cells[target.index()].unit = Unit::new(strength, ready);
         } else {
             self.cells[target.index()].owner = self.active_player;
             self.cells[target.index()].object = Object::Empty;
@@ -422,7 +425,7 @@ impl Game {
         if self.provinces[province_id.index()].money < cost {
             return Err(ActionError::InsufficientFunds);
         }
-        if !self.is_recruitment_target(province_id, target) {
+        if !self.is_recruitment_zone_target(province_id, target) {
             return Err(ActionError::Unreachable);
         }
         self.validate_destination(strength, province_id, target)
@@ -447,9 +450,12 @@ impl Game {
             self.cells[target.index()].object = Object::Empty;
             let merged_strength = self.cells[target.index()].unit.strength() + strength;
             let ready = if self.cells[target.index()].unit.is_present() {
-                self.cells[target.index()].unit.is_ready()
+                self.rules.combat.recruited_merge_preserves_readiness
+                    && self.cells[target.index()].unit.is_ready()
             } else {
-                !had_object && self.has_friendly_neighbour(target, self.active_player)
+                self.rules.combat.recruited_units_ready_on_owned_empty
+                    && !had_object
+                    && self.has_friendly_neighbour(target, self.active_player)
             };
             self.cells[target.index()].unit = Unit::new(merged_strength, ready);
         } else {
@@ -612,6 +618,16 @@ impl Game {
                 .copied()
                 .filter(|hex| hex.is_valid())
                 .any(|hex| self.cells[hex.index()].province == province)
+    }
+
+    fn is_recruitment_zone_target(&self, province: ProvinceId, target: HexId) -> bool {
+        self.is_recruitment_target(province, target)
+            && (self.cells[target.index()].owner == self.active_player
+                || !self
+                    .rules
+                    .combat
+                    .foreign_recruit_requires_economic_neighbour
+                || self.has_friendly_economic_neighbour(target))
     }
 
     fn mark_movement_targets(
@@ -891,6 +907,20 @@ impl Game {
             .copied()
             .filter(|neighbour| neighbour.is_valid())
             .any(|neighbour| self.cells[neighbour.index()].owner == owner)
+    }
+
+    fn has_friendly_economic_neighbour(&self, hex: HexId) -> bool {
+        self.topology
+            .neighbours(hex)
+            .into_iter()
+            .flatten()
+            .copied()
+            .filter(|neighbour| neighbour.is_valid())
+            .any(|neighbour| {
+                let cell = self.cells[neighbour.index()];
+                cell.owner == self.active_player
+                    && matches!(cell.object, Object::Capital | Object::Farm)
+            })
     }
 
     fn hex_income(&self, hex: HexId) -> i64 {
@@ -1286,6 +1316,119 @@ mod tests {
     }
 
     #[test]
+    fn duel_recruits_are_not_ready_on_owned_empty_hexes() {
+        let scenario = recruitment_fixture(false);
+        let mut default_game =
+            Game::new(Rules::online_default_v1(), scenario.clone()).expect("valid game");
+        default_game
+            .step(Action::Recruit {
+                province: HexId(0),
+                target: HexId(1),
+                strength: 1,
+            })
+            .expect("default recruit");
+        assert!(
+            default_game
+                .cell(HexId(1))
+                .expect("target")
+                .unit()
+                .is_ready()
+        );
+
+        let mut duel_game = Game::new(Rules::online_duel_v1(), scenario).expect("valid game");
+        duel_game
+            .step(Action::Recruit {
+                province: HexId(0),
+                target: HexId(1),
+                strength: 1,
+            })
+            .expect("duel recruit");
+        assert!(!duel_game.cell(HexId(1)).expect("target").unit().is_ready());
+    }
+
+    #[test]
+    fn duel_foreign_recruit_requires_adjacent_capital_or_farm() {
+        let scenario = recruitment_fixture(false);
+        let mut default_game =
+            Game::new(Rules::online_default_v1(), scenario.clone()).expect("valid game");
+        default_game
+            .step(Action::Recruit {
+                province: HexId(0),
+                target: HexId(2),
+                strength: 1,
+            })
+            .expect("default permits boundary recruit");
+
+        let mut duel_game = Game::new(Rules::online_duel_v1(), scenario).expect("valid duel game");
+        assert_eq!(
+            duel_game.step(Action::Recruit {
+                province: HexId(0),
+                target: HexId(2),
+                strength: 1,
+            }),
+            Err(ActionError::Unreachable)
+        );
+
+        let supported = recruitment_fixture(true);
+        let mut supported_game =
+            Game::new(Rules::online_duel_v1(), supported).expect("valid supported duel");
+        supported_game
+            .step(Action::Recruit {
+                province: HexId(0),
+                target: HexId(2),
+                strength: 1,
+            })
+            .expect("economic building supports foreign recruit");
+    }
+
+    #[test]
+    fn moving_unit_merge_keeps_readiness_only_when_both_units_are_ready() {
+        let mut scenario = recruitment_fixture(false);
+        scenario.cells[0].object = Object::Empty;
+        scenario.cells[0].unit_strength = 1;
+        scenario.cells[1].unit_strength = 1;
+        scenario.cells[5].object = Object::Capital;
+        let mut game = Game::new(Rules::classic_generic(), scenario).expect("valid game");
+
+        game.step(Action::Move {
+            source: HexId(0),
+            target: HexId(1),
+        })
+        .expect("legal merge");
+
+        let merged = game.cell(HexId(1)).expect("merged target").unit();
+        assert_eq!(merged.strength(), 2);
+        assert!(merged.is_ready());
+    }
+
+    fn recruitment_fixture(with_farm: bool) -> Scenario {
+        let topology = Topology::rectangle(5, 2).expect("valid topology");
+        let mut scenario = Scenario::empty(topology, 2, 101);
+        for hex in [0, 1, 5, 6] {
+            scenario.cells[hex] = InitialCell::owned(PlayerId(0));
+        }
+        for hex in [3, 4, 8, 9] {
+            scenario.cells[hex] = InitialCell::owned(PlayerId(1));
+        }
+        scenario.cells[0].object = Object::Capital;
+        scenario.cells[4].object = Object::Capital;
+        if with_farm {
+            scenario.cells[1].object = Object::Farm;
+        }
+        scenario.treasuries = vec![
+            Treasury {
+                province: HexId(0),
+                money: 100,
+            },
+            Treasury {
+                province: HexId(4),
+                money: 100,
+            },
+        ];
+        scenario
+    }
+
+    #[test]
     fn optimized_legal_actions_match_reference_trajectory() {
         let scenario = Scenario::symmetric_duel(11, 9, 73).expect("valid duel");
         let mut game = Game::new(Rules::classic_generic(), scenario).expect("valid game");
@@ -1298,6 +1441,24 @@ mod tests {
                 break;
             }
             let selected = (step * 17 + 3) % optimized.len();
+            game.step(optimized[selected])
+                .expect("listed action is legal");
+        }
+    }
+
+    #[test]
+    fn duel_legal_actions_match_validation() {
+        let scenario = Scenario::symmetric_duel(11, 9, 83).expect("valid duel");
+        let mut game = Game::new(Rules::online_duel_v1(), scenario).expect("valid game");
+        let mut optimized = Vec::new();
+        for step in 0..200 {
+            game.legal_actions(&mut optimized);
+            let reference = legal_actions_reference(&game);
+            assert_eq!(optimized, reference, "legal action mismatch at step {step}");
+            if game.is_terminal() {
+                break;
+            }
+            let selected = (step * 19 + 5) % optimized.len();
             game.step(optimized[selected])
                 .expect("listed action is legal");
         }
