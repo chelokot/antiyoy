@@ -13,6 +13,9 @@ button { font: inherit; }
 .arena-sidebar-left { border-right: 0.0625rem solid rgb(255 255 255 / 10%); }
 .arena-sidebar-right { border-left: 0.0625rem solid rgb(255 255 255 / 10%); }
 .engine-note { margin-top: 2rem; border: 0.0625rem solid rgb(216 255 62 / 25%); background: rgb(216 255 62 / 4%); padding: 1rem; }
+.model-card { margin-top: 1rem; border: 0.0625rem solid rgb(255 255 255 / 10%); background: #0d1215; padding: 1rem; }
+.model-download { display: block; margin-top: 1rem; border: 0.0625rem solid rgb(216 255 62 / 35%); padding: 0.55rem 0.7rem; color: #d8ff3e; font-family: var(--font-geist-mono), monospace; font-size: 0.65rem; text-decoration: none; }
+.model-download:hover { border-color: #d8ff3e; background: rgb(216 255 62 / 6%); }
 .board-panel { position: relative; display: flex; min-height: 38rem; flex-direction: column; overflow: hidden; background: radial-gradient(circle at center, #172027 0%, #0b1014 58%, #080b0d 100%); }
 .board-controls { position: absolute; z-index: 3; top: 1.25rem; left: 1.25rem; display: flex; gap: 0.5rem; }
 .control { border: 0.0625rem solid rgb(255 255 255 / 12%); background: rgb(4 7 9 / 80%); padding: 0.5rem 0.75rem; color: #d3dad5; font-family: var(--font-geist-mono), monospace; font-size: 0.7rem; backdrop-filter: blur(0.5rem); }

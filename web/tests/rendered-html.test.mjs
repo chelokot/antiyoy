@@ -22,6 +22,8 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(html, /Deterministic policy evaluation/);
   assert.match(html, /RUST WASM/);
   assert.match(html, /classic_generic_2022/);
+  assert.match(html, /ALPHA POLICY/);
+  assert.match(html, /Download verified checkpoint/);
   assert.match(html, /\/og\.png/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton/);
 });

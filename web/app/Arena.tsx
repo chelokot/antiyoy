@@ -40,6 +40,13 @@ const WIDTH = 11;
 const HEIGHT = 9;
 const SEED = 47n;
 const PLAYER_NAMES = ["CYAN", "AMBER"] as const;
+const MODEL_URL = "https://github.com/chelokot/antiyoy/releases/tag/model-v0.1.0-alpha.1";
+const MODEL_RESULTS = [
+  ["Classic Generic", "+229"],
+  ["Online Default", "±0"],
+  ["Online Duel", "+83"],
+  ["Experimental v2", "−206"],
+] as const;
 
 function parseState(serialized: string): StateView {
   return JSON.parse(serialized) as StateView;
@@ -169,6 +176,13 @@ export default function Arena() {
           <div className="mt-8 space-y-5"><Metric label="RULESET" value="classic_generic_2022" /><Metric label="SEED" value="47 · reproducible" /><Metric label="ROUND" value={state === null ? "loading" : `${state.round} · ${PLAYER_NAMES[state.active_player]} to move`} /><Metric label="LEGAL ACTIONS" value={state?.legal_actions.toString() ?? "…"} accent /></div>
           <div className="mt-8 border-t border-white/10 pt-5"><p className="eyebrow">TERRITORY</p><div className="mt-4 space-y-3 text-xs"><Bar label="Cyan" value={cyanCells} width={`${cyanShare}%`} kind="cyan" /><Bar label="Amber" value={amberCells} width={`${100 - cyanShare}%`} kind="amber" /></div></div>
           <div className="engine-note"><p className="eyebrow text-[#d8ff3e]">SAME CORE</p><p className="mt-2 text-sm leading-6 text-[#b8c0ba]">Every displayed transition is executed by the headless Rust environment compiled to WebAssembly.</p></div>
+          <div className="model-card">
+            <div className="flex items-center justify-between gap-3"><p className="eyebrow text-[#d8ff3e]">ALPHA POLICY</p><span className="font-mono text-[0.65rem] text-[#8d9690]">128 games</span></div>
+            <p className="mt-2 text-sm font-semibold">distilled-ppo · 0.91M</p>
+            <dl className="mt-4 space-y-2 font-mono text-xs">{MODEL_RESULTS.map(([profile, elo]) => <Row label={profile} value={`${elo} Elo`} accent={elo.startsWith("+")} key={profile} />)}</dl>
+            <a className="model-download" href={MODEL_URL} target="_blank" rel="noreferrer">Download verified checkpoint ↗</a>
+            <p className="mt-3 text-[0.65rem] leading-5 text-[#77817b]">Relative to the native greedy baseline. Experimental, not an absolute rating.</p>
+          </div>
         </aside>
 
         <section className="board-panel">
