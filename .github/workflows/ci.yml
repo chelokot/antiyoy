@@ -41,6 +41,8 @@ jobs:
 
   python:
     runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: 1.88.0
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.88.0
