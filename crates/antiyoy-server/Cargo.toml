@@ -1,0 +1,30 @@
+[package]
+name = "antiyoy-server"
+description = "Authoritative multiplayer match service for the Antiyoy engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "antiyoy-server"
+path = "src/main.rs"
+
+[dependencies]
+antiyoy-agents.workspace = true
+antiyoy-core.workspace = true
+antiyoy-protocol.workspace = true
+anyhow.workspace = true
+axum.workspace = true
+clap.workspace = true
+futures-util.workspace = true
+getrandom.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

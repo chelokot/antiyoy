@@ -29,6 +29,7 @@ the same Rust rules engine.
 | `antiyoy-python` | GIL-releasing NumPy bindings built with PyO3 and Maturin |
 | `antiyoy-eval` | Symmetric matches, tournaments, adjudication, and ratings |
 | `antiyoy-protocol` | Versioned replay and network messages |
+| `antiyoy-server` | Authoritative HTTP/WebSocket match rooms for humans and bots |
 | `antiyoy-cli` | Headless games, validation, tournaments, and benchmarks |
 | `antiyoy-wasm` | Browser-safe bindings over the core engine |
 
@@ -63,6 +64,25 @@ Any stored game can be checked independently with
 `cargo run --release -p antiyoy-cli -- verify <replay>`.
 The live WebAssembly arena accepts the same `.antiyoy` file and provides
 play/pause, single-step, backward seek, and clickable per-hex state inspection.
+
+## Multiplayer rooms
+
+The multiplayer service owns each game, checks an optimistic revision and a
+256-bit human seat credential, applies actions through the core, advances native
+bots, broadcasts versioned snapshots, and exposes the exact verified replay.
+Independent room locks prevent a bot in one match from blocking other matches.
+
+```bash
+cargo run --release -p antiyoy-server -- --host 127.0.0.1 --port 8080
+```
+
+Create a room with `POST /v1/matches`, inspect it with
+`GET /v1/matches/{match_id}`, download its binary replay from
+`GET /v1/matches/{match_id}/replay`, or connect to
+`GET /v1/matches/{match_id}/watch`. A connection begins as a read-only spectator;
+a human sends the versioned `ClientMessage::Authenticate` frame with its seat
+and returned token before submitting actions. Network structures carry
+`NETWORK_SCHEMA_VERSION` and every update includes a deterministic state digest.
 
 Python trainers can install the native environment in an active virtual
 environment:

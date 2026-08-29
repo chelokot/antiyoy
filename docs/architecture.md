@@ -28,3 +28,7 @@ maps, provinces, and legal-action counts.
 - `antiyoy-protocol` versions every persisted and network-visible structure.
 - Bindings expose owned buffers and bulk operations instead of per-hex calls.
 - Training artifacts are content-addressed and never committed to Git.
+- Multiplayer rooms authenticate human seats, serialize actions with an
+  optimistic revision, and broadcast the same `GameView` consumed by WebAssembly.
+- Each authoritative room has an independent lock; unrelated matches continue
+  while a bot computes a move or a replay snapshot is materialized.
