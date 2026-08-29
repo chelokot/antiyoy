@@ -6,18 +6,18 @@ use antiyoy_protocol::{
     ClientMessage, CreateMatchRequest, CreateMatchResponse, MatchSnapshot, NETWORK_SCHEMA_VERSION,
     ServerMessage,
 };
-use antiyoy_server::{MatchService, ServiceError};
+use antiyoy_server::{MatchService, ServiceError, ServiceLimits};
 use anyhow::Result;
 use axum::body::Body;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Path, State};
-use axum::http::{StatusCode, header};
+use axum::extract::{Path, Query, State};
+use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use clap::Parser;
 use futures_util::StreamExt;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
 use tokio::sync::broadcast;
 
@@ -28,6 +28,19 @@ struct Cli {
     host: IpAddr,
     #[arg(long, default_value_t = 8080)]
     port: u16,
+    #[arg(long, default_value_t = 1_024)]
+    maximum_rooms: usize,
+    #[arg(long, default_value_t = 4_096)]
+    maximum_cells: usize,
+    #[arg(long, default_value_t = 10_000)]
+    maximum_action_limit: u32,
+    #[arg(long, default_value_t = 32)]
+    update_capacity: usize,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeleteQuery {
+    seat: u8,
 }
 
 #[derive(Debug, Serialize)]
@@ -46,7 +59,13 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     let address = SocketAddr::new(cli.host, cli.port);
     let listener = TcpListener::bind(address).await?;
-    axum::serve(listener, router(MatchService::new()))
+    let service = MatchService::with_limits(ServiceLimits {
+        maximum_rooms: cli.maximum_rooms,
+        maximum_cells: cli.maximum_cells,
+        maximum_action_limit: cli.maximum_action_limit,
+        update_capacity: cli.update_capacity,
+    })?;
+    axum::serve(listener, router(service))
         .with_graceful_shutdown(shutdown_signal())
         .await?;
     Ok(())
@@ -56,7 +75,10 @@ fn router(service: MatchService) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/v1/matches", post(create_match))
-        .route("/v1/matches/{match_id}", get(match_state))
+        .route(
+            "/v1/matches/{match_id}",
+            get(match_state).delete(delete_match),
+        )
         .route("/v1/matches/{match_id}/replay", get(match_replay))
         .route("/v1/matches/{match_id}/watch", get(watch_match))
         .with_state(service)
@@ -94,6 +116,19 @@ async fn match_replay(
         Body::from(replay),
     )
         .into_response())
+}
+
+async fn delete_match(
+    State(service): State<MatchService>,
+    Path(match_id): Path<String>,
+    Query(query): Query<DeleteQuery>,
+    headers: HeaderMap,
+) -> Result<StatusCode, ApiError> {
+    let token = bearer_token(&headers)
+        .ok_or(ApiError(ServiceError::Unauthorized))?
+        .to_owned();
+    blocking_match(move || service.delete(&match_id, query.seat, &token)).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn watch_match(
@@ -231,6 +266,8 @@ impl IntoResponse for ApiError {
             ServiceError::StaleRevision { .. }
             | ServiceError::WrongTurn { .. }
             | ServiceError::Finished => StatusCode::CONFLICT,
+            ServiceError::Closed => StatusCode::GONE,
+            ServiceError::Capacity { .. } => StatusCode::TOO_MANY_REQUESTS,
             ServiceError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
         let code = error_code(&self.0);
@@ -253,9 +290,20 @@ fn error_code(error: &ServiceError) -> &'static str {
         ServiceError::StaleRevision { .. } => "stale_revision",
         ServiceError::WrongTurn { .. } => "wrong_turn",
         ServiceError::Finished => "finished",
+        ServiceError::Closed => "closed",
+        ServiceError::Capacity { .. } => "capacity",
         ServiceError::IllegalAction(_) => "illegal_action",
         ServiceError::Internal(_) => "internal",
     }
+}
+
+fn bearer_token(headers: &HeaderMap) -> Option<&str> {
+    headers
+        .get(header::AUTHORIZATION)?
+        .to_str()
+        .ok()?
+        .strip_prefix("Bearer ")
+        .filter(|token| !token.is_empty())
 }
 
 async fn blocking_match<T>(

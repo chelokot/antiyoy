@@ -73,7 +73,10 @@ bots, broadcasts versioned snapshots, and exposes the exact verified replay.
 Independent room locks prevent a bot in one match from blocking other matches.
 
 ```bash
-cargo run --release -p antiyoy-server -- --host 127.0.0.1 --port 8080
+cargo run --release -p antiyoy-server -- \
+  --host 127.0.0.1 --port 8080 \
+  --maximum-rooms 1024 --maximum-cells 4096 \
+  --maximum-action-limit 10000 --update-capacity 32
 ```
 
 Create a room with `POST /v1/matches`, inspect it with
@@ -83,6 +86,9 @@ Create a room with `POST /v1/matches`, inspect it with
 a human sends the versioned `ClientMessage::Authenticate` frame with its seat
 and returned token before submitting actions. Network structures carry
 `NETWORK_SCHEMA_VERSION` and every update includes a deterministic state digest.
+`DELETE /v1/matches/{match_id}?seat=…` with the seat token in an Authorization
+Bearer header closes and removes a room. All memory-amplifying limits are
+explicit server configuration, and room capacity is checked atomically.
 
 Python trainers can install the native environment in an active virtual
 environment:

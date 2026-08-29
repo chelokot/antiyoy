@@ -12,14 +12,21 @@ use antiyoy_protocol::{
 use thiserror::Error;
 use tokio::sync::broadcast;
 
-const UPDATE_CAPACITY: usize = 128;
-const MAXIMUM_ACTION_LIMIT: u32 = 100_000;
 const RANDOM_ID_BYTES: usize = 16;
 const TOKEN_BYTES: usize = 32;
 
 #[derive(Clone)]
 pub struct MatchService {
     rooms: Arc<RwLock<BTreeMap<String, Arc<Mutex<MatchRoom>>>>>,
+    limits: ServiceLimits,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ServiceLimits {
+    pub maximum_rooms: usize,
+    pub maximum_cells: usize,
+    pub maximum_action_limit: u32,
+    pub update_capacity: usize,
 }
 
 #[derive(Debug)]
@@ -31,6 +38,7 @@ struct MatchRoom {
     action_limit: u32,
     seats: [SeatController; 2],
     updates: broadcast::Sender<MatchSnapshot>,
+    closed: bool,
 }
 
 #[derive(Debug)]
@@ -54,6 +62,10 @@ pub enum ServiceError {
     WrongTurn { seat: u8, active: u8 },
     #[error("match is no longer accepting actions")]
     Finished,
+    #[error("match was closed")]
+    Closed,
+    #[error("multiplayer room capacity {limit} has been reached")]
+    Capacity { limit: usize },
     #[error("action is illegal: {0}")]
     IllegalAction(String),
     #[error("multiplayer state failed: {0}")]
@@ -66,18 +78,46 @@ impl Default for MatchService {
     }
 }
 
+impl Default for ServiceLimits {
+    fn default() -> Self {
+        Self {
+            maximum_rooms: 1_024,
+            maximum_cells: 4_096,
+            maximum_action_limit: 10_000,
+            update_capacity: 32,
+        }
+    }
+}
+
 impl MatchService {
     pub fn new() -> Self {
         Self {
             rooms: Arc::new(RwLock::new(BTreeMap::new())),
+            limits: ServiceLimits::default(),
         }
+    }
+
+    pub fn with_limits(limits: ServiceLimits) -> Result<Self, ServiceError> {
+        if limits.maximum_rooms == 0
+            || limits.maximum_cells == 0
+            || limits.maximum_action_limit == 0
+            || limits.update_capacity == 0
+        {
+            return Err(ServiceError::InvalidRequest(
+                "service limits must be positive".into(),
+            ));
+        }
+        Ok(Self {
+            rooms: Arc::new(RwLock::new(BTreeMap::new())),
+            limits,
+        })
     }
 
     pub fn create_match(
         &self,
         request: &CreateMatchRequest,
     ) -> Result<CreateMatchResponse, ServiceError> {
-        Self::validate_request(request)?;
+        self.validate_request(request)?;
         let rules = Rules::from_profile(request.rules_profile).ok_or_else(|| {
             ServiceError::InvalidRequest("custom rules require a full rules document".into())
         })?;
@@ -85,7 +125,7 @@ impl MatchService {
             .map_err(|error| ServiceError::InvalidRequest(error.to_string()))?;
         let (replay, game) = Replay::new(rules, scenario)
             .map_err(|error| ServiceError::Internal(error.to_string()))?;
-        let (updates, _) = broadcast::channel(UPDATE_CAPACITY);
+        let (updates, _) = broadcast::channel(self.limits.update_capacity);
         let mut credentials = Vec::new();
         let first = Self::seat_controller(request, 0, &mut credentials)?;
         let second = Self::seat_controller(request, 1, &mut credentials)?;
@@ -97,6 +137,7 @@ impl MatchService {
             action_limit: request.action_limit,
             seats: [first, second],
             updates,
+            closed: false,
         };
         room.advance_bots()?;
         let id = self.insert_room(room)?;
@@ -149,6 +190,9 @@ impl MatchService {
             .lock()
             .map_err(|error| ServiceError::Internal(error.to_string()))?;
         room.authorize(seat, token)?;
+        if room.closed {
+            return Err(ServiceError::Closed);
+        }
         if submission.revision != room.revision {
             return Err(ServiceError::StaleRevision {
                 actual: submission.revision,
@@ -171,6 +215,22 @@ impl MatchService {
         Ok(snapshot)
     }
 
+    pub fn delete(&self, match_id: &str, seat: u8, token: &str) -> Result<(), ServiceError> {
+        let room = self.room(match_id)?;
+        {
+            let mut room = room
+                .lock()
+                .map_err(|error| ServiceError::Internal(error.to_string()))?;
+            room.authorize(seat, token)?;
+            room.closed = true;
+        }
+        self.rooms
+            .write()
+            .map_err(|error| ServiceError::Internal(error.to_string()))?
+            .remove(match_id);
+        Ok(())
+    }
+
     pub fn subscribe(
         &self,
         match_id: &str,
@@ -190,16 +250,24 @@ impl MatchService {
         room.authorize(seat, token)
     }
 
-    fn validate_request(request: &CreateMatchRequest) -> Result<(), ServiceError> {
+    fn validate_request(&self, request: &CreateMatchRequest) -> Result<(), ServiceError> {
         if request.schema_version != NETWORK_SCHEMA_VERSION {
             return Err(ServiceError::InvalidRequest(format!(
                 "network schema {} is unsupported",
                 request.schema_version
             )));
         }
-        if request.action_limit == 0 || request.action_limit > MAXIMUM_ACTION_LIMIT {
+        if request.action_limit == 0 || request.action_limit > self.limits.maximum_action_limit {
             return Err(ServiceError::InvalidRequest(format!(
-                "action limit must be within 1..={MAXIMUM_ACTION_LIMIT}"
+                "action limit must be within 1..={}",
+                self.limits.maximum_action_limit
+            )));
+        }
+        let cells = usize::from(request.width) * usize::from(request.height);
+        if cells > self.limits.maximum_cells {
+            return Err(ServiceError::InvalidRequest(format!(
+                "map contains {cells} cells, limit is {}",
+                self.limits.maximum_cells
             )));
         }
         for seat in &request.seats {
@@ -246,6 +314,11 @@ impl MatchService {
             .rooms
             .write()
             .map_err(|error| ServiceError::Internal(error.to_string()))?;
+        if rooms.len() >= self.limits.maximum_rooms {
+            return Err(ServiceError::Capacity {
+                limit: self.limits.maximum_rooms,
+            });
+        }
         loop {
             let candidate = random_hex(RANDOM_ID_BYTES)?;
             if !rooms.contains_key(&candidate) {
@@ -346,7 +419,7 @@ mod tests {
         SubmitAction,
     };
 
-    use super::{MatchService, ServiceError};
+    use super::{MatchService, ServiceError, ServiceLimits};
 
     fn human_against_random() -> CreateMatchRequest {
         CreateMatchRequest {
@@ -481,5 +554,63 @@ mod tests {
                 .revision,
             0
         );
+    }
+
+    #[test]
+    fn room_capacity_is_released_only_by_authorized_deletion() {
+        let service = MatchService::with_limits(ServiceLimits {
+            maximum_rooms: 1,
+            ..ServiceLimits::default()
+        })
+        .expect("valid limits");
+        let created = service
+            .create_match(&human_against_random())
+            .expect("first room fits");
+        assert_eq!(
+            service
+                .create_match(&human_against_random())
+                .expect_err("second room exceeds capacity"),
+            ServiceError::Capacity { limit: 1 }
+        );
+        assert_eq!(
+            service
+                .delete(&created.snapshot.match_id, 0, "invalid")
+                .expect_err("invalid token cannot delete"),
+            ServiceError::Unauthorized
+        );
+        service
+            .delete(&created.snapshot.match_id, 0, &created.credentials[0].token)
+            .expect("authorized deletion");
+        assert!(matches!(
+            service.snapshot(&created.snapshot.match_id),
+            Err(ServiceError::NotFound(_))
+        ));
+        service
+            .create_match(&human_against_random())
+            .expect("deleted room releases capacity");
+    }
+
+    #[test]
+    fn configured_map_and_action_limits_are_enforced() {
+        let service = MatchService::with_limits(ServiceLimits {
+            maximum_cells: 34,
+            maximum_action_limit: 99,
+            ..ServiceLimits::default()
+        })
+        .expect("valid limits");
+        let request = human_against_random();
+        assert!(matches!(
+            service.create_match(&request),
+            Err(ServiceError::InvalidRequest(_))
+        ));
+        let mut request = request;
+        request.width = 5;
+        request.height = 2;
+        assert!(matches!(
+            service.create_match(&request),
+            Err(ServiceError::InvalidRequest(_))
+        ));
+        request.action_limit = 99;
+        service.create_match(&request).expect("request fits limits");
     }
 }
