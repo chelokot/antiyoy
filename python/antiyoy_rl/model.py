@@ -93,6 +93,7 @@ class UniversalPolicy(nn.Module):
         self.unit_embedding = nn.Embedding(5, hidden)
         self.ready_embedding = nn.Embedding(2, hidden)
         self.defense_embedding = nn.Embedding(5, hidden)
+        self.visibility_embedding = nn.Embedding(2, hidden)
         self.province_projection = nn.Linear(3, hidden)
         self.rule_projection = nn.Sequential(
             nn.Linear(RULE_FEATURES, hidden),
@@ -141,6 +142,7 @@ class UniversalPolicy(nn.Module):
         )
         ready = torch.as_tensor(observation["ready"], dtype=torch.long, device=device)
         defenses = torch.as_tensor(observation["defenses"], dtype=torch.long, device=device)
+        visible = torch.as_tensor(observation["visible"], dtype=torch.long, device=device)
         playable = torch.as_tensor(
             observation["playable"], dtype=torch.float32, device=device
         )
@@ -150,6 +152,7 @@ class UniversalPolicy(nn.Module):
             + self.unit_embedding(units)
             + self.ready_embedding(ready)
             + self.defense_embedding(defenses)
+            + self.visibility_embedding(visible)
         )
         cells = cells + self._province_features(observation, environments, cell_count, device)
         grid_mask = playable.reshape(environments, 1, height, width)

@@ -158,6 +158,7 @@ fn observation_dict<'py>(
     )?;
     dictionary.set_item("rounds", PyArray1::from_slice(py, &observation.rounds))?;
     dictionary.set_item("playable", PyArray1::from_slice(py, &observation.playable))?;
+    dictionary.set_item("visible", PyArray1::from_slice(py, &observation.visible))?;
     dictionary.set_item("owners", PyArray1::from_slice(py, &observation.owners))?;
     dictionary.set_item("objects", PyArray1::from_slice(py, &observation.objects))?;
     dictionary.set_item(

@@ -139,6 +139,46 @@ impl Game {
         self.topology.is_playable(hex).then(|| self.defense(hex))
     }
 
+    pub fn visibility(&self, viewer: PlayerId, shared_owners: &[PlayerId], output: &mut Vec<bool>) {
+        output.clear();
+        output.resize(self.cells.len(), false);
+        let mut remaining = vec![0_u8; self.cells.len()];
+        let mut queue = VecDeque::with_capacity(self.cells.len());
+        for hex in self.topology.playable_hexes().iter().copied() {
+            let cell = self.cells[hex.index()];
+            if !cell.province.is_some()
+                || cell.owner != viewer && !shared_owners.contains(&cell.owner)
+            {
+                continue;
+            }
+            let radius = Self::vision_radius(cell) + 1;
+            if radius > remaining[hex.index()] {
+                remaining[hex.index()] = radius;
+                queue.push_back(hex);
+            }
+        }
+        while let Some(hex) = queue.pop_front() {
+            output[hex.index()] = true;
+            let next = remaining[hex.index()].saturating_sub(1);
+            if next == 0 {
+                continue;
+            }
+            for neighbour in self
+                .topology
+                .neighbours(hex)
+                .into_iter()
+                .flatten()
+                .copied()
+                .filter(|neighbour| neighbour.is_valid())
+            {
+                if next > remaining[neighbour.index()] {
+                    remaining[neighbour.index()] = next;
+                    queue.push_back(neighbour);
+                }
+            }
+        }
+    }
+
     pub fn farm_price(&self, id: ProvinceId) -> Option<i64> {
         let province = self.province(id)?;
         let farms = province
@@ -709,6 +749,18 @@ impl Game {
             _ => 0,
         };
         object_defense.max(cell.unit.strength())
+    }
+
+    fn vision_radius(cell: Cell) -> u8 {
+        if cell.unit.is_present() {
+            return 2;
+        }
+        match cell.object {
+            Object::Tower => 3,
+            Object::Capital => 4,
+            Object::StrongTower => 5,
+            _ => 1,
+        }
     }
 
     fn end_turn(&mut self) {
@@ -1572,6 +1624,31 @@ mod tests {
             Object::Pine
         );
         assert_eq!(province.money(), 10 + profit - spawned);
+    }
+
+    #[test]
+    fn fog_uses_piece_radii_and_shared_province_sources() {
+        let topology = Topology::rectangle(9, 1).expect("valid topology");
+        let mut scenario = Scenario::empty(topology, 2, 37);
+        for hex in [0, 1] {
+            scenario.cells[hex] = InitialCell::owned(PlayerId(0));
+        }
+        for hex in [7, 8] {
+            scenario.cells[hex] = InitialCell::owned(PlayerId(1));
+        }
+        scenario.cells[0].object = Object::Capital;
+        scenario.cells[1].object = Object::StrongTower;
+        scenario.cells[8].object = Object::Capital;
+        let game = Game::new(Rules::online_default_v1(), scenario).expect("online game");
+        let mut visible = Vec::new();
+
+        game.visibility(PlayerId(0), &[], &mut visible);
+        assert!(visible[..=6].iter().all(|value| *value));
+        assert!(!visible[7]);
+        assert!(!visible[8]);
+
+        game.visibility(PlayerId(0), &[PlayerId(1)], &mut visible);
+        assert!(visible.iter().all(|value| *value));
     }
 
     #[test]

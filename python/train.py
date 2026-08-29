@@ -13,7 +13,7 @@ from antiyoy_rl import OBSERVATION_VERSION, VectorEnv
 from antiyoy_rl.model import RULE_FEATURES, UniversalPolicy, action_distribution, encode_rules
 
 
-CHECKPOINT_VERSION = 1
+CHECKPOINT_VERSION = 2
 
 
 @dataclass(frozen=True)

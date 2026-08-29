@@ -12,6 +12,8 @@ def test_observation_and_step_contract() -> None:
     assert observation["version"] == OBSERVATION_VERSION
     assert observation["cell_offsets"].tolist() == [0, 35, 70, 105, 140]
     assert observation["owners"].shape == (140,)
+    assert observation["visible"].shape == (140,)
+    assert set(np.unique(observation["visible"])).issubset({0, 1})
     actions = np.zeros(4, dtype=np.uint64)
     result = environment.step(actions)
     assert result["actors"].tolist() == [0, 0, 0, 0]

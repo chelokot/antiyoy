@@ -45,7 +45,10 @@ restriction, split-treasury selection, singleton structure behavior, empty
 first round, and income-before-grave timing are implemented and
 regression-tested. Online target-snapshot vegetation, coast-selected tree type,
 and the observed player-zero tree charge are also isolated behind profile
-fields and tested. Diplomacy and fog remain unchecked until their differential
+fields and tested. Fog projection is implemented independently from legality:
+province sources illuminate radius `1`, units `2`, towers `3`, capitals `4`,
+and strong towers `5`; explicitly shared owners contribute their provinces.
+Diplomacy state and relation actions remain unchecked until their differential
 fixtures are committed.
 
 ## Extensions

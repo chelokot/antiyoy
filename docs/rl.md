@@ -5,7 +5,7 @@ engine and policy training. A batch may contain different map dimensions and
 province counts under one immutable rules profile. Independent environments are
 stepped in parallel while results retain input order.
 
-## Observation version 4
+## Observation version 5
 
 `BatchObservation` is a flat structure of arrays. `cell_offsets`,
 `province_offsets`, and `action_offsets` have `environment_count + 1` entries;
@@ -13,16 +13,18 @@ the half-open range at indices `i..i+1` selects one environment without copying.
 The batch also carries the complete immutable `Rules` value, including every
 economic, combat, and vegetation parameter seen by a universal policy.
 
-Version 4 conditions on construction readiness, Duel foreign placement,
-province/turn lifecycle, and the Classic versus Online vegetation algorithm.
-Checkpoints store the observation version, feature width, and exact serialized
-rules; evaluation rejects a model whose contract does not match the native
-engine.
+Version 5 conditions on construction readiness, Duel foreign placement,
+province/turn lifecycle, the Classic versus Online vegetation algorithm, and
+the active player's fog visibility mask. Checkpoints store the observation
+version, feature width, and exact serialized rules; evaluation rejects a model
+whose contract does not match the native engine.
 
 Per-environment arrays contain width, height, active player, and round. Per-cell
 arrays contain the playable mask, absolute owner (`255` is neutral), object
-code, unit strength, readiness, effective defense, and province ID (`65535`
-means no province).
+code, unit strength, readiness, effective defense, active-player visibility,
+and province ID (`65535` means no province). The full authoritative state stays
+available for centralized training; the visibility array is the exact mask for
+decentralized or player-equivalent observations.
 Province arrays contain owner, exact signed treasury and profit, capital hex, and
 size. The representation is lossless for authoritative game state used by a
 policy and does not normalize or clamp configurable economic values.

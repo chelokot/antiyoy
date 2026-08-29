@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const OBSERVATION_VERSION: u16 = 4;
+pub const OBSERVATION_VERSION: u16 = 5;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[repr(u8)]
@@ -87,6 +87,7 @@ pub struct BatchObservation {
     pub active_players: Vec<u8>,
     pub rounds: Vec<u32>,
     pub playable: Vec<u8>,
+    pub visible: Vec<u8>,
     pub owners: Vec<u8>,
     pub objects: Vec<u8>,
     pub unit_strengths: Vec<u8>,
@@ -112,6 +113,7 @@ impl BatchObservation {
         self.active_players.clear();
         self.rounds.clear();
         self.playable.clear();
+        self.visible.clear();
         self.owners.clear();
         self.objects.clear();
         self.unit_strengths.clear();
@@ -367,16 +369,19 @@ impl BatchEnv {
         output.cell_offsets.push(0);
         output.province_offsets.push(0);
         output.action_offsets.push(0);
+        let mut visibility = Vec::new();
         for (game, actions) in self.games.iter().zip(&self.legal_actions) {
             output.widths.push(game.topology().width());
             output.heights.push(game.topology().height());
             output.active_players.push(game.active_player().0);
             output.rounds.push(game.round());
+            game.visibility(game.active_player(), &[], &mut visibility);
             for (cell, hex_id) in game.cells().iter().copied().zip(0_u16..) {
                 let hex = HexId(hex_id);
                 output
                     .playable
                     .push(u8::from(game.topology().is_playable(hex)));
+                output.visible.push(u8::from(visibility[hex.index()]));
                 output.owners.push(cell.owner().0);
                 output.objects.push(object_code(cell.object()));
                 output.unit_strengths.push(cell.unit().strength());
