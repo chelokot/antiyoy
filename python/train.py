@@ -38,6 +38,7 @@ class TrainingConfig:
     rollout_steps: int
     epochs: int
     clip_ratio: float
+    imitation_updates: int
     entropy_weight: float
     value_weight: float
     territory_weight: float
@@ -112,6 +113,8 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError(f"positive training values required: {', '.join(invalid)}")
     if config.clip_ratio <= 0:
         raise ValueError("clip_ratio must be positive")
+    if config.imitation_updates < 0:
+        raise ValueError("imitation_updates must not be negative")
     if config.profiles is not None and not config.profiles:
         raise ValueError("profiles must not be empty")
 
@@ -171,6 +174,53 @@ def collect_rollout(
         ),
         reset_seed,
     )
+
+
+def pretrain_greedy(
+    environment: VectorEnv,
+    model: UniversalPolicy,
+    optimizer: torch.optim.Optimizer,
+    rules: Tensor,
+    updates: int,
+    reset_seed: int,
+    device: torch.device,
+) -> tuple[int, float, float]:
+    loss_average = 0.0
+    accuracy_average = 0.0
+    for update in range(1, updates + 1):
+        observation = environment.observe()
+        targets = torch.as_tensor(
+            environment.greedy_actions(), dtype=torch.long, device=device
+        )
+        logits, _ = model(observation, rules)
+        distribution = action_distribution(logits, observation["action_offsets"])
+        loss = -distribution.log_prob(targets).mean()
+        optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        optimizer.step()
+        accuracy = float((distribution.logits.argmax(dim=1) == targets).float().mean().item())
+        loss_average += (float(loss.item()) - loss_average) / update
+        accuracy_average += (accuracy - accuracy_average) / update
+        result = environment.step(targets.cpu().numpy().astype(np.uint64))
+        done = np.logical_or(result["terminal"], result["truncated"])
+        for index in np.flatnonzero(done):
+            environment.reset(int(index), reset_seed)
+            reset_seed += 1
+        if update == 1 or update % 100 == 0 or update == updates:
+            print(
+                json.dumps(
+                    {
+                        "stage": "greedy_distillation",
+                        "update": update,
+                        "loss": float(loss.item()),
+                        "accuracy": accuracy,
+                    },
+                    sort_keys=True,
+                ),
+                flush=True,
+            )
+    return reset_seed, loss_average, accuracy_average
 
 
 def rollout_targets(rollout: Rollout, config: TrainingConfig) -> tuple[Tensor, Tensor]:
@@ -251,6 +301,18 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
     rules = encode_rules_batch(environment.rules_jsons(), device)
     reset_seed = config.seed + config.environments
+    imitation_loss = 0.0
+    imitation_accuracy = 0.0
+    if config.imitation_updates > 0:
+        reset_seed, imitation_loss, imitation_accuracy = pretrain_greedy(
+            environment,
+            model,
+            optimizer,
+            rules,
+            config.imitation_updates,
+            reset_seed,
+            device,
+        )
     reward_average = 0.0
     loss_average = 0.0
     for update in range(1, config.updates + 1):
@@ -283,12 +345,17 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             )
     parameters = sum(parameter.numel() for parameter in model.parameters())
     summary: dict[str, float | int | str] = {
-        "algorithm": "perspective_ppo_gae",
+        "algorithm": "greedy_distilled_perspective_ppo_gae"
+        if config.imitation_updates > 0
+        else "perspective_ppo_gae",
         "updates": config.updates,
         "environments": config.environments,
         "parameters": parameters,
         "transitions": config.updates * config.rollout_steps * config.environments,
         "optimizer_steps": config.updates * config.rollout_steps * config.epochs,
+        "imitation_updates": config.imitation_updates,
+        "imitation_loss": imitation_loss,
+        "imitation_accuracy": imitation_accuracy,
         "mean_reward": reward_average,
         "mean_loss": loss_average,
         "device": str(device),
@@ -328,6 +395,7 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--rollout-steps", type=int, default=16)
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--clip-ratio", type=float, default=0.2)
+    parser.add_argument("--imitation-updates", type=int, default=0)
     parser.add_argument("--entropy-weight", type=float, default=0.01)
     parser.add_argument("--value-weight", type=float, default=0.5)
     parser.add_argument("--territory-weight", type=float, default=0.03)

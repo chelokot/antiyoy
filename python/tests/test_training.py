@@ -23,6 +23,7 @@ def training_config() -> TrainingConfig:
         rollout_steps=2,
         epochs=1,
         clip_ratio=0.2,
+        imitation_updates=0,
         entropy_weight=0.01,
         value_weight=0.5,
         territory_weight=0.03,

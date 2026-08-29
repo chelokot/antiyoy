@@ -44,7 +44,7 @@ consume raw reward components supplied by Rust.
 python train.py --environments 64 --updates 1000 --device cuda \
   --profiles classic_generic_2022 classic_slay_2022 online_duel_v1 \
     online_experimental_v2_260801 \
-  --rollout-steps 16 --epochs 2 \
+  --imitation-updates 500 --rollout-steps 16 --epochs 2 \
   --checkpoint ../models/universal-ppo.pt
 ```
 
@@ -52,6 +52,11 @@ The profile list is cycled across the vector batch and each environment keeps
 its rules through resets. Add `--fog` to train from the active player's exact
 visibility projection; full-state mode is the faster default for centralized
 self-play.
+
+Greedy distillation is an optional curriculum, not an evaluation shortcut. It
+teaches a common tactical prior from the native baseline before PPO self-play;
+held-out mirrored matches still determine whether the resulting model actually
+matches or exceeds that baseline.
 
 This trainer is an executable baseline for validating the complete ROCm path;
 checkpoint strength must be established by held-out mirrored tournaments before
