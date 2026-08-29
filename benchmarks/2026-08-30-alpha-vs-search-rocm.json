@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "kind": "published_alpha_vs_search",
+  "commit": "a08a816379a5b28c89a34ffd613b095fded347fe",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 8,
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "pytorch": "2.9.1+rocm6.4",
+    "process_priority": "nice 10"
+  },
+  "checkpoint": {
+    "file": "universal-distilled-ppo-smoke.pt",
+    "sha256": "65591b4bbd6cd7ce3f1b4b8ef126c25245fdf2d36e089d51547484419314a182",
+    "size_bytes": 11199843
+  },
+  "baseline": {
+    "agent": "deterministic_whole_turn_search",
+    "nodes": 2048,
+    "beam_width": 32,
+    "branch_width": 48,
+    "maximum_actions_per_turn": 24
+  },
+  "held_out": [
+    {
+      "profile": "classic_generic_2022",
+      "seed": 120000,
+      "games": 64,
+      "wins": 60,
+      "draws": 0,
+      "losses": 4,
+      "score": 0.9375,
+      "relative_elo": 470.43650362227254
+    },
+    {
+      "profile": "online_default_v1",
+      "seed": 130000,
+      "games": 32,
+      "wins": 18,
+      "draws": 0,
+      "losses": 14,
+      "score": 0.5625,
+      "relative_elo": 43.657787770027234
+    },
+    {
+      "profile": "online_duel_v1",
+      "seed": 130000,
+      "games": 32,
+      "wins": 0,
+      "draws": 0,
+      "losses": 32,
+      "score": 0.0,
+      "relative_elo_with_edge_correction": -719.7362197814326
+    },
+    {
+      "profile": "online_experimental_v2_260801",
+      "seed": 130000,
+      "games": 32,
+      "wins": 0,
+      "draws": 0,
+      "losses": 32,
+      "score": 0.0,
+      "relative_elo_with_edge_correction": -719.7362197814326
+    }
+  ],
+  "conclusion": "The alpha policy exploits the search baseline on Classic Generic and narrowly wins Online Default, but loses every held-out Duel and Experimental v2 game. Search-teacher training must preserve Classic strength while closing both universal-profile failures."
+}
