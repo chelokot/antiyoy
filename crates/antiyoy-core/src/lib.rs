@@ -3,6 +3,7 @@
 mod action;
 mod error;
 mod game;
+mod generator;
 mod rng;
 mod rules;
 mod state;
@@ -12,6 +13,7 @@ mod types;
 pub use action::{Action, Transition};
 pub use error::{ActionError, ConfigError};
 pub use game::Game;
+pub use generator::{GENERATOR_SCHEMA_VERSION, GenerationError, GeneratorConfig};
 pub use rules::{
     CombatRules, DiplomacyRules, EconomyRules, LifecycleRules, Rules, RulesProfile, VegetationRules,
 };
