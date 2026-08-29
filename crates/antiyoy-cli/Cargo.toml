@@ -17,6 +17,7 @@ antiyoy-agents.workspace = true
 antiyoy-core.workspace = true
 antiyoy-eval.workspace = true
 antiyoy-protocol.workspace = true
+antiyoy-rl.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 serde.workspace = true

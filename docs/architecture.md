@@ -17,10 +17,14 @@ Legality can be emitted as a dense action mask without allocation after warmup.
 The scalar environment is the correctness oracle; batching and search reuse it
 until profiling proves a specialized representation is necessary.
 
+Legal actions preserve their canonical order while using one bounded traversal
+per ready unit. Vector environments step independent games in parallel and emit
+one flattened structure-of-arrays observation with offset tables for variable
+maps, provinces, and legal-action counts.
+
 ## Boundaries
 
 - `antiyoy-core` has no wall clock, filesystem, sockets, or UI dependencies.
 - `antiyoy-protocol` versions every persisted and network-visible structure.
 - Bindings expose owned buffers and bulk operations instead of per-hex calls.
 - Training artifacts are content-addressed and never committed to Git.
-

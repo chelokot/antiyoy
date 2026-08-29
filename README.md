@@ -23,9 +23,25 @@ the same Rust rules engine.
 | Package | Responsibility |
 | --- | --- |
 | `antiyoy-core` | Deterministic rules, state transitions, map generation, observations |
+| `antiyoy-agents` | Baseline policies sharing the authoritative legal-action stream |
+| `antiyoy-rl` | Parallel environments, tensor observations, action features, rewards |
+| `antiyoy-eval` | Symmetric matches, tournaments, adjudication, and ratings |
 | `antiyoy-protocol` | Versioned replay and network messages |
 | `antiyoy-cli` | Headless games, validation, tournaments, and benchmarks |
 | `antiyoy-wasm` | Browser-safe bindings over the core engine |
+
+## RL throughput
+
+The `rl-bench` path excludes replay serialization and exercises the workload a
+trainer sees: state transitions, exact legal actions, dense reward components,
+and a complete structure-of-arrays observation after every vector step.
+
+```bash
+RAYON_NUM_THREADS=8 cargo run --release -p antiyoy-cli -- \
+  rl-bench --environments 256 --transitions 500000 --json
+```
+
+The versioned tensor contract is documented in [`docs/rl.md`](docs/rl.md).
 
 ## Status
 

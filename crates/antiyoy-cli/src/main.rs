@@ -5,6 +5,7 @@ use antiyoy_agents::{GreedyAgent, RandomAgent};
 use antiyoy_core::Rules;
 use antiyoy_eval::{Elo, MatchOutcome, Rating, run_match, score_for_first, symmetric_duel};
 use antiyoy_protocol::{Digest, Replay};
+use antiyoy_rl::{BatchEnv, BatchObservation};
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use serde::Serialize;
@@ -60,6 +61,16 @@ enum Command {
         #[arg(long, default_value_t = 1_000)]
         action_limit: u32,
     },
+    RlBench {
+        #[arg(long, default_value_t = 64)]
+        environments: usize,
+        #[arg(long, default_value_t = 100_000)]
+        transitions: u64,
+        #[arg(long, default_value_t = 1_000)]
+        action_limit: u32,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -85,6 +96,16 @@ struct TournamentSummary {
     draws: u32,
     greedy: Rating,
     random: Rating,
+}
+
+#[derive(Debug, Serialize)]
+struct RlBenchmarkSummary {
+    environments: usize,
+    transitions: u64,
+    observation_batches: u64,
+    elapsed_seconds: f64,
+    transitions_per_second: f64,
+    checksum: u64,
 }
 
 fn main() -> Result<()> {
@@ -123,6 +144,12 @@ fn main() -> Result<()> {
             games,
             action_limit,
         } => bench(games, action_limit)?,
+        Command::RlBench {
+            environments,
+            transitions,
+            action_limit,
+            json,
+        } => rl_bench(environments, transitions, action_limit, json)?,
     }
     Ok(())
 }
@@ -285,6 +312,92 @@ fn bench(games: u32, action_limit: u32) -> Result<()> {
         elapsed.as_secs_f64()
     );
     Ok(())
+}
+
+#[expect(clippy::cast_precision_loss)]
+fn rl_bench(environments: usize, transitions: u64, action_limit: u32, json: bool) -> Result<()> {
+    anyhow::ensure!(transitions > 0, "transitions must be greater than zero");
+    let mut batch = BatchEnv::symmetric_duels(
+        Rules::classic_generic(),
+        environments,
+        11,
+        9,
+        1,
+        action_limit,
+    )?;
+    let mut observation = BatchObservation::default();
+    let mut random_state = 0x4d59_5df4_d0f3_3173_u64;
+    let mut completed = 0_u64;
+    let mut observation_batches = 0_u64;
+    let mut reset_seed = 1_000_000_u64;
+    let mut checksum = 0_u64;
+    let mut action_indices = vec![0_usize; batch.len()];
+    let started = Instant::now();
+    while completed < transitions {
+        batch.observe(&mut observation);
+        observation_batches += 1;
+        checksum = checksum
+            .wrapping_mul(31)
+            .wrapping_add(observation.actions.len() as u64)
+            .wrapping_add(observation.owners.len() as u64);
+        for (environment, action_index) in action_indices.iter_mut().enumerate() {
+            let legal_actions = batch
+                .legal_actions(environment)
+                .expect("batch index is generated from its length")
+                .len();
+            *action_index = usize::try_from(next_random(&mut random_state)).unwrap_or(usize::MAX)
+                % legal_actions;
+        }
+        let remaining = transitions - completed;
+        if remaining < batch.len() as u64 {
+            for (environment, action_index) in action_indices
+                .iter()
+                .copied()
+                .enumerate()
+                .take(usize::try_from(remaining).unwrap_or(usize::MAX))
+            {
+                let result = batch.step(environment, action_index)?;
+                checksum = checksum
+                    .wrapping_add(u64::from(result.round))
+                    .wrapping_add(result.reward.treasury_delta.unsigned_abs());
+                completed += 1;
+                if result.done() {
+                    batch.reset_with_seed(environment, reset_seed)?;
+                    reset_seed = reset_seed.wrapping_add(1);
+                }
+            }
+            continue;
+        }
+        let results = batch.step_all(&action_indices)?;
+        completed += batch.len() as u64;
+        for (environment, result) in results.into_iter().enumerate() {
+            checksum = checksum
+                .wrapping_add(u64::from(result.round))
+                .wrapping_add(result.reward.treasury_delta.unsigned_abs());
+            if result.done() {
+                batch.reset_with_seed(environment, reset_seed)?;
+                reset_seed = reset_seed.wrapping_add(1);
+            }
+        }
+    }
+    let elapsed = started.elapsed();
+    let summary = RlBenchmarkSummary {
+        environments,
+        transitions: completed,
+        observation_batches,
+        elapsed_seconds: elapsed.as_secs_f64(),
+        transitions_per_second: completed as f64 / elapsed.as_secs_f64(),
+        checksum,
+    };
+    print_value(&summary, json)?;
+    Ok(())
+}
+
+fn next_random(state: &mut u64) -> u64 {
+    *state ^= *state << 13;
+    *state ^= *state >> 7;
+    *state ^= *state << 17;
+    *state
 }
 
 fn print_value(value: &impl Serialize, json: bool) -> Result<()> {
