@@ -4,6 +4,7 @@ import argparse
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import torch
@@ -18,7 +19,7 @@ from antiyoy_rl.model import (
 )
 
 
-CHECKPOINT_VERSION = 3
+CHECKPOINT_VERSION = 4
 
 
 @dataclass(frozen=True)
@@ -33,6 +34,10 @@ class TrainingConfig:
     layers: int
     learning_rate: float
     gamma: float
+    gae_lambda: float
+    rollout_steps: int
+    epochs: int
+    clip_ratio: float
     entropy_weight: float
     value_weight: float
     territory_weight: float
@@ -43,6 +48,18 @@ class TrainingConfig:
     fog: bool
     device: str
     checkpoint: Path | None
+
+
+@dataclass
+class Rollout:
+    observations: list[dict[str, np.ndarray]]
+    actions: list[Tensor]
+    log_probabilities: Tensor
+    values: Tensor
+    rewards: Tensor
+    perspectives: Tensor
+    continuations: Tensor
+    bootstrap: Tensor
 
 
 def reward_tensor(result: dict[str, np.ndarray], config: TrainingConfig, device: torch.device) -> Tensor:
@@ -58,33 +75,178 @@ def reward_tensor(result: dict[str, np.ndarray], config: TrainingConfig, device:
     )
 
 
-def train(config: TrainingConfig) -> dict[str, float | int | str]:
-    np.random.seed(config.seed)
-    torch.manual_seed(config.seed)
-    device = torch.device(config.device)
+def make_environment(config: TrainingConfig) -> VectorEnv:
     if config.profiles is None:
-        environment = VectorEnv(
+        return VectorEnv(
             config.environments,
             width=config.width,
             height=config.height,
             seed=config.seed,
             action_limit=config.action_limit,
-            profile=config.profile,
+            profile=cast(str, config.profile),
             fog=config.fog,
         )
-    else:
-        schedule = [
-            config.profiles[index % len(config.profiles)]
-            for index in range(config.environments)
-        ]
-        environment = VectorEnv.mixed(
-            schedule,
-            width=config.width,
-            height=config.height,
-            seed=config.seed,
-            action_limit=config.action_limit,
-            fog=config.fog,
+    schedule = [
+        config.profiles[index % len(config.profiles)]
+        for index in range(config.environments)
+    ]
+    return VectorEnv.mixed(
+        schedule,
+        width=config.width,
+        height=config.height,
+        seed=config.seed,
+        action_limit=config.action_limit,
+        fog=config.fog,
+    )
+
+
+def validate_config(config: TrainingConfig) -> None:
+    positive = {
+        "environments": config.environments,
+        "updates": config.updates,
+        "rollout_steps": config.rollout_steps,
+        "epochs": config.epochs,
+    }
+    invalid = [name for name, value in positive.items() if value < 1]
+    if invalid:
+        raise ValueError(f"positive training values required: {', '.join(invalid)}")
+    if config.clip_ratio <= 0:
+        raise ValueError("clip_ratio must be positive")
+    if config.profiles is not None and not config.profiles:
+        raise ValueError("profiles must not be empty")
+
+
+def collect_rollout(
+    environment: VectorEnv,
+    model: UniversalPolicy,
+    rules: Tensor,
+    config: TrainingConfig,
+    device: torch.device,
+    reset_seed: int,
+) -> tuple[Rollout, int]:
+    observations: list[dict[str, np.ndarray]] = []
+    actions: list[Tensor] = []
+    log_probabilities: list[Tensor] = []
+    values: list[Tensor] = []
+    rewards: list[Tensor] = []
+    perspectives: list[Tensor] = []
+    continuations: list[Tensor] = []
+    observation = environment.observe()
+    for _ in range(config.rollout_steps):
+        with torch.no_grad():
+            logits, value = model(observation, rules)
+            distribution = action_distribution(logits, observation["action_offsets"])
+            action = distribution.sample()
+            log_probability = distribution.log_prob(action)
+        result = environment.step(action.cpu().numpy().astype(np.uint64))
+        done = np.logical_or(result["terminal"], result["truncated"])
+        for index in np.flatnonzero(done):
+            environment.reset(int(index), reset_seed)
+            reset_seed += 1
+        next_observation = environment.observe()
+        actors = torch.as_tensor(result["actors"], dtype=torch.long, device=device)
+        next_players = torch.as_tensor(
+            next_observation["active_players"], dtype=torch.long, device=device
         )
+        observations.append(observation)
+        actions.append(action)
+        log_probabilities.append(log_probability)
+        values.append(value)
+        rewards.append(reward_tensor(result, config, device))
+        perspectives.append(torch.where(actors == next_players, 1.0, -1.0))
+        continuations.append(torch.as_tensor(~done, dtype=torch.float32, device=device))
+        observation = next_observation
+    with torch.no_grad():
+        _, bootstrap = model(observation, rules)
+    return (
+        Rollout(
+            observations=observations,
+            actions=actions,
+            log_probabilities=torch.stack(log_probabilities),
+            values=torch.stack(values),
+            rewards=torch.stack(rewards),
+            perspectives=torch.stack(perspectives),
+            continuations=torch.stack(continuations),
+            bootstrap=bootstrap,
+        ),
+        reset_seed,
+    )
+
+
+def rollout_targets(rollout: Rollout, config: TrainingConfig) -> tuple[Tensor, Tensor]:
+    advantages = torch.zeros_like(rollout.rewards)
+    next_advantage = torch.zeros_like(rollout.bootstrap)
+    next_value = rollout.bootstrap
+    for step in range(config.rollout_steps - 1, -1, -1):
+        continuation = rollout.continuations[step]
+        perspective = rollout.perspectives[step]
+        delta = (
+            rollout.rewards[step]
+            + config.gamma * perspective * next_value * continuation
+            - rollout.values[step]
+        )
+        next_advantage = (
+            delta
+            + config.gamma
+            * config.gae_lambda
+            * perspective
+            * continuation
+            * next_advantage
+        )
+        advantages[step] = next_advantage
+        next_value = rollout.values[step]
+    returns = advantages + rollout.values
+    advantages = (advantages - advantages.mean()) / advantages.std(correction=0).clamp_min(1e-6)
+    return advantages, returns
+
+
+def optimize_rollout(
+    model: UniversalPolicy,
+    optimizer: torch.optim.Optimizer,
+    rules: Tensor,
+    rollout: Rollout,
+    advantages: Tensor,
+    returns: Tensor,
+    config: TrainingConfig,
+) -> tuple[float, float]:
+    loss_sum = 0.0
+    entropy_sum = 0.0
+    optimizer_steps = 0
+    for _ in range(config.epochs):
+        for step in torch.randperm(config.rollout_steps).tolist():
+            observation = rollout.observations[step]
+            logits, values = model(observation, rules)
+            distribution = action_distribution(logits, observation["action_offsets"])
+            log_probability = distribution.log_prob(rollout.actions[step])
+            ratio = torch.exp(log_probability - rollout.log_probabilities[step])
+            unclipped = ratio * advantages[step]
+            clipped = torch.clamp(
+                ratio, 1 - config.clip_ratio, 1 + config.clip_ratio
+            ) * advantages[step]
+            policy_loss = -torch.minimum(unclipped, clipped).mean()
+            value_loss = (returns[step] - values).square().mean()
+            entropy = distribution.entropy().mean()
+            loss = (
+                policy_loss
+                + config.value_weight * value_loss
+                - config.entropy_weight * entropy
+            )
+            optimizer.zero_grad(set_to_none=True)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            optimizer_steps += 1
+            loss_sum += float(loss.item())
+            entropy_sum += float(entropy.item())
+    return loss_sum / optimizer_steps, entropy_sum / optimizer_steps
+
+
+def train(config: TrainingConfig) -> dict[str, float | int | str]:
+    validate_config(config)
+    np.random.seed(config.seed)
+    torch.manual_seed(config.seed)
+    device = torch.device(config.device)
+    environment = make_environment(config)
     model = UniversalPolicy(config.hidden, config.layers).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
     rules = encode_rules_batch(environment.rules_jsons(), device)
@@ -92,47 +254,28 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     reward_average = 0.0
     loss_average = 0.0
     for update in range(1, config.updates + 1):
-        observation = environment.observe()
-        logits, values = model(observation, rules)
-        distribution = action_distribution(logits, observation["action_offsets"])
-        actions = distribution.sample()
-        log_probability = distribution.log_prob(actions)
-        entropy = distribution.entropy()
-        result = environment.step(actions.detach().cpu().numpy().astype(np.uint64))
-        done = np.logical_or(result["terminal"], result["truncated"])
-        for index in np.flatnonzero(done):
-            environment.reset(int(index), reset_seed)
-            reset_seed += 1
-        next_observation = environment.observe()
-        with torch.no_grad():
-            _, next_values = model(next_observation, rules)
-        rewards = reward_tensor(result, config, device)
-        actors = torch.as_tensor(result["actors"], dtype=torch.long, device=device)
-        next_players = torch.as_tensor(
-            next_observation["active_players"], dtype=torch.long, device=device
+        rollout, reset_seed = collect_rollout(
+            environment, model, rules, config, device, reset_seed
         )
-        perspective = torch.where(actors == next_players, 1.0, -1.0)
-        continuation = torch.as_tensor(~done, dtype=torch.float32, device=device)
-        target = rewards + config.gamma * perspective * next_values * continuation
-        advantage = target - values
-        policy_loss = -(log_probability * advantage.detach()).mean()
-        value_loss = advantage.square().mean()
-        loss = policy_loss + config.value_weight * value_loss - config.entropy_weight * entropy.mean()
-        optimizer.zero_grad(set_to_none=True)
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-        optimizer.step()
-        reward_average += (float(rewards.mean().item()) - reward_average) / update
-        loss_average += (float(loss.item()) - loss_average) / update
-        if update == 1 or update % 100 == 0 or update == config.updates:
+        advantages, returns = rollout_targets(rollout, config)
+        loss, entropy = optimize_rollout(
+            model, optimizer, rules, rollout, advantages, returns, config
+        )
+        reward = float(rollout.rewards.mean().item())
+        reward_average += (reward - reward_average) / update
+        loss_average += (loss - loss_average) / update
+        if update == 1 or update % 10 == 0 or update == config.updates:
             print(
                 json.dumps(
                     {
                         "update": update,
-                        "mean_reward": float(rewards.mean().item()),
-                        "mean_value": float(values.mean().item()),
-                        "entropy": float(entropy.mean().item()),
-                        "loss": float(loss.item()),
+                        "transitions": update
+                        * config.rollout_steps
+                        * config.environments,
+                        "mean_reward": reward,
+                        "mean_value": float(rollout.values.mean().item()),
+                        "entropy": entropy,
+                        "loss": loss,
                     },
                     sort_keys=True,
                 ),
@@ -140,9 +283,12 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             )
     parameters = sum(parameter.numel() for parameter in model.parameters())
     summary: dict[str, float | int | str] = {
+        "algorithm": "perspective_ppo_gae",
         "updates": config.updates,
         "environments": config.environments,
         "parameters": parameters,
+        "transitions": config.updates * config.rollout_steps * config.environments,
+        "optimizer_steps": config.updates * config.rollout_steps * config.epochs,
         "mean_reward": reward_average,
         "mean_loss": loss_average,
         "device": str(device),
@@ -178,6 +324,10 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--layers", type=int, default=4)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument("--gamma", type=float, default=0.997)
+    parser.add_argument("--gae-lambda", type=float, default=0.95)
+    parser.add_argument("--rollout-steps", type=int, default=16)
+    parser.add_argument("--epochs", type=int, default=2)
+    parser.add_argument("--clip-ratio", type=float, default=0.2)
     parser.add_argument("--entropy-weight", type=float, default=0.01)
     parser.add_argument("--value-weight", type=float, default=0.5)
     parser.add_argument("--territory-weight", type=float, default=0.03)

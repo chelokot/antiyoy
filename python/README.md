@@ -36,14 +36,16 @@ and reset every environment whose terminal or truncated value is one.
 `UniversalPolicy` is a rules-conditioned hex convolutional actor-critic. It
 scores the current variable legal-action set from source, target, action, and
 global board embeddings instead of allocating a mostly invalid fixed policy
-head. The starter trainer uses zero-sum perspective-aware bootstrapping and raw
-reward components supplied by Rust.
+head. The trainer uses clipped PPO with generalized advantage estimation. Both
+bootstrapping and GAE flip perspective whenever the active player changes, and
+consume raw reward components supplied by Rust.
 
 ```bash
 python train.py --environments 64 --updates 1000 --device cuda \
   --profiles classic_generic_2022 classic_slay_2022 online_duel_v1 \
     online_experimental_v2_260801 \
-  --checkpoint ../models/universal-a2c.pt
+  --rollout-steps 16 --epochs 2 \
+  --checkpoint ../models/universal-ppo.pt
 ```
 
 The profile list is cycled across the vector batch and each environment keeps
@@ -56,7 +58,8 @@ checkpoint strength must be established by held-out mirrored tournaments before
 publishing an Elo number.
 
 ```bash
-python evaluate.py ../models/universal-a2c.pt --games 64 --baseline greedy
+python evaluate.py ../models/universal-ppo.pt --games 64 --baseline greedy \
+  --profile online_duel_v1
 ```
 
 Evaluation alternates model seats, uses held-out seeds, and reports the raw

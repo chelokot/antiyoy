@@ -75,6 +75,12 @@ semantics. `terminal` reports a rules victory. `truncated` reports only the
 configured action limit. A done environment rejects further actions until an
 explicit deterministic reset.
 
+The bundled PPO trainer collects multi-step rollouts and computes GAE in the
+acting player's frame. A transition that hands control to another player flips
+both the bootstrapped value and recursive advantage sign. Its checkpoint
+contract records the observation version, rule feature width, training rules,
+optimizer, and every hyperparameter needed to reproduce the run.
+
 ## Determinism
 
 Parallel stepping is deterministic because games share no mutable state, output
