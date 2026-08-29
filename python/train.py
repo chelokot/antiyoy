@@ -171,7 +171,6 @@ def make_environment(config: TrainingConfig) -> VectorEnv:
 def validate_config(config: TrainingConfig) -> None:
     positive = {
         "environments": config.environments,
-        "updates": config.updates,
         "rollout_steps": config.rollout_steps,
         "epochs": config.epochs,
     }
@@ -182,6 +181,10 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("clip_ratio must be positive")
     if config.imitation_updates < 0:
         raise ValueError("imitation_updates must not be negative")
+    if config.updates < 0:
+        raise ValueError("updates must not be negative")
+    if config.updates == 0 and config.imitation_updates == 0:
+        raise ValueError("at least one PPO or imitation update is required")
     if config.imitation_teacher not in {"greedy", "search"}:
         raise ValueError("imitation_teacher must be greedy or search")
     if config.imitation_rollin not in {"teacher", "policy"}:

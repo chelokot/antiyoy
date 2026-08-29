@@ -85,6 +85,8 @@ behavioral-cloning curriculum. `--imitation-rollin policy` performs online
 DAgger-style recovery training: search labels every current state, while the
 policy's own greedy action advances the environment. This exposes compounding
 errors and loops that are absent from clean teacher trajectories.
+Set `--updates 0` for an imitation-only run without a PPO phase; at least one
+imitation update is then required.
 
 Measure target-generation cost before a large run:
 

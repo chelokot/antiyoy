@@ -110,6 +110,15 @@ def test_training_rejects_invalid_procedural_density() -> None:
         validate_config(config)
 
 
+def test_training_allows_imitation_without_ppo() -> None:
+    validate_config(replace(training_config(), updates=0, imitation_updates=1))
+
+
+def test_training_rejects_empty_curriculum() -> None:
+    with pytest.raises(ValueError, match="at least one"):
+        validate_config(replace(training_config(), updates=0, imitation_updates=0))
+
+
 def test_training_rejects_invalid_search_teacher_configuration() -> None:
     with pytest.raises(ValueError, match="imitation_teacher"):
         validate_config(replace(training_config(), imitation_teacher="unknown"))
