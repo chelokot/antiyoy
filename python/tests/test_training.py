@@ -1,19 +1,35 @@
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 torch = pytest.importorskip("torch")
 
-from python.train import Rollout, TrainingConfig, rollout_targets
+from python.train import (
+    Rollout,
+    TrainingConfig,
+    make_environment,
+    rollout_targets,
+    validate_config,
+)
 
 
 def training_config() -> TrainingConfig:
     return TrainingConfig(
         environments=1,
         updates=1,
+        procedural=False,
         width=7,
         height=5,
+        players=2,
         seed=1,
+        land_density_per_million=650_000,
+        starting_province_size=5,
+        starting_money=10,
+        tree_density_per_million=150_000,
+        neutral_tower_density_per_million=20_000,
+        neutral_capital_density_per_million=10_000,
+        grave_density_per_million=15_000,
         action_limit=100,
         hidden=16,
         layers=1,
@@ -56,3 +72,31 @@ def test_gae_changes_perspective_when_the_active_player_changes() -> None:
 
     assert torch.allclose(returns[1], torch.tensor([-0.9]))
     assert torch.allclose(returns[0], torch.tensor([0.648]))
+
+
+def test_training_environment_uses_procedural_domain_randomization() -> None:
+    config = replace(
+        training_config(),
+        environments=2,
+        procedural=True,
+        width=17,
+        height=13,
+        players=4,
+        land_density_per_million=600_000,
+    )
+    environment = make_environment(config)
+    observation = environment.observe()
+    assert observation["player_counts"].tolist() == [4, 4]
+    assert observation["playable"][:221].sum() == 133
+    assert not torch.equal(
+        torch.from_numpy(observation["playable"][:221]),
+        torch.from_numpy(observation["playable"][221:]),
+    )
+
+
+def test_training_rejects_invalid_procedural_density() -> None:
+    config = replace(
+        training_config(), procedural=True, land_density_per_million=1_000_001
+    )
+    with pytest.raises(ValueError, match="densities"):
+        validate_config(config)

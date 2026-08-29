@@ -93,3 +93,25 @@ Parallel stepping is deterministic because games share no mutable state, output
 order is indexed, and all engine randomness lives inside each game. Tests run
 equal seeds and equal action indices through parallel environments and compare
 the complete resulting `Game` values after every transition.
+
+## Procedural domain randomization
+
+`GeneratorConfig` schema 1 defines the original `procedural_v1` generator. It
+controls dimensions, player count, exact land density, connected starting
+province size and treasury, plus categorical densities for trees, neutral
+towers, neutral capitals, and graves. The generator grows one connected land
+mass, chooses farthest-point seeds, partitions it with a deterministic graph
+Voronoi pass, and assigns every player one connected start. A fixed config and
+seed produce the same complete `Scenario` on every target.
+
+This generator is designed for balanced RL curricula; it is not claimed to
+reproduce a Classic or Online map seed. Compatibility rules and map-generation
+identity are separately versioned. Replays store the fully generated scenario,
+so verification never depends on regenerating a map.
+
+Procedural `BatchEnv` instances retain one config per environment. Consecutive
+environments start at consecutive seeds, and `reset_with_seed` regenerates the
+topology, objects, starts, and treasuries atomically. Python exposes the same
+contract through `ProceduralConfig`, `VectorEnv.procedural`, and
+`VectorEnv.procedural_mixed`. `generator_jsons()` records the exact per-worker
+configs in checkpoints.

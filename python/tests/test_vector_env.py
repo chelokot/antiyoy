@@ -3,7 +3,12 @@ import json
 import numpy as np
 import pytest
 
-from antiyoy_rl import OBSERVATION_VERSION, VectorEnv
+from antiyoy_rl import (
+    GENERATOR_SCHEMA_VERSION,
+    OBSERVATION_VERSION,
+    ProceduralConfig,
+    VectorEnv,
+)
 
 
 def test_observation_and_step_contract() -> None:
@@ -110,3 +115,35 @@ def test_diplomacy_configuration_reaches_state_and_action_masks() -> None:
     assert rules["diplomacy"]["initial_relation"] == "Neutral"
     assert observation["relations"].tolist() == [3, 1, 1, 3]
     assert 5 in observation["action_kinds"]
+
+
+def test_procedural_batch_regenerates_topology_from_seed() -> None:
+    config = ProceduralConfig(
+        width=17,
+        height=13,
+        players=4,
+        seed=800,
+        land_density_per_million=600_000,
+        starting_province_size=7,
+        starting_money=23,
+    )
+    serialized_config = json.loads(config.to_json())
+    assert serialized_config["schema_version"] == GENERATOR_SCHEMA_VERSION
+
+    environment = VectorEnv.procedural(2, config, profile="online_default_v1")
+    observation = environment.observe()
+    first_playable = observation["playable"][:221].copy()
+    second_playable = observation["playable"][221:].copy()
+    assert first_playable.sum() == 133
+    assert second_playable.sum() == 133
+    assert not np.array_equal(first_playable, second_playable)
+    assert [
+        json.loads(serialized)["seed"]
+        for serialized in environment.generator_jsons()
+        if serialized is not None
+    ] == [800, 801]
+
+    environment.reset(1, 800)
+    reset = environment.observe()
+    assert np.array_equal(reset["playable"][:221], reset["playable"][221:])
+    assert np.array_equal(reset["owners"][:221], reset["owners"][221:])

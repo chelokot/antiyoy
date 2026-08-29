@@ -1,13 +1,59 @@
 #![forbid(unsafe_code)]
 
 use antiyoy_agents::{Agent, GreedyAgent};
-use antiyoy_core::{Relation, Rules};
+use antiyoy_core::{GeneratorConfig, Relation, Rules};
 use antiyoy_rl::{BatchEnv, BatchObservation, StepResult};
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 use rayon::prelude::*;
+
+#[pyclass(module = "antiyoy_rl._native", frozen)]
+struct ProceduralConfig {
+    inner: GeneratorConfig,
+}
+
+#[pymethods]
+impl ProceduralConfig {
+    #[new]
+    #[pyo3(signature = (width=31, height=21, players=2, seed=1, land_density_per_million=650_000, starting_province_size=5, starting_money=10, tree_density_per_million=150_000, neutral_tower_density_per_million=20_000, neutral_capital_density_per_million=10_000, grave_density_per_million=15_000))]
+    #[expect(clippy::too_many_arguments)]
+    fn new(
+        width: u16,
+        height: u16,
+        players: u8,
+        seed: u64,
+        land_density_per_million: u32,
+        starting_province_size: u16,
+        starting_money: i64,
+        tree_density_per_million: u32,
+        neutral_tower_density_per_million: u32,
+        neutral_capital_density_per_million: u32,
+        grave_density_per_million: u32,
+    ) -> Self {
+        Self {
+            inner: GeneratorConfig {
+                schema_version: antiyoy_core::GENERATOR_SCHEMA_VERSION,
+                width,
+                height,
+                players,
+                seed,
+                land_density_per_million,
+                starting_province_size,
+                starting_money,
+                tree_density_per_million,
+                neutral_tower_density_per_million,
+                neutral_capital_density_per_million,
+                grave_density_per_million,
+            },
+        }
+    }
+
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(runtime_error)
+    }
+}
 
 #[pyclass(module = "antiyoy_rl._native")]
 struct VectorEnv {
@@ -66,6 +112,57 @@ impl VectorEnv {
             })
             .collect::<PyResult<Vec<_>>>()?;
         let mut batch = BatchEnv::symmetric_duels_mixed(rules, width, height, seed, action_limit)
+            .map_err(runtime_error)?;
+        batch.set_fog(fog);
+        Ok(Self {
+            batch,
+            observation: BatchObservation::default(),
+        })
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (environments, config, action_limit=1000, profile="classic_generic_2022", fog=false, diplomacy=false, initial_relation="neutral"))]
+    #[expect(clippy::needless_pass_by_value)]
+    fn procedural(
+        environments: usize,
+        config: PyRef<'_, ProceduralConfig>,
+        action_limit: u32,
+        profile: &str,
+        fog: bool,
+        diplomacy: bool,
+        initial_relation: &str,
+    ) -> PyResult<Self> {
+        let mut rules = rules_for_profile(profile)?;
+        configure_diplomacy(&mut rules, diplomacy, initial_relation)?;
+        let mut batch = BatchEnv::procedural(rules, environments, &config.inner, action_limit)
+            .map_err(runtime_error)?;
+        batch.set_fog(fog);
+        Ok(Self {
+            batch,
+            observation: BatchObservation::default(),
+        })
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (profiles, config, action_limit=1000, fog=false, diplomacy=false, initial_relation="neutral"))]
+    #[expect(clippy::needless_pass_by_value)]
+    fn procedural_mixed(
+        profiles: Vec<String>,
+        config: PyRef<'_, ProceduralConfig>,
+        action_limit: u32,
+        fog: bool,
+        diplomacy: bool,
+        initial_relation: &str,
+    ) -> PyResult<Self> {
+        let rules = profiles
+            .iter()
+            .map(|profile| {
+                let mut rules = rules_for_profile(profile)?;
+                configure_diplomacy(&mut rules, diplomacy, initial_relation)?;
+                Ok(rules)
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let mut batch = BatchEnv::procedural_mixed(rules, &config.inner, action_limit)
             .map_err(runtime_error)?;
         batch.set_fog(fog);
         Ok(Self {
@@ -134,6 +231,18 @@ impl VectorEnv {
                     .game(index)
                     .ok_or_else(|| PyRuntimeError::new_err("environment index disappeared"))?;
                 serde_json::to_string(game.rules()).map_err(runtime_error)
+            })
+            .collect()
+    }
+
+    fn generator_jsons(&self) -> PyResult<Vec<Option<String>>> {
+        (0..self.batch.len())
+            .map(|index| {
+                self.batch
+                    .generator_config(index)
+                    .map(serde_json::to_string)
+                    .transpose()
+                    .map_err(runtime_error)
             })
             .collect()
     }
@@ -426,7 +535,12 @@ fn runtime_error(error: impl std::fmt::Display) -> PyErr {
 
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<ProceduralConfig>()?;
     module.add_class::<VectorEnv>()?;
     module.add("OBSERVATION_VERSION", antiyoy_rl::OBSERVATION_VERSION)?;
+    module.add(
+        "GENERATOR_SCHEMA_VERSION",
+        antiyoy_core::GENERATOR_SCHEMA_VERSION,
+    )?;
     Ok(())
 }

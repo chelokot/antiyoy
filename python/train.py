@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from antiyoy_rl import OBSERVATION_VERSION, VectorEnv
+from antiyoy_rl import OBSERVATION_VERSION, ProceduralConfig, VectorEnv
 from antiyoy_rl.model import (
     RULE_FEATURES,
     UniversalPolicy,
@@ -26,9 +26,18 @@ CHECKPOINT_VERSION = 5
 class TrainingConfig:
     environments: int
     updates: int
+    procedural: bool
     width: int
     height: int
+    players: int
     seed: int
+    land_density_per_million: int
+    starting_province_size: int
+    starting_money: int
+    tree_density_per_million: int
+    neutral_tower_density_per_million: int
+    neutral_capital_density_per_million: int
+    grave_density_per_million: int
     action_limit: int
     hidden: int
     layers: int
@@ -80,7 +89,30 @@ def reward_tensor(result: dict[str, np.ndarray], config: TrainingConfig, device:
 
 
 def make_environment(config: TrainingConfig) -> VectorEnv:
+    generator = ProceduralConfig(
+        width=config.width,
+        height=config.height,
+        players=config.players,
+        seed=config.seed,
+        land_density_per_million=config.land_density_per_million,
+        starting_province_size=config.starting_province_size,
+        starting_money=config.starting_money,
+        tree_density_per_million=config.tree_density_per_million,
+        neutral_tower_density_per_million=config.neutral_tower_density_per_million,
+        neutral_capital_density_per_million=config.neutral_capital_density_per_million,
+        grave_density_per_million=config.grave_density_per_million,
+    )
     if config.profiles is None:
+        if config.procedural:
+            return VectorEnv.procedural(
+                config.environments,
+                generator,
+                action_limit=config.action_limit,
+                profile=cast(str, config.profile),
+                fog=config.fog,
+                diplomacy=config.diplomacy,
+                initial_relation=config.initial_relation,
+            )
         return VectorEnv(
             config.environments,
             width=config.width,
@@ -96,6 +128,15 @@ def make_environment(config: TrainingConfig) -> VectorEnv:
         config.profiles[index % len(config.profiles)]
         for index in range(config.environments)
     ]
+    if config.procedural:
+        return VectorEnv.procedural_mixed(
+            schedule,
+            generator,
+            action_limit=config.action_limit,
+            fog=config.fog,
+            diplomacy=config.diplomacy,
+            initial_relation=config.initial_relation,
+        )
     return VectorEnv.mixed(
         schedule,
         width=config.width,
@@ -124,6 +165,19 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("imitation_updates must not be negative")
     if config.profiles is not None and not config.profiles:
         raise ValueError("profiles must not be empty")
+    if config.procedural and config.players < 2:
+        raise ValueError("procedural maps require at least two players")
+    densities = [
+        config.land_density_per_million,
+        config.tree_density_per_million,
+        config.neutral_tower_density_per_million,
+        config.neutral_capital_density_per_million,
+        config.grave_density_per_million,
+    ]
+    if config.procedural and any(density < 0 or density > 1_000_000 for density in densities):
+        raise ValueError("procedural densities must be between zero and one million")
+    if config.procedural and sum(densities[1:]) > 1_000_000:
+        raise ValueError("procedural neutral object densities exceed one million")
 
 
 def collect_rollout(
@@ -376,6 +430,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         else "perspective_ppo_gae",
         "updates": config.updates,
         "environments": config.environments,
+        "map_generator": "procedural_v1" if config.procedural else "symmetric_duel_v1",
         "parameters": parameters,
         "transitions": config.updates * config.rollout_steps * config.environments,
         "optimizer_steps": config.updates * config.rollout_steps * config.epochs,
@@ -397,6 +452,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
                 "observation_version": OBSERVATION_VERSION,
                 "rule_features": RULE_FEATURES,
                 "training_rules_jsons": environment.rules_jsons(),
+                "training_generators_jsons": environment.generator_jsons(),
                 "config": {
                     **asdict(config),
                     "resume": str(config.resume) if config.resume is not None else None,
@@ -414,9 +470,18 @@ def parse_args() -> TrainingConfig:
     parser = argparse.ArgumentParser()
     parser.add_argument("--environments", type=int, default=64)
     parser.add_argument("--updates", type=int, default=1000)
+    parser.add_argument("--procedural", action="store_true")
     parser.add_argument("--width", type=int, default=11)
     parser.add_argument("--height", type=int, default=9)
+    parser.add_argument("--players", type=int, default=2)
     parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--land-density-per-million", type=int, default=650_000)
+    parser.add_argument("--starting-province-size", type=int, default=5)
+    parser.add_argument("--starting-money", type=int, default=10)
+    parser.add_argument("--tree-density-per-million", type=int, default=150_000)
+    parser.add_argument("--neutral-tower-density-per-million", type=int, default=20_000)
+    parser.add_argument("--neutral-capital-density-per-million", type=int, default=10_000)
+    parser.add_argument("--grave-density-per-million", type=int, default=15_000)
     parser.add_argument("--action-limit", type=int, default=1000)
     parser.add_argument("--hidden", type=int, default=128)
     parser.add_argument("--layers", type=int, default=4)

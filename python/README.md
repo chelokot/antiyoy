@@ -19,9 +19,16 @@ cd python
 ```python
 import numpy as np
 
-from antiyoy_rl import VectorEnv
+from antiyoy_rl import ProceduralConfig, VectorEnv
 
-environment = VectorEnv(256, width=11, height=9, seed=1)
+generator = ProceduralConfig(
+    width=31,
+    height=21,
+    players=4,
+    seed=1,
+    land_density_per_million=650_000,
+)
+environment = VectorEnv.procedural(256, generator)
 observation = environment.observe()
 action_indices = np.zeros(environment.environments, dtype=np.uint64)
 result = environment.step(action_indices)
@@ -44,6 +51,7 @@ consume raw reward components supplied by Rust.
 
 ```bash
 python train.py --environments 64 --updates 1000 --device cuda \
+  --procedural --width 31 --height 21 --players 4 \
   --profiles classic_generic_2022 classic_slay_2022 online_duel_v1 \
     online_experimental_v2_260801 \
   --imitation-updates 500 --rollout-steps 16 --epochs 2 \
@@ -51,7 +59,9 @@ python train.py --environments 64 --updates 1000 --device cuda \
 ```
 
 The profile list is cycled across the vector batch and each environment keeps
-its rules through resets. Add `--fog` to train from the active player's exact
+its rules through resets. Procedural reset seeds rebuild the entire connected
+map and starting position; the exact generator configs are stored in the
+checkpoint. Add `--fog` to train from the active player's exact
 visibility projection; full-state mode is the faster default for centralized
 self-play. Add `--diplomacy --initial-relation neutral` to expose bilateral
 offers, declarations of war, alliance propagation, and their exact action mask.

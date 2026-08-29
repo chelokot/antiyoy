@@ -1,3 +1,8 @@
-from ._native import OBSERVATION_VERSION, VectorEnv
+from ._native import GENERATOR_SCHEMA_VERSION, OBSERVATION_VERSION, ProceduralConfig, VectorEnv
 
-__all__ = ["OBSERVATION_VERSION", "VectorEnv"]
+__all__ = [
+    "GENERATOR_SCHEMA_VERSION",
+    "OBSERVATION_VERSION",
+    "ProceduralConfig",
+    "VectorEnv",
+]

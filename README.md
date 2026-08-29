@@ -109,6 +109,14 @@ maturin develop --release
 pytest -q tests
 ```
 
+`ProceduralConfig` and `VectorEnv.procedural` generate deterministic connected
+maps with configurable land, players, starts, money, trees, neutral structures,
+and graves. Training with `python train.py --procedural` regenerates the whole
+scenario on every episode seed and records every worker's exact generator
+config in the checkpoint. The original `procedural_v1` generator is intended
+for domain randomization and is explicitly separate from upstream map-seed
+compatibility.
+
 ## Downloadable policies
 
 The model registry contains immutable release assets with size and SHA-256
