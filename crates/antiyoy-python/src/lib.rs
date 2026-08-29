@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use antiyoy_agents::{Agent, GreedyAgent};
+use antiyoy_agents::{Agent, GreedyAgent, SearchAgent, SearchConfig};
 use antiyoy_core::{
     EconomyMetric, GeneratorConfig, Objective, PlayerId, Relation, Rules, VictoryCondition,
 };
@@ -147,6 +147,8 @@ impl ScenarioObjective {
 struct VectorEnv {
     batch: BatchEnv,
     observation: BatchObservation,
+    search_config: Option<SearchConfig>,
+    search_agents: Vec<SearchAgent>,
 }
 
 #[pymethods]
@@ -174,10 +176,7 @@ impl VectorEnv {
                 .map_err(runtime_error)?;
         apply_objective(&mut batch, objective.as_deref().map(|value| &value.inner))?;
         batch.set_fog(fog);
-        Ok(Self {
-            batch,
-            observation: BatchObservation::default(),
-        })
+        Ok(Self::from_batch(batch))
     }
 
     #[staticmethod]
@@ -207,10 +206,7 @@ impl VectorEnv {
             .map_err(runtime_error)?;
         apply_objective(&mut batch, objective.as_deref().map(|value| &value.inner))?;
         batch.set_fog(fog);
-        Ok(Self {
-            batch,
-            observation: BatchObservation::default(),
-        })
+        Ok(Self::from_batch(batch))
     }
 
     #[staticmethod]
@@ -233,10 +229,7 @@ impl VectorEnv {
             .map_err(runtime_error)?;
         apply_objective(&mut batch, objective.as_deref().map(|value| &value.inner))?;
         batch.set_fog(fog);
-        Ok(Self {
-            batch,
-            observation: BatchObservation::default(),
-        })
+        Ok(Self::from_batch(batch))
     }
 
     #[staticmethod]
@@ -263,10 +256,7 @@ impl VectorEnv {
             .map_err(runtime_error)?;
         apply_objective(&mut batch, objective.as_deref().map(|value| &value.inner))?;
         batch.set_fog(fog);
-        Ok(Self {
-            batch,
-            observation: BatchObservation::default(),
-        })
+        Ok(Self::from_batch(batch))
     }
 
     #[getter]
@@ -384,6 +374,69 @@ impl VectorEnv {
                 .collect::<PyResult<Vec<_>>>()
         })?;
         Ok(PyArray1::from_vec(py, indices))
+    }
+
+    #[pyo3(signature = (node_budget=2048, beam_width=32, branch_width=48, maximum_actions_per_turn=24))]
+    fn search_actions<'py>(
+        &mut self,
+        py: Python<'py>,
+        node_budget: usize,
+        beam_width: usize,
+        branch_width: usize,
+        maximum_actions_per_turn: usize,
+    ) -> PyResult<Bound<'py, PyArray1<u64>>> {
+        let config = SearchConfig {
+            node_budget,
+            beam_width,
+            branch_width,
+            maximum_actions_per_turn,
+        };
+        if self.search_config != Some(config) {
+            self.search_agents = (0..self.batch.len())
+                .map(|index| SearchAgent::with_config(format!("search-{index}"), config))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| PyValueError::new_err(error.to_string()))?;
+            self.search_config = Some(config);
+        }
+        let batch = &self.batch;
+        let indices = py.detach(|| {
+            self.search_agents
+                .par_iter_mut()
+                .enumerate()
+                .map(|(index, agent)| {
+                    let game = batch
+                        .game(index)
+                        .ok_or_else(|| PyRuntimeError::new_err("environment index disappeared"))?;
+                    let actions = batch
+                        .legal_actions(index)
+                        .ok_or_else(|| PyRuntimeError::new_err("legal action index disappeared"))?;
+                    if actions.is_empty() {
+                        return Err(PyRuntimeError::new_err(format!(
+                            "environment {index} is done and must be reset"
+                        )));
+                    }
+                    let selected = agent.select_action(game, actions);
+                    let position = actions
+                        .iter()
+                        .position(|action| *action == selected)
+                        .expect("search agent must return a legal action");
+                    u64::try_from(position)
+                        .map_err(|_| PyRuntimeError::new_err("action index does not fit u64"))
+                })
+                .collect::<PyResult<Vec<_>>>()
+        })?;
+        Ok(PyArray1::from_vec(py, indices))
+    }
+}
+
+impl VectorEnv {
+    fn from_batch(batch: BatchEnv) -> Self {
+        Self {
+            batch,
+            observation: BatchObservation::default(),
+            search_config: None,
+            search_agents: Vec::new(),
+        }
     }
 }
 

@@ -59,6 +59,32 @@ def test_greedy_baseline_returns_legal_local_indices() -> None:
     environment.step(actions)
 
 
+def test_search_teacher_is_deterministic_and_returns_legal_local_indices() -> None:
+    environment = VectorEnv(2, width=7, height=5, seed=29)
+    environment.reset(1, 29)
+    for _ in range(6):
+        observation = environment.observe()
+        actions = np.asarray(
+            environment.search_actions(
+                node_budget=256,
+                beam_width=12,
+                branch_width=20,
+                maximum_actions_per_turn=12,
+            ),
+            dtype=np.uint64,
+        )
+        counts = np.diff(observation["action_offsets"])
+        assert np.all(actions < counts)
+        assert actions[0] == actions[1]
+        environment.step(actions)
+
+
+def test_search_teacher_rejects_invalid_configuration() -> None:
+    environment = VectorEnv(1, width=7, height=5, seed=31)
+    with pytest.raises(ValueError, match="node budget"):
+        environment.search_actions(node_budget=1)
+
+
 @pytest.mark.parametrize(
     ("profile", "expected_profile"),
     [
