@@ -30,3 +30,20 @@ result = environment.step(action_indices)
 Each action index is local to its environment's half-open range in
 `observation["action_offsets"]`. Select a legal action, step the complete batch,
 and reset every environment whose terminal or truncated value is one.
+
+## Policy training
+
+`UniversalPolicy` is a rules-conditioned hex convolutional actor-critic. It
+scores the current variable legal-action set from source, target, action, and
+global board embeddings instead of allocating a mostly invalid fixed policy
+head. The starter trainer uses zero-sum perspective-aware bootstrapping and raw
+reward components supplied by Rust.
+
+```bash
+python train.py --environments 64 --updates 1000 --device cuda \
+  --checkpoint ../models/universal-a2c.pt
+```
+
+This trainer is an executable baseline for validating the complete ROCm path;
+checkpoint strength must be established by held-out mirrored tournaments before
+publishing an Elo number.
