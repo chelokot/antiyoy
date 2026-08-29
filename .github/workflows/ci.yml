@@ -54,4 +54,4 @@ jobs:
       - run: maturin build --release --out dist
         working-directory: python
       - run: python -m pip install python/dist/*.whl
-      - run: pytest -q python/tests
+      - run: python -m pytest -q python/tests
