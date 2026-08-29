@@ -4,8 +4,8 @@ use std::collections::VecDeque;
 use antiyoy_core::{Action, DiplomacyCommand, Game, Object, PlayerId, Structure};
 use thiserror::Error;
 
-use crate::Agent;
 use crate::evaluation::position_score;
+use crate::{Agent, GreedyAgent};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SearchConfig {
@@ -113,7 +113,11 @@ impl SearchAgent {
             actions: Vec::new(),
             score: position_score(game, player),
         }];
-        let mut completed = Vec::new();
+        let mut completed = vec![greedy_turn_candidate(
+            game,
+            player,
+            self.config.maximum_actions_per_turn,
+        )];
         let mut nodes = 0;
         let mut maximum_depth = 0;
 
@@ -166,6 +170,34 @@ impl SearchAgent {
             selected_score: selected.score,
         };
         self.plan = materialize_plan(game, &selected.actions);
+    }
+}
+
+fn greedy_turn_candidate(game: &Game, player: PlayerId, maximum_actions: usize) -> Candidate {
+    let mut candidate = game.clone();
+    let mut actions = Vec::new();
+    let mut greedy = GreedyAgent::new("search-baseline");
+    for action_index in 0..maximum_actions {
+        let mut legal = Vec::new();
+        candidate.legal_actions(&mut legal);
+        let action = if action_index + 1 == maximum_actions {
+            Action::EndTurn
+        } else {
+            greedy.select_action(&candidate, &legal)
+        };
+        candidate
+            .step(action)
+            .expect("greedy baseline action must apply");
+        actions.push(action);
+        if candidate.is_terminal() || candidate.active_player() != player {
+            break;
+        }
+    }
+    let score = position_score(&candidate, player);
+    Candidate {
+        game: candidate,
+        actions,
+        score,
     }
 }
 

@@ -24,7 +24,7 @@ pub(crate) fn position_score(game: &Game, player: PlayerId) -> i64 {
             2 => 82,
             3 => 210,
             _ => 430,
-        } + i64::from(unit.is_ready()) * 6;
+        };
         let object_score = match cell.object() {
             Object::Empty => 0,
             Object::Capital => 42,
