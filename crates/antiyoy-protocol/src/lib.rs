@@ -6,4 +6,4 @@ pub use replay::{
     Digest, Replay, ReplayError, ReplayFrame, ReplayHeader, Verification, VerifiedReplay,
 };
 
-pub const PROTOCOL_VERSION: u16 = 4;
+pub const PROTOCOL_VERSION: u16 = 5;

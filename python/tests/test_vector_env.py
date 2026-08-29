@@ -11,6 +11,10 @@ def test_observation_and_step_contract() -> None:
     observation = environment.observe()
     assert observation["version"] == OBSERVATION_VERSION
     assert observation["cell_offsets"].tolist() == [0, 35, 70, 105, 140]
+    assert observation["relation_offsets"].tolist() == [0, 4, 8, 12, 16]
+    assert observation["player_counts"].tolist() == [2, 2, 2, 2]
+    assert observation["relations"].shape == (16,)
+    assert observation["proposals"].shape == (16,)
     assert observation["owners"].shape == (140,)
     assert observation["visible"].shape == (140,)
     assert set(np.unique(observation["visible"])).issubset({0, 1})
@@ -18,7 +22,7 @@ def test_observation_and_step_contract() -> None:
     result = environment.step(actions)
     assert result["actors"].tolist() == [0, 0, 0, 0]
     assert result["terminal"].tolist() == [0, 0, 0, 0]
-    assert json.loads(environment.rules_json())["schema_version"] == 4
+    assert json.loads(environment.rules_json())["schema_version"] == 5
 
 
 def test_seeded_environments_are_equal_after_equal_actions() -> None:
@@ -89,3 +93,20 @@ def test_fog_mode_projects_active_player_visibility() -> None:
     fog = VectorEnv(1, width=11, height=9, seed=211, fog=True).observe()
     assert np.all(full["visible"] == full["playable"])
     assert np.any(np.logical_and(fog["playable"] == 1, fog["visible"] == 0))
+
+
+def test_diplomacy_configuration_reaches_state_and_action_masks() -> None:
+    environment = VectorEnv(
+        1,
+        width=7,
+        height=5,
+        seed=223,
+        diplomacy=True,
+        initial_relation="neutral",
+    )
+    observation = environment.observe()
+    rules = json.loads(environment.rules_json())
+    assert rules["diplomacy"]["enabled"] is True
+    assert rules["diplomacy"]["initial_relation"] == "Neutral"
+    assert observation["relations"].tolist() == [3, 1, 1, 3]
+    assert 5 in observation["action_kinds"]

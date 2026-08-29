@@ -47,9 +47,17 @@ regression-tested. Online target-snapshot vegetation, coast-selected tree type,
 and the observed player-zero tree charge are also isolated behind profile
 fields and tested. Fog projection is implemented independently from legality:
 province sources illuminate radius `1`, units `2`, towers `3`, capitals `4`,
-and strong towers `5`; explicitly shared owners contribute their provinces.
-Diplomacy state and relation actions remain unchecked until their differential
-fixtures are committed.
+and strong towers `5`; friend and alliance provinces contribute automatically
+when diplomacy is enabled, while callers may explicitly share other owners.
+
+Diplomacy is a versioned optional rules module. Its symmetric relation matrix
+supports war, neutral, friend, and alliance; directed proposals require the
+other player to accept or reject friendship, alliance, and peace. War may be
+declared unilaterally. A live foreign province is capturable only during war,
+while neutral land and colored singleton land without a province remain
+attackable. Alliance war sharing propagates deterministically and clears stale
+offers whenever a relation changes. Core and action-mask regression tests cover
+peace-gated capture, bilateral acceptance, singleton attacks, and shared wars.
 
 ## Extensions
 

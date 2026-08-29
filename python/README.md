@@ -36,7 +36,9 @@ and reset every environment whose terminal or truncated value is one.
 `UniversalPolicy` is a rules-conditioned hex convolutional actor-critic. It
 scores the current variable legal-action set from source, target, action, and
 global board embeddings instead of allocating a mostly invalid fixed policy
-head. The trainer uses clipped PPO with generalized advantage estimation. Both
+head. Diplomacy-enabled observations add relation/proposal context and
+player-targeted diplomatic actions. The trainer uses clipped PPO with
+generalized advantage estimation. Both
 bootstrapping and GAE flip perspective whenever the active player changes, and
 consume raw reward components supplied by Rust.
 
@@ -51,7 +53,8 @@ python train.py --environments 64 --updates 1000 --device cuda \
 The profile list is cycled across the vector batch and each environment keeps
 its rules through resets. Add `--fog` to train from the active player's exact
 visibility projection; full-state mode is the faster default for centralized
-self-play.
+self-play. Add `--diplomacy --initial-relation neutral` to expose bilateral
+offers, declarations of war, alliance propagation, and their exact action mask.
 
 Greedy distillation is an optional curriculum, not an evaluation shortcut. It
 teaches a common tactical prior from the native baseline before PPO self-play;
@@ -62,6 +65,10 @@ Use `--resume CHECKPOINT --checkpoint NEW_CHECKPOINT` to continue a run with
 the exact model and optimizer state while changing the profile schedule. The
 trainer rejects incompatible checkpoint, observation, and rule-feature
 versions before allocating a rollout.
+
+Evaluation also accepts the published checkpoint-v4/observation-v6 alpha. Its
+weights are expanded with zeroed diplomacy columns so disabled-diplomacy
+profiles preserve the legacy policy exactly; optimizer resume remains strict.
 
 This trainer is an executable baseline for validating the complete ROCm path;
 checkpoint strength must be established by held-out mirrored tournaments before

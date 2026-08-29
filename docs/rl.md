@@ -5,7 +5,7 @@ engine and policy training. A batch may contain different map dimensions,
 province counts, and immutable rules profiles. Independent environments are
 stepped in parallel while results retain input order.
 
-## Observation version 6
+## Observation version 7
 
 `BatchObservation` is a flat structure of arrays. `cell_offsets`,
 `province_offsets`, and `action_offsets` have `environment_count + 1` entries;
@@ -14,11 +14,12 @@ The batch carries one complete immutable `Rules` value per environment,
 including every economic, combat, vegetation, and lifecycle parameter seen by
 a universal policy.
 
-Version 6 allows Classic, Slay, Online, Duel, Experimental, and custom
+Version 7 allows Classic, Slay, Online, Duel, Experimental, and custom
 configurations in one batch. It also conditions on the selected full-state or
-fog visibility mask. Checkpoints store the observation version, feature width,
-and exact training rules; evaluation rejects a model whose structural contract
-does not match the native engine.
+fog visibility mask and adds the complete directed diplomacy matrix. Checkpoints
+store the observation version, feature width, and exact training rules. The
+evaluator migrates the published version-6 alpha weights without changing their
+outputs when diplomacy is disabled; trainer resume requires an exact contract.
 
 Per-environment arrays contain width, height, active player, and round. Per-cell
 arrays contain the playable mask, absolute owner (`255` is neutral), object
@@ -30,6 +31,9 @@ authoritative arrays remain available for centralized critics.
 Province arrays contain owner, exact signed treasury and profit, capital hex, and
 size. The representation is lossless for authoritative game state used by a
 policy and does not normalize or clamp configurable economic values.
+`relation_offsets` partitions square per-environment matrices. `relations` uses
+war/neutral/friend/alliance codes `0..3`; directed `proposals` uses the same
+codes and `255` for no pending offer. `player_counts` defines each matrix side.
 
 Object codes are stable within this observation version:
 
@@ -56,6 +60,7 @@ a kind, source, target, and one parameter. Missing hexes use `65535`.
 | Recruit | province capital | destination | strength 1–4 |
 | Build | missing | destination | farm 0, tower 1, strong tower 2 |
 | Plant tree | missing | destination | 0 |
+| Diplomacy | missing | target player ID | declare 0, propose neutral 1, friend 2, alliance 3, accept 4, reject 5 |
 
 An action chosen at offset `action_offsets[i] + k` is stepped as local action
 index `k`. This removes a huge mostly-invalid global action tensor and lets one

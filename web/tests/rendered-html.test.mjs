@@ -74,9 +74,12 @@ test("verifies and seeks through a binary replay in WebAssembly", async () => {
   const rewound = JSON.parse(replay.seek(3));
   assert.equal(metadata.seed, "47");
   assert.equal(metadata.rules_profile, "classic_generic_2022");
+  assert.equal(metadata.engine_version, 5);
+  assert.equal(metadata.format_version, 5);
   assert.equal(metadata.frames, 24);
   assert.equal(replay.frame_count(), 24);
   assert.equal(initial.cells.length, 35);
+  assert.equal(initial.relations.length, 4);
   assert.notDeepEqual(final, initial);
   assert.notDeepEqual(rewound, final);
   replay.free();

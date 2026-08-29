@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::rng::DeterministicRng;
 use crate::{
-    Action, ActionError, Cell, ConfigError, HexId, Object, PlayerId, Province, ProvinceId, Rules,
-    Scenario, Structure, Topology, Transition, Unit,
+    Action, ActionError, Cell, ConfigError, DiplomacyCommand, HexId, Object, PlayerId, Province,
+    ProvinceId, Relation, Rules, Scenario, Structure, Topology, Transition, Unit,
 };
 
 const MAXIMUM_PLAYERS: u16 = u8::MAX as u16;
@@ -23,6 +23,8 @@ pub struct Game {
     player_count: u8,
     cells: Vec<Cell>,
     provinces: Vec<Province>,
+    relations: Vec<Relation>,
+    proposals: Vec<Option<Relation>>,
     active_player: PlayerId,
     round: u32,
     random: DeterministicRng,
@@ -35,12 +37,16 @@ impl Game {
         rules.validate()?;
         Self::validate_scenario(&rules, &scenario)?;
 
+        let player_count = scenario.player_count;
+        let relations = Self::initial_relations(player_count, rules.diplomacy.initial_relation);
         let mut game = Self {
             rules,
             topology: scenario.topology,
-            player_count: scenario.player_count,
+            player_count,
             cells: scenario.cells.into_iter().map(Cell::from).collect(),
             provinces: Vec::new(),
+            relations,
+            proposals: vec![None; usize::from(player_count) * usize::from(player_count)],
             active_player: PlayerId(0),
             round: 1,
             random: DeterministicRng::new(scenario.seed),
@@ -71,6 +77,28 @@ impl Game {
 
     pub const fn active_player(&self) -> PlayerId {
         self.active_player
+    }
+
+    pub const fn player_count(&self) -> u8 {
+        self.player_count
+    }
+
+    pub fn relation(&self, first: PlayerId, second: PlayerId) -> Option<Relation> {
+        self.relation_index(first, second)
+            .map(|index| self.relations[index])
+    }
+
+    pub fn proposal(&self, from: PlayerId, to: PlayerId) -> Option<Relation> {
+        self.relation_index(from, to)
+            .and_then(|index| self.proposals[index])
+    }
+
+    pub fn relations(&self) -> &[Relation] {
+        &self.relations
+    }
+
+    pub fn proposals(&self) -> &[Option<Relation>] {
+        &self.proposals
     }
 
     pub const fn round(&self) -> u32 {
@@ -179,6 +207,24 @@ impl Game {
         }
     }
 
+    pub fn diplomatic_visibility(&self, viewer: PlayerId, output: &mut Vec<bool>) {
+        if !self.rules.diplomacy.enabled {
+            self.visibility(viewer, &[], output);
+            return;
+        }
+        let shared_owners: Vec<_> = (0..self.player_count)
+            .map(PlayerId)
+            .filter(|owner| {
+                *owner != viewer
+                    && matches!(
+                        self.relation(viewer, *owner),
+                        Some(Relation::Friend | Relation::Alliance)
+                    )
+            })
+            .collect();
+        self.visibility(viewer, &shared_owners, output);
+    }
+
     pub fn farm_price(&self, id: ProvinceId) -> Option<i64> {
         let province = self.province(id)?;
         let farms = province
@@ -205,6 +251,7 @@ impl Game {
             } => self.recruit(province, target, strength)?,
             Action::Build { target, structure } => self.build(target, structure)?,
             Action::PlantTree { target } => self.plant_tree(target)?,
+            Action::Diplomacy { target, command } => self.apply_diplomacy(target, command)?,
         }
 
         Ok(self.transition())
@@ -216,6 +263,23 @@ impl Game {
             return;
         }
         output.push(Action::EndTurn);
+
+        if self.rules.diplomacy.enabled {
+            for target in (0..self.player_count).map(PlayerId) {
+                for command in [
+                    DiplomacyCommand::DeclareWar,
+                    DiplomacyCommand::ProposeNeutral,
+                    DiplomacyCommand::ProposeFriendship,
+                    DiplomacyCommand::ProposeAlliance,
+                    DiplomacyCommand::Accept,
+                    DiplomacyCommand::Reject,
+                ] {
+                    if self.can_apply_diplomacy(target, command).is_ok() {
+                        output.push(Action::Diplomacy { target, command });
+                    }
+                }
+            }
+        }
 
         let mut distances = vec![usize::MAX; self.cells.len()];
         let mut queue = VecDeque::with_capacity(self.cells.len());
@@ -329,6 +393,150 @@ impl Game {
         Ok(())
     }
 
+    fn initial_relations(player_count: u8, initial: Relation) -> Vec<Relation> {
+        let players = usize::from(player_count);
+        let mut relations = vec![initial; players * players];
+        for player in 0..players {
+            relations[player * players + player] = Relation::Alliance;
+        }
+        relations
+    }
+
+    fn relation_index(&self, first: PlayerId, second: PlayerId) -> Option<usize> {
+        (first.0 < self.player_count && second.0 < self.player_count)
+            .then(|| first.index() * usize::from(self.player_count) + second.index())
+    }
+
+    fn is_player_alive(&self, player: PlayerId) -> bool {
+        self.provinces
+            .iter()
+            .any(|province| province.owner == player)
+    }
+
+    fn can_apply_diplomacy(
+        &self,
+        target: PlayerId,
+        command: DiplomacyCommand,
+    ) -> Result<(), ActionError> {
+        if !self.rules.diplomacy.enabled {
+            return Err(ActionError::Disabled);
+        }
+        if target == self.active_player || target.0 >= self.player_count {
+            return Err(ActionError::InvalidPlayer(target.0));
+        }
+        if !self.is_player_alive(target) {
+            return Err(ActionError::InvalidDiplomacy);
+        }
+        let relation = self
+            .relation(self.active_player, target)
+            .ok_or(ActionError::InvalidPlayer(target.0))?;
+        let outgoing = self.proposal(self.active_player, target);
+        let incoming = self.proposal(target, self.active_player);
+        match command {
+            DiplomacyCommand::DeclareWar if relation != Relation::War => Ok(()),
+            DiplomacyCommand::Accept | DiplomacyCommand::Reject if incoming.is_some() => Ok(()),
+            command
+                if command
+                    .proposal()
+                    .is_some_and(|proposal| proposal != relation)
+                    && outgoing.is_none() =>
+            {
+                Ok(())
+            }
+            _ => Err(ActionError::InvalidDiplomacy),
+        }
+    }
+
+    fn apply_diplomacy(
+        &mut self,
+        target: PlayerId,
+        command: DiplomacyCommand,
+    ) -> Result<(), ActionError> {
+        self.can_apply_diplomacy(target, command)?;
+        if let Some(proposal) = command.proposal() {
+            let index = self
+                .relation_index(self.active_player, target)
+                .ok_or(ActionError::InvalidPlayer(target.0))?;
+            self.proposals[index] = Some(proposal);
+            return Ok(());
+        }
+        match command {
+            DiplomacyCommand::DeclareWar => {
+                self.set_relation(self.active_player, target, Relation::War)?;
+                self.propagate_alliance_wars();
+            }
+            DiplomacyCommand::Accept => {
+                let relation = self
+                    .proposal(target, self.active_player)
+                    .ok_or(ActionError::InvalidDiplomacy)?;
+                self.set_relation(self.active_player, target, relation)?;
+                if relation == Relation::Alliance {
+                    self.propagate_alliance_wars();
+                }
+            }
+            DiplomacyCommand::Reject => {
+                let index = self
+                    .relation_index(target, self.active_player)
+                    .ok_or(ActionError::InvalidPlayer(target.0))?;
+                self.proposals[index] = None;
+            }
+            DiplomacyCommand::ProposeNeutral
+            | DiplomacyCommand::ProposeFriendship
+            | DiplomacyCommand::ProposeAlliance => return Err(ActionError::InvalidDiplomacy),
+        }
+        Ok(())
+    }
+
+    fn set_relation(
+        &mut self,
+        first: PlayerId,
+        second: PlayerId,
+        relation: Relation,
+    ) -> Result<(), ActionError> {
+        let forward = self
+            .relation_index(first, second)
+            .ok_or(ActionError::InvalidPlayer(second.0))?;
+        let reverse = self
+            .relation_index(second, first)
+            .ok_or(ActionError::InvalidPlayer(first.0))?;
+        self.relations[forward] = relation;
+        self.relations[reverse] = relation;
+        self.proposals[forward] = None;
+        self.proposals[reverse] = None;
+        Ok(())
+    }
+
+    fn propagate_alliance_wars(&mut self) {
+        if !self.rules.diplomacy.alliances_share_wars {
+            return;
+        }
+        loop {
+            let mut propagation = None;
+            'relations: for first in (0..self.player_count).map(PlayerId) {
+                for ally in (0..self.player_count).map(PlayerId) {
+                    if first == ally || self.relation(first, ally) != Some(Relation::Alliance) {
+                        continue;
+                    }
+                    for enemy in (0..self.player_count).map(PlayerId) {
+                        if enemy != first
+                            && enemy != ally
+                            && self.relation(first, enemy) == Some(Relation::War)
+                            && self.relation(ally, enemy) != Some(Relation::War)
+                        {
+                            propagation = Some((ally, enemy));
+                            break 'relations;
+                        }
+                    }
+                }
+            }
+            let Some((ally, enemy)) = propagation else {
+                break;
+            };
+            self.set_relation(ally, enemy, Relation::War)
+                .expect("players originate from the configured relation matrix");
+        }
+    }
+
     fn apply_treasuries(&mut self, treasuries: &[crate::Treasury]) -> Result<(), ConfigError> {
         let mut assigned = vec![false; self.provinces.len()];
         for treasury in treasuries {
@@ -420,6 +628,13 @@ impl Game {
                 return Err(ActionError::Occupied);
             }
             return Ok(());
+        }
+        if self.rules.diplomacy.enabled
+            && !target.owner.is_neutral()
+            && target.province.is_some()
+            && self.relation(self.active_player, target.owner) != Some(Relation::War)
+        {
+            return Err(ActionError::Peace);
         }
         if self.can_attack(strength, target_hex) {
             Ok(())
@@ -1356,8 +1571,8 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use crate::{
-        Action, ActionError, Game, HexId, InitialCell, Object, PlayerId, Rules, Scenario,
-        Structure, Topology, Treasury,
+        Action, ActionError, DiplomacyCommand, Game, HexId, InitialCell, Object, PlayerId,
+        Relation, Rules, Scenario, Structure, Topology, Treasury,
     };
 
     fn balanced_game() -> Game {
@@ -1802,6 +2017,119 @@ mod tests {
         let merged = game.cell(HexId(1)).expect("merged target").unit();
         assert_eq!(merged.strength(), 2);
         assert!(merged.is_ready());
+    }
+
+    #[test]
+    fn peace_blocks_province_capture_until_war_is_declared() {
+        let topology = Topology::rectangle(4, 1).expect("valid topology");
+        let mut scenario = Scenario::empty(topology, 2, 311);
+        for hex in [0, 1] {
+            scenario.cells[hex] = InitialCell::owned(PlayerId(0));
+        }
+        for hex in [2, 3] {
+            scenario.cells[hex] = InitialCell::owned(PlayerId(1));
+        }
+        scenario.cells[0].object = Object::Capital;
+        scenario.cells[1].unit_strength = 2;
+        scenario.cells[3].object = Object::Capital;
+        let mut rules = Rules::classic_generic();
+        rules.diplomacy.enabled = true;
+        rules.diplomacy.initial_relation = Relation::Neutral;
+        let mut game = Game::new(rules, scenario).expect("valid diplomatic game");
+
+        assert_eq!(
+            game.step(Action::Move {
+                source: HexId(1),
+                target: HexId(2),
+            }),
+            Err(ActionError::Peace)
+        );
+        game.step(Action::Diplomacy {
+            target: PlayerId(1),
+            command: DiplomacyCommand::DeclareWar,
+        })
+        .expect("war declaration");
+        game.step(Action::Move {
+            source: HexId(1),
+            target: HexId(2),
+        })
+        .expect("capture during war");
+        assert_eq!(
+            game.cell(HexId(2)).expect("captured hex").owner(),
+            PlayerId(0)
+        );
+    }
+
+    #[test]
+    fn ownerless_singleton_remains_attackable_during_peace() {
+        let topology = Topology::rectangle(6, 1).expect("valid topology");
+        let mut scenario = Scenario::empty(topology, 2, 317);
+        for hex in [0, 1] {
+            scenario.cells[hex] = InitialCell::owned(PlayerId(0));
+        }
+        scenario.cells[2] = InitialCell::owned(PlayerId(1));
+        for hex in [4, 5] {
+            scenario.cells[hex] = InitialCell::owned(PlayerId(1));
+        }
+        scenario.cells[0].object = Object::Capital;
+        scenario.cells[1].unit_strength = 1;
+        scenario.cells[5].object = Object::Capital;
+        let mut rules = Rules::classic_generic();
+        rules.diplomacy.enabled = true;
+        rules.diplomacy.initial_relation = Relation::Neutral;
+        let mut game = Game::new(rules, scenario).expect("valid diplomatic game");
+
+        assert!(!game.cell(HexId(2)).expect("singleton").province().is_some());
+        game.step(Action::Move {
+            source: HexId(1),
+            target: HexId(2),
+        })
+        .expect("ownerless singleton is not protected by diplomacy");
+    }
+
+    #[test]
+    fn accepted_alliance_shares_subsequent_wars() {
+        let topology = Topology::rectangle(8, 1).expect("valid topology");
+        let mut scenario = Scenario::empty(topology, 3, 313);
+        for (owner, hexes) in [
+            (PlayerId(0), [0, 1]),
+            (PlayerId(1), [3, 4]),
+            (PlayerId(2), [6, 7]),
+        ] {
+            for hex in hexes {
+                scenario.cells[hex] = InitialCell::owned(owner);
+            }
+            scenario.cells[hexes[0]].object = Object::Capital;
+        }
+        let mut rules = Rules::classic_generic();
+        rules.diplomacy.enabled = true;
+        rules.diplomacy.initial_relation = Relation::Neutral;
+        let mut game = Game::new(rules, scenario).expect("valid diplomatic game");
+
+        game.step(Action::Diplomacy {
+            target: PlayerId(1),
+            command: DiplomacyCommand::ProposeAlliance,
+        })
+        .expect("alliance proposal");
+        game.step(Action::EndTurn).expect("player one turn");
+        game.step(Action::Diplomacy {
+            target: PlayerId(0),
+            command: DiplomacyCommand::Accept,
+        })
+        .expect("alliance accepted");
+        game.step(Action::Diplomacy {
+            target: PlayerId(2),
+            command: DiplomacyCommand::DeclareWar,
+        })
+        .expect("ally declares war");
+
+        assert_eq!(
+            game.relation(PlayerId(0), PlayerId(1)),
+            Some(Relation::Alliance)
+        );
+        assert_eq!(game.relation(PlayerId(1), PlayerId(2)), Some(Relation::War));
+        assert_eq!(game.relation(PlayerId(0), PlayerId(2)), Some(Relation::War));
+        assert_eq!(game.proposal(PlayerId(0), PlayerId(1)), None);
     }
 
     fn recruitment_fixture(with_farm: bool) -> Scenario {

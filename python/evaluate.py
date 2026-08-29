@@ -14,6 +14,7 @@ from antiyoy_rl.model import (
     UniversalPolicy,
     action_distribution,
     encode_rules_batch,
+    load_policy_state,
 )
 from train import CHECKPOINT_VERSION
 
@@ -28,15 +29,15 @@ def evaluate(
 ) -> dict[str, float | int | str]:
     device = torch.device(device_name)
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    if checkpoint["checkpoint_version"] != CHECKPOINT_VERSION:
+    if checkpoint["checkpoint_version"] not in (4, CHECKPOINT_VERSION):
         raise ValueError("checkpoint format version does not match this evaluator")
-    if checkpoint["observation_version"] != OBSERVATION_VERSION:
+    if checkpoint["observation_version"] not in (6, OBSERVATION_VERSION):
         raise ValueError("checkpoint observation version does not match the native environment")
-    if checkpoint["rule_features"] != RULE_FEATURES:
+    if checkpoint["rule_features"] not in (42, RULE_FEATURES):
         raise ValueError("checkpoint rule feature width does not match the policy")
     config = checkpoint["config"]
     model = UniversalPolicy(config["hidden"], config["layers"]).to(device)
-    model.load_state_dict(checkpoint["model"])
+    load_policy_state(model, checkpoint["model"])
     model.eval()
     evaluation_profile = profile or config["profile"] or config["profiles"][0]
     environment = VectorEnv(
@@ -47,6 +48,8 @@ def evaluate(
         action_limit=config["action_limit"],
         profile=evaluation_profile,
         fog=config["fog"],
+        diplomacy=config.get("diplomacy", False),
+        initial_relation=config.get("initial_relation", "neutral"),
     )
     rules = encode_rules_batch(environment.rules_jsons(), device)
     model_seats = np.arange(games, dtype=np.uint8) % 2

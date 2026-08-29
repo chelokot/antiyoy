@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{HexId, PlayerId, Structure};
+use crate::{DiplomacyCommand, HexId, PlayerId, Structure};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum Action {
@@ -20,6 +20,10 @@ pub enum Action {
     },
     PlantTree {
         target: HexId,
+    },
+    Diplomacy {
+        target: PlayerId,
+        command: DiplomacyCommand,
     },
 }
 

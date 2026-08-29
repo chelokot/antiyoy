@@ -58,6 +58,12 @@ pub enum ActionError {
     Defended,
     #[error("this action is disabled by the current rules")]
     Disabled,
+    #[error("player {0} does not exist or cannot target itself")]
+    InvalidPlayer(u8),
+    #[error("an active province may only be attacked during war")]
+    Peace,
+    #[error("the diplomacy command is not valid for the current relation or proposal state")]
+    InvalidDiplomacy,
     #[error("a farm must touch a capital or another farm in its province")]
     UnsupportedFarm,
 }

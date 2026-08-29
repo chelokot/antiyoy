@@ -9,6 +9,7 @@ from antiyoy_rl.model import (
     action_distribution,
     encode_rules,
     encode_rules_batch,
+    load_policy_state,
 )
 
 
@@ -47,4 +48,42 @@ def test_policy_conditions_each_environment_on_its_own_rules() -> None:
 
     assert logits.shape == (int(observation["action_offsets"][-1]),)
     assert values.shape == (4,)
-    assert rules.shape == (4, 42)
+    assert rules.shape == (4, 45)
+
+
+def test_policy_loads_the_published_observation_v6_weights() -> None:
+    original = UniversalPolicy(hidden=16, layers=1)
+    legacy = dict(original.state_dict())
+    legacy["action_kind_embedding.weight"] = legacy["action_kind_embedding.weight"][:5]
+    legacy["action_parameter_embedding.weight"] = legacy[
+        "action_parameter_embedding.weight"
+    ][:5]
+    legacy["rule_projection.0.weight"] = legacy["rule_projection.0.weight"][:, :42]
+    del legacy["relation_embedding.weight"]
+    del legacy["proposal_embedding.weight"]
+    restored = UniversalPolicy(hidden=16, layers=1)
+
+    load_policy_state(restored, legacy)
+
+    assert torch.equal(
+        restored.action_kind_embedding.weight[:5],
+        original.action_kind_embedding.weight[:5],
+    )
+    assert torch.equal(
+        restored.rule_projection[0].weight[:, :42],
+        original.rule_projection[0].weight[:, :42],
+    )
+    assert torch.count_nonzero(restored.rule_projection[0].weight[:, 42:]) == 0
+    assert torch.count_nonzero(restored.action_kind_embedding.weight[5]) == 0
+
+
+def test_policy_scores_player_targeted_diplomacy_actions() -> None:
+    environment = VectorEnv(1, width=7, height=5, seed=83, diplomacy=True)
+    observation = environment.observe()
+    rules = encode_rules(environment.rules_json(), torch.device("cpu"))
+
+    logits, values = UniversalPolicy(hidden=16, layers=1)(observation, rules)
+
+    assert 5 in observation["action_kinds"]
+    assert logits.shape == (int(observation["action_offsets"][-1]),)
+    assert values.shape == (1,)

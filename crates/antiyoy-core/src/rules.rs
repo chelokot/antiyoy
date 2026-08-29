@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::ConfigError;
+use crate::{ConfigError, Relation};
 
 const MAXIMUM_CONFIGURED_UNIT_STRENGTH: u8 = 4;
 
@@ -71,6 +71,13 @@ pub struct LifecycleRules {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DiplomacyRules {
+    pub enabled: bool,
+    pub initial_relation: Relation,
+    pub alliances_share_wars: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Rules {
     pub schema_version: u16,
     pub profile: RulesProfile,
@@ -79,12 +86,13 @@ pub struct Rules {
     pub combat: CombatRules,
     pub vegetation: VegetationRules,
     pub lifecycle: LifecycleRules,
+    pub diplomacy: DiplomacyRules,
 }
 
 impl Rules {
     pub fn classic_generic() -> Self {
         Self {
-            schema_version: 4,
+            schema_version: 5,
             profile: RulesProfile::ClassicGeneric,
             minimum_province_size: 2,
             economy: EconomyRules {
@@ -131,6 +139,11 @@ impl Rules {
                 eliminate_singleton_units_after_capture: false,
                 skip_first_round_income: false,
                 income_before_grave_conversion: false,
+            },
+            diplomacy: DiplomacyRules {
+                enabled: false,
+                initial_relation: Relation::War,
+                alliances_share_wars: true,
             },
         }
     }

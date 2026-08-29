@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use antiyoy_core::{Action, Game, Object, PlayerId};
+use antiyoy_core::{Action, DiplomacyCommand, Game, Object, PlayerId};
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 
 pub trait Agent {
@@ -76,6 +76,21 @@ impl GreedyAgent {
         }
         score
     }
+
+    fn action_priority(action: Action) -> u8 {
+        match action {
+            Action::Diplomacy {
+                command: DiplomacyCommand::DeclareWar,
+                ..
+            } => 2,
+            Action::EndTurn => 0,
+            Action::Diplomacy { .. }
+            | Action::Move { .. }
+            | Action::Recruit { .. }
+            | Action::Build { .. }
+            | Action::PlantTree { .. } => 1,
+        }
+    }
 }
 
 impl Agent for GreedyAgent {
@@ -95,18 +110,22 @@ impl Agent for GreedyAgent {
                     .expect("engine-generated legal action must apply");
                 (
                     Self::evaluate(&candidate, player),
+                    Self::action_priority(action),
                     std::cmp::Reverse(action),
                 )
             })
             .max()
-            .map(|(_, action)| action.0)
+            .map(|(_, _, action)| action.0)
             .expect("non-terminal game always has EndTurn")
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use antiyoy_core::{Action, HexId, InitialCell, Object, PlayerId, Rules, Scenario, Topology};
+    use antiyoy_core::{
+        Action, DiplomacyCommand, HexId, InitialCell, Object, PlayerId, Relation, Rules, Scenario,
+        Topology,
+    };
 
     use super::{Agent, GreedyAgent};
 
@@ -133,5 +152,31 @@ mod tests {
         ];
         let mut agent = GreedyAgent::new("greedy");
         assert_eq!(agent.select_action(&game, &legal), legal[1]);
+    }
+
+    #[test]
+    fn greedy_agent_breaks_a_peace_stalemate() {
+        let topology = Topology::rectangle(4, 1).expect("valid topology");
+        let mut scenario = Scenario::empty(topology, 2, 37);
+        for hex in [0, 1] {
+            scenario.cells[hex] = InitialCell::owned(PlayerId(0));
+        }
+        for hex in [2, 3] {
+            scenario.cells[hex] = InitialCell::owned(PlayerId(1));
+        }
+        scenario.cells[0].object = Object::Capital;
+        scenario.cells[3].object = Object::Capital;
+        let mut rules = Rules::classic_generic();
+        rules.diplomacy.enabled = true;
+        rules.diplomacy.initial_relation = Relation::Neutral;
+        let game = antiyoy_core::Game::new(rules, scenario).expect("valid game");
+        let declaration = Action::Diplomacy {
+            target: PlayerId(1),
+            command: DiplomacyCommand::DeclareWar,
+        };
+        let legal = [Action::EndTurn, declaration];
+        let mut agent = GreedyAgent::new("greedy");
+
+        assert_eq!(agent.select_action(&game, &legal), declaration);
     }
 }

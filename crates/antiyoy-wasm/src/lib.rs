@@ -39,7 +39,16 @@ struct StateView {
     winner: Option<u8>,
     cells: Vec<CellView>,
     provinces: Vec<ProvinceView>,
+    relations: Vec<RelationView>,
     legal_actions: usize,
+}
+
+#[derive(Serialize)]
+struct RelationView {
+    first: u8,
+    second: u8,
+    relation: antiyoy_core::Relation,
+    proposal: Option<antiyoy_core::Relation>,
 }
 
 #[derive(Serialize)]
@@ -227,6 +236,21 @@ fn state_json(game: &Game, legal_actions: &mut Vec<Action>) -> Result<String, Js
                 profit: game.province_profit(province.id()).unwrap_or_default(),
                 capital: province.capital().0,
                 size: province.hexes().len(),
+            })
+            .collect(),
+        relations: game
+            .relations()
+            .iter()
+            .copied()
+            .zip(game.proposals().iter().copied())
+            .enumerate()
+            .map(|(index, (relation, proposal))| RelationView {
+                first: u8::try_from(index / usize::from(game.player_count()))
+                    .expect("relation rows are bounded by the u8 player count"),
+                second: u8::try_from(index % usize::from(game.player_count()))
+                    .expect("relation columns are bounded by the u8 player count"),
+                relation,
+                proposal,
             })
             .collect(),
         legal_actions: legal_actions.len(),

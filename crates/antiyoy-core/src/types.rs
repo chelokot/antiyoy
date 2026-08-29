@@ -36,6 +36,37 @@ impl PlayerId {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[repr(u8)]
+pub enum Relation {
+    War,
+    Neutral,
+    Friend,
+    Alliance,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[repr(u8)]
+pub enum DiplomacyCommand {
+    DeclareWar,
+    ProposeNeutral,
+    ProposeFriendship,
+    ProposeAlliance,
+    Accept,
+    Reject,
+}
+
+impl DiplomacyCommand {
+    pub const fn proposal(self) -> Option<Relation> {
+        match self {
+            Self::ProposeNeutral => Some(Relation::Neutral),
+            Self::ProposeFriendship => Some(Relation::Friend),
+            Self::ProposeAlliance => Some(Relation::Alliance),
+            Self::DeclareWar | Self::Accept | Self::Reject => None,
+        }
+    }
+}
+
 #[derive(
     Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize,
 )]

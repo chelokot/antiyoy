@@ -1,14 +1,14 @@
 #![forbid(unsafe_code)]
 
 use antiyoy_core::{
-    Action, ActionError, ConfigError, Game, HexId, Object, PlayerId, Rules, Scenario, Structure,
-    Transition,
+    Action, ActionError, ConfigError, DiplomacyCommand, Game, HexId, Object, PlayerId, Rules,
+    Scenario, Structure, Transition,
 };
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const OBSERVATION_VERSION: u16 = 6;
+pub const OBSERVATION_VERSION: u16 = 7;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[repr(u8)]
@@ -18,6 +18,7 @@ pub enum ActionKind {
     Recruit,
     Build,
     PlantTree,
+    Diplomacy,
 }
 
 impl ActionKind {
@@ -71,6 +72,12 @@ impl From<Action> for ActionFeatures {
                 target: target.0,
                 parameter: 0,
             },
+            Action::Diplomacy { target, command } => Self {
+                kind: ActionKind::Diplomacy,
+                source: HexId::INVALID.0,
+                target: u16::from(target.0),
+                parameter: diplomacy_command_code(command),
+            },
         }
     }
 }
@@ -82,9 +89,11 @@ pub struct BatchObservation {
     pub cell_offsets: Vec<usize>,
     pub province_offsets: Vec<usize>,
     pub action_offsets: Vec<usize>,
+    pub relation_offsets: Vec<usize>,
     pub widths: Vec<u16>,
     pub heights: Vec<u16>,
     pub active_players: Vec<u8>,
+    pub player_counts: Vec<u8>,
     pub rounds: Vec<u32>,
     pub playable: Vec<u8>,
     pub visible: Vec<u8>,
@@ -100,6 +109,8 @@ pub struct BatchObservation {
     pub province_capitals: Vec<u16>,
     pub province_sizes: Vec<usize>,
     pub actions: Vec<ActionFeatures>,
+    pub relations: Vec<u8>,
+    pub proposals: Vec<u8>,
 }
 
 impl BatchObservation {
@@ -109,9 +120,11 @@ impl BatchObservation {
         self.cell_offsets.clear();
         self.province_offsets.clear();
         self.action_offsets.clear();
+        self.relation_offsets.clear();
         self.widths.clear();
         self.heights.clear();
         self.active_players.clear();
+        self.player_counts.clear();
         self.rounds.clear();
         self.playable.clear();
         self.visible.clear();
@@ -127,6 +140,8 @@ impl BatchObservation {
         self.province_capitals.clear();
         self.province_sizes.clear();
         self.actions.clear();
+        self.relations.clear();
+        self.proposals.clear();
     }
 }
 
@@ -409,17 +424,20 @@ impl BatchEnv {
         output.cell_offsets.reserve(self.len() + 1);
         output.province_offsets.reserve(self.len() + 1);
         output.action_offsets.reserve(self.len() + 1);
+        output.relation_offsets.reserve(self.len() + 1);
         output.cell_offsets.push(0);
         output.province_offsets.push(0);
         output.action_offsets.push(0);
+        output.relation_offsets.push(0);
         let mut visibility = Vec::new();
         for (game, actions) in self.games.iter().zip(&self.legal_actions) {
             output.widths.push(game.topology().width());
             output.heights.push(game.topology().height());
             output.active_players.push(game.active_player().0);
+            output.player_counts.push(game.player_count());
             output.rounds.push(game.round());
             if self.fog {
-                game.visibility(game.active_player(), &[], &mut visibility);
+                game.diplomatic_visibility(game.active_player(), &mut visibility);
             }
             for (cell, hex_id) in game.cells().iter().copied().zip(0_u16..) {
                 let hex = HexId(hex_id);
@@ -449,10 +467,30 @@ impl BatchEnv {
             output
                 .actions
                 .extend(actions.iter().copied().map(ActionFeatures::from));
+            output
+                .relations
+                .extend(game.relations().iter().map(|relation| *relation as u8));
+            output.proposals.extend(
+                game.proposals()
+                    .iter()
+                    .map(|proposal| proposal.map_or(u8::MAX, |relation| relation as u8)),
+            );
             output.cell_offsets.push(output.owners.len());
             output.province_offsets.push(output.province_money.len());
             output.action_offsets.push(output.actions.len());
+            output.relation_offsets.push(output.relations.len());
         }
+    }
+}
+
+fn diplomacy_command_code(command: DiplomacyCommand) -> u8 {
+    match command {
+        DiplomacyCommand::DeclareWar => 0,
+        DiplomacyCommand::ProposeNeutral => 1,
+        DiplomacyCommand::ProposeFriendship => 2,
+        DiplomacyCommand::ProposeAlliance => 3,
+        DiplomacyCommand::Accept => 4,
+        DiplomacyCommand::Reject => 5,
     }
 }
 
@@ -548,7 +586,7 @@ fn reward_components(
 
 #[cfg(test)]
 mod tests {
-    use antiyoy_core::{Action, Rules};
+    use antiyoy_core::{Action, DiplomacyCommand, PlayerId, Rules};
 
     use super::{ActionFeatures, ActionKind, BatchEnv, BatchObservation};
 
@@ -561,6 +599,8 @@ mod tests {
         assert_eq!(observation.cell_offsets, [0, 35, 70, 105]);
         assert_eq!(observation.province_offsets.len(), 4);
         assert_eq!(observation.action_offsets.len(), 4);
+        assert_eq!(observation.relation_offsets, [0, 4, 8, 12]);
+        assert_eq!(observation.player_counts, [2, 2, 2]);
         assert_eq!(observation.owners.len(), 105);
         assert_eq!(observation.actions.len(), observation.action_offsets[3]);
     }
@@ -574,6 +614,18 @@ mod tests {
                 source: u16::MAX,
                 target: u16::MAX,
                 parameter: 0,
+            }
+        );
+        assert_eq!(
+            ActionFeatures::from(Action::Diplomacy {
+                target: PlayerId(2),
+                command: DiplomacyCommand::ProposeAlliance,
+            }),
+            ActionFeatures {
+                kind: ActionKind::Diplomacy,
+                source: u16::MAX,
+                target: 2,
+                parameter: 3,
             }
         );
     }

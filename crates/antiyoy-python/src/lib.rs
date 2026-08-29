@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use antiyoy_agents::{Agent, GreedyAgent};
-use antiyoy_core::Rules;
+use antiyoy_core::{Relation, Rules};
 use antiyoy_rl::{BatchEnv, BatchObservation, StepResult};
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
@@ -18,7 +18,8 @@ struct VectorEnv {
 #[pymethods]
 impl VectorEnv {
     #[new]
-    #[pyo3(signature = (environments, width=11, height=9, seed=1, action_limit=1000, profile="classic_generic_2022", fog=false))]
+    #[pyo3(signature = (environments, width=11, height=9, seed=1, action_limit=1000, profile="classic_generic_2022", fog=false, diplomacy=false, initial_relation="neutral"))]
+    #[expect(clippy::too_many_arguments)]
     fn new(
         environments: usize,
         width: u16,
@@ -27,8 +28,11 @@ impl VectorEnv {
         action_limit: u32,
         profile: &str,
         fog: bool,
+        diplomacy: bool,
+        initial_relation: &str,
     ) -> PyResult<Self> {
-        let rules = rules_for_profile(profile)?;
+        let mut rules = rules_for_profile(profile)?;
+        configure_diplomacy(&mut rules, diplomacy, initial_relation)?;
         let mut batch =
             BatchEnv::symmetric_duels(rules, environments, width, height, seed, action_limit)
                 .map_err(runtime_error)?;
@@ -40,8 +44,9 @@ impl VectorEnv {
     }
 
     #[staticmethod]
-    #[pyo3(signature = (profiles, width=11, height=9, seed=1, action_limit=1000, fog=false))]
+    #[pyo3(signature = (profiles, width=11, height=9, seed=1, action_limit=1000, fog=false, diplomacy=false, initial_relation="neutral"))]
     #[expect(clippy::needless_pass_by_value)]
+    #[expect(clippy::too_many_arguments)]
     fn mixed(
         profiles: Vec<String>,
         width: u16,
@@ -49,10 +54,16 @@ impl VectorEnv {
         seed: u64,
         action_limit: u32,
         fog: bool,
+        diplomacy: bool,
+        initial_relation: &str,
     ) -> PyResult<Self> {
         let rules = profiles
             .iter()
-            .map(|profile| rules_for_profile(profile))
+            .map(|profile| {
+                let mut rules = rules_for_profile(profile)?;
+                configure_diplomacy(&mut rules, diplomacy, initial_relation)?;
+                Ok(rules)
+            })
             .collect::<PyResult<Vec<_>>>()?;
         let mut batch = BatchEnv::symmetric_duels_mixed(rules, width, height, seed, action_limit)
             .map_err(runtime_error)?;
@@ -172,6 +183,22 @@ fn rules_for_profile(profile: &str) -> PyResult<Rules> {
     }
 }
 
+fn configure_diplomacy(rules: &mut Rules, enabled: bool, initial_relation: &str) -> PyResult<()> {
+    rules.diplomacy.enabled = enabled;
+    rules.diplomacy.initial_relation = match initial_relation {
+        "war" => Relation::War,
+        "neutral" => Relation::Neutral,
+        "friend" => Relation::Friend,
+        "alliance" => Relation::Alliance,
+        _ => {
+            return Err(PyValueError::new_err(format!(
+                "unknown initial relation: {initial_relation}"
+            )));
+        }
+    };
+    Ok(())
+}
+
 fn observation_dict<'py>(
     py: Python<'py>,
     observation: &BatchObservation,
@@ -190,11 +217,19 @@ fn observation_dict<'py>(
         "action_offsets",
         PyArray1::from_vec(py, offsets(&observation.action_offsets)?),
     )?;
+    dictionary.set_item(
+        "relation_offsets",
+        PyArray1::from_vec(py, offsets(&observation.relation_offsets)?),
+    )?;
     dictionary.set_item("widths", PyArray1::from_slice(py, &observation.widths))?;
     dictionary.set_item("heights", PyArray1::from_slice(py, &observation.heights))?;
     dictionary.set_item(
         "active_players",
         PyArray1::from_slice(py, &observation.active_players),
+    )?;
+    dictionary.set_item(
+        "player_counts",
+        PyArray1::from_slice(py, &observation.player_counts),
     )?;
     dictionary.set_item("rounds", PyArray1::from_slice(py, &observation.rounds))?;
     dictionary.set_item("playable", PyArray1::from_slice(py, &observation.playable))?;
@@ -231,6 +266,23 @@ fn observation_dict<'py>(
         "province_sizes",
         PyArray1::from_vec(py, offsets(&observation.province_sizes)?),
     )?;
+    add_action_arrays(py, &dictionary, observation)?;
+    dictionary.set_item(
+        "relations",
+        PyArray1::from_slice(py, &observation.relations),
+    )?;
+    dictionary.set_item(
+        "proposals",
+        PyArray1::from_slice(py, &observation.proposals),
+    )?;
+    Ok(dictionary)
+}
+
+fn add_action_arrays<'py>(
+    py: Python<'py>,
+    dictionary: &Bound<'py, PyDict>,
+    observation: &BatchObservation,
+) -> PyResult<()> {
     dictionary.set_item(
         "action_kinds",
         PyArray1::from_vec(
@@ -275,7 +327,7 @@ fn observation_dict<'py>(
                 .collect(),
         ),
     )?;
-    Ok(dictionary)
+    Ok(())
 }
 
 fn step_dict<'py>(py: Python<'py>, results: &[StepResult]) -> PyResult<Bound<'py, PyDict>> {

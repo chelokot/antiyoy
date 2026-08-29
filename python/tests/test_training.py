@@ -32,6 +32,8 @@ def training_config() -> TrainingConfig:
         profile="classic_generic_2022",
         profiles=None,
         fog=False,
+        diplomacy=False,
+        initial_relation="neutral",
         device="cpu",
         resume=None,
         checkpoint=Path("unused.pt"),

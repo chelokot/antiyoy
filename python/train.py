@@ -19,7 +19,7 @@ from antiyoy_rl.model import (
 )
 
 
-CHECKPOINT_VERSION = 4
+CHECKPOINT_VERSION = 5
 
 
 @dataclass(frozen=True)
@@ -47,6 +47,8 @@ class TrainingConfig:
     profile: str | None
     profiles: list[str] | None
     fog: bool
+    diplomacy: bool
+    initial_relation: str
     device: str
     resume: Path | None
     checkpoint: Path | None
@@ -87,6 +89,8 @@ def make_environment(config: TrainingConfig) -> VectorEnv:
             action_limit=config.action_limit,
             profile=cast(str, config.profile),
             fog=config.fog,
+            diplomacy=config.diplomacy,
+            initial_relation=config.initial_relation,
         )
     schedule = [
         config.profiles[index % len(config.profiles)]
@@ -99,6 +103,8 @@ def make_environment(config: TrainingConfig) -> VectorEnv:
         seed=config.seed,
         action_limit=config.action_limit,
         fog=config.fog,
+        diplomacy=config.diplomacy,
+        initial_relation=config.initial_relation,
     )
 
 
@@ -430,6 +436,12 @@ def parse_args() -> TrainingConfig:
     profiles.add_argument("--profile")
     profiles.add_argument("--profiles", nargs="+")
     parser.add_argument("--fog", action="store_true")
+    parser.add_argument("--diplomacy", action="store_true")
+    parser.add_argument(
+        "--initial-relation",
+        choices=("war", "neutral", "friend", "alliance"),
+        default="neutral",
+    )
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--resume", type=Path)
     parser.add_argument("--checkpoint", type=Path)

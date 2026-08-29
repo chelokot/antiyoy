@@ -38,6 +38,12 @@ type StateView = {
   winner: number | null;
   cells: CellView[];
   provinces: ProvinceView[];
+  relations: Array<{
+    first: number;
+    second: number;
+    relation: string;
+    proposal: string | null;
+  }>;
   legal_actions: number;
 };
 
@@ -296,7 +302,7 @@ export default function Arena() {
           <p className="eyebrow">SELECTED HEX</p><p className="mt-2 font-mono text-lg">q: {String(selectedQ).padStart(2, "0")} · r: {String(selectedR).padStart(2, "0")}</p>
           <div className="mt-6 grid grid-cols-2 gap-px bg-white/10"><Stat label="OWNER" value={selected?.owner === null || selected === null ? "NEUTRAL" : PLAYER_NAMES[selected.owner]} /><Stat label="PIECE" value={selected === null ? "…" : pieceLabel(selected)} /><Stat label="DEFENSE" value={selected?.defense.toString() ?? "…"} /><Stat label="READY" value={selected?.strength === 0 ? "—" : selected?.ready ? "YES" : "NO"} /></div>
           <div className="mt-8"><p className="eyebrow">PROVINCE ECONOMY</p>{province === null ? <p className="mt-4 text-sm leading-6 text-[#77817b]">This hex is not part of a connected province.</p> : <dl className="mt-4 space-y-3 font-mono text-xs"><Row label="Treasury" value={`$${province.money}`} /><Row label="Hex income" value={`+${province.income}`} /><Row label="Upkeep" value={`−${province.upkeep}`} /><Row label="Next turn" value={`${province.profit >= 0 ? "+" : "−"}$${Math.abs(province.profit)}`} accent /></dl>}</div>
-          <div className="mt-8 border border-white/10 p-4"><p className="eyebrow">STATE CONTRACT</p><dl className="mt-3 space-y-2 font-mono text-xs"><Row label="Cells" value={state?.cells.length.toString() ?? "…"} /><Row label="Provinces" value={state?.provinces.length.toString() ?? "…"} /><Row label="Terminal" value={state?.terminal ? "YES" : "NO"} /></dl></div>
+          <div className="mt-8 border border-white/10 p-4"><p className="eyebrow">STATE CONTRACT</p><dl className="mt-3 space-y-2 font-mono text-xs"><Row label="Cells" value={state?.cells.length.toString() ?? "…"} /><Row label="Provinces" value={state?.provinces.length.toString() ?? "…"} /><Row label="Relations" value={state?.relations.length.toString() ?? "…"} /><Row label="Terminal" value={state?.terminal ? "YES" : "NO"} /></dl></div>
         </aside>
       </div>
     </main>
