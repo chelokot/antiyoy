@@ -1,0 +1,164 @@
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import sys
+import time
+from pathlib import Path
+
+import torch
+
+try:
+    from .evaluate import evaluate, paired_elo
+except ImportError:
+    from evaluate import evaluate, paired_elo
+
+
+ALL_PROFILES = (
+    "classic_generic_2022",
+    "classic_slay_2022",
+    "online_default_v1",
+    "online_classic_v1",
+    "online_duel_v1",
+    "online_experimental_v1",
+    "online_experimental_v2_260801",
+)
+
+
+def aggregate_results(results: list[dict[str, object]]) -> dict[str, float | int]:
+    games = sum(int(result["games"]) for result in results)
+    wins = sum(int(result["wins"]) for result in results)
+    draws = sum(int(result["draws"]) for result in results)
+    losses = sum(int(result["losses"]) for result in results)
+    truncations = sum(int(result["truncations"]) for result in results)
+    terminal_draws = sum(int(result["terminal_draws"]) for result in results)
+    score = (wins + 0.5 * draws) / games
+    return {
+        "games": games,
+        "wins": wins,
+        "draws": draws,
+        "losses": losses,
+        "truncations": truncations,
+        "terminal_draws": terminal_draws,
+        "score": score,
+        "relative_elo": paired_elo(score, games),
+    }
+
+
+def checkpoint_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as checkpoint:
+        while block := checkpoint.read(1024 * 1024):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def write_result(path: Path, result: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    temporary.replace(path)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("checkpoint", type=Path)
+    parser.add_argument("--games", type=int, default=32)
+    parser.add_argument("--seeds", type=int, nargs="+", default=[100000, 130000])
+    parser.add_argument("--profiles", nargs="+", choices=ALL_PROFILES, default=ALL_PROFILES)
+    parser.add_argument(
+        "--baseline", choices=("search", "greedy", "random"), default="search"
+    )
+    parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument("--search-nodes", type=int, default=2048)
+    parser.add_argument("--search-beam-width", type=int, default=32)
+    parser.add_argument("--search-branch-width", type=int, default=48)
+    parser.add_argument("--search-maximum-actions-per-turn", type=int, default=24)
+    parser.add_argument("--width", type=int, default=11)
+    parser.add_argument("--height", type=int, default=9)
+    parser.add_argument("--action-limit", type=int, default=1000)
+    parser.add_argument("--minimum-aggregate-score", type=float)
+    parser.add_argument("--output", type=Path)
+    arguments = parser.parse_args()
+    if arguments.games < 1:
+        parser.error("games must be positive")
+    if arguments.minimum_aggregate_score is not None and not (
+        0 <= arguments.minimum_aggregate_score <= 1
+    ):
+        parser.error("minimum aggregate score must be between zero and one")
+
+    started = time.perf_counter()
+    results: list[dict[str, object]] = []
+    for profile in arguments.profiles:
+        for seed in arguments.seeds:
+            print(f"evaluating {profile} seed={seed}", file=sys.stderr, flush=True)
+            results.append(
+                evaluate(
+                    arguments.checkpoint,
+                    arguments.games,
+                    seed,
+                    arguments.device,
+                    arguments.baseline,
+                    profile,
+                    arguments.search_nodes,
+                    arguments.search_beam_width,
+                    arguments.search_branch_width,
+                    arguments.search_maximum_actions_per_turn,
+                    arguments.width,
+                    arguments.height,
+                    arguments.action_limit,
+                )
+            )
+    aggregate = aggregate_results(results)
+    result: dict[str, object] = {
+        "schema_version": 1,
+        "kind": "universal_policy_seed_sweep",
+        "checkpoint": {
+            "path": str(arguments.checkpoint),
+            "sha256": checkpoint_digest(arguments.checkpoint),
+            "size_bytes": arguments.checkpoint.stat().st_size,
+        },
+        "baseline": arguments.baseline,
+        "search": {
+            "nodes": arguments.search_nodes if arguments.baseline == "search" else 0,
+            "beam_width": (
+                arguments.search_beam_width if arguments.baseline == "search" else 0
+            ),
+            "branch_width": (
+                arguments.search_branch_width if arguments.baseline == "search" else 0
+            ),
+            "maximum_actions_per_turn": (
+                arguments.search_maximum_actions_per_turn
+                if arguments.baseline == "search"
+                else 0
+            ),
+        },
+        "arena": {
+            "generator": "symmetric_duel_v1",
+            "width": arguments.width,
+            "height": arguments.height,
+            "players": 2,
+            "action_limit": arguments.action_limit,
+            "games_per_profile_seed": arguments.games,
+            "profiles": arguments.profiles,
+            "seeds": arguments.seeds,
+        },
+        "device": arguments.device,
+        "elapsed_seconds": time.perf_counter() - started,
+        "results": results,
+        "aggregate": aggregate,
+    }
+    serialized = json.dumps(result, sort_keys=True)
+    print(serialized)
+    if arguments.output is not None:
+        write_result(arguments.output, result)
+    minimum_score = arguments.minimum_aggregate_score
+    if minimum_score is not None and float(aggregate["score"]) < minimum_score:
+        raise SystemExit(
+            f"aggregate score {aggregate['score']:.6f} is below required {minimum_score:.6f}"
+        )
+
+
+if __name__ == "__main__":
+    main()

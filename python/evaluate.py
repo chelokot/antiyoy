@@ -16,10 +16,18 @@ from antiyoy_rl.model import (
     encode_rules_batch,
     load_policy_state,
 )
-from train import CHECKPOINT_VERSION
+try:
+    from .train import CHECKPOINT_VERSION
+except ImportError:
+    from train import CHECKPOINT_VERSION
 
 
 ACTION_KIND_NAMES = ("end_turn", "move", "recruit", "build", "plant_tree", "diplomacy")
+
+
+def paired_elo(score: float, games: int) -> float:
+    clipped_score = min(max(score, 0.5 / games), 1 - 0.5 / games)
+    return 400 * math.log10(clipped_score / (1 - clipped_score))
 
 
 def selected_action_kinds(
@@ -151,8 +159,7 @@ def evaluate(
             environment.reset(int(index), reset_seed)
             reset_seed += 1
     score = (wins + 0.5 * draws) / games
-    clipped_score = min(max(score, 0.5 / games), 1 - 0.5 / games)
-    elo_delta = 400 * math.log10(clipped_score / (1 - clipped_score))
+    elo_delta = paired_elo(score, games)
     return {
         "checkpoint": str(checkpoint_path),
         "baseline": baseline,
@@ -167,6 +174,7 @@ def evaluate(
         "transitions": transitions,
         "device": str(device),
         "profile": evaluation_profile,
+        "seed": seed,
         "arena_width": evaluation_width,
         "arena_height": evaluation_height,
         "action_limit": evaluation_action_limit,

@@ -140,3 +140,16 @@ draws and action-limit truncations are reported separately, along with action
 kind histograms for both competitors, so a stalling policy cannot hide behind
 an aggregate draw rate. It does not assign an absolute leaderboard rating to
 an uncalibrated baseline.
+
+Run the regression suite across every versioned profile and multiple seed
+windows with one command:
+
+```bash
+python evaluate_suite.py ../models/universal-search-dagger-2026-08-30.pt \
+  --seeds 100000 130000 --games 32 --baseline search --search-nodes 2048 \
+  --minimum-aggregate-score 0.5 --output ../runs/seed-sweep.json
+```
+
+The suite hashes the checkpoint, records the fixed arena and search budget,
+keeps per-profile/per-seed action and timeout diagnostics, and exits nonzero
+when the optional aggregate regression gate fails. Its JSON output is atomic.
