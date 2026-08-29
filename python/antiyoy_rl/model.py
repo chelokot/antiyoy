@@ -164,7 +164,12 @@ class UniversalPolicy(nn.Module):
         province_offsets = torch.as_tensor(
             observation["province_offsets"], dtype=torch.long, device=device
         )
-        cell_environments = torch.arange(environments, device=device).repeat_interleave(cell_count)
+        cell_environments = (
+            torch.arange(environments, device=device)
+            .reshape(-1, 1)
+            .expand(-1, cell_count)
+            .reshape(-1)
+        )
         valid = province_ids != 65535
         local_ids = torch.where(valid, province_ids, torch.zeros_like(province_ids))
         global_ids = province_offsets[cell_environments] + local_ids
@@ -191,13 +196,14 @@ class UniversalPolicy(nn.Module):
         cell_count: int,
         device: torch.device,
     ) -> Tensor:
-        offsets = torch.as_tensor(
-            observation["action_offsets"], dtype=torch.long, device=device
+        offsets_numpy = np.asarray(observation["action_offsets"], dtype=np.int64)
+        counts_numpy = np.diff(offsets_numpy)
+        action_environments_numpy = np.repeat(
+            np.arange(global_features.shape[0], dtype=np.int64), counts_numpy
         )
-        counts = offsets[1:] - offsets[:-1]
-        action_environments = torch.arange(
-            global_features.shape[0], device=device
-        ).repeat_interleave(counts)
+        action_environments = torch.as_tensor(
+            action_environments_numpy, dtype=torch.long, device=device
+        )
         sources = torch.as_tensor(
             observation["action_sources"], dtype=torch.long, device=device
         )
@@ -233,12 +239,20 @@ class UniversalPolicy(nn.Module):
 
 def action_distribution(logits: Tensor, offsets: np.ndarray) -> torch.distributions.Categorical:
     device = logits.device
-    boundaries = torch.as_tensor(offsets, dtype=torch.long, device=device)
-    counts = boundaries[1:] - boundaries[:-1]
-    environments = counts.numel()
-    maximum = int(counts.max().item())
-    action_environments = torch.arange(environments, device=device).repeat_interleave(counts)
-    positions = torch.arange(logits.numel(), device=device) - boundaries[:-1].repeat_interleave(counts)
+    boundaries_numpy = np.asarray(offsets, dtype=np.int64)
+    counts_numpy = np.diff(boundaries_numpy)
+    environments = counts_numpy.size
+    maximum = int(counts_numpy.max())
+    action_environments_numpy = np.repeat(
+        np.arange(environments, dtype=np.int64), counts_numpy
+    )
+    positions_numpy = np.arange(logits.numel(), dtype=np.int64) - np.repeat(
+        boundaries_numpy[:-1], counts_numpy
+    )
+    action_environments = torch.as_tensor(
+        action_environments_numpy, dtype=torch.long, device=device
+    )
+    positions = torch.as_tensor(positions_numpy, dtype=torch.long, device=device)
     padded = torch.full((environments, maximum), -torch.inf, device=device)
     padded[action_environments, positions] = logits
     return torch.distributions.Categorical(logits=padded)
