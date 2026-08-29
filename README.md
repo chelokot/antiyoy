@@ -36,5 +36,4 @@ This is an unofficial implementation. It does not include artwork, audio, or
 source code from the original game. Antiyoy is by Yiotro; this project is not
 affiliated with or endorsed by Yiotro.
 
-The code in this repository is dual-licensed under MIT or Apache-2.0.
-
+The original code in this repository is licensed under MIT.

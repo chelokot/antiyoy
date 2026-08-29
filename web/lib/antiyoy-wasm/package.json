@@ -1,0 +1,24 @@
+{
+  "name": "antiyoy-wasm",
+  "type": "module",
+  "collaborators": [
+    "Andrii Vlasenko <andrii@oriane.xyz>"
+  ],
+  "description": "WebAssembly bindings for the Antiyoy simulation core",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chelokot/antiyoy"
+  },
+  "files": [
+    "antiyoy_wasm_bg.wasm",
+    "antiyoy_wasm.js",
+    "antiyoy_wasm.d.ts"
+  ],
+  "main": "antiyoy_wasm.js",
+  "types": "antiyoy_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

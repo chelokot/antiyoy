@@ -59,6 +59,26 @@ impl Scenario {
             seed,
         }
     }
+
+    pub fn symmetric_duel(width: u16, height: u16, seed: u64) -> Result<Self, crate::ConfigError> {
+        if width < 5 || height < 2 {
+            return Err(crate::ConfigError::InvalidDuelDimensions);
+        }
+        let topology = Topology::rectangle(width, height)?;
+        let mut scenario = Self::empty(topology, 2, seed);
+        for row in 0..height {
+            for column in 0..2 {
+                let left = usize::from(row * width + column);
+                let right = usize::from(row * width + (width - 1 - column));
+                scenario.cells[left] = InitialCell::owned(PlayerId(0));
+                scenario.cells[right] = InitialCell::owned(PlayerId(1));
+            }
+        }
+        let capital_row = height / 2;
+        scenario.cells[usize::from(capital_row * width)].object = Object::Capital;
+        scenario.cells[usize::from(capital_row * width + width - 1)].object = Object::Capital;
+        Ok(scenario)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

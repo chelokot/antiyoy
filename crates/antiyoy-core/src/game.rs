@@ -129,6 +129,10 @@ impl Game {
         Some(self.province_income(id)? - self.province_upkeep(id)?)
     }
 
+    pub fn hex_defense(&self, hex: HexId) -> Option<u8> {
+        self.topology.is_playable(hex).then(|| self.defense(hex))
+    }
+
     pub fn farm_price(&self, id: ProvinceId) -> Option<i64> {
         let province = self.province(id)?;
         let farms = province

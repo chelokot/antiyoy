@@ -12,6 +12,7 @@ repository.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+antiyoy-agents.workspace = true
 antiyoy-core.workspace = true
 getrandom.workspace = true
 serde.workspace = true
@@ -21,3 +22,5 @@ wasm-bindgen.workspace = true
 [lints]
 workspace = true
 
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false

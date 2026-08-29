@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use antiyoy_agents::Agent;
-use antiyoy_core::{Game, InitialCell, Object, PlayerId, Rules, Scenario, Topology};
+use antiyoy_core::{Game, PlayerId, Rules, Scenario};
 use antiyoy_protocol::{Replay, ReplayError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -66,8 +66,6 @@ impl Elo {
 
 #[derive(Debug, Error)]
 pub enum MatchError {
-    #[error("benchmark map must be at least 5 × 2")]
-    InvalidDimensions,
     #[error("map configuration failed: {0}")]
     InvalidMap(#[from] antiyoy_core::ConfigError),
     #[error("replay failed: {0}")]
@@ -75,23 +73,7 @@ pub enum MatchError {
 }
 
 pub fn symmetric_duel(width: u16, height: u16, seed: u64) -> Result<Scenario, MatchError> {
-    if width < 5 || height < 2 {
-        return Err(MatchError::InvalidDimensions);
-    }
-    let topology = Topology::rectangle(width, height)?;
-    let mut scenario = Scenario::empty(topology, 2, seed);
-    for row in 0..height {
-        for column in 0..2 {
-            let left = usize::from(row * width + column);
-            let right = usize::from(row * width + (width - 1 - column));
-            scenario.cells[left] = InitialCell::owned(PlayerId(0));
-            scenario.cells[right] = InitialCell::owned(PlayerId(1));
-        }
-    }
-    let capital_row = height / 2;
-    scenario.cells[usize::from(capital_row * width)].object = Object::Capital;
-    scenario.cells[usize::from(capital_row * width + width - 1)].object = Object::Capital;
-    Ok(scenario)
+    Scenario::symmetric_duel(width, height, seed).map_err(MatchError::InvalidMap)
 }
 
 pub fn run_match<First: Agent, Second: Agent>(

@@ -109,6 +109,7 @@ dependencies = [
 name = "antiyoy-wasm"
 version = "0.1.0"
 dependencies = [
+ "antiyoy-agents",
  "antiyoy-core",
  "getrandom",
  "serde",

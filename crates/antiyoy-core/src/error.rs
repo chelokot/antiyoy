@@ -32,6 +32,8 @@ pub enum ConfigError {
     InvalidTreasuryAnchor { hex: u16 },
     #[error("more than one treasury is assigned to the same province")]
     DuplicateTreasury,
+    #[error("symmetric duel maps must be at least 5 × 2")]
+    InvalidDuelDimensions,
 }
 
 #[derive(Clone, Debug, Eq, Error, PartialEq)]

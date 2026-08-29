@@ -1,0 +1,13 @@
+/* tslint:disable */
+/* eslint-disable */
+export const memory: WebAssembly.Memory;
+export const __wbg_wasmgame_free: (a: number, b: number) => void;
+export const wasmgame_new: (a: number, b: number, c: number, d: bigint) => void;
+export const wasmgame_reset: (a: number, b: number) => void;
+export const wasmgame_state_json: (a: number, b: number) => void;
+export const wasmgame_legal_actions_json: (a: number, b: number) => void;
+export const wasmgame_step: (a: number, b: number, c: number) => void;
+export const wasmgame_step_bot: (a: number, b: number) => void;
+export const engine_version: () => number;
+export const __wbindgen_add_to_stack_pointer: (a: number) => number;
+export const __wbindgen_export: (a: number, b: number, c: number) => void;
