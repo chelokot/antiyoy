@@ -1,7 +1,9 @@
 [workspace]
 members = [
+    "crates/antiyoy-agents",
     "crates/antiyoy-cli",
     "crates/antiyoy-core",
+    "crates/antiyoy-eval",
     "crates/antiyoy-protocol",
     "crates/antiyoy-wasm",
 ]
@@ -17,6 +19,8 @@ repository = "https://github.com/chelokot/antiyoy"
 
 [workspace.dependencies]
 antiyoy-core = { path = "crates/antiyoy-core" }
+antiyoy-agents = { path = "crates/antiyoy-agents" }
+antiyoy-eval = { path = "crates/antiyoy-eval" }
 antiyoy-protocol = { path = "crates/antiyoy-protocol" }
 anyhow = "1.0.99"
 blake3 = "1.8.2"

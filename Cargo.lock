@@ -53,13 +53,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "antiyoy-cli"
+name = "antiyoy-agents"
 version = "0.1.0"
 dependencies = [
  "antiyoy-core",
+ "rand",
+]
+
+[[package]]
+name = "antiyoy-cli"
+version = "0.1.0"
+dependencies = [
+ "antiyoy-agents",
+ "antiyoy-core",
+ "antiyoy-eval",
  "antiyoy-protocol",
  "anyhow",
  "clap",
+ "serde",
  "serde_json",
 ]
 
@@ -68,6 +79,17 @@ name = "antiyoy-core"
 version = "0.1.0"
 dependencies = [
  "rand",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "antiyoy-eval"
+version = "0.1.0"
+dependencies = [
+ "antiyoy-agents",
+ "antiyoy-core",
+ "antiyoy-protocol",
  "serde",
  "thiserror",
 ]

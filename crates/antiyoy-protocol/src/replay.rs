@@ -16,6 +16,15 @@ impl Digest {
     }
 }
 
+impl std::fmt::Display for Digest {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for byte in self.0 {
+            write!(formatter, "{byte:02x}")?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ReplayHeader {
     pub magic: [u8; 8],

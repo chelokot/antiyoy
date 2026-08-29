@@ -1,6 +1,6 @@
 [package]
-name = "antiyoy-cli"
-description = "Headless simulator, tournament runner, and developer tools"
+name = "antiyoy-eval"
+description = "Reproducible matches, tournaments, and ratings"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,19 +8,13 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
-[[bin]]
-name = "antiyoy"
-path = "src/main.rs"
-
 [dependencies]
 antiyoy-agents.workspace = true
 antiyoy-core.workspace = true
-antiyoy-eval.workspace = true
 antiyoy-protocol.workspace = true
-anyhow.workspace = true
-clap.workspace = true
 serde.workspace = true
-serde_json.workspace = true
+thiserror.workspace = true
 
 [lints]
 workspace = true
+
