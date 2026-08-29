@@ -108,6 +108,7 @@ cargo run --release -p antiyoy-server -- \
   --host 127.0.0.1 --port 8080 \
   --maximum-rooms 1024 --maximum-cells 4096 \
   --maximum-action-limit 10000 --update-capacity 32 \
+  --search-nodes 2048 \
   --data-directory server-data
 ```
 
@@ -116,7 +117,8 @@ Create a room with `POST /v1/matches`, inspect it with
 `GET /v1/matches/{match_id}/replay`, or connect to
 `GET /v1/matches/{match_id}/watch`. A connection begins as a read-only spectator;
 a human sends the versioned `ClientMessage::Authenticate` frame with its seat
-and returned token before submitting actions. Network structures carry
+and returned token before submitting actions. Seats can be human, random,
+greedy, or bounded whole-turn search agents. Network structures carry
 `NETWORK_SCHEMA_VERSION` and every update includes a deterministic state digest.
 `DELETE /v1/matches/{match_id}?seat=…` with the seat token in an Authorization
 Bearer header closes and removes a room. All memory-amplifying limits are

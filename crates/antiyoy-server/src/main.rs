@@ -38,6 +38,8 @@ struct Cli {
     maximum_action_limit: u32,
     #[arg(long, default_value_t = 32)]
     update_capacity: usize,
+    #[arg(long, default_value_t = 2_048)]
+    search_nodes: usize,
     #[arg(long, default_value = "server-data")]
     data_directory: PathBuf,
 }
@@ -69,6 +71,7 @@ async fn main() -> Result<()> {
             maximum_cells: cli.maximum_cells,
             maximum_action_limit: cli.maximum_action_limit,
             update_capacity: cli.update_capacity,
+            search_nodes: cli.search_nodes,
         },
         cli.data_directory,
     )?;

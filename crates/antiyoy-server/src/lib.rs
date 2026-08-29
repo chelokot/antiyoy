@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock};
 
-use antiyoy_agents::{Agent, GreedyAgent, RandomAgent};
+use antiyoy_agents::{Agent, GreedyAgent, RandomAgent, SearchAgent, SearchConfig};
 use antiyoy_core::{Action, Game, Rules, Scenario};
 use antiyoy_eval::{League, LeagueError, MatchOutcome, MatchReport, Termination, adjudicate};
 use antiyoy_protocol::{
@@ -20,6 +20,7 @@ use crate::storage::{ROOM_STORAGE_SCHEMA_VERSION, Storage, StoredRoom};
 
 const RANDOM_ID_BYTES: usize = 16;
 const TOKEN_BYTES: usize = 32;
+const PREVIOUS_NETWORK_SCHEMA_VERSION: u16 = 2;
 
 #[derive(Clone)]
 pub struct MatchService {
@@ -35,6 +36,7 @@ pub struct ServiceLimits {
     pub maximum_cells: usize,
     pub maximum_action_limit: u32,
     pub update_capacity: usize,
+    pub search_nodes: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -57,6 +59,7 @@ enum SeatController {
     Human { token_hash: [u8; 32] },
     Greedy(GreedyAgent),
     Random(RandomAgent),
+    Search(SearchAgent),
 }
 
 #[derive(Debug, Error, Eq, PartialEq)]
@@ -100,6 +103,7 @@ impl Default for ServiceLimits {
             maximum_cells: 4_096,
             maximum_action_limit: 10_000,
             update_capacity: 32,
+            search_nodes: 2_048,
         }
     }
 }
@@ -119,6 +123,7 @@ impl MatchService {
             || limits.maximum_cells == 0
             || limits.maximum_action_limit == 0
             || limits.update_capacity == 0
+            || limits.search_nodes < 2
         {
             return Err(ServiceError::InvalidRequest(
                 "service limits must be positive".into(),
@@ -166,8 +171,8 @@ impl MatchService {
             .map_err(|error| ServiceError::Internal(error.to_string()))?;
         let (updates, _) = broadcast::channel(self.limits.update_capacity);
         let mut credentials = Vec::new();
-        let first = Self::seat_controller(request, 0, &mut credentials)?;
-        let second = Self::seat_controller(request, 1, &mut credentials)?;
+        let first = self.seat_controller(request, 0, &mut credentials)?;
+        let second = self.seat_controller(request, 1, &mut credentials)?;
         let mut room = MatchRoom {
             id: String::new(),
             request: request.clone(),
@@ -357,6 +362,7 @@ impl MatchService {
     }
 
     fn seat_controller(
+        &self,
         request: &CreateMatchRequest,
         seat: usize,
         credentials: &mut Vec<SeatCredential>,
@@ -379,6 +385,16 @@ impl MatchService {
                 &requested.name,
                 request.seed ^ (u64::try_from(seat).expect("seat fits in u64") + 1),
             )),
+            SeatKind::Search => SeatController::Search(
+                SearchAgent::with_config(
+                    &requested.name,
+                    SearchConfig {
+                        node_budget: self.limits.search_nodes,
+                        ..SearchConfig::default()
+                    },
+                )
+                .expect("service limits contain a valid search budget"),
+            ),
         })
     }
 
@@ -429,7 +445,11 @@ impl MatchService {
             .load()
             .map_err(|error| ServiceError::Storage(error.to_string()))?
         {
-            let mut room = MatchRoom::restore(stored, self.limits.update_capacity)?;
+            let mut room = MatchRoom::restore(
+                stored,
+                self.limits.update_capacity,
+                self.limits.search_nodes,
+            )?;
             self.validate_request(&room.request)?;
             room.advance_bots()?;
             self.persist_room(&room)?;
@@ -525,6 +545,7 @@ impl MatchRoom {
                 SeatController::Human { .. } => break,
                 SeatController::Greedy(agent) => agent.select_action(&self.game, &legal_actions),
                 SeatController::Random(agent) => agent.select_action(&self.game, &legal_actions),
+                SeatController::Search(agent) => agent.select_action(&self.game, &legal_actions),
             };
             self.record(action)?;
         }
@@ -542,7 +563,8 @@ impl MatchRoom {
             } if *expected == token_hash(token) => Ok(()),
             SeatController::Human { .. }
             | SeatController::Greedy(_)
-            | SeatController::Random(_) => Err(ServiceError::Unauthorized),
+            | SeatController::Random(_)
+            | SeatController::Search(_) => Err(ServiceError::Unauthorized),
         }
     }
 
@@ -577,7 +599,9 @@ impl MatchRoom {
             request: self.request.clone(),
             human_token_hashes: std::array::from_fn(|seat| match &self.seats[seat] {
                 SeatController::Human { token_hash } => Some(*token_hash),
-                SeatController::Greedy(_) | SeatController::Random(_) => None,
+                SeatController::Greedy(_)
+                | SeatController::Random(_)
+                | SeatController::Search(_) => None,
             }),
             replay: self.replay.clone(),
             rated: self.rated,
@@ -585,12 +609,19 @@ impl MatchRoom {
         }
     }
 
-    fn restore(stored: StoredRoom, update_capacity: usize) -> Result<Self, ServiceError> {
+    fn restore(
+        mut stored: StoredRoom,
+        update_capacity: usize,
+        search_nodes: usize,
+    ) -> Result<Self, ServiceError> {
         if stored.schema_version != ROOM_STORAGE_SCHEMA_VERSION {
             return Err(ServiceError::CorruptStorage(format!(
                 "room {} has schema {}, expected {}",
                 stored.id, stored.schema_version, ROOM_STORAGE_SCHEMA_VERSION
             )));
+        }
+        if stored.request.schema_version == PREVIOUS_NETWORK_SCHEMA_VERSION {
+            stored.request.schema_version = NETWORK_SCHEMA_VERSION;
         }
         let rules = Rules::from_profile(stored.request.rules_profile).ok_or_else(|| {
             ServiceError::CorruptStorage("stored room uses custom rules without a document".into())
@@ -611,7 +642,7 @@ impl MatchRoom {
             .replay
             .play()
             .map_err(|error| ServiceError::CorruptStorage(error.to_string()))?;
-        let mut seats = Self::restore_seats(&stored)?;
+        let mut seats = Self::restore_seats(&stored, search_nodes)?;
         let mut reconstructed = Game::new(rules, scenario)
             .map_err(|error| ServiceError::CorruptStorage(error.to_string()))?;
         let mut legal_actions = Vec::new();
@@ -624,6 +655,9 @@ impl MatchRoom {
                     Some(agent.select_action(&reconstructed, &legal_actions))
                 }
                 SeatController::Random(agent) => {
+                    Some(agent.select_action(&reconstructed, &legal_actions))
+                }
+                SeatController::Search(agent) => {
                     Some(agent.select_action(&reconstructed, &legal_actions))
                 }
             };
@@ -662,7 +696,10 @@ impl MatchRoom {
         })
     }
 
-    fn restore_seats(stored: &StoredRoom) -> Result<[SeatController; 2], ServiceError> {
+    fn restore_seats(
+        stored: &StoredRoom,
+        search_nodes: usize,
+    ) -> Result<[SeatController; 2], ServiceError> {
         let mut restored = Vec::with_capacity(2);
         for (seat, requested) in stored.request.seats.iter().enumerate() {
             let controller = match requested.kind {
@@ -679,6 +716,16 @@ impl MatchRoom {
                     &requested.name,
                     stored.request.seed ^ (u64::try_from(seat).expect("seat fits in u64") + 1),
                 )),
+                SeatKind::Search => SeatController::Search(
+                    SearchAgent::with_config(
+                        &requested.name,
+                        SearchConfig {
+                            node_budget: search_nodes,
+                            ..SearchConfig::default()
+                        },
+                    )
+                    .expect("service limits contain a valid search budget"),
+                ),
             };
             restored.push(controller);
         }
@@ -752,6 +799,7 @@ mod tests {
         SeatRequest, SubmitAction,
     };
 
+    use super::storage::StoredRoom;
     use super::{MatchService, ServiceError, ServiceLimits, random_hex};
 
     fn human_against_random() -> CreateMatchRequest {
@@ -780,6 +828,15 @@ mod tests {
         request.seats[1] = SeatRequest {
             name: "second-human".into(),
             kind: SeatKind::Human,
+        };
+        request
+    }
+
+    fn human_against_search() -> CreateMatchRequest {
+        let mut request = human_against_random();
+        request.seats[1] = SeatRequest {
+            name: "search".into(),
+            kind: SeatKind::Search,
         };
         request
     }
@@ -826,6 +883,66 @@ mod tests {
             usize::try_from(snapshot.actions_played).unwrap()
         );
         assert_eq!(verified.final_digest, snapshot.digest);
+    }
+
+    #[test]
+    fn search_bot_reply_and_restoration_are_replay_verified() {
+        let directory = temporary_directory();
+        let limits = ServiceLimits {
+            search_nodes: 256,
+            ..ServiceLimits::default()
+        };
+        let service = MatchService::persistent(limits, &directory).expect("writable storage");
+        let created = service
+            .create_match(&human_against_search())
+            .expect("valid search match");
+        let credential = &created.credentials[0];
+        let end_turn = created
+            .snapshot
+            .game
+            .legal_actions
+            .iter()
+            .copied()
+            .find(|action| *action == Action::EndTurn)
+            .expect("end turn is legal");
+        let advanced = service
+            .submit(
+                &created.snapshot.match_id,
+                credential.seat,
+                &credential.token,
+                SubmitAction {
+                    schema_version: NETWORK_SCHEMA_VERSION,
+                    revision: created.snapshot.revision,
+                    action: end_turn,
+                },
+            )
+            .expect("search bot replies");
+        assert!(advanced.revision > 1);
+        assert_eq!(advanced.game.active_player, 0);
+        drop(service);
+
+        let restored = MatchService::persistent(limits, &directory).expect("restorable storage");
+        assert_eq!(
+            restored
+                .snapshot(&created.snapshot.match_id)
+                .expect("restored search room"),
+            advanced
+        );
+        let replay = Replay::decode(
+            &restored
+                .replay(&created.snapshot.match_id)
+                .expect("encoded search replay"),
+        )
+        .expect("decoded search replay");
+        assert_eq!(
+            replay
+                .verify()
+                .expect("verified search replay")
+                .final_digest,
+            advanced.digest
+        );
+        drop(restored);
+        fs::remove_dir_all(directory).expect("remove test storage");
     }
 
     #[test]
@@ -941,6 +1058,13 @@ mod tests {
 
     #[test]
     fn configured_map_and_action_limits_are_enforced() {
+        assert!(matches!(
+            MatchService::with_limits(ServiceLimits {
+                search_nodes: 1,
+                ..ServiceLimits::default()
+            }),
+            Err(ServiceError::InvalidRequest(_))
+        ));
         let service = MatchService::with_limits(ServiceLimits {
             maximum_cells: 34,
             maximum_action_limit: 99,
@@ -1025,6 +1149,36 @@ mod tests {
             Err(ServiceError::NotFound(_))
         ));
         drop(empty);
+        fs::remove_dir_all(directory).expect("remove test storage");
+    }
+
+    #[test]
+    fn previous_network_schema_rooms_are_upgraded_during_restoration() {
+        let directory = temporary_directory();
+        let limits = ServiceLimits::default();
+        let service = MatchService::persistent(limits, &directory).expect("writable storage");
+        let created = service.create_match(&human_duel()).expect("valid room");
+        drop(service);
+        let stored_path = directory.join(format!("{}.room", created.snapshot.match_id));
+        let mut stored: StoredRoom =
+            postcard::from_bytes(&fs::read(&stored_path).expect("stored room"))
+                .expect("decoded stored room");
+        stored.request.schema_version = 2;
+        fs::write(
+            &stored_path,
+            postcard::to_allocvec(&stored).expect("encoded legacy room"),
+        )
+        .expect("legacy room written");
+
+        let restored = MatchService::persistent(limits, &directory).expect("legacy room restored");
+        assert_eq!(
+            restored
+                .snapshot(&created.snapshot.match_id)
+                .expect("upgraded room")
+                .schema_version,
+            NETWORK_SCHEMA_VERSION
+        );
+        drop(restored);
         fs::remove_dir_all(directory).expect("remove test storage");
     }
 

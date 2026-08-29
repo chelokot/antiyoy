@@ -3,13 +3,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Digest, ReplayError};
 
-pub const NETWORK_SCHEMA_VERSION: u16 = 2;
+pub const NETWORK_SCHEMA_VERSION: u16 = 3;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum SeatKind {
     Human,
     Greedy,
     Random,
+    Search,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
