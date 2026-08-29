@@ -48,6 +48,9 @@ def evaluate(
     search_beam_width: int,
     search_branch_width: int,
     search_maximum_actions_per_turn: int,
+    width: int | None,
+    height: int | None,
+    action_limit: int | None,
 ) -> dict[str, object]:
     device = torch.device(device_name)
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
@@ -62,12 +65,17 @@ def evaluate(
     load_policy_state(model, checkpoint["model"])
     model.eval()
     evaluation_profile = profile or config["profile"] or config["profiles"][0]
+    evaluation_width = config["width"] if width is None else width
+    evaluation_height = config["height"] if height is None else height
+    evaluation_action_limit = (
+        config["action_limit"] if action_limit is None else action_limit
+    )
     environment = VectorEnv(
         games,
-        width=config["width"],
-        height=config["height"],
+        width=evaluation_width,
+        height=evaluation_height,
         seed=seed,
-        action_limit=config["action_limit"],
+        action_limit=evaluation_action_limit,
         profile=evaluation_profile,
         fog=config["fog"],
         diplomacy=config.get("diplomacy", False),
@@ -159,6 +167,9 @@ def evaluate(
         "transitions": transitions,
         "device": str(device),
         "profile": evaluation_profile,
+        "arena_width": evaluation_width,
+        "arena_height": evaluation_height,
+        "action_limit": evaluation_action_limit,
         "model_action_counts": named_action_counts(model_action_counts),
         "baseline_action_counts": named_action_counts(baseline_action_counts),
         "search_nodes": search_nodes if baseline == "search" else 0,
@@ -184,6 +195,9 @@ def main() -> None:
     parser.add_argument("--search-beam-width", type=int, default=32)
     parser.add_argument("--search-branch-width", type=int, default=48)
     parser.add_argument("--search-maximum-actions-per-turn", type=int, default=24)
+    parser.add_argument("--width", type=int)
+    parser.add_argument("--height", type=int)
+    parser.add_argument("--action-limit", type=int)
     arguments = parser.parse_args()
     print(
         json.dumps(
@@ -198,6 +212,9 @@ def main() -> None:
                 arguments.search_beam_width,
                 arguments.search_branch_width,
                 arguments.search_maximum_actions_per_turn,
+                arguments.width,
+                arguments.height,
+                arguments.action_limit,
             ),
             sort_keys=True,
         )

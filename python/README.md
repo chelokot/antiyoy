@@ -108,12 +108,16 @@ publishing an Elo number.
 
 ```bash
 python evaluate.py ../models/universal-ppo.pt --games 64 --baseline greedy \
-  --profile online_duel_v1
+  --profile online_duel_v1 --width 11 --height 9 --action-limit 1000
 ```
 
 Use `--baseline search --search-nodes 2048` for the stronger deterministic
 teacher. Search beam, branch, and maximum turn depth are independently
 configurable and emitted in the result.
+
+Arena dimensions and action limits otherwise inherit the training checkpoint.
+Cross-checkpoint comparisons must pass the same explicit `--width`, `--height`,
+and `--action-limit`; all three values are emitted in every result.
 
 Evaluation alternates model seats, uses held-out seeds, and reports the raw
 win/draw/loss score plus an Elo difference against the named baseline. Terminal
