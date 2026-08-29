@@ -26,6 +26,10 @@ def evaluate(
     device_name: str,
     baseline: str,
     profile: str | None,
+    search_nodes: int,
+    search_beam_width: int,
+    search_branch_width: int,
+    search_maximum_actions_per_turn: int,
 ) -> dict[str, float | int | str]:
     device = torch.device(device_name)
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
@@ -66,7 +70,17 @@ def evaluate(
             logits, _ = model(observation, rules)
             distribution = action_distribution(logits, observation["action_offsets"])
             model_actions = distribution.logits.argmax(dim=1).cpu().numpy().astype(np.uint64)
-        if baseline == "greedy":
+        if baseline == "search":
+            baseline_actions = np.asarray(
+                environment.search_actions(
+                    node_budget=search_nodes,
+                    beam_width=search_beam_width,
+                    branch_width=search_branch_width,
+                    maximum_actions_per_turn=search_maximum_actions_per_turn,
+                ),
+                dtype=np.uint64,
+            )
+        elif baseline == "greedy":
             baseline_actions = np.asarray(environment.greedy_actions(), dtype=np.uint64)
         else:
             counts = np.diff(observation["action_offsets"])
@@ -105,6 +119,12 @@ def evaluate(
         "transitions": transitions,
         "device": str(device),
         "profile": evaluation_profile,
+        "search_nodes": search_nodes if baseline == "search" else 0,
+        "search_beam_width": search_beam_width if baseline == "search" else 0,
+        "search_branch_width": search_branch_width if baseline == "search" else 0,
+        "search_maximum_actions_per_turn": (
+            search_maximum_actions_per_turn if baseline == "search" else 0
+        ),
     }
 
 
@@ -114,8 +134,14 @@ def main() -> None:
     parser.add_argument("--games", type=int, default=64)
     parser.add_argument("--seed", type=int, default=100000)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
-    parser.add_argument("--baseline", choices=("greedy", "random"), default="greedy")
+    parser.add_argument(
+        "--baseline", choices=("search", "greedy", "random"), default="greedy"
+    )
     parser.add_argument("--profile")
+    parser.add_argument("--search-nodes", type=int, default=2048)
+    parser.add_argument("--search-beam-width", type=int, default=32)
+    parser.add_argument("--search-branch-width", type=int, default=48)
+    parser.add_argument("--search-maximum-actions-per-turn", type=int, default=24)
     arguments = parser.parse_args()
     print(
         json.dumps(
@@ -126,6 +152,10 @@ def main() -> None:
                 arguments.device,
                 arguments.baseline,
                 arguments.profile,
+                arguments.search_nodes,
+                arguments.search_beam_width,
+                arguments.search_branch_width,
+                arguments.search_maximum_actions_per_turn,
             ),
             sort_keys=True,
         )

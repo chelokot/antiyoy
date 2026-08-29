@@ -104,6 +104,10 @@ python evaluate.py ../models/universal-ppo.pt --games 64 --baseline greedy \
   --profile online_duel_v1
 ```
 
+Use `--baseline search --search-nodes 2048` for the stronger deterministic
+teacher. Search beam, branch, and maximum turn depth are independently
+configurable and emitted in the result.
+
 Evaluation alternates model seats, uses held-out seeds, and reports the raw
 win/draw/loss score plus an Elo difference against the named baseline. It does
 not assign an absolute leaderboard rating to an uncalibrated baseline.
