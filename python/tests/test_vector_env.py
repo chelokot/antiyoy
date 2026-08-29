@@ -63,3 +63,29 @@ def test_greedy_baseline_returns_legal_local_indices() -> None:
 def test_all_versioned_profiles_are_available(profile: str, expected_profile: str) -> None:
     environment = VectorEnv(1, width=7, height=5, profile=profile)
     assert json.loads(environment.rules_json())["profile"] == expected_profile
+
+
+def test_mixed_batch_preserves_per_environment_rules() -> None:
+    profiles = [
+        "classic_generic_2022",
+        "online_duel_v1",
+        "online_experimental_v2_260801",
+    ]
+    environment = VectorEnv.mixed(profiles, width=7, height=5, seed=131)
+    serialized = environment.rules_jsons()
+    assert environment.environments == 3
+    assert [json.loads(rules)["profile"] for rules in serialized] == [
+        "ClassicGeneric",
+        "OnlineDuelV1",
+        "OnlineExperimentalV2_260801",
+    ]
+    environment.step(np.zeros(3, dtype=np.uint64))
+    environment.reset(1, 999)
+    assert json.loads(environment.rules_jsons()[1])["profile"] == "OnlineDuelV1"
+
+
+def test_fog_mode_projects_active_player_visibility() -> None:
+    full = VectorEnv(1, width=11, height=9, seed=211).observe()
+    fog = VectorEnv(1, width=11, height=9, seed=211, fog=True).observe()
+    assert np.all(full["visible"] == full["playable"])
+    assert np.any(np.logical_and(fog["playable"] == 1, fog["visible"] == 0))

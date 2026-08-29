@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const OBSERVATION_VERSION: u16 = 5;
+pub const OBSERVATION_VERSION: u16 = 6;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[repr(u8)]
@@ -78,7 +78,7 @@ impl From<Action> for ActionFeatures {
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BatchObservation {
     pub version: u16,
-    pub rules: Rules,
+    pub rules: Vec<Rules>,
     pub cell_offsets: Vec<usize>,
     pub province_offsets: Vec<usize>,
     pub action_offsets: Vec<usize>,
@@ -105,6 +105,7 @@ pub struct BatchObservation {
 impl BatchObservation {
     pub fn clear(&mut self) {
         self.version = OBSERVATION_VERSION;
+        self.rules.clear();
         self.cell_offsets.clear();
         self.province_offsets.clear();
         self.action_offsets.clear();
@@ -159,6 +160,8 @@ pub enum BatchError {
     Empty,
     #[error("action limit must be greater than zero")]
     ZeroActionLimit,
+    #[error("received {actual} rules profiles for {expected} scenarios")]
+    RulesCount { actual: usize, expected: usize },
     #[error("received {actual} action indices for {expected} environments")]
     ActionCount { actual: usize, expected: usize },
     #[error("environment index {index} is outside a batch of {environments}")]
@@ -187,18 +190,28 @@ struct PlayerMetrics {
 }
 
 pub struct BatchEnv {
-    rules: Rules,
+    rules: Vec<Rules>,
     scenarios: Vec<Scenario>,
     games: Vec<Game>,
     legal_actions: Vec<Vec<Action>>,
     episode_steps: Vec<u32>,
     done: Vec<bool>,
     action_limit: u32,
+    fog: bool,
 }
 
 impl BatchEnv {
     pub fn new(
         rules: Rules,
+        scenarios: Vec<Scenario>,
+        action_limit: u32,
+    ) -> Result<Self, BatchError> {
+        let profile_count = scenarios.len();
+        Self::new_mixed(vec![rules; profile_count], scenarios, action_limit)
+    }
+
+    pub fn new_mixed(
+        rules: Vec<Rules>,
         scenarios: Vec<Scenario>,
         action_limit: u32,
     ) -> Result<Self, BatchError> {
@@ -208,10 +221,16 @@ impl BatchEnv {
         if action_limit == 0 {
             return Err(BatchError::ZeroActionLimit);
         }
+        if rules.len() != scenarios.len() {
+            return Err(BatchError::RulesCount {
+                actual: rules.len(),
+                expected: scenarios.len(),
+            });
+        }
         let mut games = Vec::with_capacity(scenarios.len());
         let mut legal_actions = Vec::with_capacity(scenarios.len());
-        for scenario in &scenarios {
-            let game = Game::new(rules.clone(), scenario.clone())?;
+        for (rules, scenario) in rules.iter().cloned().zip(&scenarios) {
+            let game = Game::new(rules, scenario.clone())?;
             let mut actions = Vec::with_capacity(scenario.topology.len() * 4);
             game.legal_actions(&mut actions);
             games.push(game);
@@ -226,6 +245,7 @@ impl BatchEnv {
             episode_steps: vec![0; environments],
             done: vec![false; environments],
             action_limit,
+            fog: false,
         })
     }
 
@@ -249,12 +269,35 @@ impl BatchEnv {
         Self::new(rules, scenarios, action_limit)
     }
 
+    pub fn symmetric_duels_mixed(
+        rules: Vec<Rules>,
+        width: u16,
+        height: u16,
+        first_seed: u64,
+        action_limit: u32,
+    ) -> Result<Self, BatchError> {
+        if rules.is_empty() {
+            return Err(BatchError::Empty);
+        }
+        let mut scenarios = Vec::with_capacity(rules.len());
+        let mut seed = first_seed;
+        for _ in &rules {
+            scenarios.push(Scenario::symmetric_duel(width, height, seed)?);
+            seed = seed.wrapping_add(1);
+        }
+        Self::new_mixed(rules, scenarios, action_limit)
+    }
+
     pub fn len(&self) -> usize {
         self.games.len()
     }
 
     pub fn is_empty(&self) -> bool {
         self.games.is_empty()
+    }
+
+    pub fn set_fog(&mut self, enabled: bool) {
+        self.fog = enabled;
     }
 
     pub fn game(&self, index: usize) -> Option<&Game> {
@@ -282,7 +325,7 @@ impl BatchEnv {
                 environments: self.games.len(),
             })?;
         scenario.seed = seed;
-        self.games[index] = Game::new(self.rules.clone(), scenario.clone())?;
+        self.games[index] = Game::new(self.rules[index].clone(), scenario.clone())?;
         self.episode_steps[index] = 0;
         self.done[index] = false;
         self.games[index].legal_actions(&mut self.legal_actions[index]);
@@ -362,7 +405,7 @@ impl BatchEnv {
 
     pub fn observe(&self, output: &mut BatchObservation) {
         output.clear();
-        output.rules = self.rules.clone();
+        output.rules.extend(self.rules.iter().cloned());
         output.cell_offsets.reserve(self.len() + 1);
         output.province_offsets.reserve(self.len() + 1);
         output.action_offsets.reserve(self.len() + 1);
@@ -375,13 +418,16 @@ impl BatchEnv {
             output.heights.push(game.topology().height());
             output.active_players.push(game.active_player().0);
             output.rounds.push(game.round());
-            game.visibility(game.active_player(), &[], &mut visibility);
+            if self.fog {
+                game.visibility(game.active_player(), &[], &mut visibility);
+            }
             for (cell, hex_id) in game.cells().iter().copied().zip(0_u16..) {
                 let hex = HexId(hex_id);
-                output
-                    .playable
-                    .push(u8::from(game.topology().is_playable(hex)));
-                output.visible.push(u8::from(visibility[hex.index()]));
+                let playable = game.topology().is_playable(hex);
+                output.playable.push(u8::from(playable));
+                output.visible.push(u8::from(
+                    !self.fog && playable || self.fog && visibility[hex.index()],
+                ));
                 output.owners.push(cell.owner().0);
                 output.objects.push(object_code(cell.object()));
                 output.unit_strengths.push(cell.unit().strength());
@@ -561,5 +607,26 @@ mod tests {
         assert!(result.truncated);
         assert!(!result.terminal);
         assert!(result.done());
+    }
+
+    #[test]
+    fn mixed_batch_keeps_rules_attached_across_reset() {
+        let rules = vec![
+            Rules::classic_generic(),
+            Rules::online_duel_v1(),
+            Rules::online_experimental_v2_260801(),
+        ];
+        let mut environment = BatchEnv::symmetric_duels_mixed(rules.clone(), 7, 5, 151, 500)
+            .expect("valid mixed batch");
+        environment
+            .reset_with_seed(1, 777)
+            .expect("valid mixed reset");
+        let mut observation = BatchObservation::default();
+        environment.observe(&mut observation);
+        assert_eq!(observation.rules, rules);
+        assert_eq!(
+            environment.game(1).expect("second game").rules(),
+            &Rules::online_duel_v1()
+        );
     }
 }

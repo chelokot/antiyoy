@@ -18,7 +18,7 @@ struct VectorEnv {
 #[pymethods]
 impl VectorEnv {
     #[new]
-    #[pyo3(signature = (environments, width=11, height=9, seed=1, action_limit=1000, profile="classic_generic_2022"))]
+    #[pyo3(signature = (environments, width=11, height=9, seed=1, action_limit=1000, profile="classic_generic_2022", fog=false))]
     fn new(
         environments: usize,
         width: u16,
@@ -26,24 +26,37 @@ impl VectorEnv {
         seed: u64,
         action_limit: u32,
         profile: &str,
+        fog: bool,
     ) -> PyResult<Self> {
-        let rules = match profile {
-            "classic_generic_2022" => Rules::classic_generic(),
-            "classic_slay_2022" => Rules::classic_slay(),
-            "online_default_v1" => Rules::online_default_v1(),
-            "online_classic_v1" => Rules::online_classic_v1(),
-            "online_duel_v1" => Rules::online_duel_v1(),
-            "online_experimental_v1" => Rules::online_experimental_v1(),
-            "online_experimental_v2_260801" => Rules::online_experimental_v2_260801(),
-            _ => {
-                return Err(PyValueError::new_err(format!(
-                    "unknown rules profile: {profile}"
-                )));
-            }
-        };
-        let batch =
+        let rules = rules_for_profile(profile)?;
+        let mut batch =
             BatchEnv::symmetric_duels(rules, environments, width, height, seed, action_limit)
                 .map_err(runtime_error)?;
+        batch.set_fog(fog);
+        Ok(Self {
+            batch,
+            observation: BatchObservation::default(),
+        })
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (profiles, width=11, height=9, seed=1, action_limit=1000, fog=false))]
+    #[expect(clippy::needless_pass_by_value)]
+    fn mixed(
+        profiles: Vec<String>,
+        width: u16,
+        height: u16,
+        seed: u64,
+        action_limit: u32,
+        fog: bool,
+    ) -> PyResult<Self> {
+        let rules = profiles
+            .iter()
+            .map(|profile| rules_for_profile(profile))
+            .collect::<PyResult<Vec<_>>>()?;
+        let mut batch = BatchEnv::symmetric_duels_mixed(rules, width, height, seed, action_limit)
+            .map_err(runtime_error)?;
+        batch.set_fog(fog);
         Ok(Self {
             batch,
             observation: BatchObservation::default(),
@@ -102,6 +115,18 @@ impl VectorEnv {
         serde_json::to_string(game.rules()).map_err(runtime_error)
     }
 
+    fn rules_jsons(&self) -> PyResult<Vec<String>> {
+        (0..self.batch.len())
+            .map(|index| {
+                let game = self
+                    .batch
+                    .game(index)
+                    .ok_or_else(|| PyRuntimeError::new_err("environment index disappeared"))?;
+                serde_json::to_string(game.rules()).map_err(runtime_error)
+            })
+            .collect()
+    }
+
     fn greedy_actions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u64>>> {
         let indices = py.detach(|| {
             (0..self.batch.len())
@@ -129,6 +154,21 @@ impl VectorEnv {
                 .collect::<PyResult<Vec<_>>>()
         })?;
         Ok(PyArray1::from_vec(py, indices))
+    }
+}
+
+fn rules_for_profile(profile: &str) -> PyResult<Rules> {
+    match profile {
+        "classic_generic_2022" => Ok(Rules::classic_generic()),
+        "classic_slay_2022" => Ok(Rules::classic_slay()),
+        "online_default_v1" => Ok(Rules::online_default_v1()),
+        "online_classic_v1" => Ok(Rules::online_classic_v1()),
+        "online_duel_v1" => Ok(Rules::online_duel_v1()),
+        "online_experimental_v1" => Ok(Rules::online_experimental_v1()),
+        "online_experimental_v2_260801" => Ok(Rules::online_experimental_v2_260801()),
+        _ => Err(PyValueError::new_err(format!(
+            "unknown rules profile: {profile}"
+        ))),
     }
 }
 
