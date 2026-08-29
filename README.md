@@ -42,6 +42,7 @@ RAYON_NUM_THREADS=8 cargo run --release -p antiyoy-cli -- \
 ```
 
 The versioned tensor contract is documented in [`docs/rl.md`](docs/rl.md).
+Reproducible machine results live under [`benchmarks/`](benchmarks/).
 
 ## Status
 

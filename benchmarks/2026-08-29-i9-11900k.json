@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "commit": "0cc7827cb0ec81bfc9b94c21873512d0862385ea",
+  "command": "RAYON_NUM_THREADS=8 target/release/antiyoy rl-bench --environments 256 --transitions 1000000 --json",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_threads": 8,
+    "operating_system": "Fedora Silverblue 44",
+    "architecture": "x86_64"
+  },
+  "result": {
+    "environments": 256,
+    "transitions": 1000000,
+    "observation_batches": 3907,
+    "elapsed_seconds": 5.063547376,
+    "transitions_per_second": 197490.00567068064,
+    "checksum": 4766057120429832215
+  }
+}
