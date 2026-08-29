@@ -2,7 +2,7 @@
 
 use antiyoy_core::{
     Action, ActionError, ConfigError, DiplomacyCommand, Game, GenerationError, GeneratorConfig,
-    HexId, Object, PlayerId, Rules, Scenario, Structure, Transition,
+    HexId, Object, Objective, ObjectiveError, PlayerId, Rules, Scenario, Structure,
 };
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -160,6 +160,7 @@ pub struct StepResult {
     pub round: u32,
     pub terminal: bool,
     pub truncated: bool,
+    pub objective_satisfied: bool,
     pub winner: Option<PlayerId>,
 }
 
@@ -179,10 +180,14 @@ pub enum BatchError {
     RulesCount { actual: usize, expected: usize },
     #[error("received {actual} action indices for {expected} environments")]
     ActionCount { actual: usize, expected: usize },
+    #[error("received {actual} objectives for {expected} environments")]
+    ObjectiveCount { actual: usize, expected: usize },
     #[error("environment index {index} is outside a batch of {environments}")]
     InvalidEnvironment { index: usize, environments: usize },
     #[error("environment {index} is already done and must be reset")]
     EnvironmentDone { index: usize },
+    #[error("environment {index} objective can only change before its first action")]
+    ObjectiveAfterStart { index: usize },
     #[error(
         "action index {action} is outside {legal_actions} legal actions for environment {environment}"
     )]
@@ -195,6 +200,8 @@ pub enum BatchError {
     Configuration(#[from] ConfigError),
     #[error("scenario generation failed: {0}")]
     Generation(#[from] GenerationError),
+    #[error("scenario objective failed: {0}")]
+    Objective(#[from] ObjectiveError),
     #[error("legal action failed: {0}")]
     Action(#[from] ActionError),
 }
@@ -210,6 +217,7 @@ pub struct BatchEnv {
     rules: Vec<Rules>,
     scenarios: Vec<Scenario>,
     generators: Vec<Option<GeneratorConfig>>,
+    objectives: Vec<Objective>,
     games: Vec<Game>,
     legal_actions: Vec<Vec<Action>>,
     episode_steps: Vec<u32>,
@@ -233,6 +241,16 @@ impl BatchEnv {
         scenarios: Vec<Scenario>,
         action_limit: u32,
     ) -> Result<Self, BatchError> {
+        let objectives = vec![Objective::default(); scenarios.len()];
+        Self::new_mixed_with_objectives(rules, scenarios, objectives, action_limit)
+    }
+
+    pub fn new_mixed_with_objectives(
+        rules: Vec<Rules>,
+        scenarios: Vec<Scenario>,
+        objectives: Vec<Objective>,
+        action_limit: u32,
+    ) -> Result<Self, BatchError> {
         if scenarios.is_empty() {
             return Err(BatchError::Empty);
         }
@@ -245,24 +263,37 @@ impl BatchEnv {
                 expected: scenarios.len(),
             });
         }
+        if objectives.len() != scenarios.len() {
+            return Err(BatchError::ObjectiveCount {
+                actual: objectives.len(),
+                expected: scenarios.len(),
+            });
+        }
         let mut games = Vec::with_capacity(scenarios.len());
         let mut legal_actions = Vec::with_capacity(scenarios.len());
-        for (rules, scenario) in rules.iter().cloned().zip(&scenarios) {
+        let mut done = Vec::with_capacity(scenarios.len());
+        for ((rules, scenario), objective) in rules.iter().cloned().zip(&scenarios).zip(&objectives)
+        {
             let game = Game::new(rules, scenario.clone())?;
             let mut actions = Vec::with_capacity(scenario.topology.len() * 4);
-            game.legal_actions(&mut actions);
+            let status = objective.evaluate(&game)?;
+            if !status.is_terminal() {
+                game.legal_actions(&mut actions);
+            }
             games.push(game);
             legal_actions.push(actions);
+            done.push(status.is_terminal());
         }
         let environments = games.len();
         Ok(Self {
             rules,
             scenarios,
             generators: vec![None; environments],
+            objectives,
             games,
             legal_actions,
             episode_steps: vec![0; environments],
-            done: vec![false; environments],
+            done,
             action_limit,
             fog: false,
         })
@@ -362,6 +393,32 @@ impl BatchEnv {
         self.generators.get(index).and_then(Option::as_ref)
     }
 
+    pub fn objective(&self, index: usize) -> Option<&Objective> {
+        self.objectives.get(index)
+    }
+
+    pub fn set_objective(&mut self, index: usize, objective: Objective) -> Result<(), BatchError> {
+        if self.episode_steps.get(index).copied().unwrap_or_default() != 0 {
+            return Err(BatchError::ObjectiveAfterStart { index });
+        }
+        let game = self
+            .games
+            .get(index)
+            .ok_or(BatchError::InvalidEnvironment {
+                index,
+                environments: self.games.len(),
+            })?;
+        let status = objective.evaluate(game)?;
+        self.objectives[index] = objective;
+        self.done[index] = status.is_terminal();
+        if self.done[index] {
+            self.legal_actions[index].clear();
+        } else {
+            game.legal_actions(&mut self.legal_actions[index]);
+        }
+        Ok(())
+    }
+
     pub fn legal_actions(&self, index: usize) -> Option<&[Action]> {
         self.legal_actions.get(index).map(Vec::as_slice)
     }
@@ -394,8 +451,13 @@ impl BatchEnv {
         self.generators[index] = generator;
         self.games[index] = game;
         self.episode_steps[index] = 0;
-        self.done[index] = false;
-        self.games[index].legal_actions(&mut self.legal_actions[index]);
+        let status = self.objectives[index].evaluate(&self.games[index])?;
+        self.done[index] = status.is_terminal();
+        if self.done[index] {
+            self.legal_actions[index].clear();
+        } else {
+            self.games[index].legal_actions(&mut self.legal_actions[index]);
+        }
         Ok(())
     }
 
@@ -426,6 +488,7 @@ impl BatchEnv {
             &mut self.legal_actions[environment],
             &mut self.episode_steps[environment],
             &mut self.done[environment],
+            &self.objectives[environment],
             self.action_limit,
             action,
         )
@@ -455,18 +518,22 @@ impl BatchEnv {
             .zip(self.legal_actions.par_iter_mut())
             .zip(self.episode_steps.par_iter_mut())
             .zip(self.done.par_iter_mut())
+            .zip(self.objectives.par_iter())
             .zip(action_indices.par_iter().copied())
-            .map(|((((game, actions), episode_steps), done), action_index)| {
-                let action = actions[action_index];
-                step_environment(
-                    game,
-                    actions,
-                    episode_steps,
-                    done,
-                    self.action_limit,
-                    action,
-                )
-            })
+            .map(
+                |(((((game, actions), episode_steps), done), objective), action_index)| {
+                    let action = actions[action_index];
+                    step_environment(
+                        game,
+                        actions,
+                        episode_steps,
+                        done,
+                        objective,
+                        self.action_limit,
+                        action,
+                    )
+                },
+            )
             .collect()
     }
 
@@ -594,17 +661,20 @@ fn step_environment(
     legal_actions: &mut Vec<Action>,
     episode_steps: &mut u32,
     done: &mut bool,
+    objective: &Objective,
     action_limit: u32,
     action: Action,
 ) -> Result<StepResult, BatchError> {
     let actor = game.active_player();
     let before = player_metrics(game, actor);
-    let transition = game.step(action)?;
+    game.step(action)?;
     *episode_steps += 1;
-    let truncated = !transition.terminal && *episode_steps >= action_limit;
-    *done = transition.terminal || truncated;
+    let objective_status = objective.evaluate(game)?;
+    let terminal = objective_status.is_terminal();
+    let truncated = !terminal && *episode_steps >= action_limit;
+    *done = terminal || truncated;
     let after = player_metrics(game, actor);
-    let reward = reward_components(actor, before, after, transition);
+    let reward = reward_components(actor, before, after, objective_status.winner());
     if *done {
         legal_actions.clear();
     } else {
@@ -613,10 +683,11 @@ fn step_environment(
     Ok(StepResult {
         actor,
         reward,
-        round: transition.round,
-        terminal: transition.terminal,
+        round: game.round(),
+        terminal,
         truncated,
-        winner: transition.winner,
+        objective_satisfied: objective_status.is_satisfied(),
+        winner: objective_status.winner(),
     })
 }
 
@@ -624,10 +695,10 @@ fn reward_components(
     actor: PlayerId,
     before: PlayerMetrics,
     after: PlayerMetrics,
-    transition: Transition,
+    winner: Option<PlayerId>,
 ) -> RewardComponents {
     RewardComponents {
-        outcome: match transition.winner {
+        outcome: match winner {
             Some(winner) if winner == actor => 1,
             Some(_) => -1,
             None => 0,
@@ -640,7 +711,10 @@ fn reward_components(
 
 #[cfg(test)]
 mod tests {
-    use antiyoy_core::{Action, DiplomacyCommand, GeneratorConfig, PlayerId, Rules};
+    use antiyoy_core::{
+        Action, DiplomacyCommand, GeneratorConfig, OBJECTIVE_SCHEMA_VERSION, Objective, PlayerId,
+        Rules, Scenario, VictoryCondition,
+    };
 
     use super::{ActionFeatures, ActionKind, BatchEnv, BatchObservation};
 
@@ -771,6 +845,38 @@ mod tests {
                 .expect("procedural config")
                 .seed,
             config.seed
+        );
+    }
+
+    #[test]
+    fn scenario_objective_terminates_before_core_domination() {
+        let scenario = Scenario::symmetric_duel(7, 5, 901).expect("valid duel");
+        let objective = Objective {
+            schema_version: OBJECTIVE_SCHEMA_VERSION,
+            condition: VictoryCondition::SurviveThroughRound {
+                player: PlayerId(0),
+                round: 1,
+            },
+        };
+        let mut environment = BatchEnv::new_mixed_with_objectives(
+            vec![Rules::classic_generic()],
+            vec![scenario],
+            vec![objective],
+            500,
+        )
+        .expect("valid objective batch");
+        let first = environment.step(0, 0).expect("first end turn");
+        assert!(!first.done());
+        let second = environment.step(0, 0).expect("second end turn");
+        assert!(second.terminal);
+        assert!(second.objective_satisfied);
+        assert_eq!(second.winner, Some(PlayerId(0)));
+        assert!(!environment.game(0).expect("game").is_terminal());
+        assert!(
+            environment
+                .legal_actions(0)
+                .expect("known environment")
+                .is_empty()
         );
     }
 }

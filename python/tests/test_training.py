@@ -30,6 +30,7 @@ def training_config() -> TrainingConfig:
         neutral_tower_density_per_million=20_000,
         neutral_capital_density_per_million=10_000,
         grave_density_per_million=15_000,
+        objective_json=None,
         action_limit=100,
         hidden=16,
         layers=1,

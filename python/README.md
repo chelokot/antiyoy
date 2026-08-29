@@ -19,7 +19,7 @@ cd python
 ```python
 import numpy as np
 
-from antiyoy_rl import ProceduralConfig, VectorEnv
+from antiyoy_rl import ProceduralConfig, ScenarioObjective, VectorEnv
 
 generator = ProceduralConfig(
     width=31,
@@ -28,7 +28,8 @@ generator = ProceduralConfig(
     seed=1,
     land_density_per_million=650_000,
 )
-environment = VectorEnv.procedural(256, generator)
+objective = ScenarioObjective.survive_through_round(player=0, round=100)
+environment = VectorEnv.procedural(256, generator, objective=objective)
 observation = environment.observe()
 action_indices = np.zeros(environment.environments, dtype=np.uint64)
 result = environment.step(action_indices)
@@ -65,6 +66,8 @@ checkpoint. Add `--fog` to train from the active player's exact
 visibility projection; full-state mode is the faster default for centralized
 self-play. Add `--diplomacy --initial-relation neutral` to expose bilateral
 offers, declarations of war, alliance propagation, and their exact action mask.
+Use `--objective-json` with a serialized `ScenarioObjective` to train campaign
+curricula; terminal results expose whether the condition was actually satisfied.
 
 Greedy distillation is an optional curriculum, not an evaluation shortcut. It
 teaches a common tactical prior from the native baseline before PPO self-play;

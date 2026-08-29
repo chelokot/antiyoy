@@ -117,6 +117,12 @@ config in the checkpoint. The original `procedural_v1` generator is intended
 for domain randomization and is explicitly separate from upstream map-seed
 compatibility.
 
+Versioned scenario objectives cover domination, alliances, survival, target
+elimination, exact economy thresholds, and ensuring a specified player's
+victory. RL termination reports objective satisfaction separately from the
+actual winner; the complete contract is in
+[`docs/objectives.md`](docs/objectives.md).
+
 ## Downloadable policies
 
 The model registry contains immutable release assets with size and SHA-256

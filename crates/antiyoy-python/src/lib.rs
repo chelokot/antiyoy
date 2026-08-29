@@ -1,7 +1,9 @@
 #![forbid(unsafe_code)]
 
 use antiyoy_agents::{Agent, GreedyAgent};
-use antiyoy_core::{GeneratorConfig, Relation, Rules};
+use antiyoy_core::{
+    EconomyMetric, GeneratorConfig, Objective, PlayerId, Relation, Rules, VictoryCondition,
+};
 use antiyoy_rl::{BatchEnv, BatchObservation, StepResult};
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
@@ -55,6 +57,92 @@ impl ProceduralConfig {
     }
 }
 
+#[pyclass(module = "antiyoy_rl._native", frozen)]
+struct ScenarioObjective {
+    inner: Objective,
+}
+
+#[pymethods]
+impl ScenarioObjective {
+    #[staticmethod]
+    fn from_json(serialized: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(serialized)
+            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        Ok(Self { inner })
+    }
+
+    #[staticmethod]
+    fn domination() -> Self {
+        Self {
+            inner: Objective::default(),
+        }
+    }
+
+    #[staticmethod]
+    fn diplomatic_victory(player: u8) -> Self {
+        Self::new(VictoryCondition::DiplomaticVictory {
+            player: PlayerId(player),
+        })
+    }
+
+    #[staticmethod]
+    fn survive_through_round(player: u8, round: u32) -> Self {
+        Self::new(VictoryCondition::SurviveThroughRound {
+            player: PlayerId(player),
+            round,
+        })
+    }
+
+    #[staticmethod]
+    fn destroy_player(player: u8, target: u8) -> Self {
+        Self::new(VictoryCondition::DestroyPlayer {
+            player: PlayerId(player),
+            target: PlayerId(target),
+        })
+    }
+
+    #[staticmethod]
+    fn reach_economy(player: u8, metric: &str, minimum: i64) -> PyResult<Self> {
+        let metric = match metric {
+            "gross_income" => EconomyMetric::GrossIncome,
+            "profit" => EconomyMetric::Profit,
+            "treasury" => EconomyMetric::Treasury,
+            _ => {
+                return Err(PyValueError::new_err(format!(
+                    "unknown economy objective metric: {metric}"
+                )));
+            }
+        };
+        Ok(Self::new(VictoryCondition::ReachEconomy {
+            player: PlayerId(player),
+            metric,
+            minimum,
+        }))
+    }
+
+    #[staticmethod]
+    fn ensure_player_victory(player: u8) -> Self {
+        Self::new(VictoryCondition::EnsurePlayerVictory {
+            player: PlayerId(player),
+        })
+    }
+
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(runtime_error)
+    }
+}
+
+impl ScenarioObjective {
+    fn new(condition: VictoryCondition) -> Self {
+        Self {
+            inner: Objective {
+                schema_version: antiyoy_core::OBJECTIVE_SCHEMA_VERSION,
+                condition,
+            },
+        }
+    }
+}
+
 #[pyclass(module = "antiyoy_rl._native")]
 struct VectorEnv {
     batch: BatchEnv,
@@ -64,7 +152,8 @@ struct VectorEnv {
 #[pymethods]
 impl VectorEnv {
     #[new]
-    #[pyo3(signature = (environments, width=11, height=9, seed=1, action_limit=1000, profile="classic_generic_2022", fog=false, diplomacy=false, initial_relation="neutral"))]
+    #[pyo3(signature = (environments, width=11, height=9, seed=1, action_limit=1000, profile="classic_generic_2022", fog=false, diplomacy=false, initial_relation="neutral", objective=None))]
+    #[expect(clippy::needless_pass_by_value)]
     #[expect(clippy::too_many_arguments)]
     fn new(
         environments: usize,
@@ -76,12 +165,14 @@ impl VectorEnv {
         fog: bool,
         diplomacy: bool,
         initial_relation: &str,
+        objective: Option<PyRef<'_, ScenarioObjective>>,
     ) -> PyResult<Self> {
         let mut rules = rules_for_profile(profile)?;
         configure_diplomacy(&mut rules, diplomacy, initial_relation)?;
         let mut batch =
             BatchEnv::symmetric_duels(rules, environments, width, height, seed, action_limit)
                 .map_err(runtime_error)?;
+        apply_objective(&mut batch, objective.as_deref().map(|value| &value.inner))?;
         batch.set_fog(fog);
         Ok(Self {
             batch,
@@ -90,7 +181,7 @@ impl VectorEnv {
     }
 
     #[staticmethod]
-    #[pyo3(signature = (profiles, width=11, height=9, seed=1, action_limit=1000, fog=false, diplomacy=false, initial_relation="neutral"))]
+    #[pyo3(signature = (profiles, width=11, height=9, seed=1, action_limit=1000, fog=false, diplomacy=false, initial_relation="neutral", objective=None))]
     #[expect(clippy::needless_pass_by_value)]
     #[expect(clippy::too_many_arguments)]
     fn mixed(
@@ -102,6 +193,7 @@ impl VectorEnv {
         fog: bool,
         diplomacy: bool,
         initial_relation: &str,
+        objective: Option<PyRef<'_, ScenarioObjective>>,
     ) -> PyResult<Self> {
         let rules = profiles
             .iter()
@@ -113,6 +205,7 @@ impl VectorEnv {
             .collect::<PyResult<Vec<_>>>()?;
         let mut batch = BatchEnv::symmetric_duels_mixed(rules, width, height, seed, action_limit)
             .map_err(runtime_error)?;
+        apply_objective(&mut batch, objective.as_deref().map(|value| &value.inner))?;
         batch.set_fog(fog);
         Ok(Self {
             batch,
@@ -121,8 +214,9 @@ impl VectorEnv {
     }
 
     #[staticmethod]
-    #[pyo3(signature = (environments, config, action_limit=1000, profile="classic_generic_2022", fog=false, diplomacy=false, initial_relation="neutral"))]
+    #[pyo3(signature = (environments, config, action_limit=1000, profile="classic_generic_2022", fog=false, diplomacy=false, initial_relation="neutral", objective=None))]
     #[expect(clippy::needless_pass_by_value)]
+    #[expect(clippy::too_many_arguments)]
     fn procedural(
         environments: usize,
         config: PyRef<'_, ProceduralConfig>,
@@ -131,11 +225,13 @@ impl VectorEnv {
         fog: bool,
         diplomacy: bool,
         initial_relation: &str,
+        objective: Option<PyRef<'_, ScenarioObjective>>,
     ) -> PyResult<Self> {
         let mut rules = rules_for_profile(profile)?;
         configure_diplomacy(&mut rules, diplomacy, initial_relation)?;
         let mut batch = BatchEnv::procedural(rules, environments, &config.inner, action_limit)
             .map_err(runtime_error)?;
+        apply_objective(&mut batch, objective.as_deref().map(|value| &value.inner))?;
         batch.set_fog(fog);
         Ok(Self {
             batch,
@@ -144,7 +240,7 @@ impl VectorEnv {
     }
 
     #[staticmethod]
-    #[pyo3(signature = (profiles, config, action_limit=1000, fog=false, diplomacy=false, initial_relation="neutral"))]
+    #[pyo3(signature = (profiles, config, action_limit=1000, fog=false, diplomacy=false, initial_relation="neutral", objective=None))]
     #[expect(clippy::needless_pass_by_value)]
     fn procedural_mixed(
         profiles: Vec<String>,
@@ -153,6 +249,7 @@ impl VectorEnv {
         fog: bool,
         diplomacy: bool,
         initial_relation: &str,
+        objective: Option<PyRef<'_, ScenarioObjective>>,
     ) -> PyResult<Self> {
         let rules = profiles
             .iter()
@@ -164,6 +261,7 @@ impl VectorEnv {
             .collect::<PyResult<Vec<_>>>()?;
         let mut batch = BatchEnv::procedural_mixed(rules, &config.inner, action_limit)
             .map_err(runtime_error)?;
+        apply_objective(&mut batch, objective.as_deref().map(|value| &value.inner))?;
         batch.set_fog(fog);
         Ok(Self {
             batch,
@@ -247,6 +345,18 @@ impl VectorEnv {
             .collect()
     }
 
+    fn objective_jsons(&self) -> PyResult<Vec<String>> {
+        (0..self.batch.len())
+            .map(|index| {
+                let objective = self
+                    .batch
+                    .objective(index)
+                    .ok_or_else(|| PyRuntimeError::new_err("environment index disappeared"))?;
+                serde_json::to_string(objective).map_err(runtime_error)
+            })
+            .collect()
+    }
+
     fn greedy_actions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u64>>> {
         let indices = py.detach(|| {
             (0..self.batch.len())
@@ -305,6 +415,18 @@ fn configure_diplomacy(rules: &mut Rules, enabled: bool, initial_relation: &str)
             )));
         }
     };
+    Ok(())
+}
+
+fn apply_objective(batch: &mut BatchEnv, objective: Option<&Objective>) -> PyResult<()> {
+    let Some(objective) = objective else {
+        return Ok(());
+    };
+    for index in 0..batch.len() {
+        batch
+            .set_objective(index, objective.clone())
+            .map_err(runtime_error)?;
+    }
     Ok(())
 }
 
@@ -507,6 +629,16 @@ fn step_dict<'py>(py: Python<'py>, results: &[StepResult]) -> PyResult<Bound<'py
         ),
     )?;
     dictionary.set_item(
+        "objective_satisfied",
+        PyArray1::from_vec(
+            py,
+            results
+                .iter()
+                .map(|result| u8::from(result.objective_satisfied))
+                .collect(),
+        ),
+    )?;
+    dictionary.set_item(
         "winners",
         PyArray1::from_vec(
             py,
@@ -536,11 +668,16 @@ fn runtime_error(error: impl std::fmt::Display) -> PyErr {
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<ProceduralConfig>()?;
+    module.add_class::<ScenarioObjective>()?;
     module.add_class::<VectorEnv>()?;
     module.add("OBSERVATION_VERSION", antiyoy_rl::OBSERVATION_VERSION)?;
     module.add(
         "GENERATOR_SCHEMA_VERSION",
         antiyoy_core::GENERATOR_SCHEMA_VERSION,
+    )?;
+    module.add(
+        "OBJECTIVE_SCHEMA_VERSION",
+        antiyoy_core::OBJECTIVE_SCHEMA_VERSION,
     )?;
     Ok(())
 }

@@ -5,8 +5,10 @@ import pytest
 
 from antiyoy_rl import (
     GENERATOR_SCHEMA_VERSION,
+    OBJECTIVE_SCHEMA_VERSION,
     OBSERVATION_VERSION,
     ProceduralConfig,
+    ScenarioObjective,
     VectorEnv,
 )
 
@@ -147,3 +149,25 @@ def test_procedural_batch_regenerates_topology_from_seed() -> None:
     reset = environment.observe()
     assert np.array_equal(reset["playable"][:221], reset["playable"][221:])
     assert np.array_equal(reset["owners"][:221], reset["owners"][221:])
+
+
+def test_scenario_objective_controls_episode_termination() -> None:
+    objective = ScenarioObjective.survive_through_round(0, 1)
+    serialized = json.loads(objective.to_json())
+    assert serialized["schema_version"] == OBJECTIVE_SCHEMA_VERSION
+    environment = VectorEnv(1, width=7, height=5, objective=objective)
+    assert json.loads(environment.objective_jsons()[0]) == serialized
+
+    first = environment.step(np.zeros(1, dtype=np.uint64))
+    assert first["terminal"].tolist() == [0]
+    assert first["objective_satisfied"].tolist() == [0]
+    second = environment.step(np.zeros(1, dtype=np.uint64))
+    assert second["terminal"].tolist() == [1]
+    assert second["objective_satisfied"].tolist() == [1]
+    assert second["winners"].tolist() == [0]
+
+
+def test_invalid_scenario_objective_is_rejected_at_construction() -> None:
+    objective = ScenarioObjective.destroy_player(0, 2)
+    with pytest.raises(RuntimeError, match="outside a game with 2 players"):
+        VectorEnv(1, width=7, height=5, objective=objective)

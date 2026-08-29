@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from antiyoy_rl import OBSERVATION_VERSION, ProceduralConfig, VectorEnv
+from antiyoy_rl import OBSERVATION_VERSION, ProceduralConfig, ScenarioObjective, VectorEnv
 from antiyoy_rl.model import (
     RULE_FEATURES,
     UniversalPolicy,
@@ -38,6 +38,7 @@ class TrainingConfig:
     neutral_tower_density_per_million: int
     neutral_capital_density_per_million: int
     grave_density_per_million: int
+    objective_json: str | None
     action_limit: int
     hidden: int
     layers: int
@@ -102,6 +103,11 @@ def make_environment(config: TrainingConfig) -> VectorEnv:
         neutral_capital_density_per_million=config.neutral_capital_density_per_million,
         grave_density_per_million=config.grave_density_per_million,
     )
+    objective = (
+        None
+        if config.objective_json is None
+        else ScenarioObjective.from_json(config.objective_json)
+    )
     if config.profiles is None:
         if config.procedural:
             return VectorEnv.procedural(
@@ -112,6 +118,7 @@ def make_environment(config: TrainingConfig) -> VectorEnv:
                 fog=config.fog,
                 diplomacy=config.diplomacy,
                 initial_relation=config.initial_relation,
+                objective=objective,
             )
         return VectorEnv(
             config.environments,
@@ -123,6 +130,7 @@ def make_environment(config: TrainingConfig) -> VectorEnv:
             fog=config.fog,
             diplomacy=config.diplomacy,
             initial_relation=config.initial_relation,
+            objective=objective,
         )
     schedule = [
         config.profiles[index % len(config.profiles)]
@@ -136,6 +144,7 @@ def make_environment(config: TrainingConfig) -> VectorEnv:
             fog=config.fog,
             diplomacy=config.diplomacy,
             initial_relation=config.initial_relation,
+            objective=objective,
         )
     return VectorEnv.mixed(
         schedule,
@@ -146,6 +155,7 @@ def make_environment(config: TrainingConfig) -> VectorEnv:
         fog=config.fog,
         diplomacy=config.diplomacy,
         initial_relation=config.initial_relation,
+        objective=objective,
     )
 
 
@@ -482,6 +492,7 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--neutral-tower-density-per-million", type=int, default=20_000)
     parser.add_argument("--neutral-capital-density-per-million", type=int, default=10_000)
     parser.add_argument("--grave-density-per-million", type=int, default=15_000)
+    parser.add_argument("--objective-json")
     parser.add_argument("--action-limit", type=int, default=1000)
     parser.add_argument("--hidden", type=int, default=128)
     parser.add_argument("--layers", type=int, default=4)

@@ -76,10 +76,16 @@ Every step returns raw components from the acting player's perspective:
 - exact treasury delta summed over that player's provinces;
 - total unit-strength delta.
 
+`objective_satisfied` distinguishes meeting a configured campaign condition
+from merely reaching a terminal failure. `winner` remains the actual player who
+won the game or objective. A versioned scenario objective may end an episode
+before core domination; see [`objectives.md`](objectives.md).
+
 The trainer owns reward weights so experiments cannot silently change engine
-semantics. `terminal` reports a rules victory. `truncated` reports only the
-configured action limit. A done environment rejects further actions until an
-explicit deterministic reset.
+semantics. `terminal` reports completion of the configured objective, with core
+domination as the default. `truncated` reports only the configured action limit.
+A done environment rejects further actions until an explicit deterministic
+reset.
 
 The bundled PPO trainer collects multi-step rollouts and computes GAE in the
 acting player's frame. A transition that hands control to another player flips

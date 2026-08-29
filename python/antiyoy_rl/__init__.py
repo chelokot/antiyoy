@@ -1,8 +1,17 @@
-from ._native import GENERATOR_SCHEMA_VERSION, OBSERVATION_VERSION, ProceduralConfig, VectorEnv
+from ._native import (
+    GENERATOR_SCHEMA_VERSION,
+    OBJECTIVE_SCHEMA_VERSION,
+    OBSERVATION_VERSION,
+    ProceduralConfig,
+    ScenarioObjective,
+    VectorEnv,
+)
 
 __all__ = [
     "GENERATOR_SCHEMA_VERSION",
+    "OBJECTIVE_SCHEMA_VERSION",
     "OBSERVATION_VERSION",
     "ProceduralConfig",
+    "ScenarioObjective",
     "VectorEnv",
 ]
