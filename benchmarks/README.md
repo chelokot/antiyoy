@@ -47,3 +47,8 @@ Universal curriculum records report each compatibility profile separately.
 Aggregate training loss is never used to select a checkpoint: held-out mirrored
 games against a named baseline are authoritative, including regressions and
 profiles on which a candidate remains weak.
+
+Search-teacher records separate target generation from authoritative stepping
+and reset time. Reproduce them with `python/benchmark_teacher.py`; the reported
+throughput includes cached whole-turn plans, legal-index projection, and every
+configured compatibility profile.

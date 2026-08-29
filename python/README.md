@@ -55,7 +55,8 @@ python train.py --environments 64 --updates 1000 --device cuda \
   --procedural --width 31 --height 21 --players 4 \
   --profiles classic_generic_2022 classic_slay_2022 online_duel_v1 \
     online_experimental_v2_260801 \
-  --imitation-updates 500 --rollout-steps 16 --epochs 2 \
+  --imitation-updates 500 --imitation-teacher search --search-nodes 2048 \
+  --rollout-steps 16 --epochs 2 \
   --checkpoint ../models/universal-ppo.pt
 ```
 
@@ -69,10 +70,21 @@ offers, declarations of war, alliance propagation, and their exact action mask.
 Use `--objective-json` with a serialized `ScenarioObjective` to train campaign
 curricula; terminal results expose whether the condition was actually satisfied.
 
-Greedy distillation is an optional curriculum, not an evaluation shortcut. It
-teaches a common tactical prior from the native baseline before PPO self-play;
-held-out mirrored matches still determine whether the resulting model actually
-matches or exceeds that baseline.
+Teacher distillation is an optional curriculum, not an evaluation shortcut.
+`--imitation-teacher greedy` teaches a cheap tactical prior; `search` uses the
+bounded whole-turn agent. Rust keeps one search agent per environment, reuses
+the exact cached turn plan after each selected action, releases the GIL, and
+computes independent environments through Rayon. Node, beam, branch, and turn
+depth budgets are explicit CLI parameters and are stored in the checkpoint.
+Held-out mirrored matches still determine whether the resulting model exceeds
+its teacher.
+
+Measure target-generation cost before a large run:
+
+```bash
+RAYON_NUM_THREADS=8 python benchmark_teacher.py \
+  --environments 64 --transitions 20000 --search-nodes 2048
+```
 
 Use `--resume CHECKPOINT --checkpoint NEW_CHECKPOINT` to continue a run with
 the exact model and optimizer state while changing the profile schedule. The

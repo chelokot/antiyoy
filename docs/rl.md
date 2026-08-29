@@ -121,3 +121,13 @@ topology, objects, starts, and treasuries atomically. Python exposes the same
 contract through `ProceduralConfig`, `VectorEnv.procedural`, and
 `VectorEnv.procedural_mixed`. `generator_jsons()` records the exact per-worker
 configs in checkpoints.
+
+## Search teacher
+
+`VectorEnv.search_actions()` returns one legal local action index per
+environment. Each worker owns a persistent deterministic whole-turn agent, so
+executing its selected action reuses the remaining plan on the next call when
+the state still matches exactly. Configuration changes rebuild all teacher
+agents atomically. Search runs without the GIL and parallelizes over independent
+environments with Rayon; node, beam, branch, and maximum turn-action limits are
+caller controlled.
