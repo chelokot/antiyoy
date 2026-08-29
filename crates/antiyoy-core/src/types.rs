@@ -81,7 +81,7 @@ impl Object {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum Structure {
     Farm,
@@ -125,5 +125,13 @@ impl Unit {
 
     pub const fn is_present(self) -> bool {
         self.strength != 0
+    }
+
+    pub(crate) fn set_ready(&mut self, ready: bool) {
+        self.ready = ready;
+    }
+
+    pub(crate) fn clear(&mut self) {
+        *self = Self::EMPTY;
     }
 }

@@ -24,8 +24,9 @@ Each checked item must have a focused engine test.
 
 ## Classic slay profile
 
-- [ ] Trees are more aggressive, farms and towers are disabled, every clear
-      non-tree hex earns one, and unit-four upkeep is `54`.
+- [ ] Trees are more aggressive, farms and strong towers are disabled, basic
+      towers have no upkeep, every clear non-tree hex earns one, and unit-four
+      upkeep is `54`.
 - [ ] Strength must strictly exceed defense for every unit level.
 
 ## Extensions
@@ -34,4 +35,3 @@ Diplomacy, fog of war, custom objectives, simultaneous/vectorized stepping, and
 league metadata are versioned optional modules. Compatibility profiles keep
 their default values aligned with the original game while custom profiles may
 change every numeric rule.
-

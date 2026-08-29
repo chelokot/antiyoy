@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{ConfigError, HexId};
 
 const MAXIMUM_HEXES: usize = u16::MAX as usize - 1;
-const DIRECTIONS: [(i32, i32); 6] = [(1, 0), (1, -1), (0, -1), (-1, 0), (-1, 1), (0, 1)];
+const DIRECTIONS: [(i32, i32); 6] = [(1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1), (1, -1)];
 
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct Axial {

@@ -1,12 +1,19 @@
 #![forbid(unsafe_code)]
 
+mod action;
 mod error;
+mod game;
+mod rng;
 mod rules;
+mod state;
 mod topology;
 mod types;
 
-pub use error::ConfigError;
+pub use action::{Action, Transition};
+pub use error::{ActionError, ConfigError};
+pub use game::Game;
 pub use rules::{CombatRules, EconomyRules, Rules, RulesProfile, VegetationRules};
+pub use state::{Cell, InitialCell, Province, Scenario, Treasury};
 pub use topology::{Axial, Topology};
 pub use types::{HexId, Object, PlayerId, ProvinceId, Structure, Unit};
 

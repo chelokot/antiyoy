@@ -36,6 +36,7 @@ pub struct CombatRules {
     pub strongest_unit_ignores_defense: bool,
     pub farms_enabled: bool,
     pub towers_enabled: bool,
+    pub strong_towers_enabled: bool,
     pub tree_planting_enabled: bool,
 }
 
@@ -84,6 +85,7 @@ impl Rules {
                 strongest_unit_ignores_defense: true,
                 farms_enabled: true,
                 towers_enabled: true,
+                strong_towers_enabled: true,
                 tree_planting_enabled: true,
             },
             vegetation: VegetationRules {
@@ -101,9 +103,10 @@ impl Rules {
         rules.economy.farm_hex_income = 1;
         rules.economy.unit_upkeep[4] = 54;
         rules.economy.tree_cut_reward = 0;
+        rules.economy.tower_upkeep = 0;
         rules.combat.strongest_unit_ignores_defense = false;
         rules.combat.farms_enabled = false;
-        rules.combat.towers_enabled = false;
+        rules.combat.strong_towers_enabled = false;
         rules.combat.tree_planting_enabled = false;
         rules.vegetation.pine_spread_per_million = 800_000;
         rules.vegetation.palm_spread_per_million = 1_000_000;
@@ -156,6 +159,8 @@ mod tests {
         assert_eq!(slay.profile, RulesProfile::ClassicSlay);
         assert_eq!(slay.economy.unit_upkeep[4], 54);
         assert!(!slay.combat.farms_enabled);
+        assert!(slay.combat.towers_enabled);
+        assert!(!slay.combat.strong_towers_enabled);
         assert!(!slay.combat.strongest_unit_ignores_defense);
     }
 
