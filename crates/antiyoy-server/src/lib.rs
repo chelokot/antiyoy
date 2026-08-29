@@ -1,16 +1,22 @@
 #![forbid(unsafe_code)]
 
+mod storage;
+
 use std::collections::BTreeMap;
+use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock};
 
 use antiyoy_agents::{Agent, GreedyAgent, RandomAgent};
 use antiyoy_core::{Action, Game, Rules, Scenario};
+use antiyoy_eval::{League, LeagueError, MatchOutcome, MatchReport, Termination, adjudicate};
 use antiyoy_protocol::{
     CreateMatchRequest, CreateMatchResponse, MatchSnapshot, MatchStatus, NETWORK_SCHEMA_VERSION,
-    Replay, SeatCredential, SeatKind, SubmitAction,
+    RatingStatus, Replay, SeatCredential, SeatKind, SubmitAction,
 };
 use thiserror::Error;
 use tokio::sync::broadcast;
+
+use crate::storage::{ROOM_STORAGE_SCHEMA_VERSION, Storage, StoredRoom};
 
 const RANDOM_ID_BYTES: usize = 16;
 const TOKEN_BYTES: usize = 32;
@@ -19,6 +25,8 @@ const TOKEN_BYTES: usize = 32;
 pub struct MatchService {
     rooms: Arc<RwLock<BTreeMap<String, Arc<Mutex<MatchRoom>>>>>,
     limits: ServiceLimits,
+    storage: Option<Arc<Storage>>,
+    league: Arc<Mutex<League>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -29,9 +37,10 @@ pub struct ServiceLimits {
     pub update_capacity: usize,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct MatchRoom {
     id: String,
+    request: CreateMatchRequest,
     game: Game,
     replay: Replay,
     revision: u64,
@@ -39,11 +48,13 @@ struct MatchRoom {
     seats: [SeatController; 2],
     updates: broadcast::Sender<MatchSnapshot>,
     closed: bool,
+    rated: bool,
+    duplicate: bool,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum SeatController {
-    Human { token: String },
+    Human { token_hash: [u8; 32] },
     Greedy(GreedyAgent),
     Random(RandomAgent),
 }
@@ -68,6 +79,10 @@ pub enum ServiceError {
     Capacity { limit: usize },
     #[error("action is illegal: {0}")]
     IllegalAction(String),
+    #[error("stored multiplayer state is invalid: {0}")]
+    CorruptStorage(String),
+    #[error("multiplayer storage failed: {0}")]
+    Storage(String),
     #[error("multiplayer state failed: {0}")]
     Internal(String),
 }
@@ -94,6 +109,8 @@ impl MatchService {
         Self {
             rooms: Arc::new(RwLock::new(BTreeMap::new())),
             limits: ServiceLimits::default(),
+            storage: None,
+            league: Arc::new(Mutex::new(League::default())),
         }
     }
 
@@ -110,7 +127,29 @@ impl MatchService {
         Ok(Self {
             rooms: Arc::new(RwLock::new(BTreeMap::new())),
             limits,
+            storage: None,
+            league: Arc::new(Mutex::new(League::default())),
         })
+    }
+
+    pub fn persistent(
+        limits: ServiceLimits,
+        directory: impl AsRef<Path>,
+    ) -> Result<Self, ServiceError> {
+        let mut service = Self::with_limits(limits)?;
+        let storage = Arc::new(
+            Storage::new(directory.as_ref())
+                .map_err(|error| ServiceError::Storage(error.to_string()))?,
+        );
+        service.league = Arc::new(Mutex::new(
+            storage
+                .load_league()
+                .map_err(|error| ServiceError::Storage(error.to_string()))?,
+        ));
+        service.storage = Some(storage);
+        service.restore_rooms()?;
+        service.reconcile_ratings()?;
+        Ok(service)
     }
 
     pub fn create_match(
@@ -131,6 +170,7 @@ impl MatchService {
         let second = Self::seat_controller(request, 1, &mut credentials)?;
         let mut room = MatchRoom {
             id: String::new(),
+            request: request.clone(),
             game,
             replay,
             revision: 0,
@@ -138,13 +178,24 @@ impl MatchService {
             seats: [first, second],
             updates,
             closed: false,
+            rated: false,
+            duplicate: false,
         };
         room.advance_bots()?;
         let id = self.insert_room(room)?;
         let room = self.room(&id)?;
-        let room = room
+        let mut room = room
             .lock()
             .map_err(|error| ServiceError::Internal(error.to_string()))?;
+        if let Err(error) = self.persist_room(&room) {
+            drop(room);
+            self.rooms
+                .write()
+                .map_err(|lock_error| ServiceError::Internal(lock_error.to_string()))?
+                .remove(&id);
+            return Err(error);
+        }
+        let _ = self.rate_room(&mut room);
         let snapshot = room.snapshot()?;
         Ok(CreateMatchResponse {
             snapshot,
@@ -208,8 +259,14 @@ impl MatchService {
                 active: room.game.active_player().0,
             });
         }
+        let previous = room.clone();
         room.record(submission.action)?;
         room.advance_bots()?;
+        if let Err(error) = self.persist_room(&room) {
+            *room = previous;
+            return Err(error);
+        }
+        let _ = self.rate_room(&mut room);
         let snapshot = room.snapshot()?;
         let _ = room.updates.send(snapshot.clone());
         Ok(snapshot)
@@ -222,6 +279,12 @@ impl MatchService {
                 .lock()
                 .map_err(|error| ServiceError::Internal(error.to_string()))?;
             room.authorize(seat, token)?;
+            self.rate_room(&mut room)?;
+            if let Some(storage) = &self.storage {
+                storage
+                    .delete(match_id)
+                    .map_err(|error| ServiceError::Storage(error.to_string()))?;
+            }
             room.closed = true;
         }
         self.rooms
@@ -248,6 +311,14 @@ impl MatchService {
             .lock()
             .map_err(|error| ServiceError::Internal(error.to_string()))?;
         room.authorize(seat, token)
+    }
+
+    pub fn league(&self) -> Result<League, ServiceError> {
+        self.reconcile_ratings()?;
+        self.league
+            .lock()
+            .map_err(|error| ServiceError::Internal(error.to_string()))
+            .map(|league| league.clone())
     }
 
     fn validate_request(&self, request: &CreateMatchRequest) -> Result<(), ServiceError> {
@@ -299,7 +370,9 @@ impl MatchService {
                     name: requested.name.clone(),
                     token: token.clone(),
                 });
-                SeatController::Human { token }
+                SeatController::Human {
+                    token_hash: token_hash(&token),
+                }
             }
             SeatKind::Greedy => SeatController::Greedy(GreedyAgent::new(&requested.name)),
             SeatKind::Random => SeatController::Random(RandomAgent::new(
@@ -337,6 +410,101 @@ impl MatchService {
             .cloned()
             .ok_or_else(|| ServiceError::NotFound(match_id.into()))
     }
+
+    fn persist_room(&self, room: &MatchRoom) -> Result<(), ServiceError> {
+        let Some(storage) = &self.storage else {
+            return Ok(());
+        };
+        storage
+            .save(&room.stored())
+            .map_err(|error| ServiceError::Storage(error.to_string()))
+    }
+
+    fn restore_rooms(&self) -> Result<(), ServiceError> {
+        let storage = self
+            .storage
+            .as_ref()
+            .ok_or_else(|| ServiceError::Internal("persistent service has no storage".into()))?;
+        for stored in storage
+            .load()
+            .map_err(|error| ServiceError::Storage(error.to_string()))?
+        {
+            let mut room = MatchRoom::restore(stored, self.limits.update_capacity)?;
+            self.validate_request(&room.request)?;
+            room.advance_bots()?;
+            self.persist_room(&room)?;
+            self.insert_restored_room(room)?;
+        }
+        Ok(())
+    }
+
+    fn reconcile_ratings(&self) -> Result<(), ServiceError> {
+        let rooms = self
+            .rooms
+            .read()
+            .map_err(|error| ServiceError::Internal(error.to_string()))?
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        for room in rooms {
+            let mut room = room
+                .lock()
+                .map_err(|error| ServiceError::Internal(error.to_string()))?;
+            self.rate_room(&mut room)?;
+        }
+        Ok(())
+    }
+
+    fn rate_room(&self, room: &mut MatchRoom) -> Result<(), ServiceError> {
+        let Some(report) = room.report() else {
+            return Ok(());
+        };
+        if room.rated || room.duplicate {
+            return Ok(());
+        }
+        let mut league = self
+            .league
+            .lock()
+            .map_err(|error| ServiceError::Internal(error.to_string()))?;
+        let previous = league.clone();
+        match league.record(&report) {
+            Ok(_) => {
+                if let Some(storage) = &self.storage {
+                    if let Err(error) = storage.save_league(&league) {
+                        *league = previous;
+                        return Err(ServiceError::Storage(error.to_string()));
+                    }
+                }
+            }
+            Err(LeagueError::DuplicateMatch(_)) => room.duplicate = true,
+            Err(error) => return Err(ServiceError::CorruptStorage(error.to_string())),
+        }
+        if !room.duplicate {
+            room.rated = true;
+        }
+        let _ = self.persist_room(room);
+        Ok(())
+    }
+
+    fn insert_restored_room(&self, room: MatchRoom) -> Result<(), ServiceError> {
+        let mut rooms = self
+            .rooms
+            .write()
+            .map_err(|error| ServiceError::Internal(error.to_string()))?;
+        if rooms.len() >= self.limits.maximum_rooms {
+            return Err(ServiceError::Capacity {
+                limit: self.limits.maximum_rooms,
+            });
+        }
+        if rooms.contains_key(&room.id) {
+            return Err(ServiceError::CorruptStorage(format!(
+                "duplicate room {}",
+                room.id
+            )));
+        }
+        rooms.insert(room.id.clone(), Arc::new(Mutex::new(room)));
+        Ok(())
+    }
 }
 
 impl MatchRoom {
@@ -369,7 +537,9 @@ impl MatchRoom {
             .get(usize::from(seat))
             .ok_or(ServiceError::Unauthorized)?;
         match controller {
-            SeatController::Human { token: expected } if expected == token => Ok(()),
+            SeatController::Human {
+                token_hash: expected,
+            } if *expected == token_hash(token) => Ok(()),
             SeatController::Human { .. }
             | SeatController::Greedy(_)
             | SeatController::Random(_) => Err(ServiceError::Unauthorized),
@@ -393,10 +563,166 @@ impl MatchRoom {
             self.id.clone(),
             self.revision,
             self.status(),
+            self.rating_status(),
             u32::try_from(self.replay.frames.len()).expect("replay length is capped by u32"),
             &self.game,
         )
         .map_err(|error| ServiceError::Internal(error.to_string()))
+    }
+
+    fn stored(&self) -> StoredRoom {
+        StoredRoom {
+            schema_version: ROOM_STORAGE_SCHEMA_VERSION,
+            id: self.id.clone(),
+            request: self.request.clone(),
+            human_token_hashes: std::array::from_fn(|seat| match &self.seats[seat] {
+                SeatController::Human { token_hash } => Some(*token_hash),
+                SeatController::Greedy(_) | SeatController::Random(_) => None,
+            }),
+            replay: self.replay.clone(),
+            rated: self.rated,
+            duplicate: self.duplicate,
+        }
+    }
+
+    fn restore(stored: StoredRoom, update_capacity: usize) -> Result<Self, ServiceError> {
+        if stored.schema_version != ROOM_STORAGE_SCHEMA_VERSION {
+            return Err(ServiceError::CorruptStorage(format!(
+                "room {} has schema {}, expected {}",
+                stored.id, stored.schema_version, ROOM_STORAGE_SCHEMA_VERSION
+            )));
+        }
+        let rules = Rules::from_profile(stored.request.rules_profile).ok_or_else(|| {
+            ServiceError::CorruptStorage("stored room uses custom rules without a document".into())
+        })?;
+        let scenario = Scenario::symmetric_duel(
+            stored.request.width,
+            stored.request.height,
+            stored.request.seed,
+        )
+        .map_err(|error| ServiceError::CorruptStorage(error.to_string()))?;
+        if stored.replay.header.rules != rules || stored.replay.header.scenario != scenario {
+            return Err(ServiceError::CorruptStorage(format!(
+                "room {} request differs from its replay header",
+                stored.id
+            )));
+        }
+        let verified = stored
+            .replay
+            .play()
+            .map_err(|error| ServiceError::CorruptStorage(error.to_string()))?;
+        let mut seats = Self::restore_seats(&stored)?;
+        let mut reconstructed = Game::new(rules, scenario)
+            .map_err(|error| ServiceError::CorruptStorage(error.to_string()))?;
+        let mut legal_actions = Vec::new();
+        for frame in &stored.replay.frames {
+            reconstructed.legal_actions(&mut legal_actions);
+            let active = reconstructed.active_player().index();
+            let predicted = match &mut seats[active] {
+                SeatController::Human { .. } => None,
+                SeatController::Greedy(agent) => {
+                    Some(agent.select_action(&reconstructed, &legal_actions))
+                }
+                SeatController::Random(agent) => {
+                    Some(agent.select_action(&reconstructed, &legal_actions))
+                }
+            };
+            if predicted.is_some_and(|action| action != frame.action) {
+                return Err(ServiceError::CorruptStorage(format!(
+                    "room {} bot action diverged during restoration",
+                    stored.id
+                )));
+            }
+            reconstructed
+                .step(frame.action)
+                .map_err(|error| ServiceError::CorruptStorage(error.to_string()))?;
+        }
+        if reconstructed != verified.game {
+            return Err(ServiceError::CorruptStorage(format!(
+                "room {} reconstruction diverged",
+                stored.id
+            )));
+        }
+        let revision = u64::try_from(stored.replay.frames.len())
+            .map_err(|error| ServiceError::CorruptStorage(error.to_string()))?;
+        let action_limit = stored.request.action_limit;
+        let (updates, _) = broadcast::channel(update_capacity);
+        Ok(Self {
+            id: stored.id,
+            request: stored.request,
+            game: reconstructed,
+            replay: stored.replay,
+            revision,
+            action_limit,
+            seats,
+            updates,
+            closed: false,
+            rated: stored.rated,
+            duplicate: stored.duplicate,
+        })
+    }
+
+    fn restore_seats(stored: &StoredRoom) -> Result<[SeatController; 2], ServiceError> {
+        let mut restored = Vec::with_capacity(2);
+        for (seat, requested) in stored.request.seats.iter().enumerate() {
+            let controller = match requested.kind {
+                SeatKind::Human => SeatController::Human {
+                    token_hash: stored.human_token_hashes[seat].ok_or_else(|| {
+                        ServiceError::CorruptStorage(format!(
+                            "room {} human seat {seat} has no token hash",
+                            stored.id
+                        ))
+                    })?,
+                },
+                SeatKind::Greedy => SeatController::Greedy(GreedyAgent::new(&requested.name)),
+                SeatKind::Random => SeatController::Random(RandomAgent::new(
+                    &requested.name,
+                    stored.request.seed ^ (u64::try_from(seat).expect("seat fits in u64") + 1),
+                )),
+            };
+            restored.push(controller);
+        }
+        restored.try_into().map_err(|_| {
+            ServiceError::CorruptStorage(format!("room {} seat count is invalid", stored.id))
+        })
+    }
+
+    fn rating_status(&self) -> RatingStatus {
+        if self.status() == MatchStatus::Running {
+            RatingStatus::NotFinished
+        } else if self.rated {
+            RatingStatus::Recorded
+        } else if self.duplicate {
+            RatingStatus::Duplicate
+        } else {
+            RatingStatus::Pending
+        }
+    }
+
+    fn report(&self) -> Option<MatchReport> {
+        let termination = match self.status() {
+            MatchStatus::Running => return None,
+            MatchStatus::Victory => Termination::Victory,
+            MatchStatus::ActionLimit => Termination::ActionLimit,
+        };
+        let winner = match termination {
+            Termination::Victory => self.game.winner(),
+            Termination::ActionLimit => adjudicate(&self.game),
+        };
+        Some(MatchReport {
+            agents: [
+                self.request.seats[0].name.clone(),
+                self.request.seats[1].name.clone(),
+            ],
+            seed: self.request.seed,
+            outcome: MatchOutcome {
+                winner,
+                actions: u32::try_from(self.replay.frames.len())
+                    .expect("replay length is capped by u32"),
+                termination,
+            },
+            replay: self.replay.clone(),
+        })
     }
 }
 
@@ -411,15 +737,22 @@ fn random_hex(bytes: usize) -> Result<String, ServiceError> {
     Ok(encoded)
 }
 
+fn token_hash(token: &str) -> [u8; 32] {
+    *blake3::hash(token.as_bytes()).as_bytes()
+}
+
 #[cfg(test)]
 mod tests {
-    use antiyoy_core::RulesProfile;
+    use std::fs;
+    use std::path::PathBuf;
+
+    use antiyoy_core::{Action, RulesProfile};
     use antiyoy_protocol::{
-        CreateMatchRequest, MatchStatus, NETWORK_SCHEMA_VERSION, Replay, SeatKind, SeatRequest,
-        SubmitAction,
+        CreateMatchRequest, MatchStatus, NETWORK_SCHEMA_VERSION, RatingStatus, Replay, SeatKind,
+        SeatRequest, SubmitAction,
     };
 
-    use super::{MatchService, ServiceError, ServiceLimits};
+    use super::{MatchService, ServiceError, ServiceLimits, random_hex};
 
     fn human_against_random() -> CreateMatchRequest {
         CreateMatchRequest {
@@ -440,6 +773,22 @@ mod tests {
             ],
             action_limit: 100,
         }
+    }
+
+    fn human_duel() -> CreateMatchRequest {
+        let mut request = human_against_random();
+        request.seats[1] = SeatRequest {
+            name: "second-human".into(),
+            kind: SeatKind::Human,
+        };
+        request
+    }
+
+    fn temporary_directory() -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "antiyoy-server-test-{}",
+            random_hex(8).expect("operating system random source")
+        ))
     }
 
     #[test]
@@ -612,5 +961,189 @@ mod tests {
         ));
         request.action_limit = 99;
         service.create_match(&request).expect("request fits limits");
+    }
+
+    #[test]
+    fn persistent_room_restores_state_tokens_and_future_actions() {
+        let directory = temporary_directory();
+        let limits = ServiceLimits::default();
+        let service = MatchService::persistent(limits, &directory).expect("writable storage");
+        let created = service.create_match(&human_duel()).expect("valid room");
+        let first = &created.credentials[0];
+        let advanced = service
+            .submit(
+                &created.snapshot.match_id,
+                first.seat,
+                &first.token,
+                SubmitAction {
+                    schema_version: NETWORK_SCHEMA_VERSION,
+                    revision: created.snapshot.revision,
+                    action: created.snapshot.game.legal_actions[0],
+                },
+            )
+            .expect("persisted action");
+        let stored_path = directory.join(format!("{}.room", created.snapshot.match_id));
+        let stored_bytes = fs::read(stored_path).expect("stored room");
+        assert!(
+            !stored_bytes
+                .windows(first.token.len())
+                .any(|window| window == first.token.as_bytes())
+        );
+        drop(service);
+
+        let restored = MatchService::persistent(limits, &directory).expect("restorable storage");
+        let snapshot = restored
+            .snapshot(&created.snapshot.match_id)
+            .expect("restored room");
+        assert_eq!(snapshot, advanced);
+        let active = snapshot.game.active_player;
+        let credential = created
+            .credentials
+            .iter()
+            .find(|credential| credential.seat == active)
+            .expect("active human credential");
+        restored
+            .submit(
+                &snapshot.match_id,
+                active,
+                &credential.token,
+                SubmitAction {
+                    schema_version: NETWORK_SCHEMA_VERSION,
+                    revision: snapshot.revision,
+                    action: snapshot.game.legal_actions[0],
+                },
+            )
+            .expect("token remains valid after restart");
+        restored
+            .delete(&snapshot.match_id, active, &credential.token)
+            .expect("persistent deletion");
+        drop(restored);
+
+        let empty = MatchService::persistent(limits, &directory).expect("empty storage");
+        assert!(matches!(
+            empty.snapshot(&created.snapshot.match_id),
+            Err(ServiceError::NotFound(_))
+        ));
+        drop(empty);
+        fs::remove_dir_all(directory).expect("remove test storage");
+    }
+
+    #[test]
+    fn random_bot_rng_stream_survives_restart() {
+        let directory = temporary_directory();
+        let limits = ServiceLimits::default();
+        let request = human_against_random();
+        let persistent = MatchService::persistent(limits, &directory).expect("writable storage");
+        let created = persistent.create_match(&request).expect("valid room");
+        let credential = &created.credentials[0];
+        let first_end_turn = created
+            .snapshot
+            .game
+            .legal_actions
+            .iter()
+            .copied()
+            .find(|action| *action == Action::EndTurn)
+            .expect("end turn is legal");
+        let first = persistent
+            .submit(
+                &created.snapshot.match_id,
+                0,
+                &credential.token,
+                SubmitAction {
+                    schema_version: NETWORK_SCHEMA_VERSION,
+                    revision: 0,
+                    action: first_end_turn,
+                },
+            )
+            .expect("first turn");
+        drop(persistent);
+        let restored = MatchService::persistent(limits, &directory).expect("restored room");
+        let second_end_turn = first
+            .game
+            .legal_actions
+            .iter()
+            .copied()
+            .find(|action| *action == Action::EndTurn)
+            .expect("end turn is legal");
+        let resumed = restored
+            .submit(
+                &first.match_id,
+                0,
+                &credential.token,
+                SubmitAction {
+                    schema_version: NETWORK_SCHEMA_VERSION,
+                    revision: first.revision,
+                    action: second_end_turn,
+                },
+            )
+            .expect("resumed turn");
+
+        let reference = MatchService::new();
+        let reference_created = reference.create_match(&request).expect("reference room");
+        let reference_token = &reference_created.credentials[0].token;
+        let reference_first = reference
+            .submit(
+                &reference_created.snapshot.match_id,
+                0,
+                reference_token,
+                SubmitAction {
+                    schema_version: NETWORK_SCHEMA_VERSION,
+                    revision: 0,
+                    action: first_end_turn,
+                },
+            )
+            .expect("reference first turn");
+        let reference_resumed = reference
+            .submit(
+                &reference_first.match_id,
+                0,
+                reference_token,
+                SubmitAction {
+                    schema_version: NETWORK_SCHEMA_VERSION,
+                    revision: reference_first.revision,
+                    action: second_end_turn,
+                },
+            )
+            .expect("reference second turn");
+        assert_eq!(resumed.digest, reference_resumed.digest);
+        assert_eq!(resumed.game, reference_resumed.game);
+        drop(restored);
+        fs::remove_dir_all(directory).expect("remove test storage");
+    }
+
+    #[test]
+    fn completed_match_is_rated_once_across_restart() {
+        let directory = temporary_directory();
+        let limits = ServiceLimits::default();
+        let mut request = human_against_random();
+        request.seats[0].kind = SeatKind::Greedy;
+        request.action_limit = 5;
+        let service = MatchService::persistent(limits, &directory).expect("writable storage");
+        let created = service.create_match(&request).expect("completed bot room");
+        assert_eq!(created.snapshot.status, MatchStatus::ActionLimit);
+        assert_eq!(created.snapshot.rating_status, RatingStatus::Recorded);
+        let league = service.league().expect("valid league");
+        assert_eq!(league.matches.len(), 1);
+        assert_eq!(league.standings().len(), 2);
+        let duplicate = service
+            .create_match(&request)
+            .expect("duplicate room remains playable");
+        assert_eq!(duplicate.snapshot.rating_status, RatingStatus::Duplicate);
+        assert_eq!(service.league().expect("unchanged league").matches.len(), 1);
+        drop(service);
+
+        let restored = MatchService::persistent(limits, &directory).expect("restored service");
+        let restored_league = restored.league().expect("restored league");
+        assert_eq!(restored_league, league);
+        assert_eq!(restored_league.matches.len(), 1);
+        assert_eq!(
+            restored
+                .snapshot(&created.snapshot.match_id)
+                .expect("restored completed room")
+                .rating_status,
+            RatingStatus::Recorded
+        );
+        drop(restored);
+        fs::remove_dir_all(directory).expect("remove test storage");
     }
 }

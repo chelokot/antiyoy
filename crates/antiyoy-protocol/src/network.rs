@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Digest, ReplayError};
 
-pub const NETWORK_SCHEMA_VERSION: u16 = 1;
+pub const NETWORK_SCHEMA_VERSION: u16 = 2;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum SeatKind {
@@ -74,6 +74,14 @@ pub enum MatchStatus {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum RatingStatus {
+    NotFinished,
+    Pending,
+    Recorded,
+    Duplicate,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CellView {
     pub id: u16,
     pub playable: bool,
@@ -125,6 +133,7 @@ pub struct MatchSnapshot {
     pub match_id: String,
     pub revision: u64,
     pub status: MatchStatus,
+    pub rating_status: RatingStatus,
     pub actions_played: u32,
     pub digest: Digest,
     pub game: GameView,
@@ -208,6 +217,7 @@ impl MatchSnapshot {
         match_id: String,
         revision: u64,
         status: MatchStatus,
+        rating_status: RatingStatus,
         actions_played: u32,
         game: &Game,
     ) -> Result<Self, ReplayError> {
@@ -216,6 +226,7 @@ impl MatchSnapshot {
             match_id,
             revision,
             status,
+            rating_status,
             actions_played,
             digest: Digest::of_game(game)?,
             game: GameView::from_game(game),

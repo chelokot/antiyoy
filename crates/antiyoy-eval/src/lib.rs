@@ -329,7 +329,7 @@ pub fn run_match<First: Agent, Second: Agent>(
     })
 }
 
-fn adjudicate(game: &Game) -> Option<PlayerId> {
+pub fn adjudicate(game: &Game) -> Option<PlayerId> {
     let mut scores = [0_i64; 2];
     for cell in game.cells().iter().copied() {
         if !cell.owner().is_neutral() {

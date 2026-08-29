@@ -1,7 +1,9 @@
 #![forbid(unsafe_code)]
 
 use std::net::{IpAddr, SocketAddr};
+use std::path::PathBuf;
 
+use antiyoy_eval::League;
 use antiyoy_protocol::{
     ClientMessage, CreateMatchRequest, CreateMatchResponse, MatchSnapshot, NETWORK_SCHEMA_VERSION,
     ServerMessage,
@@ -36,6 +38,8 @@ struct Cli {
     maximum_action_limit: u32,
     #[arg(long, default_value_t = 32)]
     update_capacity: usize,
+    #[arg(long, default_value = "server-data")]
+    data_directory: PathBuf,
 }
 
 #[derive(Debug, Deserialize)]
@@ -59,12 +63,15 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     let address = SocketAddr::new(cli.host, cli.port);
     let listener = TcpListener::bind(address).await?;
-    let service = MatchService::with_limits(ServiceLimits {
-        maximum_rooms: cli.maximum_rooms,
-        maximum_cells: cli.maximum_cells,
-        maximum_action_limit: cli.maximum_action_limit,
-        update_capacity: cli.update_capacity,
-    })?;
+    let service = MatchService::persistent(
+        ServiceLimits {
+            maximum_rooms: cli.maximum_rooms,
+            maximum_cells: cli.maximum_cells,
+            maximum_action_limit: cli.maximum_action_limit,
+            update_capacity: cli.update_capacity,
+        },
+        cli.data_directory,
+    )?;
     axum::serve(listener, router(service))
         .with_graceful_shutdown(shutdown_signal())
         .await?;
@@ -75,6 +82,7 @@ fn router(service: MatchService) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/v1/matches", post(create_match))
+        .route("/v1/league", get(league_state))
         .route(
             "/v1/matches/{match_id}",
             get(match_state).delete(delete_match),
@@ -104,6 +112,10 @@ async fn match_state(
     Ok(Json(
         blocking_match(move || service.snapshot(&match_id)).await?,
     ))
+}
+
+async fn league_state(State(service): State<MatchService>) -> Result<Json<League>, ApiError> {
+    Ok(Json(blocking_match(move || service.league()).await?))
 }
 
 async fn match_replay(
@@ -268,7 +280,9 @@ impl IntoResponse for ApiError {
             | ServiceError::Finished => StatusCode::CONFLICT,
             ServiceError::Closed => StatusCode::GONE,
             ServiceError::Capacity { .. } => StatusCode::TOO_MANY_REQUESTS,
-            ServiceError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ServiceError::CorruptStorage(_)
+            | ServiceError::Storage(_)
+            | ServiceError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
         let code = error_code(&self.0);
         (
@@ -293,6 +307,8 @@ fn error_code(error: &ServiceError) -> &'static str {
         ServiceError::Closed => "closed",
         ServiceError::Capacity { .. } => "capacity",
         ServiceError::IllegalAction(_) => "illegal_action",
+        ServiceError::CorruptStorage(_) => "corrupt_storage",
+        ServiceError::Storage(_) => "storage",
         ServiceError::Internal(_) => "internal",
     }
 }

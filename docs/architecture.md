@@ -32,3 +32,9 @@ maps, provinces, and legal-action counts.
   optimistic revision, and broadcast the same `GameView` consumed by WebAssembly.
 - Each authoritative room has an independent lock; unrelated matches continue
   while a bot computes a move or a replay snapshot is materialized.
+- Persistent rooms store a versioned request, replay, bot-controller position,
+  and hashes of human credentials. Restoration verifies replay hashes and
+  replays bot choices before accepting new actions.
+- Terminal rooms are admitted to the atomic league ledger only through its
+  replay verifier; pending and duplicate rating outcomes remain explicit in
+  network snapshots.

@@ -76,7 +76,8 @@ Independent room locks prevent a bot in one match from blocking other matches.
 cargo run --release -p antiyoy-server -- \
   --host 127.0.0.1 --port 8080 \
   --maximum-rooms 1024 --maximum-cells 4096 \
-  --maximum-action-limit 10000 --update-capacity 32
+  --maximum-action-limit 10000 --update-capacity 32 \
+  --data-directory server-data
 ```
 
 Create a room with `POST /v1/matches`, inspect it with
@@ -89,6 +90,15 @@ and returned token before submitting actions. Network structures carry
 `DELETE /v1/matches/{match_id}?seat=…` with the seat token in an Authorization
 Bearer header closes and removes a room. All memory-amplifying limits are
 explicit server configuration, and room capacity is checked atomically.
+Every accepted transition is atomically persisted before it is acknowledged.
+On restart, the service verifies each replay, reconstructs the authoritative
+game, and replays native bot decisions to restore their exact RNG state. Only
+token hashes are written to disk.
+Terminal rooms enter the server's Elo ledger only after replay verification;
+`GET /v1/league` returns its versioned standings and match ledger. Room files
+and `league.json` use fsync-plus-rename atomic replacement.
+Match snapshots expose `NotFinished`, `Pending`, `Recorded`, or `Duplicate`
+rating status; an identical replay cannot inflate Elo twice.
 
 Python trainers can install the native environment in an active virtual
 environment:
