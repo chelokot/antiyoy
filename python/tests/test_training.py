@@ -58,6 +58,7 @@ def training_config() -> TrainingConfig:
         diplomacy=False,
         initial_relation="neutral",
         device="cpu",
+        initialize=None,
         resume=None,
         checkpoint=Path("unused.pt"),
     )
@@ -116,3 +117,14 @@ def test_training_rejects_invalid_search_teacher_configuration() -> None:
         validate_config(replace(training_config(), imitation_rollin="unknown"))
     with pytest.raises(ValueError, match="search_nodes"):
         validate_config(replace(training_config(), search_nodes=1))
+
+
+def test_training_rejects_initialize_with_resume() -> None:
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        validate_config(
+            replace(
+                training_config(),
+                initialize=Path("initial.pt"),
+                resume=Path("resume.pt"),
+            )
+        )

@@ -98,6 +98,12 @@ the exact model and optimizer state while changing the profile schedule. The
 trainer rejects incompatible checkpoint, observation, and rule-feature
 versions before allocating a rollout.
 
+Use `--initialize CHECKPOINT` for weights-only transfer from a compatible
+checkpoint while creating a fresh optimizer. This accepts the published
+checkpoint-v4/observation-v6 alpha through the same zero-column diplomacy
+migration used by evaluation. `--initialize` and `--resume` are mutually
+exclusive so a warm start cannot be mistaken for an exact continuation.
+
 Evaluation also accepts the published checkpoint-v4/observation-v6 alpha. Its
 weights are expanded with zeroed diplomacy columns so disabled-diplomacy
 profiles preserve the legacy policy exactly; optimizer resume remains strict.

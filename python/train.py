@@ -17,6 +17,7 @@ from antiyoy_rl.model import (
     UniversalPolicy,
     action_distribution,
     encode_rules_batch,
+    load_policy_state,
 )
 
 
@@ -67,6 +68,7 @@ class TrainingConfig:
     diplomacy: bool
     initial_relation: str
     device: str
+    initialize: Path | None
     resume: Path | None
     checkpoint: Path | None
 
@@ -194,6 +196,8 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("search_maximum_actions_per_turn must be positive")
     if config.profiles is not None and not config.profiles:
         raise ValueError("profiles must not be empty")
+    if config.initialize is not None and config.resume is not None:
+        raise ValueError("initialize and resume are mutually exclusive")
     if config.procedural and config.players < 2:
         raise ValueError("procedural maps require at least two players")
     densities = [
@@ -399,15 +403,37 @@ def restore_checkpoint(
     optimizer: torch.optim.Optimizer,
     device: torch.device,
 ) -> None:
-    checkpoint = torch.load(path, map_location=device, weights_only=False)
-    if checkpoint["checkpoint_version"] != CHECKPOINT_VERSION:
-        raise ValueError("resume checkpoint format does not match this trainer")
-    if checkpoint["observation_version"] != OBSERVATION_VERSION:
-        raise ValueError("resume checkpoint observation contract does not match")
-    if checkpoint["rule_features"] != RULE_FEATURES:
-        raise ValueError("resume checkpoint rule feature width does not match")
+    checkpoint = load_training_checkpoint(path, device, compatible=False)
     model.load_state_dict(checkpoint["model"])
     optimizer.load_state_dict(checkpoint["optimizer"])
+
+
+def initialize_checkpoint(
+    path: Path,
+    model: UniversalPolicy,
+    device: torch.device,
+) -> None:
+    checkpoint = load_training_checkpoint(path, device, compatible=True)
+    load_policy_state(model, checkpoint["model"])
+
+
+def load_training_checkpoint(
+    path: Path,
+    device: torch.device,
+    compatible: bool,
+) -> dict:
+    checkpoint = torch.load(path, map_location=device, weights_only=False)
+    versions = (4, CHECKPOINT_VERSION) if compatible else (CHECKPOINT_VERSION,)
+    observations = (6, OBSERVATION_VERSION) if compatible else (OBSERVATION_VERSION,)
+    rule_widths = (42, RULE_FEATURES) if compatible else (RULE_FEATURES,)
+    mode = "initialization" if compatible else "resume"
+    if checkpoint["checkpoint_version"] not in versions:
+        raise ValueError(f"{mode} checkpoint format does not match this trainer")
+    if checkpoint["observation_version"] not in observations:
+        raise ValueError(f"{mode} checkpoint observation contract does not match")
+    if checkpoint["rule_features"] not in rule_widths:
+        raise ValueError(f"{mode} checkpoint rule feature width does not match")
+    return checkpoint
 
 
 def train(config: TrainingConfig) -> dict[str, float | int | str]:
@@ -418,7 +444,9 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     environment = make_environment(config)
     model = UniversalPolicy(config.hidden, config.layers).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
-    if config.resume is not None:
+    if config.initialize is not None:
+        initialize_checkpoint(config.initialize, model, device)
+    elif config.resume is not None:
         restore_checkpoint(config.resume, model, optimizer, device)
     rules = encode_rules_batch(environment.rules_jsons(), device)
     reset_seed = config.seed + config.environments
@@ -496,6 +524,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "mean_reward": reward_average,
         "mean_loss": loss_average,
         "device": str(device),
+        "initialized_from": str(config.initialize) if config.initialize is not None else "",
         "resumed_from": str(config.resume) if config.resume is not None else "",
     }
     if config.checkpoint is not None:
@@ -511,6 +540,9 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
                 "training_generators_jsons": environment.generator_jsons(),
                 "config": {
                     **asdict(config),
+                    "initialize": (
+                        str(config.initialize) if config.initialize is not None else None
+                    ),
                     "resume": str(config.resume) if config.resume is not None else None,
                     "checkpoint": str(config.checkpoint),
                 },
@@ -575,7 +607,9 @@ def parse_args() -> TrainingConfig:
         default="neutral",
     )
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
-    parser.add_argument("--resume", type=Path)
+    continuation = parser.add_mutually_exclusive_group()
+    continuation.add_argument("--initialize", type=Path)
+    continuation.add_argument("--resume", type=Path)
     parser.add_argument("--checkpoint", type=Path)
     arguments = vars(parser.parse_args())
     if arguments["profile"] is None and arguments["profiles"] is None:
