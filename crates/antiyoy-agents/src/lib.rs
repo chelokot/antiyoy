@@ -1,7 +1,12 @@
 #![forbid(unsafe_code)]
 
-use antiyoy_core::{Action, DiplomacyCommand, Game, Object, PlayerId};
+mod evaluation;
+mod search;
+
+use antiyoy_core::{Action, DiplomacyCommand, Game};
 use rand::{Rng, SeedableRng, rngs::SmallRng};
+
+pub use search::{SearchAgent, SearchConfig, SearchConfigError, SearchStats};
 
 pub trait Agent {
     fn name(&self) -> &str;
@@ -43,40 +48,6 @@ impl GreedyAgent {
         Self { name: name.into() }
     }
 
-    fn evaluate(game: &Game, player: PlayerId) -> i64 {
-        if game.is_terminal() {
-            return if game.winner() == Some(player) {
-                1_000_000_000
-            } else {
-                -1_000_000_000
-            };
-        }
-
-        let mut score = 0;
-        for cell in game.cells().iter().copied() {
-            let direction = if cell.owner() == player { 1 } else { -1 };
-            if cell.owner().is_neutral() {
-                continue;
-            }
-            score += direction * 100;
-            score += direction * i64::from(cell.unit().strength()) * 18;
-            score += direction
-                * match cell.object() {
-                    Object::Capital => 20,
-                    Object::Farm => 28,
-                    Object::Tower => 16,
-                    Object::StrongTower => 30,
-                    _ => 0,
-                };
-        }
-        for province in game.provinces() {
-            let direction = if province.owner() == player { 1 } else { -1 };
-            let profit = game.province_profit(province.id()).unwrap_or_default();
-            score += direction * (province.money() + profit * 8);
-        }
-        score
-    }
-
     fn action_priority(action: Action) -> u8 {
         match action {
             Action::Diplomacy {
@@ -109,7 +80,7 @@ impl Agent for GreedyAgent {
                     .step(action)
                     .expect("engine-generated legal action must apply");
                 (
-                    Self::evaluate(&candidate, player),
+                    evaluation::position_score(&candidate, player),
                     Self::action_priority(action),
                     std::cmp::Reverse(action),
                 )
@@ -127,7 +98,7 @@ mod tests {
         Topology,
     };
 
-    use super::{Agent, GreedyAgent};
+    use super::{Agent, GreedyAgent, SearchAgent, SearchConfig, SearchConfigError};
 
     #[test]
     fn greedy_agent_prefers_free_capture_over_end_turn() {
@@ -178,5 +149,67 @@ mod tests {
         let mut agent = GreedyAgent::new("greedy");
 
         assert_eq!(agent.select_action(&game, &legal), declaration);
+    }
+
+    #[test]
+    fn search_is_deterministic_and_respects_its_transition_budget() {
+        let scenario = Scenario::symmetric_duel(7, 5, 101).expect("valid duel");
+        let game = antiyoy_core::Game::new(Rules::classic_generic(), scenario).expect("valid game");
+        let mut legal = Vec::new();
+        game.legal_actions(&mut legal);
+        let config = SearchConfig {
+            node_budget: 256,
+            beam_width: 12,
+            branch_width: 20,
+            maximum_actions_per_turn: 12,
+        };
+        let mut first = SearchAgent::with_config("search", config).expect("valid search");
+        let mut second = SearchAgent::with_config("search", config).expect("valid search");
+        assert_eq!(
+            first.select_action(&game, &legal),
+            second.select_action(&game, &legal)
+        );
+        assert_eq!(first.last_stats(), second.last_stats());
+        assert!(first.last_stats().nodes <= config.node_budget);
+        assert!(first.last_stats().completed_turns > 0);
+        assert!(first.last_stats().maximum_depth > 0);
+    }
+
+    #[test]
+    fn search_reuses_only_a_plan_for_the_exact_expected_state() {
+        let scenario = Scenario::symmetric_duel(7, 5, 103).expect("valid duel");
+        let mut game = antiyoy_core::Game::new(Rules::classic_generic(), scenario).expect("game");
+        let mut legal = Vec::new();
+        game.legal_actions(&mut legal);
+        let mut search = SearchAgent::new("search");
+        let first = search.select_action(&game, &legal);
+        assert_ne!(first, Action::EndTurn);
+        let stats = search.last_stats();
+        let searches = search.search_count();
+        game.step(first).expect("searched action");
+        game.legal_actions(&mut legal);
+        search.select_action(&game, &legal);
+        assert_eq!(search.last_stats(), stats);
+        assert_eq!(search.search_count(), searches);
+
+        let reset = Scenario::symmetric_duel(7, 5, 103).expect("valid duel");
+        let reset = antiyoy_core::Game::new(Rules::classic_generic(), reset).expect("game");
+        reset.legal_actions(&mut legal);
+        search.select_action(&reset, &legal);
+        assert_eq!(search.search_count(), searches + 1);
+    }
+
+    #[test]
+    fn invalid_search_budget_is_rejected() {
+        assert!(matches!(
+            SearchAgent::with_config(
+                "search",
+                SearchConfig {
+                    node_budget: 1,
+                    ..SearchConfig::default()
+                }
+            ),
+            Err(SearchConfigError::NodeBudget)
+        ));
     }
 }

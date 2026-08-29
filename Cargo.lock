@@ -58,6 +58,7 @@ version = "0.1.0"
 dependencies = [
  "antiyoy-core",
  "rand",
+ "thiserror",
 ]
 
 [[package]]
