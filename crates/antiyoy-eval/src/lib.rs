@@ -283,7 +283,7 @@ pub fn symmetric_duel(width: u16, height: u16, seed: u64) -> Result<Scenario, Ma
     Scenario::symmetric_duel(width, height, seed).map_err(MatchError::InvalidMap)
 }
 
-pub fn run_match<First: Agent, Second: Agent>(
+pub fn run_match<First: Agent + ?Sized, Second: Agent + ?Sized>(
     rules: Rules,
     scenario: Scenario,
     first: &mut First,

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use antiyoy_agents::{GreedyAgent, RandomAgent};
+use antiyoy_agents::{Agent, GreedyAgent, RandomAgent, SearchAgent, SearchConfig};
 use antiyoy_core::{GeneratorConfig, Rules, RulesProfile};
 use antiyoy_eval::{
     Elo, League as RatingLeague, MatchOutcome, Rating, Standing, run_match, score_for_first,
@@ -36,6 +36,8 @@ enum Command {
         second: AgentKind,
         #[arg(long, default_value_t = 2_000)]
         action_limit: u32,
+        #[arg(long, default_value_t = 2_048)]
+        search_nodes: usize,
         #[arg(long)]
         replay: Option<PathBuf>,
         #[arg(long)]
@@ -52,6 +54,28 @@ enum Command {
         height: u16,
         #[arg(long, default_value_t = 2_000)]
         action_limit: u32,
+        #[arg(long)]
+        json: bool,
+    },
+    Compare {
+        #[arg(long, default_value_t = 8)]
+        pairs: u32,
+        #[arg(long, default_value_t = 10_000)]
+        seed: u64,
+        #[arg(long, default_value_t = 7)]
+        width: u16,
+        #[arg(long, default_value_t = 5)]
+        height: u16,
+        #[arg(long, default_value_t = 500)]
+        action_limit: u32,
+        #[arg(long, value_enum, default_value_t = AgentKind::Search)]
+        first: AgentKind,
+        #[arg(long, value_enum, default_value_t = AgentKind::Greedy)]
+        second: AgentKind,
+        #[arg(long, default_value_t = 2_048)]
+        search_nodes: usize,
+        #[arg(long, value_enum, default_value_t = RulesKind::ClassicGeneric)]
+        rules: RulesKind,
         #[arg(long)]
         json: bool,
     },
@@ -102,6 +126,17 @@ enum Command {
 enum AgentKind {
     Greedy,
     Random,
+    Search,
+}
+
+impl AgentKind {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Greedy => "greedy",
+            Self::Random => "random",
+            Self::Search => "turn-search",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -207,6 +242,18 @@ impl RulesKind {
         };
         Rules::from_profile(profile).expect("CLI exposes only bundled rules profiles")
     }
+
+    const fn name(self) -> &'static str {
+        match self {
+            Self::ClassicGeneric => "classic_generic_2022",
+            Self::ClassicSlay => "classic_slay_2022",
+            Self::OnlineDefaultV1 => "online_default_v1",
+            Self::OnlineClassicV1 => "online_classic_v1",
+            Self::OnlineDuelV1 => "online_duel_v1",
+            Self::OnlineExperimentalV1 => "online_experimental_v1",
+            Self::OnlineExperimentalV2 => "online_experimental_v2_260801",
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -226,6 +273,30 @@ struct TournamentSummary {
     draws: u32,
     greedy: Rating,
     random: Rating,
+}
+
+#[derive(Debug, Serialize)]
+struct ComparisonSummary {
+    first: String,
+    second: String,
+    rules: String,
+    seed: u64,
+    width: u16,
+    height: u16,
+    action_limit: u32,
+    search_nodes: usize,
+    pairs: u32,
+    games: u32,
+    first_wins: u32,
+    second_wins: u32,
+    draws: u32,
+    first_score: f64,
+    relative_elo: f64,
+    first_rating: Rating,
+    second_rating: Rating,
+    actions: u64,
+    elapsed_seconds: f64,
+    actions_per_second: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -262,6 +333,7 @@ fn main() -> Result<()> {
             first,
             second,
             action_limit,
+            search_nodes,
             replay,
             json,
         } => play(
@@ -271,6 +343,7 @@ fn main() -> Result<()> {
             first,
             second,
             action_limit,
+            search_nodes,
             replay,
             json,
         )?,
@@ -282,6 +355,29 @@ fn main() -> Result<()> {
             action_limit,
             json,
         } => tournament(games, seed, width, height, action_limit, json)?,
+        Command::Compare {
+            pairs,
+            seed,
+            width,
+            height,
+            action_limit,
+            first,
+            second,
+            search_nodes,
+            rules,
+            json,
+        } => compare_agents(
+            pairs,
+            seed,
+            width,
+            height,
+            action_limit,
+            first,
+            second,
+            search_nodes,
+            rules,
+            json,
+        )?,
         Command::League {
             state,
             replay_dir,
@@ -327,40 +423,22 @@ fn play(
     first: AgentKind,
     second: AgentKind,
     action_limit: u32,
+    search_nodes: usize,
     replay_path: Option<PathBuf>,
     json: bool,
 ) -> Result<()> {
     let scenario = symmetric_duel(width, height, seed)?;
-    let report = match (first, second) {
-        (AgentKind::Greedy, AgentKind::Greedy) => run_match(
-            Rules::classic_generic(),
-            scenario,
-            &mut GreedyAgent::new("greedy-0"),
-            &mut GreedyAgent::new("greedy-1"),
-            action_limit,
-        )?,
-        (AgentKind::Greedy, AgentKind::Random) => run_match(
-            Rules::classic_generic(),
-            scenario,
-            &mut GreedyAgent::new("greedy"),
-            &mut RandomAgent::new("random", seed ^ 1),
-            action_limit,
-        )?,
-        (AgentKind::Random, AgentKind::Greedy) => run_match(
-            Rules::classic_generic(),
-            scenario,
-            &mut RandomAgent::new("random", seed ^ 1),
-            &mut GreedyAgent::new("greedy"),
-            action_limit,
-        )?,
-        (AgentKind::Random, AgentKind::Random) => run_match(
-            Rules::classic_generic(),
-            scenario,
-            &mut RandomAgent::new("random-0", seed ^ 1),
-            &mut RandomAgent::new("random-1", seed ^ 2),
-            action_limit,
-        )?,
-    };
+    let first_name = format!("{}-0", first.name());
+    let second_name = format!("{}-1", second.name());
+    let mut first_agent = create_agent(first, &first_name, seed ^ 1, search_nodes)?;
+    let mut second_agent = create_agent(second, &second_name, seed ^ 2, search_nodes)?;
+    let report = run_match(
+        Rules::classic_generic(),
+        scenario,
+        &mut *first_agent,
+        &mut *second_agent,
+        action_limit,
+    )?;
     let verification = report.replay.verify()?;
     if let Some(path) = replay_path {
         std::fs::write(&path, report.replay.encode()?)
@@ -375,6 +453,29 @@ fn play(
     };
     print_value(&summary, json)?;
     Ok(())
+}
+
+fn create_agent(
+    kind: AgentKind,
+    name: &str,
+    seed: u64,
+    search_nodes: usize,
+) -> Result<Box<dyn Agent>> {
+    let agent: Box<dyn Agent> = match kind {
+        AgentKind::Greedy => Box::new(GreedyAgent::new(name)),
+        AgentKind::Random => Box::new(RandomAgent::new(name, seed)),
+        AgentKind::Search => Box::new(
+            SearchAgent::with_config(
+                name,
+                SearchConfig {
+                    node_budget: search_nodes,
+                    ..SearchConfig::default()
+                },
+            )
+            .context("invalid search configuration")?,
+        ),
+    };
+    Ok(agent)
 }
 
 fn tournament(
@@ -429,6 +530,110 @@ fn tournament(
         draws,
         greedy: greedy_rating,
         random: random_rating,
+    };
+    print_value(&summary, json)?;
+    Ok(())
+}
+
+#[expect(clippy::cast_precision_loss)]
+#[expect(clippy::too_many_arguments)]
+fn compare_agents(
+    pairs: u32,
+    seed: u64,
+    width: u16,
+    height: u16,
+    action_limit: u32,
+    first_kind: AgentKind,
+    second_kind: AgentKind,
+    search_nodes: usize,
+    rules_kind: RulesKind,
+    json: bool,
+) -> Result<()> {
+    anyhow::ensure!(pairs > 0, "pairs must be greater than zero");
+    anyhow::ensure!(
+        first_kind != second_kind,
+        "comparison agents must be different"
+    );
+    let first_name = first_kind.name();
+    let second_name = second_kind.name();
+    let mut first_rating = Rating::default();
+    let mut second_rating = Rating::default();
+    let mut first_wins = 0;
+    let mut second_wins = 0;
+    let mut draws = 0;
+    let mut actions = 0_u64;
+    let started = Instant::now();
+
+    for pair in 0..pairs {
+        let game_seed = seed.wrapping_add(u64::from(pair));
+        for first_starts in [true, false] {
+            let scenario = symmetric_duel(width, height, game_seed)?;
+            let first_agent_seed = game_seed ^ 0xa076_1d64_78bd_642f;
+            let second_agent_seed = game_seed ^ 0xe703_7ed1_a0b4_28db;
+            let mut first = create_agent(first_kind, first_name, first_agent_seed, search_nodes)?;
+            let mut second =
+                create_agent(second_kind, second_name, second_agent_seed, search_nodes)?;
+            let report = if first_starts {
+                run_match(
+                    rules_kind.rules(),
+                    scenario,
+                    &mut *first,
+                    &mut *second,
+                    action_limit,
+                )?
+            } else {
+                run_match(
+                    rules_kind.rules(),
+                    scenario,
+                    &mut *second,
+                    &mut *first,
+                    action_limit,
+                )?
+            };
+            actions += u64::from(report.outcome.actions);
+            let first_score = if first_starts {
+                score_for_first(report.outcome)
+            } else {
+                1.0 - score_for_first(report.outcome)
+            };
+            if first_score > 0.5 {
+                first_wins += 1;
+            } else if first_score < 0.5 {
+                second_wins += 1;
+            } else {
+                draws += 1;
+            }
+            Elo::default().update(&mut first_rating, &mut second_rating, first_score);
+        }
+    }
+
+    let elapsed_seconds = started.elapsed().as_secs_f64();
+    let games = pairs * 2;
+    let first_score = (f64::from(first_wins) + f64::from(draws) * 0.5) / f64::from(games);
+    let edge = 0.5 / f64::from(games);
+    let clipped_score = first_score.clamp(edge, 1.0 - edge);
+    let relative_elo = 400.0 * (clipped_score / (1.0 - clipped_score)).log10();
+    let summary = ComparisonSummary {
+        first: first_name.to_owned(),
+        second: second_name.to_owned(),
+        rules: rules_kind.name().to_owned(),
+        seed,
+        width,
+        height,
+        action_limit,
+        search_nodes,
+        pairs,
+        games,
+        first_wins,
+        second_wins,
+        draws,
+        first_score,
+        relative_elo,
+        first_rating,
+        second_rating,
+        actions,
+        elapsed_seconds,
+        actions_per_second: actions as f64 / elapsed_seconds,
     };
     print_value(&summary, json)?;
     Ok(())
