@@ -19,6 +19,24 @@ from antiyoy_rl.model import (
 from train import CHECKPOINT_VERSION
 
 
+ACTION_KIND_NAMES = ("end_turn", "move", "recruit", "build", "plant_tree", "diplomacy")
+
+
+def selected_action_kinds(
+    observation: dict[str, np.ndarray], actions: np.ndarray
+) -> np.ndarray:
+    offsets = np.asarray(observation["action_offsets"][:-1], dtype=np.int64)
+    indices = offsets + actions.astype(np.int64, copy=False)
+    return np.asarray(observation["action_kinds"])[indices]
+
+
+def named_action_counts(counts: np.ndarray) -> dict[str, int]:
+    return {
+        name: int(counts[index])
+        for index, name in enumerate(ACTION_KIND_NAMES)
+    }
+
+
 def evaluate(
     checkpoint_path: Path,
     games: int,
@@ -30,7 +48,7 @@ def evaluate(
     search_beam_width: int,
     search_branch_width: int,
     search_maximum_actions_per_turn: int,
-) -> dict[str, float | int | str]:
+) -> dict[str, object]:
     device = torch.device(device_name)
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     if checkpoint["checkpoint_version"] not in (4, CHECKPOINT_VERSION):
@@ -60,10 +78,14 @@ def evaluate(
     finished = np.zeros(games, dtype=np.bool_)
     wins = 0
     draws = 0
+    terminal_draws = 0
+    truncations = 0
     losses = 0
     reset_seed = seed + games
     random = np.random.default_rng(seed)
     transitions = 0
+    model_action_counts = np.zeros(len(ACTION_KIND_NAMES), dtype=np.int64)
+    baseline_action_counts = np.zeros(len(ACTION_KIND_NAMES), dtype=np.int64)
     while not bool(finished.all()):
         observation = environment.observe()
         with torch.no_grad():
@@ -90,14 +112,29 @@ def evaluate(
             )
         active_players = observation["active_players"]
         actions = np.where(active_players == model_seats, model_actions, baseline_actions)
+        action_kinds = selected_action_kinds(observation, actions)
+        active = np.logical_not(finished)
+        model_turns = np.logical_and(active, active_players == model_seats)
+        baseline_turns = np.logical_and(active, active_players != model_seats)
+        model_action_counts += np.bincount(
+            action_kinds[model_turns], minlength=len(ACTION_KIND_NAMES)
+        )
+        baseline_action_counts += np.bincount(
+            action_kinds[baseline_turns], minlength=len(ACTION_KIND_NAMES)
+        )
         result = environment.step(actions)
         transitions += games
         done = np.logical_or(result["terminal"], result["truncated"])
         for index in np.flatnonzero(done):
             if not finished[index]:
                 winner = int(result["winners"][index])
+                truncated = bool(result["truncated"][index])
+                if truncated:
+                    truncations += 1
                 if winner == 255:
                     draws += 1
+                    if not truncated:
+                        terminal_draws += 1
                 elif winner == int(model_seats[index]):
                     wins += 1
                 else:
@@ -114,12 +151,16 @@ def evaluate(
         "games": games,
         "wins": wins,
         "draws": draws,
+        "terminal_draws": terminal_draws,
+        "truncations": truncations,
         "losses": losses,
         "score": score,
         "elo_delta": elo_delta,
         "transitions": transitions,
         "device": str(device),
         "profile": evaluation_profile,
+        "model_action_counts": named_action_counts(model_action_counts),
+        "baseline_action_counts": named_action_counts(baseline_action_counts),
         "search_nodes": search_nodes if baseline == "search" else 0,
         "search_beam_width": search_beam_width if baseline == "search" else 0,
         "search_branch_width": search_branch_width if baseline == "search" else 0,

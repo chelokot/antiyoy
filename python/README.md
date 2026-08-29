@@ -116,5 +116,8 @@ teacher. Search beam, branch, and maximum turn depth are independently
 configurable and emitted in the result.
 
 Evaluation alternates model seats, uses held-out seeds, and reports the raw
-win/draw/loss score plus an Elo difference against the named baseline. It does
-not assign an absolute leaderboard rating to an uncalibrated baseline.
+win/draw/loss score plus an Elo difference against the named baseline. Terminal
+draws and action-limit truncations are reported separately, along with action
+kind histograms for both competitors, so a stalling policy cannot hide behind
+an aggregate draw rate. It does not assign an absolute leaderboard rating to
+an uncalibrated baseline.
