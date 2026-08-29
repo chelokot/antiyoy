@@ -8,8 +8,9 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from antiyoy_rl import VectorEnv
-from antiyoy_rl.model import UniversalPolicy, action_distribution, encode_rules
+from antiyoy_rl import OBSERVATION_VERSION, VectorEnv
+from antiyoy_rl.model import RULE_FEATURES, UniversalPolicy, action_distribution, encode_rules
+from train import CHECKPOINT_VERSION
 
 
 def evaluate(
@@ -21,6 +22,12 @@ def evaluate(
 ) -> dict[str, float | int | str]:
     device = torch.device(device_name)
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    if checkpoint["checkpoint_version"] != CHECKPOINT_VERSION:
+        raise ValueError("checkpoint format version does not match this evaluator")
+    if checkpoint["observation_version"] != OBSERVATION_VERSION:
+        raise ValueError("checkpoint observation version does not match the native environment")
+    if checkpoint["rule_features"] != RULE_FEATURES:
+        raise ValueError("checkpoint rule feature width does not match the policy")
     config = checkpoint["config"]
     model = UniversalPolicy(config["hidden"], config["layers"]).to(device)
     model.load_state_dict(checkpoint["model"])
@@ -31,7 +38,10 @@ def evaluate(
         height=config["height"],
         seed=seed,
         action_limit=config["action_limit"],
+        profile=config["profile"],
     )
+    if environment.rules_json() != checkpoint["rules_json"]:
+        raise ValueError("checkpoint rules do not match the evaluation environment")
     rules = encode_rules(environment.rules_json(), device)
     model_seats = np.arange(games, dtype=np.uint8) % 2
     finished = np.zeros(games, dtype=np.bool_)

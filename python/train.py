@@ -9,8 +9,11 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from antiyoy_rl import VectorEnv
-from antiyoy_rl.model import UniversalPolicy, action_distribution, encode_rules
+from antiyoy_rl import OBSERVATION_VERSION, VectorEnv
+from antiyoy_rl.model import RULE_FEATURES, UniversalPolicy, action_distribution, encode_rules
+
+
+CHECKPOINT_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -30,6 +33,7 @@ class TrainingConfig:
     territory_weight: float
     treasury_weight: float
     unit_weight: float
+    profile: str
     device: str
     checkpoint: Path | None
 
@@ -57,6 +61,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         height=config.height,
         seed=config.seed,
         action_limit=config.action_limit,
+        profile=config.profile,
     )
     model = UniversalPolicy(config.hidden, config.layers).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
@@ -126,6 +131,10 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             {
                 "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
+                "checkpoint_version": CHECKPOINT_VERSION,
+                "observation_version": OBSERVATION_VERSION,
+                "rule_features": RULE_FEATURES,
+                "rules_json": environment.rules_json(),
                 "config": {**asdict(config), "checkpoint": str(config.checkpoint)},
                 "summary": summary,
             },
@@ -152,6 +161,7 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--territory-weight", type=float, default=0.03)
     parser.add_argument("--treasury-weight", type=float, default=0.002)
     parser.add_argument("--unit-weight", type=float, default=0.01)
+    parser.add_argument("--profile", default="classic_generic_2022")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--checkpoint", type=Path)
     arguments = parser.parse_args()

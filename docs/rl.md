@@ -5,13 +5,18 @@ engine and policy training. A batch may contain different map dimensions and
 province counts under one immutable rules profile. Independent environments are
 stepped in parallel while results retain input order.
 
-## Observation version 1
+## Observation version 2
 
 `BatchObservation` is a flat structure of arrays. `cell_offsets`,
 `province_offsets`, and `action_offsets` have `environment_count + 1` entries;
 the half-open range at indices `i..i+1` selects one environment without copying.
 The batch also carries the complete immutable `Rules` value, including every
 economic, combat, and vegetation parameter seen by a universal policy.
+
+Version 2 adds explicit construction-readiness and Duel foreign-placement
+features to the rules conditioning vector. Checkpoints store the observation
+version, feature width, and exact serialized rules; evaluation rejects a model
+whose contract does not match the native engine.
 
 Per-environment arrays contain width, height, active player, and round. Per-cell
 arrays contain the playable mask, absolute owner (`255` is neutral), object

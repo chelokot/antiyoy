@@ -41,6 +41,7 @@ reward components supplied by Rust.
 
 ```bash
 python train.py --environments 64 --updates 1000 --device cuda \
+  --profile online_duel_v1 \
   --checkpoint ../models/universal-a2c.pt
 ```
 
