@@ -54,6 +54,10 @@ pub struct VegetationRules {
     pub pine_minimum_neighbours: u8,
     pub pine_spread_per_million: u32,
     pub palm_spread_per_million: u32,
+    pub target_based_spread: bool,
+    pub target_spread_per_million: u32,
+    pub charge_player_zero_per_spawn: bool,
+    pub grave_tree_skips_next_cycle: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -80,7 +84,7 @@ pub struct Rules {
 impl Rules {
     pub fn classic_generic() -> Self {
         Self {
-            schema_version: 3,
+            schema_version: 4,
             profile: RulesProfile::ClassicGeneric,
             minimum_province_size: 2,
             economy: EconomyRules {
@@ -115,6 +119,10 @@ impl Rules {
                 pine_minimum_neighbours: 2,
                 pine_spread_per_million: 200_000,
                 palm_spread_per_million: 300_000,
+                target_based_spread: false,
+                target_spread_per_million: 0,
+                charge_player_zero_per_spawn: false,
+                grave_tree_skips_next_cycle: true,
             },
             lifecycle: LifecycleRules {
                 split_money_follows_capital_then_farms: false,
@@ -154,6 +162,10 @@ impl Rules {
             skip_first_round_income: true,
             income_before_grave_conversion: true,
         };
+        rules.vegetation.target_based_spread = true;
+        rules.vegetation.target_spread_per_million = 330_000;
+        rules.vegetation.charge_player_zero_per_spawn = true;
+        rules.vegetation.grave_tree_skips_next_cycle = false;
         rules
     }
 
@@ -201,6 +213,7 @@ impl Rules {
         }
         if self.vegetation.pine_spread_per_million > 1_000_000
             || self.vegetation.palm_spread_per_million > 1_000_000
+            || self.vegetation.target_spread_per_million > 1_000_000
         {
             return Err(ConfigError::InvalidProbability);
         }
@@ -241,6 +254,10 @@ mod tests {
         assert!(!duel.combat.recruited_units_ready_on_owned_empty);
         assert!(!duel.combat.recruited_merge_preserves_readiness);
         assert!(duel.combat.foreign_recruit_requires_economic_neighbour);
+        assert!(duel.vegetation.target_based_spread);
+        assert_eq!(duel.vegetation.target_spread_per_million, 330_000);
+        assert!(duel.vegetation.charge_player_zero_per_spawn);
+        assert!(!duel.vegetation.grave_tree_skips_next_cycle);
 
         let experimental = Rules::online_experimental_v2_260801();
         assert_eq!(experimental.economy.clear_hex_income, 0);

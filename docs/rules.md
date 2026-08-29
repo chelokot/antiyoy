@@ -43,8 +43,10 @@ Each checked item must have a focused engine test.
 numeric profiles, knight override, construction readiness, Duel placement
 restriction, split-treasury selection, singleton structure behavior, empty
 first round, and income-before-grave timing are implemented and
-regression-tested. Online vegetation, diplomacy, and fog remain unchecked until
-their differential fixtures are committed.
+regression-tested. Online target-snapshot vegetation, coast-selected tree type,
+and the observed player-zero tree charge are also isolated behind profile
+fields and tested. Diplomacy and fog remain unchecked until their differential
+fixtures are committed.
 
 ## Extensions
 

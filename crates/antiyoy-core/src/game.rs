@@ -876,7 +876,8 @@ impl Game {
             .collect();
         for grave in graves {
             self.cells[grave.index()].object = self.tree_for_hex(grave);
-            self.cells[grave.index()].blocks_tree_spread = true;
+            self.cells[grave.index()].blocks_tree_spread =
+                self.rules.vegetation.grave_tree_skips_next_cycle;
         }
     }
 
@@ -884,6 +885,19 @@ impl Game {
         if !self.rules.vegetation.enabled {
             return;
         }
+        if self.rules.vegetation.target_based_spread {
+            self.expand_trees_from_target_candidates();
+        } else {
+            self.expand_trees_classic();
+        }
+        for cell in &mut self.cells {
+            if cell.object.is_tree() {
+                cell.blocks_tree_spread = false;
+            }
+        }
+    }
+
+    fn expand_trees_classic(&mut self) {
         let mut palms = Vec::new();
         let mut pines = Vec::new();
         for hex in self.topology.playable_hexes().iter().copied() {
@@ -929,10 +943,56 @@ impl Game {
         for hex in pines {
             self.cells[hex.index()].object = Object::Pine;
         }
-        for cell in &mut self.cells {
-            if cell.object.is_tree() {
-                cell.blocks_tree_spread = false;
+    }
+
+    fn expand_trees_from_target_candidates(&mut self) {
+        let candidates: Vec<HexId> = self
+            .topology
+            .playable_hexes()
+            .iter()
+            .copied()
+            .filter(|hex| {
+                let cell = self.cells[hex.index()];
+                if cell.object != Object::Empty || cell.unit.is_present() {
+                    return false;
+                }
+                let neighbours = self.tree_neighbours(*hex);
+                let palm_candidate = self.is_near_water(*hex)
+                    && neighbours
+                        .iter()
+                        .any(|neighbour| self.cells[neighbour.index()].object == Object::Palm);
+                let adjacent_trees = neighbours
+                    .iter()
+                    .filter(|neighbour| self.cells[neighbour.index()].object.is_tree())
+                    .count();
+                let pine_candidate = adjacent_trees
+                    >= usize::from(self.rules.vegetation.pine_minimum_neighbours)
+                    && neighbours
+                        .iter()
+                        .any(|neighbour| self.cells[neighbour.index()].object == Object::Pine);
+                palm_candidate || pine_candidate
+            })
+            .collect();
+        for hex in candidates {
+            if self
+                .random
+                .occurs_per_million(self.rules.vegetation.target_spread_per_million)
+            {
+                self.cells[hex.index()].object = self.tree_for_hex(hex);
+                self.charge_tree_spawn(hex);
             }
+        }
+    }
+
+    fn charge_tree_spawn(&mut self, hex: HexId) {
+        if !self.rules.vegetation.charge_player_zero_per_spawn
+            || self.cells[hex.index()].owner != PlayerId(0)
+        {
+            return;
+        }
+        let province = self.cells[hex.index()].province;
+        if province.is_some() && self.provinces[province.index()].money > 0 {
+            self.provinces[province.index()].money -= 1;
         }
     }
 
@@ -1468,6 +1528,50 @@ mod tests {
         assert_eq!(online.round(), 2);
         assert_eq!(online.province_at(HexId(0)).expect("province").money, 12);
         assert!(online.cell(HexId(1)).expect("grave hex").object().is_tree());
+    }
+
+    #[test]
+    fn online_tree_candidates_spawn_by_target_coast_and_charge_player_zero() {
+        let topology = Topology::rectangle(5, 3).expect("valid topology");
+        let mut scenario = Scenario::empty(topology, 2, 31);
+        for row in 0..3 {
+            for column in 0..3 {
+                scenario.cells[row * 5 + column] = InitialCell::owned(PlayerId(0));
+            }
+            scenario.cells[row * 5 + 4] = InitialCell::owned(PlayerId(1));
+        }
+        scenario.cells[0].object = Object::Capital;
+        scenario.cells[1].object = Object::Pine;
+        scenario.cells[5].object = Object::Pine;
+        scenario.cells[4].object = Object::Capital;
+        let mut rules = Rules::online_default_v1();
+        rules.vegetation.target_spread_per_million = 1_000_000;
+        let mut game = Game::new(rules, scenario).expect("online game");
+        let province = game.province_at(HexId(0)).expect("player zero province").id;
+        let profit = game.province_profit(province).expect("province profit");
+        let trees_before = game
+            .province(province)
+            .expect("province")
+            .hexes()
+            .iter()
+            .filter(|hex| game.cell(**hex).expect("hex").object().is_tree())
+            .count();
+
+        game.step(Action::EndTurn).expect("player zero first turn");
+        game.step(Action::EndTurn).expect("player one first turn");
+
+        let province = game.province_at(HexId(0)).expect("player zero province");
+        let trees_after = province
+            .hexes()
+            .iter()
+            .filter(|hex| game.cell(**hex).expect("hex").object().is_tree())
+            .count();
+        let spawned = i64::try_from(trees_after - trees_before).expect("tree count fits i64");
+        assert_eq!(
+            game.cell(HexId(6)).expect("inland target").object(),
+            Object::Pine
+        );
+        assert_eq!(province.money(), 10 + profit - spawned);
     }
 
     #[test]

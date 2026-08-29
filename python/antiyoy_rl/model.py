@@ -9,7 +9,7 @@ from torch import Tensor, nn
 from torch.nn import functional as functional
 
 
-RULE_FEATURES = 38
+RULE_FEATURES = 42
 
 
 def encode_rules(serialized: str, device: torch.device) -> Tensor:
@@ -47,6 +47,10 @@ def encode_rules(serialized: str, device: torch.device) -> Tensor:
         vegetation["pine_minimum_neighbours"],
         vegetation["pine_spread_per_million"] / 1_000_000,
         vegetation["palm_spread_per_million"] / 1_000_000,
+        int(vegetation["target_based_spread"]),
+        vegetation["target_spread_per_million"] / 1_000_000,
+        int(vegetation["charge_player_zero_per_spawn"]),
+        int(vegetation["grave_tree_skips_next_cycle"]),
         int(lifecycle["split_money_follows_capital_then_farms"]),
         int(lifecycle["merge_capital_prefers_farm_support"]),
         int(lifecycle["singleton_buildings_persist"]),

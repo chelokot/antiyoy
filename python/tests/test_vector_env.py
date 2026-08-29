@@ -16,7 +16,7 @@ def test_observation_and_step_contract() -> None:
     result = environment.step(actions)
     assert result["actors"].tolist() == [0, 0, 0, 0]
     assert result["terminal"].tolist() == [0, 0, 0, 0]
-    assert json.loads(environment.rules_json())["schema_version"] == 3
+    assert json.loads(environment.rules_json())["schema_version"] == 4
 
 
 def test_seeded_environments_are_equal_after_equal_actions() -> None:

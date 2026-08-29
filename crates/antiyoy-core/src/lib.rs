@@ -17,4 +17,4 @@ pub use state::{Cell, InitialCell, Province, Scenario, Treasury};
 pub use topology::{Axial, Topology};
 pub use types::{HexId, Object, PlayerId, ProvinceId, Structure, Unit};
 
-pub const ENGINE_VERSION: u16 = 3;
+pub const ENGINE_VERSION: u16 = 4;
