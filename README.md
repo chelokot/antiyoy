@@ -74,7 +74,8 @@ The live WebAssembly arena accepts the same `.antiyoy` file and provides
 play/pause, single-step, backward seek, and clickable per-hex state inspection.
 Its live map panel also creates reproducible two-to-eight-player
 `procedural_v1` scenarios entirely in WASM, with editable dimensions, seed, and
-land density.
+land density. Human mode derives every destination action from the core's legal
+mask and advances all bot opponents until control returns to the player.
 
 ## Multiplayer rooms
 
