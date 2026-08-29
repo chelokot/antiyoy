@@ -1,6 +1,12 @@
 /* @ts-self-types="./antiyoy_wasm.d.ts" */
 
 export class WasmGame {
+    static __wrap(ptr) {
+        const obj = Object.create(WasmGame.prototype);
+        obj.__wbg_ptr = ptr;
+        WasmGameFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
@@ -56,6 +62,29 @@ export class WasmGame {
             this.__wbg_ptr = r0;
             WasmGameFinalization.register(this, this.__wbg_ptr, this);
             return this;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+     * @param {number} width
+     * @param {number} height
+     * @param {number} players
+     * @param {bigint} seed
+     * @param {number} land_density_per_million
+     * @returns {WasmGame}
+     */
+    static procedural(width, height, players, seed, land_density_per_million) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.wasmgame_procedural(retptr, width, height, players, seed, land_density_per_million);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return WasmGame.__wrap(r0);
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
         }

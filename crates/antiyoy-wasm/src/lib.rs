@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use antiyoy_agents::{Agent, GreedyAgent, RandomAgent};
-use antiyoy_core::{Action, Game, PlayerId, Rules, Scenario};
+use antiyoy_core::{Action, Game, GeneratorConfig, PlayerId, Rules, Scenario};
 use antiyoy_protocol::{GameView, Replay};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
@@ -33,17 +33,28 @@ impl WasmGame {
         let rules = Rules::classic_generic();
         let scenario = Scenario::symmetric_duel(width, height, seed)
             .map_err(|error| JsError::new(&error.to_string()))?;
-        let game = Game::new(rules.clone(), scenario.clone())
-            .map_err(|error| JsError::new(&error.to_string()))?;
-        Ok(Self {
+        Self::from_scenario(seed, rules, scenario)
+    }
+
+    pub fn procedural(
+        width: u16,
+        height: u16,
+        players: u8,
+        seed: u64,
+        land_density_per_million: u32,
+    ) -> Result<Self, JsError> {
+        let config = GeneratorConfig {
+            width,
+            height,
+            players,
             seed,
-            rules,
-            scenario,
-            game,
-            legal_actions: Vec::new(),
-            greedy: GreedyAgent::new("greedy"),
-            random: RandomAgent::new("random", seed ^ 1),
-        })
+            land_density_per_million,
+            ..GeneratorConfig::default()
+        };
+        let scenario = config
+            .generate()
+            .map_err(|error| JsError::new(&error.to_string()))?;
+        Self::from_scenario(seed, Rules::classic_generic(), scenario)
     }
 
     pub fn reset(&mut self) -> Result<String, JsError> {
@@ -89,6 +100,22 @@ impl WasmGame {
             .step(action)
             .map_err(|error| JsError::new(&error.to_string()))?;
         self.state_json()
+    }
+}
+
+impl WasmGame {
+    fn from_scenario(seed: u64, rules: Rules, scenario: Scenario) -> Result<Self, JsError> {
+        let game = Game::new(rules.clone(), scenario.clone())
+            .map_err(|error| JsError::new(&error.to_string()))?;
+        Ok(Self {
+            seed,
+            rules,
+            scenario,
+            game,
+            legal_actions: Vec::new(),
+            greedy: GreedyAgent::new("greedy"),
+            random: RandomAgent::new("random", seed ^ 1),
+        })
     }
 }
 

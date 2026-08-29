@@ -25,6 +25,8 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(html, /ALPHA POLICY/);
   assert.match(html, /Download verified checkpoint/);
   assert.match(html, /Load replay/);
+  assert.match(html, /MAP GENERATOR/);
+  assert.match(html, /Generate deterministic map/);
   assert.match(html, /\/og\.png/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton/);
 });
@@ -56,6 +58,35 @@ test("executes a deterministic transition in the compiled WebAssembly engine", a
   assert.ok(initial.legal_actions.length > 0);
   assert.notDeepEqual(next, initial);
   game.free();
+});
+
+test("generates reproducible masked multiplayer maps in WebAssembly", async () => {
+  const moduleUrl = new URL("../lib/antiyoy-wasm/antiyoy_wasm.js", import.meta.url);
+  moduleUrl.searchParams.set("procedural-test", `${process.pid}-${Date.now()}`);
+  const bindings = await import(moduleUrl.href);
+  const bytes = await readFile(new URL("../lib/antiyoy-wasm/antiyoy_wasm_bg.wasm", import.meta.url));
+  await bindings.default({ module_or_path: bytes });
+  const first = bindings.WasmGame.procedural(17, 13, 4, 800n, 600_000);
+  const second = bindings.WasmGame.procedural(17, 13, 4, 800n, 600_000);
+  const other = bindings.WasmGame.procedural(17, 13, 4, 801n, 600_000);
+  const firstState = JSON.parse(first.state_json());
+  const secondState = JSON.parse(second.state_json());
+  const otherState = JSON.parse(other.state_json());
+  assert.deepEqual(firstState, secondState);
+  assert.equal(firstState.cells.filter((cell) => cell.playable).length, 133);
+  assert.deepEqual(
+    [...new Set(firstState.cells.flatMap((cell) => cell.owner === null ? [] : [cell.owner]))]
+      .sort((firstOwner, secondOwner) => firstOwner - secondOwner),
+    [0, 1, 2, 3],
+  );
+  assert.notDeepEqual(
+    firstState.cells.map((cell) => cell.playable),
+    otherState.cells.map((cell) => cell.playable),
+  );
+  assert.deepEqual(JSON.parse(first.reset()), firstState);
+  first.free();
+  second.free();
+  other.free();
 });
 
 test("verifies and seeks through a binary replay in WebAssembly", async () => {

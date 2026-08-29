@@ -6,6 +6,7 @@ export class WasmGame {
     [Symbol.dispose](): void;
     legal_actions_json(): string;
     constructor(width: number, height: number, seed: bigint);
+    static procedural(width: number, height: number, players: number, seed: bigint, land_density_per_million: number): WasmGame;
     reset(): string;
     state_json(): string;
     step(action_index: number): string;
@@ -29,6 +30,7 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_wasmgame_free: (a: number, b: number) => void;
     readonly wasmgame_new: (a: number, b: number, c: number, d: bigint) => void;
+    readonly wasmgame_procedural: (a: number, b: number, c: number, d: number, e: bigint, f: number) => void;
     readonly wasmgame_reset: (a: number, b: number) => void;
     readonly wasmgame_state_json: (a: number, b: number) => void;
     readonly wasmgame_legal_actions_json: (a: number, b: number) => void;
