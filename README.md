@@ -170,11 +170,13 @@ PYTHONPATH=python python python/evaluate.py \
   --width 11 --height 9 --action-limit 1000
 ```
 
-This checkpoint is not assigned an absolute Elo. It scores 126–4–94 against
-the native 2048-node search baseline across all seven versioned profiles on the
-recorded arena, for +50 paired relative Elo in aggregate. Per-profile results,
-including weaker Duel and Experimental v1 play, are recorded under
-[`benchmarks/`](benchmarks/).
+This checkpoint is not assigned an absolute Elo. Under the schema-v2 paired
+protocol it scores 138–2–84 against the native 2048-node search baseline across
+all seven versioned profiles, for +85 paired relative Elo on the recorded arena.
+The benchmark reports both seats and exposes weaker Duel, Experimental v1, and
+second-seat Experimental v2 play. The earlier schema-v1 result used different
+seeds across alternating seats and is retained only as a historical record.
+Exact results live under [`benchmarks/`](benchmarks/).
 
 Play against the neural beta in a local browser (cyan moves first):
 

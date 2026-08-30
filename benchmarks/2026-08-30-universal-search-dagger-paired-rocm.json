@@ -1,0 +1,162 @@
+{
+  "schema_version": 2,
+  "kind": "universal_search_dagger_paired_evaluation",
+  "evaluation_commit": "788f978cbbe2c090c9393f49a5fb2736b92f1f8c",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 8,
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "pytorch": "2.9.1+rocm6.4",
+    "process_priority": "nice 10"
+  },
+  "checkpoint": {
+    "asset": "universal-search-dagger-2026-08-30.pt",
+    "sha256": "f83e8d97fcca9df3890d173c67fcc85a506d38d1770521896d4542264fbceee4",
+    "size_bytes": 11109163,
+    "release": "model-v0.2.0-beta.1"
+  },
+  "arena": {
+    "generator": "symmetric_duel_v1",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "action_limit": 1000,
+    "games_per_profile_seed_window": 16,
+    "unique_maps_per_profile_seed_window": 8,
+    "seed_windows": [
+      120000,
+      130000
+    ],
+    "pairing": "adjacent_same_seed_opposite_seat_v1",
+    "baseline": "deterministic_whole_turn_search",
+    "search_nodes": 2048,
+    "search_beam_width": 32,
+    "search_branch_width": 48,
+    "search_maximum_actions_per_turn": 24
+  },
+  "held_out_vs_search": [
+    {
+      "profile": "classic_generic_2022",
+      "wins": 28,
+      "draws": 0,
+      "losses": 4,
+      "score": 0.875,
+      "relative_elo": 338.0392160057027,
+      "seats": [
+        {"seat": 0, "wins": 16, "draws": 0, "losses": 0},
+        {"seat": 1, "wins": 12, "draws": 0, "losses": 4}
+      ]
+    },
+    {
+      "profile": "classic_slay_2022",
+      "wins": 20,
+      "draws": 1,
+      "losses": 11,
+      "score": 0.640625,
+      "relative_elo": 100.42240828085703,
+      "seats": [
+        {"seat": 0, "wins": 9, "draws": 0, "losses": 7},
+        {"seat": 1, "wins": 11, "draws": 1, "losses": 4}
+      ]
+    },
+    {
+      "profile": "online_default_v1",
+      "wins": 32,
+      "draws": 0,
+      "losses": 0,
+      "score": 1.0,
+      "relative_elo": 719.7362197814326,
+      "seats": [
+        {"seat": 0, "wins": 16, "draws": 0, "losses": 0},
+        {"seat": 1, "wins": 16, "draws": 0, "losses": 0}
+      ]
+    },
+    {
+      "profile": "online_classic_v1",
+      "wins": 20,
+      "draws": 1,
+      "losses": 11,
+      "score": 0.640625,
+      "relative_elo": 100.42240828085703,
+      "seats": [
+        {"seat": 0, "wins": 9, "draws": 0, "losses": 7},
+        {"seat": 1, "wins": 11, "draws": 1, "losses": 4}
+      ]
+    },
+    {
+      "profile": "online_duel_v1",
+      "wins": 11,
+      "draws": 0,
+      "losses": 21,
+      "score": 0.34375,
+      "relative_elo": -112.3306438302777,
+      "seats": [
+        {"seat": 0, "wins": 9, "draws": 0, "losses": 7},
+        {"seat": 1, "wins": 2, "draws": 0, "losses": 14}
+      ]
+    },
+    {
+      "profile": "online_experimental_v1",
+      "wins": 11,
+      "draws": 0,
+      "losses": 21,
+      "score": 0.34375,
+      "relative_elo": -112.3306438302777,
+      "seats": [
+        {"seat": 0, "wins": 9, "draws": 0, "losses": 7},
+        {"seat": 1, "wins": 2, "draws": 0, "losses": 14}
+      ]
+    },
+    {
+      "profile": "online_experimental_v2_260801",
+      "wins": 16,
+      "draws": 0,
+      "losses": 16,
+      "score": 0.5,
+      "relative_elo": 0.0,
+      "seats": [
+        {"seat": 0, "wins": 16, "draws": 0, "losses": 0},
+        {"seat": 1, "wins": 0, "draws": 0, "losses": 16}
+      ]
+    }
+  ],
+  "aggregate": {
+    "games": 224,
+    "wins": 138,
+    "draws": 2,
+    "losses": 84,
+    "truncations": 2,
+    "terminal_draws": 0,
+    "score": 0.6205357142857143,
+    "relative_elo": 85.43834981592096,
+    "seats": [
+      {
+        "seat": 0,
+        "games": 112,
+        "wins": 84,
+        "draws": 0,
+        "losses": 28,
+        "score": 0.75,
+        "relative_elo": 190.84850188786498
+      },
+      {
+        "seat": 1,
+        "games": 112,
+        "wins": 54,
+        "draws": 2,
+        "losses": 56,
+        "score": 0.49107142857142855,
+        "relative_elo": -6.204866471299021
+      }
+    ]
+  },
+  "rejected_candidate": {
+    "sha256": "50401a0374a6f025bea58bd540b95c9cc856576880354253563695eceb7c53a6",
+    "wins": 142,
+    "draws": 0,
+    "losses": 82,
+    "relative_elo": 95.38979679973589,
+    "reason": "Rejected despite the higher aggregate: it went 0-16 from seat 1 on five profiles, a severe universality regression."
+  },
+  "conclusion": "The published beta remains above search-2048 in paired aggregate and is perfect on Online Default, but remains below search on Duel and Experimental v1. Symmetric Duel has material profile-dependent seat effects, so profile and seat slices are mandatory release gates. Relative Elo is arena-specific, not an absolute rating."
+}

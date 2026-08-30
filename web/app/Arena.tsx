@@ -87,9 +87,9 @@ const DEFAULT_CONFIG: LiveConfig = {
 const PLAYER_NAMES = ["CYAN", "AMBER", "VIOLET", "CORAL", "LIME", "BLUE", "PINK", "SILVER"] as const;
 const MODEL_URL = "https://github.com/chelokot/antiyoy/releases/tag/model-v0.2.0-beta.1";
 const MODEL_RESULTS = [
-  ["Classic Generic", "+191"],
-  ["Online Default", "+597"],
-  ["Online Duel", "−137"],
+  ["Classic Generic", "+338"],
+  ["Online Default", "+720"],
+  ["Online Duel", "−112"],
   ["Experimental v2", "±0"],
 ] as const;
 
@@ -468,10 +468,10 @@ export default function Arena() {
           <div className="model-card">
             <div className="flex items-center justify-between gap-3"><p className="eyebrow text-[#d8ff3e]">BETA POLICY</p><span className="font-mono text-[0.65rem] text-[#8d9690]">32/profile</span></div>
             <p className="mt-2 text-sm font-semibold">search-dagger · 0.92M</p>
-            <p className="mt-3 font-mono text-[0.65rem] uppercase tracking-[0.12em] text-[#8d9690]">vs search-2048 · all profiles +50 Elo</p>
+            <p className="mt-3 font-mono text-[0.65rem] uppercase tracking-[0.12em] text-[#8d9690]">vs search-2048 · all profiles +85 Elo</p>
             <dl className="mt-4 space-y-2 font-mono text-xs">{MODEL_RESULTS.map(([profile, elo]) => <Row label={profile} value={`${elo} Elo`} accent={elo.startsWith("+")} key={profile} />)}</dl>
             <a className="model-download" href={MODEL_URL} target="_blank" rel="noreferrer">Download verified checkpoint ↗</a>
-            <p className="mt-3 text-[0.65rem] leading-5 text-[#77817b]">Paired relative Elo on the fixed 11×9 arena. Seven-profile aggregate: 126–4–94. Not an absolute rating.</p>
+            <p className="mt-3 text-[0.65rem] leading-5 text-[#77817b]">Same-map, opposite-seat relative Elo on the fixed 11×9 arena. Seven-profile aggregate: 138–2–84; seat slices remain the release gate. Not an absolute rating.</p>
           </div>
         </aside>
 
