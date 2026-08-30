@@ -10,10 +10,14 @@ export class WasmGame {
     static procedural_with_profile(width: number, height: number, players: number, seed: bigint, land_density_per_million: number, profile: string): WasmGame;
     reset(): string;
     rules_profile(): string;
+    search_count(): bigint;
+    search_node_budget(): number;
+    search_nodes(): number;
     state_json(): string;
     step(action_index: number): string;
     step_bot(): string;
     step_search(): string;
+    step_search_with_budget(node_budget: number): string;
     static with_profile(width: number, height: number, seed: bigint, profile: string): WasmGame;
 }
 
@@ -44,6 +48,10 @@ export interface InitOutput {
     readonly wasmgame_step: (a: number, b: number, c: number) => void;
     readonly wasmgame_step_bot: (a: number, b: number) => void;
     readonly wasmgame_step_search: (a: number, b: number) => void;
+    readonly wasmgame_step_search_with_budget: (a: number, b: number, c: number) => void;
+    readonly wasmgame_search_node_budget: (a: number) => number;
+    readonly wasmgame_search_nodes: (a: number) => number;
+    readonly wasmgame_search_count: (a: number) => bigint;
     readonly __wbg_wasmreplay_free: (a: number, b: number) => void;
     readonly wasmreplay_new: (a: number, b: number, c: number) => void;
     readonly wasmreplay_frame_count: (a: number) => number;

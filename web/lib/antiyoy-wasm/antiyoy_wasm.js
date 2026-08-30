@@ -162,6 +162,27 @@ export class WasmGame {
         }
     }
     /**
+     * @returns {bigint}
+     */
+    search_count() {
+        const ret = wasm.wasmgame_search_count(this.__wbg_ptr);
+        return BigInt.asUintN(64, ret);
+    }
+    /**
+     * @returns {number}
+     */
+    search_node_budget() {
+        const ret = wasm.wasmgame_search_node_budget(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    search_nodes() {
+        const ret = wasm.wasmgame_search_nodes(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
      * @returns {string}
      */
     state_json() {
@@ -252,6 +273,34 @@ export class WasmGame {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
             wasm.wasmgame_step_search(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+            var ptr1 = r0;
+            var len1 = r1;
+            if (r3) {
+                ptr1 = 0; len1 = 0;
+                throw takeObject(r2);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_export(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
+     * @param {number} node_budget
+     * @returns {string}
+     */
+    step_search_with_budget(node_budget) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.wasmgame_step_search_with_budget(retptr, this.__wbg_ptr, node_budget);
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);

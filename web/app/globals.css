@@ -50,6 +50,9 @@ button { font: inherit; }
 .control-primary:hover:not(:disabled) { background: #ebff9e; color: #080b0d; }
 .control-active { border-color: rgb(216 255 62 / 55%); color: #d8ff3e; }
 .panel-toggle { display: inline-flex; border-color: rgb(223 255 88 / 36%); color: var(--acid); }
+.bot-strength { display: flex; flex: none; align-items: center; gap: 0.45rem; border: 0.0625rem solid rgb(223 255 88 / 28%); border-radius: 0.5rem; background: rgb(9 23 26 / 82%); padding-left: 0.6rem; color: var(--muted); font-family: var(--font-geist-mono), monospace; font-size: 0.58rem; letter-spacing: 0.1em; }
+.bot-strength select { min-width: 7.25rem; border: 0; border-left: 0.0625rem solid rgb(255 255 255 / 10%); background: transparent; padding: 0.48rem 0.55rem; color: var(--acid); font-family: inherit; font-size: 0.65rem; letter-spacing: 0; outline: 0; }
+.bot-strength select:disabled { color: #a8b1ac; opacity: 1; }
 .panel-close { position: sticky; z-index: 1; top: 0; float: right; display: grid; width: 2.25rem; height: 2.25rem; margin: 0 0 0.5rem 0.5rem; cursor: pointer; place-items: center; border: 0.0625rem solid rgb(255 255 255 / 16%); border-radius: 50%; background: #11191c; color: #d3dad5; font-size: 1.25rem; }
 .panel-close:hover { border-color: rgb(216 255 62 / 60%); color: var(--acid); }
 .panel-backdrop { position: absolute; z-index: 7; inset: 0; display: block; border: 0; background: rgb(0 0 0 / 58%); opacity: 0; pointer-events: none; transition: opacity 180ms ease; }

@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use antiyoy_agents::{Agent, GreedyAgent, SearchAgent};
+use antiyoy_agents::{Agent, GreedyAgent, SearchAgent, SearchConfig};
 use antiyoy_core::{Action, Game, GeneratorConfig, PlayerId, Rules, Scenario};
 use antiyoy_protocol::{GameView, Replay};
 use serde::Serialize;
@@ -121,6 +121,30 @@ impl WasmGame {
 
     pub fn step_search(&mut self) -> Result<String, JsError> {
         self.step_with_policy(true)
+    }
+
+    pub fn step_search_with_budget(&mut self, node_budget: usize) -> Result<String, JsError> {
+        if self.search.config().node_budget != node_budget {
+            let config = SearchConfig {
+                node_budget,
+                ..self.search.config()
+            };
+            self.search = SearchAgent::with_config("turn-search", config)
+                .map_err(|error| JsError::new(&error.to_string()))?;
+        }
+        self.step_with_policy(true)
+    }
+
+    pub fn search_node_budget(&self) -> usize {
+        self.search.config().node_budget
+    }
+
+    pub fn search_nodes(&self) -> usize {
+        self.search.last_stats().nodes
+    }
+
+    pub fn search_count(&self) -> u64 {
+        self.search.search_count()
     }
 }
 
