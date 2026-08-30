@@ -44,9 +44,12 @@ and reset every environment whose terminal or truncated value is one.
 `UniversalPolicy` is a rules-conditioned hex convolutional actor-critic. It
 scores the current variable legal-action set from source, target, action, and
 global board embeddings instead of allocating a mostly invalid fixed policy
-head. Diplomacy-enabled observations add relation/proposal context and
-player-targeted diplomatic actions. The trainer uses clipped PPO with
-generalized advantage estimation. Both
+head. Each occupied cell carries its owner's relative turn distance and
+active-player relation. Global context includes the player count and logarithmic
+round, so multiplayer opponents no longer collapse into one interchangeable
+category. Diplomacy-enabled observations also add relation/proposal context and
+player-targeted diplomatic actions. The trainer uses clipped PPO with generalized
+advantage estimation. Both
 bootstrapping and GAE flip perspective whenever the active player changes, and
 consume raw reward components supplied by Rust.
 
@@ -182,6 +185,8 @@ exclusive so a warm start cannot be mistaken for an exact continuation.
 Evaluation also accepts the published checkpoint-v4/observation-v6 alpha. Its
 weights are expanded with zeroed diplomacy columns so disabled-diplomacy
 profiles preserve the legacy policy exactly; optimizer resume remains strict.
+Missing multiplayer-context weights are likewise initialized to zero, preserving
+published policy outputs exactly while allowing new runs to learn them.
 
 This trainer is an executable baseline for validating the complete ROCm path;
 checkpoint strength must be established by held-out mirrored tournaments before

@@ -20,6 +20,11 @@ fog visibility mask and adds the complete directed diplomacy matrix. Checkpoints
 store the observation version, feature width, and exact training rules. The
 evaluator migrates the published version-6 alpha weights without changing their
 outputs when diplomacy is disabled; trainer resume requires an exact contract.
+The universal policy derives a relative turn distance for every occupied cell,
+binds each owner to the active player's directed relation, and conditions global
+features on player count and logarithmic round. Missing weights for these derived
+features are zero-initialized when loading older policies, preserving their exact
+outputs.
 
 Per-environment arrays contain width, height, active player, and round. Per-cell
 arrays contain the playable mask, absolute owner (`255` is neutral), object

@@ -117,6 +117,10 @@ def test_selected_observations_recombine_without_changing_policy_outputs() -> No
 
 def test_policy_loads_the_published_observation_v6_weights() -> None:
     original = UniversalPolicy(hidden=16, layers=1)
+    with torch.no_grad():
+        original.action_kind_embedding.weight[5].zero_()
+        original.action_parameter_embedding.weight[5].zero_()
+        original.rule_projection[0].weight[:, 42:].zero_()
     legacy = dict(original.state_dict())
     legacy["action_kind_embedding.weight"] = legacy["action_kind_embedding.weight"][:5]
     legacy["action_parameter_embedding.weight"] = legacy[
@@ -125,9 +129,21 @@ def test_policy_loads_the_published_observation_v6_weights() -> None:
     legacy["rule_projection.0.weight"] = legacy["rule_projection.0.weight"][:, :42]
     del legacy["relation_embedding.weight"]
     del legacy["proposal_embedding.weight"]
+    for key in (
+        "turn_distance_embedding.weight",
+        "cell_relation_embedding.weight",
+        "player_count_embedding.weight",
+        "round_projection.weight",
+    ):
+        del legacy[key]
     restored = UniversalPolicy(hidden=16, layers=1)
 
     load_policy_state(restored, legacy)
+    environment = VectorEnv(2, width=7, height=5, seed=79)
+    observation = environment.observe()
+    rules = encode_rules(environment.rules_json(), torch.device("cpu"))
+    original_logits, original_values = original(observation, rules)
+    restored_logits, restored_values = restored(observation, rules)
 
     assert torch.equal(
         restored.action_kind_embedding.weight[:5],
@@ -139,6 +155,12 @@ def test_policy_loads_the_published_observation_v6_weights() -> None:
     )
     assert torch.count_nonzero(restored.rule_projection[0].weight[:, 42:]) == 0
     assert torch.count_nonzero(restored.action_kind_embedding.weight[5]) == 0
+    assert torch.count_nonzero(restored.turn_distance_embedding.weight) == 0
+    assert torch.count_nonzero(restored.cell_relation_embedding.weight) == 0
+    assert torch.count_nonzero(restored.player_count_embedding.weight) == 0
+    assert torch.count_nonzero(restored.round_projection.weight) == 0
+    assert torch.equal(restored_logits, original_logits)
+    assert torch.equal(restored_values, original_values)
 
 
 def test_policy_scores_player_targeted_diplomacy_actions() -> None:
@@ -146,11 +168,17 @@ def test_policy_scores_player_targeted_diplomacy_actions() -> None:
     observation = environment.observe()
     rules = encode_rules(environment.rules_json(), torch.device("cpu"))
 
-    logits, values = UniversalPolicy(hidden=16, layers=1)(observation, rules)
+    policy = UniversalPolicy(hidden=16, layers=1)
+    logits, values = policy(observation, rules)
+    (logits.square().mean() + values.square().mean()).backward()
 
     assert 5 in observation["action_kinds"]
     assert logits.shape == (int(observation["action_offsets"][-1]),)
     assert values.shape == (1,)
+    assert torch.count_nonzero(policy.turn_distance_embedding.weight.grad) > 0
+    assert torch.count_nonzero(policy.cell_relation_embedding.weight.grad) > 0
+    assert torch.count_nonzero(policy.player_count_embedding.weight.grad) > 0
+    assert torch.count_nonzero(policy.round_projection.weight.grad) > 0
 
 
 def test_rotating_an_observation_twice_restores_every_tensor() -> None:

@@ -194,6 +194,8 @@ class UniversalPolicy(nn.Module):
         super().__init__()
         self.hidden = hidden
         self.owner_embedding = nn.Embedding(3, hidden)
+        self.turn_distance_embedding = nn.Embedding(9, hidden)
+        self.cell_relation_embedding = nn.Embedding(5, hidden)
         self.object_embedding = nn.Embedding(8, hidden)
         self.unit_embedding = nn.Embedding(5, hidden)
         self.ready_embedding = nn.Embedding(2, hidden)
@@ -205,6 +207,8 @@ class UniversalPolicy(nn.Module):
             nn.GELU(),
             nn.Linear(hidden, hidden),
         )
+        self.player_count_embedding = nn.Embedding(9, hidden)
+        self.round_projection = nn.Linear(1, hidden, bias=False)
         self.blocks = nn.ModuleList(HexBlock(hidden) for _ in range(layers))
         self.action_kind_embedding = nn.Embedding(len(ACTION_KIND_NAMES), hidden)
         self.action_parameter_embedding = nn.Embedding(6, hidden)
@@ -223,6 +227,10 @@ class UniversalPolicy(nn.Module):
             nn.GELU(),
             nn.Linear(hidden, 1),
         )
+        nn.init.zeros_(self.turn_distance_embedding.weight)
+        nn.init.zeros_(self.cell_relation_embedding.weight)
+        nn.init.zeros_(self.player_count_embedding.weight)
+        nn.init.zeros_(self.round_projection.weight)
 
     def forward(
         self,
@@ -275,9 +283,18 @@ class UniversalPolicy(nn.Module):
         active = torch.as_tensor(
             observation["active_players"], dtype=torch.long, device=device
         ).repeat_interleave(cell_count)
+        player_counts = torch.as_tensor(
+            observation["player_counts"], dtype=torch.long, device=device
+        )
+        cell_player_counts = player_counts.repeat_interleave(cell_count)
         owners = torch.as_tensor(observation["owners"], dtype=torch.long, device=device)
         owner_relation = torch.where(
             owners == 255, 0, torch.where(owners == active, 1, 2)
+        )
+        turn_distance = torch.where(
+            owners == 255,
+            0,
+            torch.remainder(owners - active, cell_player_counts) + 1,
         )
         objects = torch.as_tensor(
             observation["objects"], dtype=torch.long, device=device
@@ -297,6 +314,10 @@ class UniversalPolicy(nn.Module):
         )
         cells = (
             self.owner_embedding(owner_relation)
+            + self.turn_distance_embedding(turn_distance)
+            + self._cell_relation_features(
+                observation, owners, active, environments, cell_count, device
+            )
             + self.object_embedding(objects)
             + self.unit_embedding(units)
             + self.ready_embedding(ready)
@@ -320,7 +341,15 @@ class UniversalPolicy(nn.Module):
         elif rules.shape[0] != environments:
             raise ValueError("rule feature rows must match the environment count")
         diplomacy = self._diplomacy_context(observation, rule_features, device)
-        context = rules + diplomacy
+        rounds = torch.as_tensor(
+            observation["rounds"], dtype=torch.float32, device=device
+        ).reshape(-1, 1)
+        context = (
+            rules
+            + diplomacy
+            + self.player_count_embedding(player_counts)
+            + self.round_projection(torch.log1p(rounds))
+        )
         global_features = pooled + context
         flat_cells = grid.permute(0, 2, 3, 1).reshape(
             environments * cell_count, self.hidden
@@ -330,6 +359,50 @@ class UniversalPolicy(nn.Module):
         )
         values = self.value_head(torch.cat((pooled, context), dim=1)).squeeze(1)
         return logits, values
+
+    def _cell_relation_features(
+        self,
+        observation: Mapping[str, np.ndarray],
+        owners: Tensor,
+        active: Tensor,
+        environments: int,
+        cell_count: int,
+        device: torch.device,
+    ) -> Tensor:
+        relation_offsets_numpy = np.asarray(
+            observation["relation_offsets"], dtype=np.int64
+        )
+        relations_present = np.diff(relation_offsets_numpy) > 0
+        cell_environments = (
+            torch.arange(environments, device=device)
+            .reshape(-1, 1)
+            .expand(-1, cell_count)
+            .reshape(-1)
+        )
+        present = torch.as_tensor(
+            np.repeat(relations_present, cell_count),
+            dtype=torch.bool,
+            device=device,
+        )
+        valid = torch.logical_and(owners != 255, present)
+        relation_codes = torch.full_like(owners, 4)
+        if bool(torch.any(valid).item()):
+            relation_offsets = torch.as_tensor(
+                relation_offsets_numpy, dtype=torch.long, device=device
+            )
+            player_counts = torch.as_tensor(
+                observation["player_counts"], dtype=torch.long, device=device
+            )[cell_environments]
+            relation_indices = (
+                relation_offsets[cell_environments[valid]]
+                + active[valid] * player_counts[valid]
+                + owners[valid]
+            )
+            relations = torch.as_tensor(
+                observation["relations"], dtype=torch.long, device=device
+            )
+            relation_codes[valid] = relations[relation_indices]
+        return self.cell_relation_embedding(relation_codes)
 
     def _diplomacy_context(
         self,
@@ -564,7 +637,14 @@ def load_policy_state(model: UniversalPolicy, state: Mapping[str, Tensor]) -> No
         expanded = torch.zeros_like(current[rule_key])
         expanded[:, : migrated[rule_key].shape[1]] = migrated[rule_key]
         migrated[rule_key] = expanded
-    for key in ("relation_embedding.weight", "proposal_embedding.weight"):
+    for key in (
+        "relation_embedding.weight",
+        "proposal_embedding.weight",
+        "turn_distance_embedding.weight",
+        "cell_relation_embedding.weight",
+        "player_count_embedding.weight",
+        "round_projection.weight",
+    ):
         if key not in migrated:
             migrated[key] = current[key]
     model.load_state_dict(migrated)
