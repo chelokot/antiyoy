@@ -72,16 +72,20 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
     readFile(new URL("../app/Arena.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
-  assert.match(styles, /html, body \{ height: 100%; overflow: hidden; \}/);
-  assert.match(styles, /\.arena-shell \{[^}]*height: 100dvh;[^}]*overflow: hidden;/);
-  assert.match(styles, /\.arena-layout \{[^}]*min-height: 0;[^}]*overflow: hidden;/);
-  assert.match(styles, /\.arena-sidebar \{[^}]*overflow-y: auto;[^}]*overscroll-behavior: contain;/);
+  assert.match(styles, /html, body \{[^}]*height: 100%;[^}]*overflow: hidden;[^}]*overscroll-behavior: none;/);
+  assert.match(styles, /\.arena-shell \{[^}]*position: fixed;[^}]*height: 100dvh;[^}]*overflow: hidden;/);
+  assert.match(styles, /\.arena-layout \{[^}]*min-width: 0;[^}]*min-height: 0;[^}]*overflow: hidden;/);
+  assert.match(styles, /\.arena-sidebar \{[^}]*overflow-x: hidden;[^}]*overflow-y: auto;[^}]*overscroll-behavior: contain;/);
   assert.match(styles, /\.board-scroll \{[^}]*overflow: hidden;/);
   assert.match(styles, /clip-path: polygon\(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%\)/);
+  assert.match(styles, /\.hex \{[^}]*margin-right: -0\.8375rem;/);
+  assert.match(styles, /\.panel-section > summary/);
   assert.match(arena, /new ResizeObserver\(fit\)/);
   assert.match(arena, /translate\(-50%, -50%\) scale\(\$\{boardScale\}\)/);
   assert.match(arena, />Overview<\/button>/);
   assert.match(arena, />Inspect<\/button>/);
+  assert.match(arena, /<summary>MAP GENERATOR<\/summary>/);
+  assert.match(arena, /<summary>PROVINCE ECONOMY<\/summary>/);
 });
 
 test("executes greedy and whole-turn search in the compiled WebAssembly engine", async () => {
