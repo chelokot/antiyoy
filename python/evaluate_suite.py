@@ -119,6 +119,29 @@ def minimum_seat_slice(results: list[dict[str, object]]) -> dict[str, object]:
     return min(slices, key=lambda result: float(result[metric]))
 
 
+def minimum_profile_seat_slice(
+    results: list[dict[str, object]],
+) -> dict[str, object]:
+    slices = []
+    profiles = dict.fromkeys(str(result["profile"]) for result in results)
+    for profile in profiles:
+        profile_results = [
+            result for result in results if result["profile"] == profile
+        ]
+        seats = len(profile_results[0]["seats"])
+        for seat in range(seats):
+            slices.append(
+                {
+                    "profile": profile,
+                    "seat": seat,
+                    "seed_windows": [int(result["seed"]) for result in profile_results],
+                    **aggregate_outcomes(profile_results, seat),
+                }
+            )
+    metric = "score_delta" if "score_delta" in slices[0] else "score"
+    return min(slices, key=lambda result: float(result[metric]))
+
+
 def checkpoint_digest(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as checkpoint:
@@ -216,7 +239,8 @@ def main() -> None:
                 )
             )
     aggregate = aggregate_results(results)
-    weakest_seat = minimum_seat_slice(results)
+    weakest_seed_seat = minimum_seat_slice(results)
+    weakest_seat = minimum_profile_seat_slice(results)
     result: dict[str, object] = {
         "schema_version": 3,
         "kind": "universal_policy_seed_sweep",
@@ -274,6 +298,7 @@ def main() -> None:
         "results": results,
         "aggregate": aggregate,
         "weakest_seat": weakest_seat,
+        "weakest_seed_seat": weakest_seed_seat,
     }
     serialized = json.dumps(result, sort_keys=True)
     print(serialized)

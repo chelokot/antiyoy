@@ -151,7 +151,9 @@ Arena dimensions and action limits otherwise inherit the training checkpoint.
 Cross-checkpoint comparisons must pass the same explicit `--width`, `--height`,
 and `--action-limit`; all three values are emitted in every result.
 
-`evaluate_suite.py` writes the weakest `profile × seed window × seat` slice.
+`evaluate_suite.py` gates the weakest `profile × seat` slice aggregated across
+all requested seed windows and also writes the weakest individual seed-window
+slice for diagnostics.
 For every map window it also runs baseline self-play. The reported
 `baseline_score` and `score_delta` calibrate each seat against the actual turn
 order advantage instead of assuming that every seat wins exactly `1/N` games.

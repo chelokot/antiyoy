@@ -13,7 +13,11 @@ from python.evaluate import (
     seat_rotation_seeds,
     selected_action_kinds,
 )
-from python.evaluate_suite import aggregate_results, minimum_seat_slice
+from python.evaluate_suite import (
+    aggregate_results,
+    minimum_profile_seat_slice,
+    minimum_seat_slice,
+)
 
 
 def test_selected_action_kinds_resolves_local_ragged_indices() -> None:
@@ -296,3 +300,44 @@ def test_minimum_seat_slice_uses_self_play_calibrated_delta() -> None:
     ]
 
     assert minimum_seat_slice(results)["seat"] == 0
+
+
+def test_minimum_profile_seat_slice_aggregates_seed_windows() -> None:
+    results = [
+        {
+            "players": 2,
+            "profile": "classic_generic_2022",
+            "seed": seed,
+            "seats": [
+                {
+                    "games": 2,
+                    "wins": wins,
+                    "draws": 0,
+                    "losses": 2 - wins,
+                    "truncations": 0,
+                    "terminal_draws": 0,
+                    "baseline_wins": baseline_wins,
+                    "baseline_draws": 0,
+                    "baseline_truncations": 0,
+                },
+                {
+                    "games": 2,
+                    "wins": 1,
+                    "draws": 0,
+                    "losses": 1,
+                    "truncations": 0,
+                    "terminal_draws": 0,
+                    "baseline_wins": 1,
+                    "baseline_draws": 0,
+                    "baseline_truncations": 0,
+                },
+            ],
+        }
+        for seed, wins, baseline_wins in ((100, 0, 1), (200, 2, 1))
+    ]
+
+    weakest = minimum_profile_seat_slice(results)
+
+    assert weakest["seat"] == 0
+    assert weakest["seed_windows"] == [100, 200]
+    assert weakest["score_delta"] == pytest.approx(0.0)

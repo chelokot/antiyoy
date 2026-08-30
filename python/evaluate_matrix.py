@@ -16,7 +16,7 @@ try:
         ALL_PROFILES,
         aggregate_results,
         checkpoint_digest,
-        minimum_seat_slice,
+        minimum_profile_seat_slice,
         write_result,
     )
 except ImportError:
@@ -25,7 +25,7 @@ except ImportError:
         ALL_PROFILES,
         aggregate_results,
         checkpoint_digest,
-        minimum_seat_slice,
+        minimum_profile_seat_slice,
         write_result,
     )
 
@@ -206,7 +206,7 @@ def evaluate_domain(
         "action_limit": domain.action_limit,
         "results": results,
         "aggregate": aggregate_results(results),
-        "weakest_seat": minimum_seat_slice(results),
+        "weakest_seat": minimum_profile_seat_slice(results),
     }
 
 

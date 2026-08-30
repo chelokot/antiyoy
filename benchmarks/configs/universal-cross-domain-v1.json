@@ -65,7 +65,7 @@
       "width": 15,
       "height": 11,
       "players": 3,
-      "games_per_seed": 9,
+      "games_per_seed": 18,
       "seeds": [210000, 220000],
       "action_limit": 1600,
       "land_density_per_million": 650000
@@ -76,7 +76,7 @@
       "width": 17,
       "height": 13,
       "players": 4,
-      "games_per_seed": 8,
+      "games_per_seed": 16,
       "seeds": [210000, 220000],
       "action_limit": 2000,
       "land_density_per_million": 700000,
