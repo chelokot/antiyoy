@@ -162,6 +162,7 @@ dependencies = [
  "antiyoy-agents",
  "antiyoy-core",
  "antiyoy-protocol",
+ "antiyoy-rl",
  "getrandom",
  "serde",
  "serde_json",

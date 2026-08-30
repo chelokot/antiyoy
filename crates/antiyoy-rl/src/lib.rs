@@ -143,6 +143,78 @@ impl BatchObservation {
         self.relations.clear();
         self.proposals.clear();
     }
+
+    pub fn observe_game(&mut self, game: &Game, actions: &[Action], fog: bool) {
+        self.clear();
+        self.prepare(1);
+        self.rules.push(game.rules().clone());
+        self.push_game(game, actions, fog, &mut Vec::new());
+    }
+
+    fn prepare(&mut self, environments: usize) {
+        self.cell_offsets.reserve(environments + 1);
+        self.province_offsets.reserve(environments + 1);
+        self.action_offsets.reserve(environments + 1);
+        self.relation_offsets.reserve(environments + 1);
+        self.cell_offsets.push(0);
+        self.province_offsets.push(0);
+        self.action_offsets.push(0);
+        self.relation_offsets.push(0);
+    }
+
+    fn push_game(
+        &mut self,
+        game: &Game,
+        actions: &[Action],
+        fog: bool,
+        visibility: &mut Vec<bool>,
+    ) {
+        self.widths.push(game.topology().width());
+        self.heights.push(game.topology().height());
+        self.active_players.push(game.active_player().0);
+        self.player_counts.push(game.player_count());
+        self.rounds.push(game.round());
+        if fog {
+            game.diplomatic_visibility(game.active_player(), visibility);
+        }
+        for (cell, hex_id) in game.cells().iter().copied().zip(0_u16..) {
+            let hex = HexId(hex_id);
+            let playable = game.topology().is_playable(hex);
+            self.playable.push(u8::from(playable));
+            self.visible
+                .push(u8::from(!fog && playable || fog && visibility[hex.index()]));
+            self.owners.push(cell.owner().0);
+            self.objects.push(object_code(cell.object()));
+            self.unit_strengths.push(cell.unit().strength());
+            self.ready.push(u8::from(cell.unit().is_ready()));
+            self.defenses
+                .push(game.hex_defense(hex).unwrap_or_default());
+            self.province_ids.push(cell.province().0);
+        }
+        for province in game.provinces() {
+            self.province_owners.push(province.owner().0);
+            self.province_money.push(province.money());
+            self.province_profit
+                .push(game.province_profit(province.id()).unwrap_or_default());
+            self.province_capitals.push(province.capital().0);
+            self.province_sizes.push(province.hexes().len());
+        }
+        self.actions
+            .extend(actions.iter().copied().map(ActionFeatures::from));
+        if game.rules().diplomacy.enabled {
+            self.relations
+                .extend(game.relations().iter().map(|relation| *relation as u8));
+            self.proposals.extend(
+                game.proposals()
+                    .iter()
+                    .map(|proposal| proposal.map_or(u8::MAX, |relation| relation as u8)),
+            );
+        }
+        self.cell_offsets.push(self.owners.len());
+        self.province_offsets.push(self.province_money.len());
+        self.action_offsets.push(self.actions.len());
+        self.relation_offsets.push(self.relations.len());
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -562,66 +634,10 @@ impl BatchEnv {
     pub fn observe(&self, output: &mut BatchObservation) {
         output.clear();
         output.rules.extend(self.rules.iter().cloned());
-        output.cell_offsets.reserve(self.len() + 1);
-        output.province_offsets.reserve(self.len() + 1);
-        output.action_offsets.reserve(self.len() + 1);
-        output.relation_offsets.reserve(self.len() + 1);
-        output.cell_offsets.push(0);
-        output.province_offsets.push(0);
-        output.action_offsets.push(0);
-        output.relation_offsets.push(0);
+        output.prepare(self.len());
         let mut visibility = Vec::new();
         for (game, actions) in self.games.iter().zip(&self.legal_actions) {
-            output.widths.push(game.topology().width());
-            output.heights.push(game.topology().height());
-            output.active_players.push(game.active_player().0);
-            output.player_counts.push(game.player_count());
-            output.rounds.push(game.round());
-            if self.fog {
-                game.diplomatic_visibility(game.active_player(), &mut visibility);
-            }
-            for (cell, hex_id) in game.cells().iter().copied().zip(0_u16..) {
-                let hex = HexId(hex_id);
-                let playable = game.topology().is_playable(hex);
-                output.playable.push(u8::from(playable));
-                output.visible.push(u8::from(
-                    !self.fog && playable || self.fog && visibility[hex.index()],
-                ));
-                output.owners.push(cell.owner().0);
-                output.objects.push(object_code(cell.object()));
-                output.unit_strengths.push(cell.unit().strength());
-                output.ready.push(u8::from(cell.unit().is_ready()));
-                output
-                    .defenses
-                    .push(game.hex_defense(hex).unwrap_or_default());
-                output.province_ids.push(cell.province().0);
-            }
-            for province in game.provinces() {
-                output.province_owners.push(province.owner().0);
-                output.province_money.push(province.money());
-                output
-                    .province_profit
-                    .push(game.province_profit(province.id()).unwrap_or_default());
-                output.province_capitals.push(province.capital().0);
-                output.province_sizes.push(province.hexes().len());
-            }
-            output
-                .actions
-                .extend(actions.iter().copied().map(ActionFeatures::from));
-            if game.rules().diplomacy.enabled {
-                output
-                    .relations
-                    .extend(game.relations().iter().map(|relation| *relation as u8));
-                output.proposals.extend(
-                    game.proposals()
-                        .iter()
-                        .map(|proposal| proposal.map_or(u8::MAX, |relation| relation as u8)),
-                );
-            }
-            output.cell_offsets.push(output.owners.len());
-            output.province_offsets.push(output.province_money.len());
-            output.action_offsets.push(output.actions.len());
-            output.relation_offsets.push(output.relations.len());
+            output.push_game(game, actions, self.fog, &mut visibility);
         }
     }
 }
@@ -755,6 +771,21 @@ mod tests {
         assert_eq!(observation.player_counts, [2, 2, 2]);
         assert_eq!(observation.owners.len(), 105);
         assert_eq!(observation.actions.len(), observation.action_offsets[3]);
+    }
+
+    #[test]
+    fn standalone_game_observation_matches_batch_observation() {
+        let environment = BatchEnv::symmetric_duels(Rules::classic_generic(), 1, 7, 5, 47, 500)
+            .expect("valid batch");
+        let mut batch = BatchObservation::default();
+        environment.observe(&mut batch);
+        let mut standalone = BatchObservation::default();
+        standalone.observe_game(
+            environment.game(0).expect("known game"),
+            environment.legal_actions(0).expect("known legal actions"),
+            false,
+        );
+        assert_eq!(standalone, batch);
     }
 
     #[test]

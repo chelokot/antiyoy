@@ -3,6 +3,7 @@
 use antiyoy_agents::{Agent, GreedyAgent, SearchAgent, SearchConfig};
 use antiyoy_core::{Action, Game, GeneratorConfig, PlayerId, Rules, Scenario};
 use antiyoy_protocol::{GameView, Replay};
+use antiyoy_rl::BatchObservation;
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
@@ -23,6 +24,7 @@ pub struct WasmGame {
     legal_actions: Vec<Action>,
     greedy: GreedyAgent,
     search: SearchAgent,
+    observation: BatchObservation,
 }
 
 #[wasm_bindgen]
@@ -102,6 +104,13 @@ impl WasmGame {
         serde_json::to_string(&self.legal_actions).map_err(|error| JsError::new(&error.to_string()))
     }
 
+    pub fn policy_observation_json(&mut self) -> Result<String, JsError> {
+        self.game.legal_actions(&mut self.legal_actions);
+        self.observation
+            .observe_game(&self.game, &self.legal_actions, false);
+        serde_json::to_string(&self.observation).map_err(|error| JsError::new(&error.to_string()))
+    }
+
     pub fn step(&mut self, action_index: usize) -> Result<String, JsError> {
         self.game.legal_actions(&mut self.legal_actions);
         let action = self
@@ -174,6 +183,7 @@ impl WasmGame {
             legal_actions: Vec::new(),
             greedy: GreedyAgent::new("greedy"),
             search: SearchAgent::new("turn-search"),
+            observation: BatchObservation::default(),
         })
     }
 }
