@@ -51,7 +51,7 @@ mod tests {
             .position(|cell| cell.owner.0 == 3)
             .expect("fourth player start");
         scenario.cells[fourth_player_cell].unit_strength = 4;
-        let game = crate::Game::new(scenario, Rules::online_default_v1()).expect("valid game");
+        let game = crate::Game::new(Rules::online_default_v1(), scenario).expect("valid game");
 
         let winner = adjudicate(&game).expect("fourth player has the unique score lead");
 
