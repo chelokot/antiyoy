@@ -30,6 +30,7 @@ def test_puct_distillation_changes_only_the_action_head(tmp_path: Path) -> None:
             width=7,
             height=5,
             action_limit=12,
+            disagreement_only=False,
             puct_nodes=4,
             puct_leaf_batch_size=8,
         ),

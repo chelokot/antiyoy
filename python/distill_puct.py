@@ -51,6 +51,7 @@ class PuctDistillationConfig:
     retention_weight: float = 1.0
     rollin: str = "teacher"
     symmetry_augmentation: bool = True
+    disagreement_only: bool = True
     puct_nodes: int = 8
     puct_exploration: float = 1.5
     puct_virtual_loss: float = 1.0
@@ -187,7 +188,10 @@ def distill_puct(
     imitation_loss_average = 0.0
     retention_average = 0.0
     accuracy_average = 0.0
+    disagreement_accuracy_average = 0.0
     disagreement_average = 0.0
+    labeled_examples = 0
+    disagreement_updates = 0
     evaluated_leaves = 0
     leaf_batches = 0
     total_nodes = 0
@@ -226,7 +230,19 @@ def distill_puct(
             student_logits, model_observation["action_offsets"]
         )
         targets = torch.as_tensor(teacher_actions, dtype=torch.long, device=device)
-        imitation_loss = -student_distribution.log_prob(targets).mean()
+        teacher_losses = -student_distribution.log_prob(targets)
+        disagreement_mask = direct_actions != targets
+        disagreements = int(disagreement_mask.sum().item())
+        if config.disagreement_only:
+            imitation_loss = (
+                teacher_losses[disagreement_mask].mean()
+                if disagreements > 0
+                else student_logits.sum() * 0
+            )
+            labeled_examples += disagreements
+        else:
+            imitation_loss = teacher_losses.mean()
+            labeled_examples += config.environments
         retention = torch.distributions.kl_divergence(
             reference_distribution, student_distribution
         ).mean()
@@ -238,12 +254,30 @@ def distill_puct(
         accuracy = float(
             (student_distribution.logits.argmax(dim=1) == targets).float().mean().item()
         )
-        disagreement = float((direct_actions.cpu().numpy() != teacher_actions).mean())
+        disagreement_accuracy = (
+            float(
+                (
+                    student_distribution.logits.argmax(dim=1)[disagreement_mask]
+                    == targets[disagreement_mask]
+                )
+                .float()
+                .mean()
+                .item()
+            )
+            if disagreements > 0
+            else 1.0
+        )
+        disagreement = disagreements / config.environments
         imitation_loss_average += (
             float(imitation_loss.item()) - imitation_loss_average
         ) / update
         retention_average += (float(retention.item()) - retention_average) / update
         accuracy_average += (accuracy - accuracy_average) / update
+        if disagreements > 0:
+            disagreement_updates += 1
+            disagreement_accuracy_average += (
+                disagreement_accuracy - disagreement_accuracy_average
+            ) / disagreement_updates
         disagreement_average += (disagreement - disagreement_average) / update
         evaluated_leaves += int(search_metrics["evaluated_leaves"])
         leaf_batches += int(search_metrics["leaf_batches"])
@@ -292,7 +326,9 @@ def distill_puct(
                         "imitation_loss": float(imitation_loss.item()),
                         "retention_kl": float(retention.item()),
                         "teacher_accuracy": accuracy,
+                        "disagreement_accuracy": disagreement_accuracy,
                         "teacher_direct_disagreement": disagreement,
+                        "labeled_examples": labeled_examples,
                         "completed_games": completed_games,
                     },
                     sort_keys=True,
@@ -330,6 +366,7 @@ def distill_puct(
         "retention_weight": config.retention_weight,
         "rollin": config.rollin,
         "symmetry_augmentation": config.symmetry_augmentation,
+        "disagreement_only": config.disagreement_only,
         "policy_parameters": "action_head_only",
         "frozen_parameters_preserved": True,
         "changed_action_parameters": changed_action_parameters,
@@ -338,7 +375,10 @@ def distill_puct(
             "imitation_loss": imitation_loss_average,
             "retention_kl": retention_average,
             "teacher_accuracy": accuracy_average,
+            "disagreement_accuracy": disagreement_accuracy_average,
             "teacher_direct_disagreement": disagreement_average,
+            "labeled_examples": labeled_examples,
+            "disagreement_updates": disagreement_updates,
             "completed_games": completed_games,
             "wins_by_seat": wins_by_seat.tolist(),
             "draws": draws,
@@ -403,6 +443,11 @@ def main() -> None:
         action=argparse.BooleanOptionalAction,
         default=True,
     )
+    parser.add_argument(
+        "--disagreement-only",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
     parser.add_argument("--puct-nodes", type=int, default=8)
     parser.add_argument("--puct-exploration", type=float, default=1.5)
     parser.add_argument("--puct-virtual-loss", type=float, default=1.0)
@@ -426,6 +471,7 @@ def main() -> None:
             retention_weight=arguments.retention_weight,
             rollin=arguments.rollin,
             symmetry_augmentation=arguments.symmetry_augmentation,
+            disagreement_only=arguments.disagreement_only,
             puct_nodes=arguments.puct_nodes,
             puct_exploration=arguments.puct_exploration,
             puct_virtual_loss=arguments.puct_virtual_loss,
