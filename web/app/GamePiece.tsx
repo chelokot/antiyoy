@@ -1,48 +1,49 @@
-import {
-  Castle,
-  Cross,
-  House,
-  Shield,
-  ShieldCheck,
-  Sword,
-  Swords,
-  Trees,
-  TreePine,
-} from "lucide-react";
+import type { CSSProperties } from "react";
 import type { CellView } from "./game-types";
 
+type PieceName =
+  | "capital"
+  | "farm"
+  | "grave"
+  | "palm"
+  | "pine"
+  | "strong-tower"
+  | "tower"
+  | `unit-${1 | 2 | 3 | 4}`;
+
+function pieceStyle(piece: PieceName): CSSProperties {
+  return { backgroundImage: `url("/game-pieces/${piece}.png")` };
+}
+
+function Piece({ name, className = "" }: { name: PieceName; className?: string }) {
+  return <span className={`game-piece ${className}`} style={pieceStyle(name)} aria-hidden="true" />;
+}
+
 function UnitPiece({ strength }: { strength: number }) {
-  const Icon = [Sword, Sword, Shield, ShieldCheck, Swords][strength] ?? Swords;
-  return <span className={`game-piece game-unit game-unit-${strength}`}><Icon aria-hidden="true" strokeWidth={2.6} /></span>;
+  const normalizedStrength = Math.min(4, Math.max(1, strength)) as 1 | 2 | 3 | 4;
+  return <Piece name={`unit-${normalizedStrength}`} className={`game-unit game-unit-${normalizedStrength}`} />;
 }
 
 export function GamePiece({ cell }: { cell: CellView }) {
   if (cell.strength > 0) {
     return <UnitPiece strength={cell.strength} />;
   }
-  const Icon = {
-    Capital: Castle,
-    Farm: House,
-    Tower: Shield,
-    StrongTower: ShieldCheck,
-    Pine: TreePine,
-    Palm: Trees,
-    Grave: Cross,
-  }[cell.object];
-  return Icon === undefined
-    ? null
-    : <span className={`game-piece game-object game-object-${cell.object.toLowerCase()}`}><Icon aria-hidden="true" strokeWidth={2.5} /></span>;
+  const name = {
+    Capital: "capital",
+    Farm: "farm",
+    Tower: "tower",
+    StrongTower: "strong-tower",
+    Pine: "pine",
+    Palm: "palm",
+    Grave: "grave",
+  }[cell.object] as PieceName | undefined;
+  return name === undefined ? null : <Piece name={name} className={`game-object game-object-${name}`} />;
 }
 
 export function ShopPiece({ kind, strength = 0 }: { kind: "unit" | "farm" | "tower" | "strong-tower" | "tree"; strength?: number }) {
   if (kind === "unit") {
     return <UnitPiece strength={strength} />;
   }
-  const Icon = {
-    farm: House,
-    tower: Shield,
-    "strong-tower": ShieldCheck,
-    tree: TreePine,
-  }[kind];
-  return <span className={`game-piece shop-piece shop-piece-${kind}`}><Icon aria-hidden="true" strokeWidth={2.5} /></span>;
+  const name: PieceName = kind === "tree" ? "pine" : kind;
+  return <Piece name={name} className={`shop-piece shop-piece-${kind}`} />;
 }

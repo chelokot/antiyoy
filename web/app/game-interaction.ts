@@ -11,6 +11,11 @@ export type ActionIntent =
   | { kind: "build"; province: number; structure: string }
   | { kind: "plant-tree"; province: number };
 
+export type HexClickResolution =
+  | { kind: "play"; actionIndex: number }
+  | { kind: "select"; intent: ActionIntent }
+  | { kind: "cancel" };
+
 export function indexedActions(actions: CoreAction[]): IndexedAction[] {
   return actions.map((action, index) => ({ action, index }));
 }
@@ -72,6 +77,21 @@ export function movableSources(actions: IndexedAction[]): Set<number> {
 
 export function actionAtTarget(actions: IndexedAction[], target: number): IndexedAction | null {
   return actions.find(({ action }) => actionTarget(action) === target) ?? null;
+}
+
+export function resolveHexClick(
+  intentActions: IndexedAction[],
+  sources: Set<number>,
+  target: number,
+): HexClickResolution {
+  const targetedAction = actionAtTarget(intentActions, target);
+  if (targetedAction !== null) {
+    return { kind: "play", actionIndex: targetedAction.index };
+  }
+  if (sources.has(target)) {
+    return { kind: "select", intent: { kind: "move", source: target } };
+  }
+  return { kind: "cancel" };
 }
 
 export function globalActions(actions: IndexedAction[]): IndexedAction[] {

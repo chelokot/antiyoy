@@ -11,12 +11,12 @@ import { RoutedBrowserPolicy, type PolicyDecision } from "./browser-policy";
 import type { CellView, CoreAction, EconomyRulesView, StateView } from "./game-types";
 import { GamePiece, ShopPiece } from "./GamePiece";
 import {
-  actionAtTarget,
   actionTarget,
   actionsForIntent,
   globalActions as selectGlobalActions,
   indexedActions,
   movableSources,
+  resolveHexClick,
   type ActionIntent,
 } from "./game-interaction";
 import {
@@ -158,6 +158,11 @@ function centerPlayableCell(state: StateView): number {
   );
 }
 
+function playerCapitalCell(state: StateView, player: number): number {
+  return state.provinces.find((province) => province.owner === player)?.capital
+    ?? centerPlayableCell(state);
+}
+
 function createGame(bindings: WasmModule, config: LiveConfig): WasmGameType {
   if (!/^\d+$/.test(config.seed)) {
     throw new Error("Seed must be an unsigned integer");
@@ -260,9 +265,13 @@ function recordPlacementResult(
 
 function pieceLabel(cell: CellView): string {
   if (cell.strength > 0) {
-    return `UNIT ${cell.strength}`;
+    return unitLabel(cell.strength).toUpperCase();
   }
   return cell.object.toUpperCase();
+}
+
+function unitLabel(strength: number): string {
+  return ["Unit", "Peasant", "Spearman", "Baron", "Knight"][strength] ?? "Unit";
 }
 
 function actionLabel(action: CoreAction): string {
@@ -423,7 +432,7 @@ export default function Arena() {
     setOnlineSession(session);
     setState(session.snapshot.game);
     setActions(session.snapshot.actions_played);
-    setSelectedId(centerPlayableCell(session.snapshot.game));
+    setSelectedId(playerCapitalCell(session.snapshot.game, session.credential.seat));
     const roomConfig = roomConfigFromSnapshot(session.snapshot);
     setActiveConfig(roomConfig);
     if (wasmModule.current !== null) {
@@ -559,7 +568,7 @@ export default function Arena() {
       setEconomyRules(economyRulesForProfile(module, DEFAULT_CONFIG.profile));
       const initialState = parseState(instance.state_json());
       setState(initialState);
-      setSelectedId(centerPlayableCell(initialState));
+      setSelectedId(playerCapitalCell(initialState, 0));
     }).catch((reason: unknown) => {
       setError(reason instanceof Error ? reason.message : String(reason));
     });
@@ -691,7 +700,7 @@ export default function Arena() {
       setActiveConfig(draftConfig);
       setEconomyRules(economyRulesForProfile(bindings, draftConfig.profile));
       setState(next);
-      setSelectedId(centerPlayableCell(next));
+      setSelectedId(playerCapitalCell(next, 0));
       setActionIntent(null);
       setActions(0);
       setPolicyDecision(null);
@@ -751,7 +760,7 @@ export default function Arena() {
       setActiveConfig(placementConfig);
       setEconomyRules(economyRulesForProfile(bindings, placementConfig.profile));
       setState(advanced.state);
-      setSelectedId(centerPlayableCell(advanced.state));
+      setSelectedId(playerCapitalCell(advanced.state, seat));
       setActionIntent(null);
       setActions(advanced.actions);
       setPolicyDecision(null);
@@ -859,7 +868,7 @@ export default function Arena() {
       setEconomyRules(economyRulesForProfile(bindings, DEFAULT_CONFIG.profile));
       setDraftConfig(DEFAULT_CONFIG);
       setState(initialState);
-      setSelectedId(centerPlayableCell(initialState));
+      setSelectedId(playerCapitalCell(initialState, 0));
       setActionIntent(null);
       setActions(0);
       setPlaying(false);
@@ -1046,7 +1055,7 @@ export default function Arena() {
     if (game.current !== null) {
       const liveState = parseState(game.current.reset());
       setState(liveState);
-      setSelectedId(centerPlayableCell(liveState));
+      setSelectedId(playerCapitalCell(liveState, 0));
       setActionIntent(null);
     }
     setActions(0);
@@ -1119,9 +1128,7 @@ export default function Arena() {
   );
   const roomConfigSummary = `${rulesProfileLabel(draftConfig.profile)} · ${draftConfig.map === "duel" ? "duel" : `${draftConfig.width}×${draftConfig.height} procedural`} · ${draftConfig.map === "duel" ? 2 : draftConfig.players} players`;
   const economyPlayer = humanMode ? humanSeat : state?.active_player ?? 0;
-  const shopProvince = province?.owner === economyPlayer
-    ? province
-    : state?.provinces.find((candidate) => candidate.owner === economyPlayer) ?? null;
+  const shopProvince = province?.owner === economyPlayer ? province : null;
   const economyProvince = shopProvince;
   const economy = economyProvince ?? { money: 0, profit: 0 };
   const recruitStrengths = shopProvince === null
@@ -1165,20 +1172,20 @@ export default function Arena() {
   const activeIntentLabel = actionIntent === null
     ? movementSources.size > 0 ? "Choose a unit or buy an item" : "Choose an item"
     : actionIntent.kind === "move"
-      ? `Unit ${state?.cells[actionIntent.source].strength ?? ""} selected · choose a highlighted hex`
+      ? `${unitLabel(state?.cells[actionIntent.source].strength ?? 0)} selected · choose a highlighted hex`
       : "Item selected · choose a highlighted hex";
   const handleHexSelect = (cellId: number) => {
     setSelectedId(cellId);
     if (!humanCanAct) {
       return;
     }
-    const targetedAction = actionAtTarget(intentActions, cellId);
-    if (targetedAction !== null) {
-      void playHumanAction(targetedAction.index);
-      return;
-    }
-    if (movementSources.has(cellId)) {
-      setActionIntent({ kind: "move", source: cellId });
+    const resolution = resolveHexClick(intentActions, movementSources, cellId);
+    if (resolution.kind === "play") {
+      void playHumanAction(resolution.actionIndex);
+    } else if (resolution.kind === "select") {
+      setActionIntent(resolution.intent);
+    } else {
+      setActionIntent(null);
     }
   };
 
@@ -1240,7 +1247,7 @@ export default function Arena() {
           {humanMode && replayMetadata === null && <div className="action-dock">
             <div className="action-dock-heading"><div><p className="eyebrow action-dock-eyebrow">YOUR MOVE</p><p className="action-dock-title">{activeIntentLabel}</p></div><span className="action-dock-status">{onlineSession?.snapshot.status === "Waiting" ? "WAITING FOR PLAYER" : connectionStatus !== "authenticated" && onlineSession !== null ? "CONNECTING" : state?.terminal ? "GAME OVER" : botThinking ? onlineSession !== null ? "SYNCING MOVE" : placementMode || botOpponent !== "neural" ? "BOT THINKING" : "NEURAL THINKING" : onlineSession === null && !placementMode && botOpponent === "neural" && policyStatus === "loading" ? "MODEL LOADING" : humanCanAct && actionIntent !== null ? `${intentActions.length} LEGAL TARGETS` : humanCanAct ? `${movementSources.size} READY UNITS` : "OPPONENT TURN"}</span></div>
             <div className="action-dock-buttons">
-              {recruitStrengths.map((strength) => <ShopButton label={`Unit ${strength}`} price={itemPrice("unit", strength)} selected={actionIntent?.kind === "recruit" && actionIntent.strength === strength && actionIntent.provinceCapital === shopProvince?.capital} disabled={!humanCanAct} onClick={() => { if (shopProvince !== null) setActionIntent({ kind: "recruit", provinceCapital: shopProvince.capital, strength }); }} key={`unit-${strength}`}><ShopPiece kind="unit" strength={strength} /></ShopButton>)}
+              {recruitStrengths.map((strength) => <ShopButton label={unitLabel(strength)} price={itemPrice("unit", strength)} selected={actionIntent?.kind === "recruit" && actionIntent.strength === strength && actionIntent.provinceCapital === shopProvince?.capital} disabled={!humanCanAct} onClick={() => { if (shopProvince !== null) setActionIntent({ kind: "recruit", provinceCapital: shopProvince.capital, strength }); }} key={`unit-${strength}`}><ShopPiece kind="unit" strength={strength} /></ShopButton>)}
               {structures.map((structure) => <ShopButton label={structure === "StrongTower" ? "Strong tower" : structure} price={itemPrice(structure as "Farm" | "Tower" | "StrongTower")} selected={actionIntent?.kind === "build" && actionIntent.structure === structure && actionIntent.province === shopProvince?.id} disabled={!humanCanAct} onClick={() => { if (shopProvince !== null) setActionIntent({ kind: "build", province: shopProvince.id, structure }); }} key={structure}><ShopPiece kind={structure === "Farm" ? "farm" : structure === "Tower" ? "tower" : "strong-tower"} /></ShopButton>)}
               {canPlantTree && <ShopButton label="Tree" price={itemPrice("tree")} selected={actionIntent?.kind === "plant-tree" && actionIntent.province === shopProvince?.id} disabled={!humanCanAct} onClick={() => { if (shopProvince !== null) setActionIntent({ kind: "plant-tree", province: shopProvince.id }); }}><ShopPiece kind="tree" /></ShopButton>}
               {actionIntent !== null && <button className="shop-cancel" type="button" onClick={() => setActionIntent(null)}>Cancel</button>}
@@ -1317,7 +1324,7 @@ function Hex({
   onSelect: (id: number) => void;
 }) {
   const owner = cell.owner === null ? "neutral" : `player-${cell.owner % PLAYER_NAMES.length}`;
-  return <button className={`hex hex-${owner} ${cell.playable ? "" : "hex-void"} ${inspected ? "hex-inspected" : ""} ${selected ? "hex-selected" : ""} ${selectable ? "hex-selectable" : ""} ${actionable ? "hex-actionable" : ""}`} type="button" disabled={!cell.playable} aria-label={cell.playable ? `Hex ${cell.id}, ${pieceLabel(cell)}${selected ? ", selected unit" : actionable ? ", legal destination" : selectable ? ", ready unit" : ""}` : `Inactive hex ${cell.id}`} onClick={() => onSelect(cell.id)}><GamePiece cell={cell} /></button>;
+  return <button className={`hex hex-${owner} ${cell.playable ? "" : "hex-void"} ${inspected ? "hex-inspected" : ""} ${selected ? "hex-selected" : ""} ${selectable ? "hex-selectable" : ""} ${actionable ? "hex-actionable" : ""}`} type="button" disabled={!cell.playable} aria-label={cell.playable ? `Hex ${cell.id}, ${pieceLabel(cell)}${selected ? ", selected unit" : actionable ? ", legal destination" : selectable ? ", ready unit" : ""}` : `Inactive hex ${cell.id}`} onClick={() => onSelect(cell.id)}><GamePiece cell={cell} />{selected && <span className="selection-ring" aria-hidden="true" />}{actionable && <span className="move-target" aria-hidden="true" />}</button>;
 }
 
 function ShopButton({

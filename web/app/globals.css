@@ -146,17 +146,14 @@ button { font: inherit; }
 .board-scroll { position: absolute; inset: 4.25rem 0.5rem 4.15rem; min-height: 0; overflow: hidden; }
 .board-scroll-human { bottom: 7.25rem; }
 .board-transform { position: absolute; top: 50%; left: 50%; width: max-content; transform-origin: center; }
-.hex-board { width: max-content; filter: drop-shadow(0 0.2rem 0 rgb(0 0 0 / 30%)); }
-.hex-row { display: flex; width: max-content; gap: 0; margin-top: -1.15625rem; }
-.hex-row:first-child { margin-top: 0; }
-.hex-row:nth-child(even) { margin-left: 2rem; }
-.hex { --hex-color: #626766; position: relative; display: grid; width: 4rem; height: 4.625rem; flex: 0 0 4rem; margin: 0; cursor: pointer; appearance: none; place-items: center; clip-path: polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%); border: 0; background: #263234; padding: 0; color: var(--cream); line-height: 1; transform: scale(1.012); transition: filter 100ms ease, transform 100ms ease; }
-.hex::before { position: absolute; z-index: 0; inset: 0.09rem; clip-path: inherit; background: var(--hex-color); content: ""; }
-.hex::after { position: absolute; z-index: 0; inset: 0.09rem; clip-path: inherit; box-shadow: inset 0 0 0 0.055rem rgb(255 255 255 / 18%); content: ""; }
+.hex-board { width: max-content; padding-bottom: 2rem; filter: drop-shadow(0 0.2rem 0 rgb(0 0 0 / 22%)); }
+.hex-row { display: flex; width: max-content; height: 4rem; gap: 0; }
+.hex { --hex-color: #626766; --hex-shift: 0rem; position: relative; display: grid; width: 4.625rem; height: 4rem; flex: 0 0 4.625rem; margin: 0 0 0 -1.15625rem; cursor: pointer; appearance: none; place-items: center; clip-path: polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); border: 0; background: var(--hex-color); padding: 0; color: var(--cream); line-height: 1; transform: translateY(var(--hex-shift)) scale(1.018); transform-origin: center; transition: filter 100ms ease, transform 100ms ease; }
+.hex:first-child { margin-left: 0; }
+.hex:nth-child(even) { --hex-shift: 2rem; }
 .hex:hover { z-index: 2; filter: brightness(1.2); }
 .hex:focus-visible { z-index: 4; outline: 0.2rem solid #d8ff3e; outline-offset: 0.15rem; }
-.hex-actionable:not(.hex-selected) { z-index: 1; filter: brightness(1.14) drop-shadow(0 0 0.32rem rgb(255 248 185 / 72%)); }
-.hex-actionable::after { inset: 0.16rem; box-shadow: inset 0 0 0 0.13rem rgb(255 250 199 / 95%); }
+.hex-actionable:not(.hex-selected) { z-index: 1; filter: brightness(1.18); }
 .hex-player-0 { --hex-color: #55c7bd; }
 .hex-player-1 { --hex-color: #e8b640; }
 .hex-player-2 { --hex-color: #8a6ec7; }
@@ -168,8 +165,10 @@ button { font: inherit; }
 .hex-neutral { --hex-color: #626766; }
 .hex-void { visibility: hidden; pointer-events: none; }
 .hex-inspected:not(.hex-selected):not(.hex-actionable) { filter: brightness(1.08); }
-.hex-selected { z-index: 3; filter: brightness(1.2) drop-shadow(0 0 0.55rem #fff3a4); transform: scale(1.08); }
-.hex-selectable .game-unit { box-shadow: 0 0.18rem 0 rgb(0 0 0 / 32%), 0 0 0 0.12rem rgb(255 248 201 / 42%); }
+.hex-selected { z-index: 3; filter: brightness(1.14); transform: translateY(var(--hex-shift)) scale(1.06); }
+.hex-selectable .game-unit { filter: drop-shadow(0 0 0.2rem rgb(255 248 201 / 90%)); }
+.selection-ring { position: absolute; z-index: 3; width: 3.25rem; height: 3.25rem; background: url("/game-pieces/selection.png") center / contain no-repeat; pointer-events: none; }
+.move-target { position: absolute; z-index: 2; width: 2.7rem; height: 2.7rem; border: 0.2rem solid rgb(255 247 196 / 94%); border-radius: 50%; box-shadow: 0 0 0 0.12rem rgb(24 71 78 / 28%), inset 0 0 0 0.12rem rgb(24 71 78 / 18%); pointer-events: none; }
 .human-actions { margin-top: 2rem; border: 0.0625rem solid rgb(216 255 62 / 25%); background: rgb(216 255 62 / 4%); padding: 1rem; }
 .action-button { width: 100%; border: 0.0625rem solid #444744; background: #fffdf4; padding: 0.55rem 0.65rem; color: var(--ink); text-align: left; font-family: var(--font-geist-mono), monospace; font-size: 0.65rem; }
 .action-button:hover:not(:disabled) { background: #e5b93f; color: var(--ink); }
@@ -184,22 +183,15 @@ button { font: inherit; }
 .action-button-inline { width: auto; min-width: max-content; flex: 0 0 auto; border: 0.0625rem solid #444744; background: #f8f5e9; padding: 0.55rem 0.8rem; color: var(--ink); }
 .action-button-inline:hover:not(:disabled) { border-color: #111; background: white; color: #111; }
 .action-dock-empty { color: #555954; font-size: 0.72rem; line-height: 1.8rem; }
-.game-piece { position: relative; z-index: 1; display: grid; width: 2.2rem; height: 2.2rem; place-items: center; color: #fff5cb; filter: drop-shadow(0 0.15rem 0 rgb(0 0 0 / 42%)); }
-.game-piece svg { width: 1.65rem; height: 1.65rem; fill: rgb(255 248 211 / 16%); }
-.game-unit { border: 0.12rem solid #303632; border-radius: 50%; background: #fff5cf; color: #252a27; box-shadow: 0 0.18rem 0 rgb(0 0 0 / 32%); filter: none; }
-.game-unit svg { width: 1.45rem; height: 1.45rem; fill: rgb(44 48 45 / 10%); }
-.game-unit-2 { border-radius: 0.65rem; }
-.game-unit-3 { border-width: 0.16rem; background: #fff0b0; }
-.game-unit-4 { border-width: 0.18rem; background: #202522; color: #fff2bd; }
-.game-object-capital, .game-object-farm, .game-object-tower, .game-object-strongtower { border: 0.0625rem solid rgb(255 246 207 / 35%); border-radius: 0.5rem; background: rgb(5 15 17 / 34%); box-shadow: 0 0.25rem 0.65rem rgb(0 0 0 / 24%); }
-.game-object-pine, .game-object-palm { color: #153e26; }
-.game-object-grave { color: #f2ecdc; }
+.game-piece { position: relative; z-index: 4; display: block; width: 3rem; height: 3rem; background-position: center; background-repeat: no-repeat; background-size: contain; filter: drop-shadow(0 0.12rem 0 rgb(0 0 0 / 35%)); pointer-events: none; }
+.game-unit { width: 3.15rem; height: 3.15rem; }
+.game-object-pine, .game-object-palm { width: 3.2rem; height: 3.2rem; }
+.game-object-capital, .game-object-farm, .game-object-tower, .game-object-strong-tower { width: 2.9rem; height: 2.9rem; }
 .shop-button { display: grid; min-width: 6.4rem; flex: 0 0 auto; cursor: pointer; grid-template-columns: 2.7rem 1fr; align-items: center; border: 0.0625rem solid #4b4c47; background: #f8f5e9; padding: 0.3rem 0.55rem 0.3rem 0.35rem; color: var(--ink); text-align: left; }
 .shop-button:hover:not(:disabled), .shop-button-selected { border-color: #111; background: #fffdf7; box-shadow: inset 0 -0.22rem 0 #e5b93f; }
 .shop-button:disabled { cursor: not-allowed; opacity: 0.42; }
 .shop-button-icon { display: grid; place-items: center; }
-.shop-piece { color: #26302b; filter: none; }
-.shop-piece svg { fill: rgb(38 48 43 / 8%); }
+.shop-piece { width: 2.6rem; height: 2.6rem; filter: none; }
 .shop-button-copy { display: grid; gap: 0.16rem; }
 .shop-button-copy strong { font-size: 0.68rem; font-weight: 750; white-space: nowrap; }
 .shop-button-copy small { color: #745b12; font-size: 0.72rem; font-weight: 800; }

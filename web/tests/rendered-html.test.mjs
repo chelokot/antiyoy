@@ -66,6 +66,9 @@ test("ships the generated engine and social card", async () => {
     access(new URL("../public/browser-online-experimental-v1-seat0-v6.onnx", import.meta.url)),
     access(new URL("../public/ort-wasm-simd-threaded.wasm", import.meta.url)),
     access(new URL("../public/ort-wasm-simd-threaded.mjs", import.meta.url)),
+    access(new URL("../public/game-pieces/unit-1.png", import.meta.url)),
+    access(new URL("../public/game-pieces/capital.png", import.meta.url)),
+    access(new URL("../public/game-pieces/selection.png", import.meta.url)),
   ]);
   assert.match(bindings, /class WasmGame/);
   assert.match(bindings, /class WasmReplay/);
@@ -132,9 +135,9 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(styles, /\.board-scroll-human \{[^}]*bottom: 7\.25rem;/);
   assert.match(styles, /\.action-dock \{[^}]*position: absolute;/);
   assert.match(styles, /\.action-dock-buttons \{[^}]*overflow-x: auto;[^}]*overscroll-behavior-inline: contain;/);
-  assert.match(styles, /clip-path: polygon\(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%\)/);
-  assert.match(styles, /\.hex \{[^}]*width: 4rem;[^}]*height: 4\.625rem;[^}]*flex: 0 0 4rem;[^}]*appearance: none;/);
-  assert.doesNotMatch(styles, /margin-right: -/);
+  assert.match(styles, /clip-path: polygon\(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%\)/);
+  assert.match(styles, /\.hex \{[^}]*width: 4\.625rem;[^}]*height: 4rem;[^}]*flex: 0 0 4\.625rem;[^}]*margin: 0 0 0 -1\.15625rem;[^}]*appearance: none;/);
+  assert.match(styles, /\.hex:nth-child\(even\) \{ --hex-shift: 2rem; \}/);
   assert.match(styles, /\.panel-section > summary/);
   assert.match(arena, /className="panel-heading"/);
   assert.match(arena, /className="panel-scroll"/);
@@ -144,8 +147,10 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, /aria-controls="match-drawer"/);
   assert.match(arena, /aria-controls="inspector-drawer"/);
   assert.match(arena, /aria-label="Bot opponent"/);
-  assert.match(arena, /actionAtTarget\(intentActions, cellId\)/);
-  assert.match(arena, /setActionIntent\(\{ kind: "move", source: cellId \}\)/);
+  assert.match(arena, /resolveHexClick\(intentActions, movementSources, cellId\)/);
+  assert.match(arena, /setActionIntent\(resolution\.intent\)/);
+  assert.match(arena, /const shopProvince = province\?\.owner === economyPlayer \? province : null;/);
+  assert.doesNotMatch(arena, /find\(\(candidate\) => candidate\.owner === economyPlayer\)/);
   assert.match(arena, /LEGAL TARGETS/);
   assert.doesNotMatch(arena, /pieceGlyph/);
   assert.doesNotMatch(arena, /Select a destination hex, then choose an action/);
@@ -159,6 +164,8 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, /aria-label="Open game menu"/);
   assert.match(arena, /aria-label="Inspect selected hex"/);
   assert.match(arena, /<GamePiece cell=\{cell\} \/>/);
+  assert.match(arena, /className="selection-ring"/);
+  assert.match(arena, /className="move-target"/);
   assert.match(arena, /actionable=\{humanCanAct && actionableTargets\.has\(cell\.id\)\}/);
   assert.match(arena, /<summary>GAME CONFIG<\/summary>/);
   assert.match(arena, /RULES_PROFILES\.map/);

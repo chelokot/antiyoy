@@ -5,6 +5,7 @@ import {
   actionsForIntent,
   indexedActions,
   movableSources,
+  resolveHexClick,
 } from "../app/game-interaction";
 import type { CellView, CoreAction } from "../app/game-types";
 
@@ -51,4 +52,25 @@ test("shop intents preserve their province and item identity", () => {
 
 test("movable sources are derived independently from destination cells", () => {
   assert.deepEqual([...movableSources(indexedActions(legalActions))], [0, 1]);
+});
+
+test("a shared destination never changes the selected move source", () => {
+  const indexed = indexedActions([
+    "EndTurn",
+    { Move: { source: 0, target: 4 } },
+    { Move: { source: 1, target: 4 } },
+  ]);
+  const sourceZeroActions = actionsForIntent(indexed, { kind: "move", source: 0 }, cells);
+  assert.deepEqual(resolveHexClick(sourceZeroActions, movableSources(indexed), 4), {
+    kind: "play",
+    actionIndex: 1,
+  });
+});
+
+test("clicking outside the selected move zone cancels the intent", () => {
+  const indexed = indexedActions(legalActions);
+  const sourceZeroActions = actionsForIntent(indexed, { kind: "move", source: 0 }, cells);
+  assert.deepEqual(resolveHexClick(sourceZeroActions, movableSources(indexed), 7), {
+    kind: "cancel",
+  });
 });

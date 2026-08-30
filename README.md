@@ -248,8 +248,10 @@ The engine is under active construction. The compatibility matrix in
 
 ## Intellectual property
 
-This is an unofficial implementation. It does not include artwork, audio, or
-source code from the original game. Antiyoy is by Yiotro; this project is not
-affiliated with or endorsed by Yiotro.
+This is an unofficial implementation. Antiyoy is by Yiotro; this project is not
+affiliated with or endorsed by Yiotro. The browser client uses a small set of
+original Antiyoy game-piece images under Yiotro's non-commercial terms. Those
+files are identified separately in `web/public/game-pieces/README.md` and are
+not covered by this repository's MIT license.
 
 The original code in this repository is licensed under MIT.
