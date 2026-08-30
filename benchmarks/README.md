@@ -57,3 +57,10 @@ Search-teacher records separate target generation from authoritative stepping
 and reset time. Reproduce them with `python/benchmark_teacher.py`; the reported
 throughput includes cached whole-turn plans, legal-index projection, and every
 configured compatibility profile.
+
+Cross-domain routed-bundle records use the checked-in matrix configuration and
+name every held-out selection window. Exact-domain specialists are accepted or
+rejected per profile and seat before the complete matrix is rerun. The record
+keeps unsuccessful candidates as ablation evidence, reports unchanged domains,
+and preserves failed release gates instead of presenting an aggregate gain as
+a universal policy improvement.

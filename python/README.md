@@ -183,7 +183,7 @@ More specific `--context-route PROFILE:GENERATOR:PLAYERS=CHECKPOINT` and
 `--seat-context-route PROFILE:GENERATOR:PLAYERS:SEAT=CHECKPOINT` selectors
 override the profile route. Exact seat routes make multiplayer specialists
 possible while the original two-player expert remains immutable. Bundle
-versions 1 through 3 remain loadable.
+versions 1 through 4 remain loadable.
 
 `--domain-route PROFILE:GENERATOR:PLAYERS:SEAT:DOMAIN=CHECKPOINT` is the most
 specific selector. `DOMAIN` is the SHA-256 key emitted beside the complete
