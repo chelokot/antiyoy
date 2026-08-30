@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use serde::{Deserialize, Serialize};
 
-use crate::rng::DeterministicRng;
+use crate::rng::{DeterministicRng, JavaRandom};
 use crate::{
     Action, ActionError, Cell, ConfigError, DiplomacyCommand, HexId, Object, PlayerId, Province,
     ProvinceId, Relation, Rules, Scenario, Structure, Topology, Transition, Unit,
@@ -1537,6 +1537,10 @@ impl Game {
             return existing;
         }
 
+        if self.rules.lifecycle.split_money_follows_capital_then_farms {
+            return self.select_online_capital(component);
+        }
+
         let free: Vec<HexId> = component
             .hexes
             .iter()
@@ -1564,6 +1568,41 @@ impl Game {
             return without_towers[self.random.index(without_towers.len())];
         }
         component.hexes[self.random.index(component.hexes.len())]
+    }
+
+    fn select_online_capital(&self, component: &Component) -> HexId {
+        let seed = 117_u64
+            + 119_u64 * u64::try_from(component.hexes.len()).expect("province size fits in u64");
+        let mut random = JavaRandom::new(seed);
+        if component.hexes.iter().any(|hex| {
+            let cell = self.cells[hex.index()];
+            cell.object == Object::Empty && !cell.unit.is_present()
+        }) {
+            for _ in 0..1_000 {
+                let hex = component.hexes[random.index(component.hexes.len())];
+                let cell = self.cells[hex.index()];
+                if cell.object == Object::Empty && !cell.unit.is_present() {
+                    return hex;
+                }
+            }
+        }
+        if component.hexes.iter().any(|hex| {
+            !matches!(
+                self.cells[hex.index()].object,
+                Object::Tower | Object::StrongTower
+            )
+        }) {
+            for _ in 0..1_000 {
+                let hex = component.hexes[random.index(component.hexes.len())];
+                if !matches!(
+                    self.cells[hex.index()].object,
+                    Object::Tower | Object::StrongTower
+                ) {
+                    return hex;
+                }
+            }
+        }
+        component.hexes[random.index(component.hexes.len())]
     }
 
     fn destroy_singleton_buildings(&mut self, hexes: &[HexId]) {
@@ -1799,6 +1838,43 @@ mod tests {
             online.cell(HexId(3)).expect("singleton").object(),
             Object::Tower
         );
+    }
+
+    #[test]
+    fn online_generated_capitals_use_the_province_size_java_stream() {
+        let topology = Topology::rectangle(6, 1).expect("valid topology");
+        let mut scenario = Scenario::empty(topology, 2, 1);
+        for hex in [0, 1, 2] {
+            scenario.cells[hex] = InitialCell::owned(PlayerId(0));
+        }
+        for hex in [4, 5] {
+            scenario.cells[hex] = InitialCell::owned(PlayerId(1));
+        }
+        scenario.cells[5].object = Object::Capital;
+
+        for rules in [
+            Rules::online_default_v1(),
+            Rules::online_classic_v1(),
+            Rules::online_duel_v1(),
+        ] {
+            let profile = rules.profile;
+            let first = Game::new(rules.clone(), scenario.clone()).expect("online game");
+            assert_eq!(
+                first.province_at(HexId(0)).expect("province").capital,
+                HexId(1),
+                "{profile:?}"
+            );
+
+            let mut occupied_candidate = scenario.clone();
+            occupied_candidate.seed = u64::MAX;
+            occupied_candidate.cells[1].object = Object::Tower;
+            let second = Game::new(rules, occupied_candidate).expect("online game");
+            assert_eq!(
+                second.province_at(HexId(0)).expect("province").capital,
+                HexId(0),
+                "{profile:?}"
+            );
+        }
     }
 
     #[test]

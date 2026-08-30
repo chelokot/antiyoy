@@ -43,9 +43,12 @@ Each checked item must have a focused engine test.
 numeric profiles, knight override, construction readiness, Duel placement
 restriction, split-treasury selection, singleton structure behavior, empty
 first round, and income-before-grave timing are implemented and
-regression-tested. Online target-snapshot vegetation, coast-selected tree type,
-and the observed player-zero tree charge are also isolated behind profile
-fields and tested. Fog projection is implemented independently from legality:
+regression-tested for every Online ruleset. Online-created capitals use the
+observed independent Java-compatible stream seeded by `117 + 119 × province
+size`, so they neither consume nor perturb the match RNG. Online target-snapshot
+vegetation, coast-selected tree type, and the observed player-zero tree charge
+are also isolated behind profile fields and tested. Fog projection is
+implemented independently from legality:
 province sources illuminate radius `1`, units `2`, towers `3`, capitals `4`,
 and strong towers `5`; friend and alliance provinces contribute automatically
 when diplomacy is enabled, while callers may explicitly share other owners.

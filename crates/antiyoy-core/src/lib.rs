@@ -28,4 +28,4 @@ pub use state::{Cell, InitialCell, Province, Scenario, Treasury};
 pub use topology::{Axial, Topology};
 pub use types::{DiplomacyCommand, HexId, Object, PlayerId, ProvinceId, Relation, Structure, Unit};
 
-pub const ENGINE_VERSION: u16 = 5;
+pub const ENGINE_VERSION: u16 = 6;
