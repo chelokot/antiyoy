@@ -155,6 +155,13 @@ and `--action-limit`; all three values are emitted in every result.
 Use `--minimum-seat-score` together with `--minimum-aggregate-score` as a
 release gate so a one-sided specialization cannot pass on its average alone.
 
+`build_bundle.py PRIMARY OUTPUT --route PROFILE=CHECKPOINT` creates one atomic
+policy artifact with explicit deterministic profile routes. It verifies source
+checkpoint, observation, rule-feature, hidden-width, and layer compatibility;
+the bundle stores every source SHA-256 and evaluator output names the selected
+expert. This isolates genuinely conflicting rulesets without duplicating game
+state or legality code.
+
 Evaluation alternates model seats, uses held-out seeds, and reports the raw
 win/draw/loss score plus an Elo difference against the named baseline. Terminal
 draws and action-limit truncations are reported separately, along with action

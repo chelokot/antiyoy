@@ -32,7 +32,7 @@ class PolicyArena:
         self.height = height
         self.action_limit = action_limit
         self.device = torch.device(device_name)
-        self.model, _ = load_policy(checkpoint, self.device)
+        self.model, self.policy_config = load_policy(checkpoint, self.device, profile)
         self.environment = VectorEnv(
             1,
             width=width,
@@ -156,6 +156,8 @@ class PolicyArena:
             "revision": self.revision,
             "checkpoint": self.checkpoint.name,
             "profile": self.profile,
+            "policy_kind": self.policy_config["policy_kind"],
+            "selected_expert": self.policy_config["selected_expert"],
             "seed": self.seed,
             "width": self.width,
             "height": self.height,

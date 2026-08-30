@@ -17,6 +17,10 @@ from antiyoy_rl.model import (
     load_policy_state,
 )
 try:
+    from .build_bundle import BUNDLE_KIND, BUNDLE_VERSION
+except ImportError:
+    from build_bundle import BUNDLE_KIND, BUNDLE_VERSION
+try:
     from .train import CHECKPOINT_VERSION
 except ImportError:
     from train import CHECKPOINT_VERSION
@@ -74,7 +78,7 @@ def named_action_counts(counts: np.ndarray) -> dict[str, int]:
 
 
 def load_policy(
-    checkpoint_path: Path, device: torch.device
+    checkpoint_path: Path, device: torch.device, profile: str | None = None
 ) -> tuple[UniversalPolicy, dict[str, object]]:
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     if checkpoint["checkpoint_version"] not in (4, CHECKPOINT_VERSION):
@@ -83,10 +87,24 @@ def load_policy(
         raise ValueError("checkpoint observation version does not match the native environment")
     if checkpoint["rule_features"] not in (42, RULE_FEATURES):
         raise ValueError("checkpoint rule feature width does not match the policy")
-    config = checkpoint["config"]
+    config = dict(checkpoint["config"])
+    state = checkpoint.get("model")
+    selected_expert = "single"
+    if checkpoint.get("kind") == BUNDLE_KIND:
+        if checkpoint.get("bundle_version") != BUNDLE_VERSION:
+            raise ValueError("policy bundle version does not match this evaluator")
+        selected_profile = profile or config["profile"] or config["profiles"][0]
+        selected_expert = checkpoint["routes"].get(selected_profile)
+        if selected_expert is None:
+            raise ValueError(f"policy bundle has no route for profile: {selected_profile}")
+        state = checkpoint["experts"][selected_expert]
+    if state is None:
+        raise ValueError("checkpoint has no policy weights")
     model = UniversalPolicy(config["hidden"], config["layers"]).to(device)
-    load_policy_state(model, checkpoint["model"])
+    load_policy_state(model, state)
     model.eval()
+    config["policy_kind"] = checkpoint.get("kind", "single_policy")
+    config["selected_expert"] = selected_expert
     return model, config
 
 
@@ -107,7 +125,7 @@ def evaluate(
 ) -> dict[str, object]:
     evaluation_seeds = paired_seeds(games, seed)
     device = torch.device(device_name)
-    model, config = load_policy(checkpoint_path, device)
+    model, config = load_policy(checkpoint_path, device, profile)
     evaluation_profile = profile or config["profile"] or config["profiles"][0]
     evaluation_width = config["width"] if width is None else width
     evaluation_height = config["height"] if height is None else height
@@ -233,6 +251,8 @@ def evaluate(
         "transitions": transitions,
         "device": str(device),
         "profile": evaluation_profile,
+        "policy_kind": config["policy_kind"],
+        "selected_expert": config["selected_expert"],
         "seed": seed,
         "arena_width": evaluation_width,
         "arena_height": evaluation_height,

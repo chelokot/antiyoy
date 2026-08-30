@@ -189,6 +189,11 @@ binds only to `127.0.0.1`, opens an interactive hex board, and runs every amber
 reply through the checkpoint. Pass `--checkpoint`, `--seed`, `--device`, or
 `--no-browser` to override the defaults.
 
+Policy bundles remain one verified artifact while routing immutable rules
+profiles to compatible experts. The evaluator and browser arena expose the
+selected route; legal actions, state transitions, and observations still come
+from the single authoritative Rust engine.
+
 ## Status
 
 The engine is under active construction. The compatibility matrix in
