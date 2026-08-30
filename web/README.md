@@ -62,13 +62,13 @@ That test loads the shipped ONNX model and WebAssembly runtime, consumes a live
 Rust observation, checks the exact first policy decision, and executes it
 through the legal-action index.
 
-To verify two genuinely separate clients against a running server:
+To verify genuinely separate two-player and four-player clients against a running server:
 
 ```bash
 ANTIYOY_MULTIPLAYER_ENDPOINT=http://127.0.0.1:8080 \
   npm run test:multiplayer:live
 ```
 
-The test creates and claims a waiting room, authenticates both WebSockets,
-plays one complete round, compares both broadcasts with the authoritative HTTP
-snapshot, downloads the replay, checks the CORS preflight, and deletes the room.
+The test creates and claims waiting duel and procedural rooms, authenticates every
+WebSocket, plays complete two-player and four-player rounds, compares broadcasts
+with authoritative snapshots, downloads a replay, checks CORS, and deletes both rooms.

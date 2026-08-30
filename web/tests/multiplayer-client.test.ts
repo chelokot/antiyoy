@@ -3,24 +3,45 @@ import test from "node:test";
 
 import {
   MultiplayerConnection,
+  RULES_PROFILE_WIRE,
   claimOpenSeat,
   createInviteUrl,
   createJoinableDuel,
+  createJoinableMatch,
+  createOpenSeatInvites,
   parseInvite,
+  roomConfigFromSnapshot,
   type MatchSnapshot,
 } from "../app/multiplayer-client";
 
 const MATCH_ID = "0123456789abcdef0123456789abcdef";
 
-function snapshot(status: MatchSnapshot["status"] = "Running"): MatchSnapshot {
+test("maps every browser rules profile to the exact Rust wire variant", () => {
+  assert.deepEqual(RULES_PROFILE_WIRE, {
+    classic_generic_2022: "ClassicGeneric",
+    classic_slay_2022: "ClassicSlay",
+    online_default_v1: "OnlineDefaultV1",
+    online_classic_v1: "OnlineClassicV1",
+    online_duel_v1: "OnlineDuelV1",
+    online_experimental_v1: "OnlineExperimentalV1",
+    online_experimental_v2_260801: "OnlineExperimentalV2_260801",
+  });
+});
+
+function snapshot(
+  status: MatchSnapshot["status"] = "Running",
+  overrides: Partial<MatchSnapshot> = {},
+): MatchSnapshot {
   return {
-    schema_version: 5,
+    schema_version: 6,
     match_id: MATCH_ID,
     revision: 4,
     status,
     rating_status: "NotFinished",
     actions_played: 4,
-    scenario: { SymmetricDuel: { width: 11, height: 9, seed: 47 } },
+    digest: Array.from({ length: 32 }, () => 0),
+    rules_profile: "OnlineDuelV1",
+    scenario: { SymmetricDuel: { width: 11, height: 9, seed: "47" } },
     seats: [
       { name: "host", kind: "Human" },
       { name: status === "Waiting" ? "open-seat-2" : "guest", kind: status === "Waiting" ? "Open" : "Human" },
@@ -37,6 +58,7 @@ function snapshot(status: MatchSnapshot["status"] = "Running"): MatchSnapshot {
       relations: [],
       legal_actions: status === "Waiting" ? [] : ["EndTurn"],
     },
+    ...overrides,
   };
 }
 
@@ -58,14 +80,88 @@ test("creates a waiting duel and keeps the seat token out of its invite URL", as
     assert.equal(parseInvite(new URL(invite).hash)?.seat, 1);
     assert.doesNotMatch(invite, /host-secret/);
     assert.deepEqual(JSON.parse(requestBody), {
-      schema_version: 5,
+      schema_version: 6,
       rules_profile: "OnlineDuelV1",
-      scenario: { SymmetricDuel: { width: 11, height: 9, seed: 47 } },
+      scenario: { SymmetricDuel: { width: 11, height: 9, seed: "47" } },
       seats: [
         { name: "host", kind: "Human" },
         { name: "open-seat-2", kind: "Open" },
       ],
       action_limit: 10_000,
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("creates a four-player procedural room with one token-free invite per open seat", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestBody = "";
+  const seats: MatchSnapshot["seats"] = [
+    { name: "host", kind: "Human" },
+    { name: "open-seat-2", kind: "Open" },
+    { name: "open-seat-3", kind: "Open" },
+    { name: "open-seat-4", kind: "Open" },
+  ];
+  const proceduralSnapshot = snapshot("Waiting", {
+    rules_profile: "OnlineExperimentalV2_260801",
+    scenario: {
+      Procedural: {
+        schema_version: 1,
+        width: 17,
+        height: 13,
+        players: 4,
+        seed: "18446744073709551615",
+        land_density_per_million: 600_000,
+        starting_province_size: 5,
+        starting_money: 10,
+        tree_density_per_million: 150_000,
+        neutral_tower_density_per_million: 20_000,
+        neutral_capital_density_per_million: 10_000,
+        grave_density_per_million: 15_000,
+      },
+    },
+    seats,
+  });
+  globalThis.fetch = async (_input, init) => {
+    requestBody = String(init?.body);
+    return Response.json({
+      snapshot: proceduralSnapshot,
+      credentials: [{ seat: 0, name: "host", token: "host-secret" }],
+    });
+  };
+  try {
+    const session = await createJoinableMatch("https://antiyoy.test", "host", {
+      map: "procedural",
+      profile: "online_experimental_v2_260801",
+      width: 17,
+      height: 13,
+      players: 4,
+      seed: "18446744073709551615",
+      landDensity: 600_000,
+    });
+    const request = JSON.parse(requestBody) as {
+      schema_version: number;
+      rules_profile: string;
+      scenario: MatchSnapshot["scenario"];
+      seats: MatchSnapshot["seats"];
+    };
+    assert.equal(request.schema_version, 6);
+    assert.equal(request.rules_profile, "OnlineExperimentalV2_260801");
+    assert.deepEqual(request.scenario, proceduralSnapshot.scenario);
+    assert.deepEqual(request.seats, seats);
+    const invites = createOpenSeatInvites("https://arena.test/", session.snapshot);
+    assert.deepEqual(invites.map((invite) => invite.seat), [1, 2, 3]);
+    assert.equal(new Set(invites.map((invite) => invite.url)).size, 3);
+    assert.ok(invites.every((invite) => !invite.url.includes("host-secret")));
+    assert.deepEqual(roomConfigFromSnapshot(session.snapshot), {
+      map: "procedural",
+      profile: "online_experimental_v2_260801",
+      width: 17,
+      height: 13,
+      players: 4,
+      seed: "18446744073709551615",
+      landDensity: 600_000,
     });
   } finally {
     globalThis.fetch = originalFetch;
@@ -134,10 +230,10 @@ test("authenticates over WebSocket and submits the exact authoritative action", 
   connection.submit("EndTurn", 4);
 
   assert.deepEqual(JSON.parse(socket.sent[0]), {
-    Authenticate: { schema_version: 5, seat: 1, token: "guest-secret" },
+    Authenticate: { schema_version: 6, seat: 1, token: "guest-secret" },
   });
   assert.deepEqual(JSON.parse(socket.sent[1]), {
-    Submit: { schema_version: 5, revision: 4, action: "EndTurn" },
+    Submit: { schema_version: 6, revision: 4, action: "EndTurn" },
   });
   assert.equal(snapshots.length, 1);
   assert.deepEqual(statuses, ["connecting", "authenticated"]);

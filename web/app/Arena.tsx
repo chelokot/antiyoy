@@ -11,11 +11,14 @@ import {
   DEFAULT_MULTIPLAYER_ENDPOINT,
   MultiplayerConnection,
   claimOpenSeat,
-  createInviteUrl,
-  createJoinableDuel,
+  createJoinableMatch,
+  createOpenSeatInvites,
   parseInvite,
+  roomConfigFromSnapshot,
   type ConnectionStatus,
+  type OnlineRoomConfig,
   type OnlineSession,
+  type RulesProfileId,
 } from "./multiplayer-client";
 
 type WasmModule = typeof import("@/lib/antiyoy-wasm/antiyoy_wasm");
@@ -28,17 +31,8 @@ type ReplayMetadata = {
   rules_profile: string;
 };
 
-type LiveConfig = {
-  map: "duel" | "procedural";
-  profile: RulesProfileName;
-  width: number;
-  height: number;
-  players: number;
-  seed: string;
-  landDensity: number;
-};
-
-type RulesProfileName = typeof RULES_PROFILES[number]["id"];
+type LiveConfig = OnlineRoomConfig;
+type RulesProfileName = RulesProfileId;
 type BotStrengthName = typeof BOT_STRENGTH_NAMES[number];
 type BotOpponentName = "neural" | BotStrengthName;
 type BrowserPolicyKey = keyof typeof BROWSER_POLICY_MODELS;
@@ -316,6 +310,10 @@ function policyKeyForProfile(profile: RulesProfileName): BrowserPolicyKey {
   return profile === "online_experimental_v2_260801" ? "experimentalV2" : "primary";
 }
 
+function rulesProfileLabel(profile: RulesProfileName): string {
+  return RULES_PROFILES.find((candidate) => candidate.id === profile)?.label ?? profile;
+}
+
 export default function Arena() {
   const wasmModule = useRef<WasmModule | null>(null);
   const game = useRef<WasmGameType | null>(null);
@@ -354,8 +352,8 @@ export default function Arena() {
   const [onlineName, setOnlineName] = useState("player");
   const [joinCode, setJoinCode] = useState("");
   const [joinSeat, setJoinSeat] = useState(1);
-  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
-  const [inviteCopied, setInviteCopied] = useState(false);
+  const [inviteBaseUrl, setInviteBaseUrl] = useState("");
+  const [copiedInviteSeat, setCopiedInviteSeat] = useState<number | null>(null);
   const [onlineBusy, setOnlineBusy] = useState(false);
   const activePolicyKey = policyKeyForProfile(activeConfig.profile);
   const policyStatus = policyStatuses[activePolicyKey];
@@ -375,11 +373,7 @@ export default function Arena() {
     setState(session.snapshot.game);
     setActions(session.snapshot.actions_played);
     setSelectedId(centerPlayableCell(session.snapshot.game));
-    setActiveConfig({
-      ...DEFAULT_CONFIG,
-      profile: "online_duel_v1",
-      seed: "network",
-    });
+    setActiveConfig(roomConfigFromSnapshot(session.snapshot));
     const connection = new MultiplayerConnection(
       session.endpoint,
       session.credential,
@@ -410,8 +404,7 @@ export default function Arena() {
     multiplayerConnection.current = null;
     setOnlineSession(null);
     setConnectionStatus("disconnected");
-    setInviteUrl(null);
-    setInviteCopied(false);
+    setCopiedInviteSeat(null);
     setBotThinking(false);
   }, []);
 
@@ -459,6 +452,7 @@ export default function Arena() {
       if (disposed) {
         return;
       }
+      setInviteBaseUrl(window.location.href);
       const savedEndpoint = window.localStorage.getItem(MULTIPLAYER_ENDPOINT_STORAGE_KEY);
       if (savedEndpoint !== null) {
         setOnlineEndpoint(savedEndpoint);
@@ -530,11 +524,11 @@ export default function Arena() {
   const createOnlineRoom = useCallback(async () => {
     setOnlineBusy(true);
     try {
-      const session = await createJoinableDuel(onlineEndpoint, onlineName, draftConfig.seed);
+      const session = await createJoinableMatch(onlineEndpoint, onlineName, draftConfig);
       window.localStorage.setItem(MULTIPLAYER_ENDPOINT_STORAGE_KEY, session.endpoint);
       setOnlineEndpoint(session.endpoint);
-      setInviteUrl(createInviteUrl(window.location.href, session.snapshot.match_id, 1));
-      setInviteCopied(false);
+      setInviteBaseUrl(window.location.href);
+      setCopiedInviteSeat(null);
       beginOnlineSession(session);
       setError(null);
     } catch (reason: unknown) {
@@ -542,7 +536,7 @@ export default function Arena() {
     } finally {
       setOnlineBusy(false);
     }
-  }, [beginOnlineSession, draftConfig.seed, onlineEndpoint, onlineName]);
+  }, [beginOnlineSession, draftConfig, onlineEndpoint, onlineName]);
 
   const joinOnlineRoom = useCallback(async () => {
     setOnlineBusy(true);
@@ -551,7 +545,8 @@ export default function Arena() {
       window.localStorage.setItem(MULTIPLAYER_ENDPOINT_STORAGE_KEY, session.endpoint);
       window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
       setOnlineEndpoint(session.endpoint);
-      setInviteUrl(null);
+      setInviteBaseUrl(window.location.href);
+      setCopiedInviteSeat(null);
       beginOnlineSession(session);
       setError(null);
     } catch (reason: unknown) {
@@ -561,17 +556,14 @@ export default function Arena() {
     }
   }, [beginOnlineSession, joinCode, joinSeat, onlineEndpoint, onlineName]);
 
-  const copyInvite = useCallback(async () => {
-    if (inviteUrl === null) {
-      return;
-    }
+  const copyInvite = useCallback(async (seat: number, inviteUrl: string) => {
     try {
       await navigator.clipboard.writeText(inviteUrl);
-      setInviteCopied(true);
+      setCopiedInviteSeat(seat);
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : String(reason));
     }
-  }, [inviteUrl]);
+  }, []);
 
   const generate = useCallback(() => {
     const bindings = wasmModule.current;
@@ -964,6 +956,13 @@ export default function Arena() {
       .filter((_, seat) => seat !== humanSeat)
       .map((seat) => seat.name)
       .join(", ");
+  const openSeatInvites = useMemo(
+    () => onlineSession === null || inviteBaseUrl.length === 0
+      ? []
+      : createOpenSeatInvites(inviteBaseUrl, onlineSession.snapshot),
+    [inviteBaseUrl, onlineSession],
+  );
+  const roomConfigSummary = `${rulesProfileLabel(draftConfig.profile)} · ${draftConfig.map === "duel" ? "duel" : `${draftConfig.width}×${draftConfig.height} procedural`} · ${draftConfig.map === "duel" ? 2 : draftConfig.players} players`;
 
   return (
     <main className="arena-shell bg-[#080b0d] text-[#e9eee9]">
@@ -983,7 +982,7 @@ export default function Arena() {
             <summary>MATCH</summary>
             <div className="panel-section-body"><p className="eyebrow">{onlineSession !== null ? "AUTHORITATIVE MULTIPLAYER" : replayMetadata === null ? placementMode ? "RATED PLACEMENT" : humanMode ? "HUMAN VS AI" : "LIVE SELF-PLAY" : "VERIFIED REPLAY"}</p><h2 className="mt-2 text-xl font-semibold">{replayMetadata === null ? humanMode ? `you are ${playerLabel(humanSeat).toLowerCase()}` : "greedy vs turn-search" : "training trace"}</h2><p className="mt-1 text-sm text-[#8d9690]">{onlineSession !== null ? onlineSession.snapshot.status === "Waiting" ? "waiting for the invited player" : "every move is validated by the Rust server" : replayMetadata === null ? placementMode ? "local Elo vs fixed search-2048" : humanMode ? "select a glowing hex, then choose an action" : "deterministic whole-turn planning" : `${replayMetadata.frames} deterministic actions`}</p><div className="mt-6 space-y-4"><Metric label="RULESET" value={replayMetadata?.rules_profile ?? activeConfig.profile} /><Metric label="MAP" value={replayMetadata === null ? activeConfig.map === "procedural" ? "procedural_v1" : "symmetric_duel_v1" : "replay scenario"} /><Metric label="OPPONENT" value={opponentLabel || "open seat"} /><Metric label="SEED" value={onlineSession === null ? `${replayMetadata?.seed ?? activeConfig.seed} · reproducible` : "server-authoritative"} /><Metric label="ROUND" value={state === null ? "loading" : `${state.round} · ${playerLabel(state.active_player)} to move`} /><Metric label="LEGAL ACTIONS" value={state?.legal_actions.length.toString() ?? "…"} accent />{onlineSession === null && !placementMode && botOpponent === "neural" && <Metric label="NEURAL INFERENCE" value={policyDecision === null ? policyStatus : `${policyDecision.milliseconds.toFixed(1)} ms · ${policyDecision.legalActions} actions`} accent />}</div></div>
           </details>
-          {replayMetadata === null && <details className="panel-section panel-section-online"><summary>ONLINE MULTIPLAYER · {onlineSession?.snapshot.status ?? "READY"}</summary><div className="panel-section-body map-config"><label className="config-field"><span>PLAYER NAME</span><input type="text" maxLength={64} value={onlineName} onChange={(event) => setOnlineName(event.target.value)} /></label>{onlineSession === null ? <><button className="generate-button" type="button" disabled={onlineBusy || onlineName.length === 0} onClick={() => void createOnlineRoom()}>{onlineBusy ? "Connecting…" : "Create invite room"}</button><div className="online-divider"><span>OR JOIN</span></div><label className="config-field"><span>ROOM CODE</span><input type="text" spellCheck={false} value={joinCode} onChange={(event) => setJoinCode(event.target.value.trim())} /></label><button className="generate-button" type="button" disabled={onlineBusy || onlineName.length === 0 || joinCode.length !== 32} onClick={() => void joinOnlineRoom()}>{onlineBusy ? "Claiming seat…" : "Join invited room"}</button></> : <div className="online-session"><div className="online-status-row"><span className={`online-status-dot online-status-${connectionStatus}`} /><span>{connectionStatus}</span><span>seat {onlineSession.credential.seat + 1}</span></div><p className="online-room-code">{onlineSession.snapshot.match_id}</p>{inviteUrl !== null && onlineSession.snapshot.status === "Waiting" && <button className="generate-button" type="button" onClick={() => void copyInvite()}>{inviteCopied ? "Invite copied" : "Copy private invite link"}</button>}<button className="online-leave" type="button" onClick={reset}>Leave room</button></div>}<label className="config-field online-endpoint"><span>AUTHORITATIVE SERVER</span><input type="url" spellCheck={false} disabled={onlineSession !== null} value={onlineEndpoint} onChange={(event) => setOnlineEndpoint(event.target.value)} /></label></div></details>}
+          {replayMetadata === null && <details className="panel-section panel-section-online"><summary>ONLINE MULTIPLAYER · {onlineSession?.snapshot.status ?? "READY"}</summary><div className="panel-section-body map-config"><label className="config-field"><span>PLAYER NAME</span><input type="text" maxLength={64} value={onlineName} onChange={(event) => setOnlineName(event.target.value)} /></label>{onlineSession === null ? <><div className="online-config-summary"><p className="eyebrow">ROOM SETTINGS</p><p>{roomConfigSummary}</p><span>Change them in Game Config before creating the room.</span></div><button className="generate-button" type="button" disabled={onlineBusy || onlineName.length === 0} onClick={() => void createOnlineRoom()}>{onlineBusy ? "Connecting…" : `Create ${draftConfig.map === "duel" ? 2 : draftConfig.players}-player room`}</button><div className="online-divider"><span>OR JOIN</span></div><div className="config-grid online-join-grid"><label className="config-field"><span>ROOM CODE</span><input type="text" spellCheck={false} value={joinCode} onChange={(event) => setJoinCode(event.target.value.trim())} /></label><label className="config-field"><span>SEAT</span><input type="number" min="2" max="8" value={joinSeat + 1} onChange={(event) => setJoinSeat(Number(event.target.value) - 1)} /></label></div><button className="generate-button" type="button" disabled={onlineBusy || onlineName.length === 0 || joinCode.length !== 32 || joinSeat < 1 || joinSeat > 7} onClick={() => void joinOnlineRoom()}>{onlineBusy ? "Claiming seat…" : `Join as seat ${joinSeat + 1}`}</button></> : <div className="online-session"><div className="online-status-row"><span className={`online-status-dot online-status-${connectionStatus}`} /><span>{connectionStatus}</span><span>seat {onlineSession.credential.seat + 1}/{onlineSession.snapshot.seats.length}</span></div><p className="online-room-code">{onlineSession.snapshot.match_id}</p>{openSeatInvites.length > 0 && <div className="online-invites"><p className="eyebrow">PRIVATE SEAT LINKS · {openSeatInvites.length} OPEN</p>{openSeatInvites.map((invite) => <button className="generate-button" type="button" onClick={() => void copyInvite(invite.seat, invite.url)} key={invite.seat}>{copiedInviteSeat === invite.seat ? `Seat ${invite.seat + 1} invite copied` : `Copy invite for seat ${invite.seat + 1}`}</button>)}<p>Match starts automatically after every open seat is claimed.</p></div>}<button className="online-leave" type="button" onClick={reset}>Leave room</button></div>}<label className="config-field online-endpoint"><span>AUTHORITATIVE SERVER</span><input type="url" spellCheck={false} disabled={onlineSession !== null} value={onlineEndpoint} onChange={(event) => setOnlineEndpoint(event.target.value)} /></label></div></details>}
           {replayMetadata === null && onlineSession === null && <details className="panel-section"><summary>GAME CONFIG</summary><div className="panel-section-body map-config"><label className="config-field"><span>RULESET</span><select value={draftConfig.profile} onChange={(event) => setDraftConfig((current) => ({ ...current, profile: event.target.value as RulesProfileName }))}>{RULES_PROFILES.map((profile) => <option value={profile.id} key={profile.id}>{profile.label}</option>)}</select></label><div className="config-grid"><label className="config-field"><span>MODE</span><select value={draftConfig.map} onChange={(event) => setDraftConfig((current) => ({ ...current, map: event.target.value as LiveConfig["map"], players: event.target.value === "duel" ? 2 : current.players }))}><option value="duel">Symmetric duel</option><option value="procedural">Procedural v1</option></select></label><label className="config-field"><span>SEED</span><input type="text" inputMode="numeric" pattern="[0-9]+" value={draftConfig.seed} onChange={(event) => setDraftConfig((current) => ({ ...current, seed: event.target.value }))} /></label><label className="config-field"><span>WIDTH</span><input type="number" min="5" max="41" value={draftConfig.width} onChange={(event) => setDraftConfig((current) => ({ ...current, width: Number(event.target.value) }))} /></label><label className="config-field"><span>HEIGHT</span><input type="number" min="2" max="31" value={draftConfig.height} onChange={(event) => setDraftConfig((current) => ({ ...current, height: Number(event.target.value) }))} /></label><label className="config-field"><span>PLAYERS</span><input type="number" min="2" max="8" disabled={draftConfig.map === "duel"} value={draftConfig.map === "duel" ? 2 : draftConfig.players} onChange={(event) => setDraftConfig((current) => ({ ...current, players: Number(event.target.value) }))} /></label><label className="config-field"><span>LAND PPM</span><input type="number" min="200000" max="1000000" step="50000" disabled={draftConfig.map === "duel"} value={draftConfig.map === "duel" ? 650000 : draftConfig.landDensity} onChange={(event) => setDraftConfig((current) => ({ ...current, landDensity: Number(event.target.value) }))} /></label></div><button className="generate-button" type="button" onClick={generate}>Generate deterministic map</button></div></details>}
           <details className="panel-section"><summary>TERRITORY</summary><div className="panel-section-body space-y-3 text-xs">{territories.map((cells, player) => <Bar label={playerLabel(player)} value={cells} width={`${territoryShares[player]}%`} player={player} key={player} />)}</div></details>
           <details className="panel-section"><summary>ENGINE</summary><div className="panel-section-body"><div className="engine-note mt-0"><p className="eyebrow text-[#d8ff3e]">SAME CORE</p><p className="mt-2 text-sm leading-6 text-[#b8c0ba]">Every displayed transition is executed by the headless Rust environment compiled to WebAssembly.</p></div></div></details>

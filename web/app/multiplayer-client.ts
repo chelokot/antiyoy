@@ -1,7 +1,29 @@
 import type { CoreAction, StateView } from "./game-types";
 
-export const NETWORK_SCHEMA_VERSION = 5;
+export const NETWORK_SCHEMA_VERSION = 6;
 export const DEFAULT_MULTIPLAYER_ENDPOINT = "https://antiyoy.test";
+
+export const RULES_PROFILE_WIRE = {
+  classic_generic_2022: "ClassicGeneric",
+  classic_slay_2022: "ClassicSlay",
+  online_default_v1: "OnlineDefaultV1",
+  online_classic_v1: "OnlineClassicV1",
+  online_duel_v1: "OnlineDuelV1",
+  online_experimental_v1: "OnlineExperimentalV1",
+  online_experimental_v2_260801: "OnlineExperimentalV2_260801",
+} as const;
+
+export type RulesProfileId = keyof typeof RULES_PROFILE_WIRE;
+export type WireRulesProfile = typeof RULES_PROFILE_WIRE[RulesProfileId];
+export type OnlineRoomConfig = {
+  map: "duel" | "procedural";
+  profile: RulesProfileId;
+  width: number;
+  height: number;
+  players: number;
+  seed: string;
+  landDensity: number;
+};
 
 export type MatchStatus = "Waiting" | "Running" | "Victory" | "ActionLimit";
 export type ConnectionStatus = "connecting" | "authenticated" | "disconnected";
@@ -13,6 +35,25 @@ export type SeatCredential = {
   token: string;
 };
 
+type GeneratorConfig = {
+  schema_version: 1;
+  width: number;
+  height: number;
+  players: number;
+  seed: string;
+  land_density_per_million: number;
+  starting_province_size: 5;
+  starting_money: 10;
+  tree_density_per_million: 150000;
+  neutral_tower_density_per_million: 20000;
+  neutral_capital_density_per_million: 10000;
+  grave_density_per_million: 15000;
+};
+
+export type MatchScenario =
+  | { SymmetricDuel: { width: number; height: number; seed: string } }
+  | { Procedural: GeneratorConfig };
+
 export type MatchSnapshot = {
   schema_version: number;
   match_id: string;
@@ -20,9 +61,16 @@ export type MatchSnapshot = {
   status: MatchStatus;
   rating_status: "NotFinished" | "Pending" | "Recorded" | "Duplicate";
   actions_played: number;
-  scenario: unknown;
+  digest: number[];
+  rules_profile: WireRulesProfile;
+  scenario: MatchScenario;
   seats: Array<{ name: string; kind: SeatKind }>;
   game: StateView;
+};
+
+export type SeatInvite = {
+  seat: number;
+  url: string;
 };
 
 export type OnlineSession = {
@@ -34,6 +82,14 @@ export type OnlineSession = {
 type CreateMatchResponse = {
   snapshot: MatchSnapshot;
   credentials: SeatCredential[];
+};
+
+type CreateMatchRequest = {
+  schema_version: number;
+  rules_profile: WireRulesProfile;
+  scenario: MatchScenario;
+  seats: Array<{ name: string; kind: SeatKind }>;
+  action_limit: number;
 };
 
 type ClaimSeatResponse = {
@@ -158,27 +214,16 @@ export class MultiplayerConnection {
   }
 }
 
-export async function createJoinableDuel(
+export async function createJoinableMatch(
   endpoint: string,
   hostName: string,
-  seed: string,
+  config: OnlineRoomConfig,
 ): Promise<OnlineSession> {
-  if (!/^\d+$/.test(seed)) {
-    throw new Error("Seed must be an unsigned integer");
-  }
+  const request = createMatchRequest(hostName, config);
   const response = await requestJson<CreateMatchResponse>(endpoint, "/v1/matches", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      schema_version: NETWORK_SCHEMA_VERSION,
-      rules_profile: "OnlineDuelV1",
-      scenario: { SymmetricDuel: { width: 11, height: 9, seed: Number(seed) } },
-      seats: [
-        { name: hostName, kind: "Human" },
-        { name: "open-seat-2", kind: "Open" },
-      ],
-      action_limit: 10_000,
-    }),
+    body: JSON.stringify(request),
   });
   assertSnapshot(response.snapshot);
   const credential = response.credentials[0];
@@ -186,6 +231,22 @@ export async function createJoinableDuel(
     throw new Error("Server returned invalid host credentials");
   }
   return { endpoint: normalizeEndpoint(endpoint), credential, snapshot: response.snapshot };
+}
+
+export async function createJoinableDuel(
+  endpoint: string,
+  hostName: string,
+  seed: string,
+): Promise<OnlineSession> {
+  return createJoinableMatch(endpoint, hostName, {
+    map: "duel",
+    profile: "online_duel_v1",
+    width: 11,
+    height: 9,
+    players: 2,
+    seed,
+    landDensity: 650_000,
+  });
 }
 
 export async function claimOpenSeat(
@@ -216,6 +277,37 @@ export function createInviteUrl(currentUrl: string, matchId: string, seat: numbe
   return url.toString();
 }
 
+export function createOpenSeatInvites(currentUrl: string, snapshot: MatchSnapshot): SeatInvite[] {
+  return snapshot.seats.flatMap((seat, index) => seat.kind === "Open"
+    ? [{ seat: index, url: createInviteUrl(currentUrl, snapshot.match_id, index) }]
+    : []);
+}
+
+export function roomConfigFromSnapshot(snapshot: MatchSnapshot): OnlineRoomConfig {
+  const profile = profileIdFromWire(snapshot.rules_profile);
+  if ("SymmetricDuel" in snapshot.scenario) {
+    return {
+      map: "duel",
+      profile,
+      width: snapshot.scenario.SymmetricDuel.width,
+      height: snapshot.scenario.SymmetricDuel.height,
+      players: 2,
+      seed: snapshot.scenario.SymmetricDuel.seed.toString(),
+      landDensity: 650_000,
+    };
+  }
+  const config = snapshot.scenario.Procedural;
+  return {
+    map: "procedural",
+    profile,
+    width: config.width,
+    height: config.height,
+    players: config.players,
+    seed: config.seed.toString(),
+    landDensity: config.land_density_per_million,
+  };
+}
+
 export function parseInvite(hash: string): { matchId: string; seat: number } | null {
   const params = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
   const room = params.get("room");
@@ -224,6 +316,75 @@ export function parseInvite(hash: string): { matchId: string; seat: number } | n
     return null;
   }
   return { matchId: room, seat };
+}
+
+function createMatchRequest(hostName: string, config: OnlineRoomConfig): CreateMatchRequest {
+  if (hostName.length === 0 || hostName.length > 64) {
+    throw new Error("Player name must contain between 1 and 64 characters");
+  }
+  if (!/^\d+$/.test(config.seed)) {
+    throw new Error("Seed must be an unsigned integer");
+  }
+  const seed = BigInt(config.seed);
+  if (seed > 18_446_744_073_709_551_615n) {
+    throw new Error("Seed exceeds the u64 range");
+  }
+  if (!Number.isInteger(config.width) || config.width < 5 || config.width > 41) {
+    throw new Error("Width must be an integer between 5 and 41");
+  }
+  if (!Number.isInteger(config.height) || config.height < 2 || config.height > 31) {
+    throw new Error("Height must be an integer between 2 and 31");
+  }
+  if (!Number.isInteger(config.players) || config.players < 2 || config.players > 8) {
+    throw new Error("Player count must be an integer between 2 and 8");
+  }
+  if (config.map === "duel" && config.players !== 2) {
+    throw new Error("Symmetric duel requires exactly two players");
+  }
+  if (
+    !Number.isInteger(config.landDensity)
+    || config.landDensity < 200_000
+    || config.landDensity > 1_000_000
+  ) {
+    throw new Error("Land density must be between 200000 and 1000000 ppm");
+  }
+  const scenario: MatchScenario = config.map === "duel"
+    ? { SymmetricDuel: { width: config.width, height: config.height, seed: seed.toString() } }
+    : {
+        Procedural: {
+          schema_version: 1,
+          width: config.width,
+          height: config.height,
+          players: config.players,
+          seed: seed.toString(),
+          land_density_per_million: config.landDensity,
+          starting_province_size: 5,
+          starting_money: 10,
+          tree_density_per_million: 150_000,
+          neutral_tower_density_per_million: 20_000,
+          neutral_capital_density_per_million: 10_000,
+          grave_density_per_million: 15_000,
+        },
+      };
+  return {
+    schema_version: NETWORK_SCHEMA_VERSION,
+    rules_profile: RULES_PROFILE_WIRE[config.profile],
+    scenario,
+    seats: Array.from({ length: config.players }, (_, seat) => {
+      const kind: SeatKind = seat === 0 ? "Human" : "Open";
+      return { name: seat === 0 ? hostName : `open-seat-${seat + 1}`, kind };
+    }),
+    action_limit: 10_000,
+  };
+}
+
+function profileIdFromWire(profile: WireRulesProfile): RulesProfileId {
+  const entry = Object.entries(RULES_PROFILE_WIRE)
+    .find(([, candidate]) => candidate === profile);
+  if (entry === undefined) {
+    throw new Error("Server returned an unknown rules profile");
+  }
+  return entry[0] as RulesProfileId;
 }
 
 function parseServerMessage(serialized: string): ServerMessage {
@@ -239,10 +400,18 @@ function assertSnapshot(snapshot: MatchSnapshot): void {
     snapshot.schema_version !== NETWORK_SCHEMA_VERSION
     || !/^[0-9a-f]{32}$/.test(snapshot.match_id)
     || !Number.isInteger(snapshot.revision)
+    || !Array.isArray(snapshot.digest)
+    || snapshot.digest.length !== 32
+    || snapshot.seats.length < 2
+    || snapshot.seats.length > 8
     || !Array.isArray(snapshot.game.legal_actions)
     || !Array.isArray(snapshot.game.cells)
   ) {
     throw new Error("Server returned an incompatible multiplayer snapshot");
+  }
+  const config = roomConfigFromSnapshot(snapshot);
+  if (config.players !== snapshot.seats.length) {
+    throw new Error("Server returned a mismatched multiplayer scenario");
   }
 }
 

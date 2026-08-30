@@ -130,7 +130,9 @@ and returned token before submitting actions. Every seat can independently be
 human, open for an atomic invite claim, random, greedy, or a bounded whole-turn search agent.
 An open room remains waiting with an empty legal mask until every guest has claimed
 their seat; the browser invitation contains no credential. Network structures carry
-`NETWORK_SCHEMA_VERSION` and every update includes a deterministic state digest.
+`NETWORK_SCHEMA_VERSION`; every update includes the exact rules profile, scenario,
+and deterministic state digest. The browser can create symmetric or procedural
+rooms for two to eight invited humans across all seven built-in rules profiles.
 `DELETE /v1/matches/{match_id}?seat=…` with the seat token in an Authorization
 Bearer header closes and removes a room. All memory-amplifying limits are
 explicit server configuration, and room capacity is checked atomically.
