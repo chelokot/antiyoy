@@ -84,9 +84,46 @@ pub struct LeagueMatch {
     pub agents: Vec<String>,
     #[serde(default = "default_league_player_count")]
     pub player_count: u8,
+    #[serde(with = "u64_wire")]
     pub seed: u64,
     pub outcome: MatchOutcome,
     pub final_digest: Digest,
+}
+
+mod u64_wire {
+    use serde::{Deserialize, Deserializer, Serializer, de};
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum HumanReadableU64 {
+        String(String),
+        Number(u64),
+    }
+
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    pub fn serialize<S>(value: &u64, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if serializer.is_human_readable() {
+            serializer.serialize_str(&value.to_string())
+        } else {
+            serializer.serialize_u64(*value)
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<u64, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        if !deserializer.is_human_readable() {
+            return u64::deserialize(deserializer);
+        }
+        match HumanReadableU64::deserialize(deserializer)? {
+            HumanReadableU64::String(value) => value.parse().map_err(de::Error::custom),
+            HumanReadableU64::Number(value) => Ok(value),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -574,5 +611,29 @@ mod tests {
             .remove("player_count");
         let legacy: League = serde_json::from_value(legacy).expect("decoded schema-one league");
         assert_eq!(legacy.upgrade().expect("upgraded league"), current);
+    }
+
+    #[test]
+    fn league_json_preserves_full_u64_seeds_and_reads_legacy_numbers() {
+        let report = run_match(
+            Rules::classic_generic(),
+            symmetric_duel(7, 5, u64::MAX).expect("valid duel"),
+            &mut GreedyAgent::new("maximum-seed-greedy"),
+            &mut RandomAgent::new("maximum-seed-random", 1),
+            5,
+        )
+        .expect("valid maximum-seed match");
+        let mut league = League::default();
+        league.record(&report).expect("verified maximum-seed match");
+
+        let serialized = serde_json::to_value(&league).expect("serialized league");
+        assert_eq!(serialized["matches"][0]["seed"], u64::MAX.to_string());
+        let decoded: League = serde_json::from_value(serialized).expect("decoded exact seed");
+        assert_eq!(decoded, league);
+
+        let mut legacy = serde_json::to_value(&league).expect("serialized legacy fixture");
+        legacy["matches"][0]["seed"] = serde_json::Value::Number(47_u64.into());
+        let legacy: League = serde_json::from_value(legacy).expect("decoded numeric seed");
+        assert_eq!(legacy.matches[0].seed, 47);
     }
 }
