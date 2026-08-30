@@ -307,7 +307,9 @@ export default function Arena() {
   useEffect(() => {
     let disposed = false;
     void import("@/lib/antiyoy-wasm/antiyoy_wasm").then(async (module) => {
-      await module.default();
+      await module.default({
+        module_or_path: new URL("/antiyoy_wasm_bg.wasm", window.location.origin),
+      });
       if (disposed) {
         return;
       }

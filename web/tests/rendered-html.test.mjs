@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, readFile } from "node:fs/promises";
+import { access, readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 async function render() {
@@ -50,6 +50,21 @@ test("ships the generated engine and social card", async () => {
   assert.match(bindings, /class WasmReplay/);
   assert.match(packageJson, /"name": "antiyoy-arena-lab"/);
   assert.match(packageJson, /"build:wasm"/);
+  assert.match(packageJson, /"stage:wasm"/);
+  await access(new URL("../public/antiyoy_wasm_bg.wasm", import.meta.url));
+});
+
+test("loads WebAssembly from a deployable same-origin URL", async () => {
+  const arena = await readFile(new URL("../app/Arena.tsx", import.meta.url), "utf8");
+  assert.match(arena, /new URL\("\/antiyoy_wasm_bg\.wasm", window\.location\.origin\)/);
+  assert.doesNotMatch(arena, /await module\.default\(\);/);
+  await access(new URL("../dist/client/antiyoy_wasm_bg.wasm", import.meta.url));
+  const chunkDirectory = new URL("../dist/client/_next/static/chunks/", import.meta.url);
+  const arenaChunk = (await readdir(chunkDirectory)).find((name) => name.startsWith("Arena-"));
+  assert.ok(arenaChunk);
+  const bundledArena = await readFile(new URL(arenaChunk, chunkDirectory), "utf8");
+  assert.match(bundledArena, /antiyoy_wasm_bg\.wasm/);
+  assert.match(bundledArena, /location\.origin/);
 });
 
 test("executes greedy and whole-turn search in the compiled WebAssembly engine", async () => {
