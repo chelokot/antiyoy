@@ -94,6 +94,7 @@ def export_policy(
     width: int,
     height: int,
     seed: int,
+    seat: int,
 ) -> dict[str, object]:
     device = torch.device("cpu")
     checkpoint = load_policy_checkpoint(checkpoint_path, device)
@@ -102,7 +103,7 @@ def export_policy(
         profile=profile,
         generator="symmetric_duel",
         players=2,
-        seat=1,
+        seat=seat,
     )
     policy = UniversalPolicy(int(config["hidden"]), int(config["layers"]))
     load_policy_state(policy, state)
@@ -158,6 +159,7 @@ def export_policy(
         "width": width,
         "height": height,
         "seed": seed,
+        "seat": seat,
         "expert": config["selected_expert"],
         "actions": int(inputs[-1].shape[0]),
         "selected_action": int(torch.argmax(actual_logits).item()),
@@ -173,6 +175,7 @@ def main() -> None:
     parser.add_argument("--width", type=int, default=11)
     parser.add_argument("--height", type=int, default=9)
     parser.add_argument("--seed", type=int, default=47)
+    parser.add_argument("--seat", type=int, choices=(0, 1), default=1)
     arguments = parser.parse_args()
     summary = export_policy(
         arguments.checkpoint,
@@ -181,6 +184,7 @@ def main() -> None:
         arguments.width,
         arguments.height,
         arguments.seed,
+        arguments.seat,
     )
     print(json.dumps(summary, sort_keys=True))
 

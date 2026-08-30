@@ -95,9 +95,11 @@ Its live map panel also creates reproducible two-to-eight-player
 land density. Human mode derives every destination action from the core's legal
 mask and offers both measured search opponents and the exported neural beta.
 The neural route consumes the authoritative Rust observation and legal-action
-list in ONNX Runtime Web. Two deduplicated experts cover all seven fixed 11×9
-duel profiles: six share the primary weights and Experimental v2 uses its routed
-specialist. Rated placement uses the Classic Generic arena, alternates the human
+list in ONNX Runtime Web. The arena loads only the two seat routes relevant to
+the current match. Its side selector can place the human second; the promoted
+zero-search Soft-PUCT student then plays Cyan and completes its opening turn
+before control passes to Amber. Other profiles retain their accepted routed
+experts. Rated placement uses the Classic Generic arena, alternates the human
 between both seats, assigns a fresh deterministic seed to every attempt, and
 stores a device-local Elo relative to the fixed 2048-node search opponent.
 This local calibration is explicitly separate from the verified multiplayer
@@ -276,9 +278,14 @@ PYTHONPATH=python python python/export_browser_policy.py \
   models/universal-routed-2to8p-engine-v6-2026-08-31.pt \
   web/public/browser-experimental-v2.onnx \
   --profile online_experimental_v2_260801
+PYTHONPATH=python python python/export_browser_policy.py \
+  models/classic-generic-duel-puct-distilled-v1-2026-08-31.pt \
+  web/public/browser-classic-generic-puct-seat0-v1.onnx \
+  --profile classic_generic_2022 --seat 0
 PYTHONPATH=python python python/verify_browser_policy.py \
-  models/universal-routed-2to8p-engine-v6-2026-08-31.pt \
-  web/public/browser-primary.onnx
+  models/classic-generic-duel-puct-distilled-v1-2026-08-31.pt \
+  web/public/browser-classic-generic-puct-seat0-v1.onnx \
+  --profile classic_generic_2022 --seat 0
 ```
 
 Run the verifier once per routed profile. It drives an entire game through both

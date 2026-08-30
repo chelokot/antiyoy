@@ -26,6 +26,7 @@ def verify_policy(
     height: int,
     seed: int,
     maximum_actions: int,
+    seat: int,
 ) -> dict[str, int | float | str]:
     device = torch.device("cpu")
     checkpoint = load_policy_checkpoint(checkpoint_path, device)
@@ -34,7 +35,7 @@ def verify_policy(
         profile=profile,
         generator="symmetric_duel",
         players=2,
-        seat=1,
+        seat=seat,
     )
     policy = UniversalPolicy(int(config["hidden"]), int(config["layers"]))
     load_policy_state(policy, state)
@@ -90,6 +91,7 @@ def verify_policy(
             break
     return {
         "profile": profile,
+        "seat": seat,
         "expert": str(config["selected_expert"]),
         "actions_compared": compared,
         "smallest_legal_action_set": smallest_action_count,
@@ -108,6 +110,7 @@ def main() -> None:
     parser.add_argument("--height", type=int, default=9)
     parser.add_argument("--seed", type=int, default=47)
     parser.add_argument("--maximum-actions", type=int, default=1_000)
+    parser.add_argument("--seat", type=int, choices=(0, 1), default=1)
     arguments = parser.parse_args()
     summary = verify_policy(
         arguments.checkpoint,
@@ -117,6 +120,7 @@ def main() -> None:
         arguments.height,
         arguments.seed,
         arguments.maximum_actions,
+        arguments.seat,
     )
     print(json.dumps(summary, sort_keys=True))
 
