@@ -37,6 +37,7 @@ class BenchmarkConfig:
     search_beam_width: int
     search_branch_width: int
     search_maximum_actions_per_turn: int
+    replan_each_action: bool
 
 
 def make_environment(config: BenchmarkConfig) -> VectorEnv:
@@ -82,8 +83,13 @@ def benchmark(config: BenchmarkConfig) -> dict[str, float | int | str | list[str
     started = time.perf_counter()
     for batch in range(batches):
         search_started = time.perf_counter()
+        search_actions = (
+            environment.search_actions_replanned
+            if config.replan_each_action
+            else environment.search_actions
+        )
         actions = np.asarray(
-            environment.search_actions(
+            search_actions(
                 node_budget=config.search_nodes,
                 beam_width=config.search_beam_width,
                 branch_width=config.search_branch_width,
@@ -113,6 +119,9 @@ def benchmark(config: BenchmarkConfig) -> dict[str, float | int | str | list[str
         "requested_transitions": config.transitions,
         "executed_transitions": executed_transitions,
         "search_nodes": config.search_nodes,
+        "search_plan_mode": (
+            "replan_each_action" if config.replan_each_action else "cached_whole_turn"
+        ),
         "setup_seconds": setup_seconds,
         "search_seconds": search_seconds,
         "step_seconds": step_seconds,
@@ -138,6 +147,7 @@ def parse_args() -> BenchmarkConfig:
     parser.add_argument("--search-beam-width", type=int, default=32)
     parser.add_argument("--search-branch-width", type=int, default=48)
     parser.add_argument("--search-maximum-actions-per-turn", type=int, default=24)
+    parser.add_argument("--replan-each-action", action="store_true")
     return BenchmarkConfig(**vars(parser.parse_args()))
 
 

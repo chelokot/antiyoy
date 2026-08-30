@@ -56,7 +56,8 @@ are preserved as historical measurements but are not paired ratings.
 Search-teacher records separate target generation from authoritative stepping
 and reset time. Reproduce them with `python/benchmark_teacher.py`; the reported
 throughput includes cached whole-turn plans, legal-index projection, and every
-configured compatibility profile.
+configured compatibility profile. Pass `--replan-each-action` to measure
+Markovian labels that discard the cached plan before every atomic action.
 
 Cross-domain routed-bundle records use the checked-in matrix configuration and
 name every held-out selection window. Exact-domain specialists are accepted or
