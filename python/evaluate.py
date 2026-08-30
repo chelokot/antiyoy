@@ -19,6 +19,7 @@ from antiyoy_rl.model import (
     encode_rules_batch,
     load_policy_state,
 )
+
 try:
     from .build_bundle import BUNDLE_KIND, SUPPORTED_BUNDLE_VERSIONS
 except ImportError:
@@ -35,6 +36,7 @@ except ImportError:
 
 PAIRING_SCHEME = "adjacent_same_seed_opposite_seat_v1"
 SEAT_ROTATION_SCHEME = "adjacent_same_seed_all_seats_v1"
+FIXED_SEAT_SCHEME = "unique_seed_fixed_seat_v1"
 
 
 class BaselineSelfPlay(TypedDict):
@@ -66,6 +68,27 @@ def seat_rotation_seeds(games: int, seed: int, players: int) -> np.ndarray:
     if games < players or games % players != 0:
         raise ValueError("games must be a positive multiple of players")
     return seed + np.arange(games, dtype=np.uint64) // players
+
+
+def evaluation_schedule(
+    games: int,
+    seed: int,
+    players: int,
+    model_seat: int | None,
+) -> tuple[np.ndarray, np.ndarray]:
+    if model_seat is None:
+        return (
+            seat_rotation_seeds(games, seed, players),
+            np.arange(games, dtype=np.uint8) % players,
+        )
+    if games < 1:
+        raise ValueError("fixed-seat evaluation requires at least one game")
+    if model_seat < 0 or model_seat >= players:
+        raise ValueError("model seat must belong to the player range")
+    return (
+        seed + np.arange(games, dtype=np.uint64),
+        np.full(games, model_seat, dtype=np.uint8),
+    )
 
 
 def outcome_summary(
@@ -112,8 +135,7 @@ def reference_adjusted_outcome(
         "score_delta": float(outcome["score"]) - baseline_score,
         "baseline_truncation_rate": baseline_truncation_rate,
         "truncation_rate_delta": (
-            int(outcome["truncations"]) / baseline_games
-            - baseline_truncation_rate
+            int(outcome["truncations"]) / baseline_games - baseline_truncation_rate
         ),
     }
 
@@ -127,10 +149,7 @@ def selected_action_kinds(
 
 
 def named_action_counts(counts: np.ndarray) -> dict[str, int]:
-    return {
-        name: int(counts[index])
-        for index, name in enumerate(ACTION_KIND_NAMES)
-    }
+    return {name: int(counts[index]) for index, name in enumerate(ACTION_KIND_NAMES)}
 
 
 def choose_baseline_actions(
@@ -254,15 +273,16 @@ def evaluate(
     neutral_tower_density_per_million: int = 20_000,
     neutral_capital_density_per_million: int = 10_000,
     grave_density_per_million: int = 15_000,
+    model_seat: int | None = None,
 ) -> dict[str, object]:
-    evaluation_seeds = seat_rotation_seeds(games, seed, players)
+    evaluation_seeds, model_seats = evaluation_schedule(
+        games, seed, players, model_seat
+    )
     device = torch.device(device_name)
     generator_name = "procedural_v1" if procedural else "symmetric_duel_v1"
     checkpoint = load_policy_checkpoint(checkpoint_path, device)
     base_config = dict(checkpoint["config"])
-    evaluation_profile = (
-        profile or base_config["profile"] or base_config["profiles"][0]
-    )
+    evaluation_profile = profile or base_config["profile"] or base_config["profiles"][0]
     evaluation_width = base_config["width"] if width is None else width
     evaluation_height = base_config["height"] if height is None else height
     evaluation_action_limit = (
@@ -347,7 +367,7 @@ def evaluate(
     environment = create_environment(games)
 
     def evaluate_baseline_reference() -> BaselineSelfPlay:
-        reference_games = games // players
+        reference_games = games // players if model_seat is None else games
         reference_environment = create_environment(reference_games)
         for index in range(reference_games):
             reference_environment.reset(index, seed + index)
@@ -381,9 +401,7 @@ def evaluate(
                     truncated = bool(reference_result["truncated"][index])
                     if truncated:
                         reference_truncations += 1
-                        winner = int(
-                            reference_result["adjudicated_winners"][index]
-                        )
+                        winner = int(reference_result["adjudicated_winners"][index])
                     if winner == 255:
                         reference_draws += 1
                         if not truncated:
@@ -405,7 +423,6 @@ def evaluate(
     for index, evaluation_seed in enumerate(evaluation_seeds):
         environment.reset(index, int(evaluation_seed))
     rules = encode_rules_batch(environment.rules_jsons(), device)
-    model_seats = np.arange(games, dtype=np.uint8) % players
     model_game_masks = {
         expert: np.isin(
             model_seats,
@@ -435,7 +452,9 @@ def evaluate(
         with torch.no_grad():
             for expert, model in models.items():
                 logits, _ = model(observation, rules)
-                distribution = action_distribution(logits, observation["action_offsets"])
+                distribution = action_distribution(
+                    logits, observation["action_offsets"]
+                )
                 expert_actions = (
                     distribution.logits.argmax(dim=1).cpu().numpy().astype(np.uint64)
                 )
@@ -453,7 +472,9 @@ def evaluate(
             search_maximum_actions_per_turn,
         )
         active_players = observation["active_players"]
-        actions = np.where(active_players == model_seats, model_actions, baseline_actions)
+        actions = np.where(
+            active_players == model_seats, model_actions, baseline_actions
+        )
         action_kinds = selected_action_kinds(observation, actions)
         active = np.logical_not(finished)
         model_turns = np.logical_and(active, active_players == model_seats)
@@ -469,24 +490,30 @@ def evaluate(
         done = np.logical_or(result["terminal"], result["truncated"])
         for index in np.flatnonzero(done):
             if not finished[index]:
-                model_seat = int(model_seats[index])
+                game_model_seat = int(model_seats[index])
                 winner = int(result["winners"][index])
                 truncated = bool(result["truncated"][index])
                 if truncated:
-                    seat_truncations[model_seat] += 1
-                    seat_adjudications[model_seat] += 1
+                    seat_truncations[game_model_seat] += 1
+                    seat_adjudications[game_model_seat] += 1
                     winner = int(result["adjudicated_winners"][index])
                 if winner == 255:
-                    seat_draws[model_seat] += 1
+                    seat_draws[game_model_seat] += 1
                     if not truncated:
-                        seat_terminal_draws[model_seat] += 1
-                elif winner == model_seat:
-                    seat_wins[model_seat] += 1
+                        seat_terminal_draws[game_model_seat] += 1
+                elif winner == game_model_seat:
+                    seat_wins[game_model_seat] += 1
                 else:
-                    seat_losses[model_seat] += 1
+                    seat_losses[game_model_seat] += 1
                 finished[index] = True
             environment.reset(int(index), reset_seed)
             reset_seed += 1
+    reference_wins = (
+        sum(int(wins) for wins in baseline_reference["wins_by_seat"])
+        if model_seat is None
+        else int(baseline_reference["wins_by_seat"][model_seat])
+    )
+    reference_replication = players if model_seat is None else 1
     summary = reference_adjusted_outcome(
         outcome_summary(
             games,
@@ -499,16 +526,18 @@ def evaluate(
             int(seat_adjudications.sum()),
         ),
         games,
-        sum(int(wins) for wins in baseline_reference["wins_by_seat"]),
-        int(baseline_reference["draws"]) * players,
-        int(baseline_reference["truncations"]) * players,
+        reference_wins,
+        int(baseline_reference["draws"]) * reference_replication,
+        int(baseline_reference["truncations"]) * reference_replication,
     )
+    reported_seats = range(players) if model_seat is None else (model_seat,)
+    games_per_reported_seat = games // players if model_seat is None else games
     seats = [
         {
             "seat": seat,
             **reference_adjusted_outcome(
                 outcome_summary(
-                    games // players,
+                    games_per_reported_seat,
                     int(seat_wins[seat]),
                     int(seat_draws[seat]),
                     int(seat_losses[seat]),
@@ -517,23 +546,31 @@ def evaluate(
                     players,
                     int(seat_adjudications[seat]),
                 ),
-                games // players,
+                games_per_reported_seat,
                 int(baseline_reference["wins_by_seat"][seat]),
                 int(baseline_reference["draws"]),
                 int(baseline_reference["truncations"]),
             ),
         }
-        for seat in range(players)
+        for seat in reported_seats
     ]
     return {
         "checkpoint": str(checkpoint_path),
         "baseline": baseline,
         **summary,
         "pairing": {
-            "scheme": PAIRING_SCHEME if players == 2 else SEAT_ROTATION_SCHEME,
-            "unique_seeds": games // players,
+            "scheme": (
+                FIXED_SEAT_SCHEME
+                if model_seat is not None
+                else PAIRING_SCHEME
+                if players == 2
+                else SEAT_ROTATION_SCHEME
+            ),
+            "unique_seeds": games if model_seat is not None else games // players,
             "first_seed": seed,
-            "last_seed": seed + games // players - 1,
+            "last_seed": seed
+            + (games if model_seat is not None else games // players)
+            - 1,
         },
         "seats": seats,
         "transitions": transitions,
@@ -541,11 +578,14 @@ def evaluate(
         "profile": evaluation_profile,
         "policy_kind": config["policy_kind"],
         "selected_expert": (
-            selected_experts[0]
+            selected_experts[model_seat]
+            if model_seat is not None
+            else selected_experts[0]
             if len(set(selected_experts)) == 1
             else "seat_routed"
         ),
         "selected_experts": selected_experts,
+        "model_seat": model_seat,
         "baseline_self_play": baseline_reference,
         "seed": seed,
         "generator": generator_name,
@@ -584,7 +624,9 @@ def main() -> None:
     parser.add_argument("checkpoint", type=Path)
     parser.add_argument("--games", type=int, default=64)
     parser.add_argument("--seed", type=int, default=100000)
-    parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--device", default="cuda" if torch.cuda.is_available() else "cpu"
+    )
     parser.add_argument(
         "--baseline", choices=("search", "greedy", "random"), default="greedy"
     )
@@ -598,18 +640,29 @@ def main() -> None:
     parser.add_argument("--action-limit", type=int)
     parser.add_argument("--procedural", action="store_true")
     parser.add_argument("--players", type=int, default=2)
+    parser.add_argument("--model-seat", type=int)
     parser.add_argument("--land-density-per-million", type=int, default=650_000)
     parser.add_argument("--starting-province-size", type=int, default=5)
     parser.add_argument("--starting-money", type=int, default=10)
     parser.add_argument("--tree-density-per-million", type=int, default=150_000)
     parser.add_argument("--neutral-tower-density-per-million", type=int, default=20_000)
-    parser.add_argument("--neutral-capital-density-per-million", type=int, default=10_000)
+    parser.add_argument(
+        "--neutral-capital-density-per-million", type=int, default=10_000
+    )
     parser.add_argument("--grave-density-per-million", type=int, default=15_000)
     arguments = parser.parse_args()
     if arguments.players < 2:
         parser.error("players must be at least two")
-    if arguments.games < arguments.players or arguments.games % arguments.players != 0:
+    if arguments.model_seat is None and (
+        arguments.games < arguments.players or arguments.games % arguments.players != 0
+    ):
         parser.error("games must be a positive multiple of players")
+    if arguments.model_seat is not None and arguments.games < 1:
+        parser.error("fixed-seat evaluation requires at least one game")
+    if arguments.model_seat is not None and not (
+        0 <= arguments.model_seat < arguments.players
+    ):
+        parser.error("model seat must belong to the player range")
     if not arguments.procedural and arguments.players != 2:
         parser.error("symmetric duel evaluation requires exactly two players")
     print(
@@ -637,6 +690,7 @@ def main() -> None:
                 arguments.neutral_tower_density_per_million,
                 arguments.neutral_capital_density_per_million,
                 arguments.grave_density_per_million,
+                arguments.model_seat,
             ),
             sort_keys=True,
         )

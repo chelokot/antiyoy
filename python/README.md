@@ -186,6 +186,13 @@ Use `--baseline search --search-nodes 2048` for the stronger deterministic
 teacher. Search beam, branch, and maximum turn depth are independently
 configurable and emitted in the result.
 
+Use `--model-seat SEAT` for an exact-seat scout. Unlike the all-seat rotation,
+every game then uses a distinct seed with the policy fixed to that seat, and
+the evaluator calibrates the result against baseline self-play on the same
+seed window. This reduces a six-player specialist scout to one sixth of the
+games without evaluating unrelated routes. It is a selection tool, not a
+release gate: a promoted bundle still requires the held-out all-seat suite.
+
 Arena dimensions and action limits otherwise inherit the training checkpoint.
 Cross-checkpoint comparisons must pass the same explicit `--width`, `--height`,
 and `--action-limit`; all three values are emitted in every result.

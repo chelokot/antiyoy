@@ -101,6 +101,11 @@ adjudicated winner. This gives every decision in a turn sequence outcome credit
 without inventing opponent-perspective reward signs in games with more than two
 players. A frozen reference-policy KL term bounds specialization drift.
 
+Exact-seat evaluation fixes the policy to one requested seat and assigns a
+unique deterministic seed to every game. Its baseline self-play calibration
+uses that same number of seeds and the same seat, so route ablations spend no
+compute on unchanged seats. All-seat rotation remains the release boundary.
+
 ## Determinism
 
 Parallel stepping is deterministic because games share no mutable state, output

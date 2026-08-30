@@ -4,6 +4,8 @@ import pytest
 pytest.importorskip("torch")
 
 from python.evaluate import (
+    FIXED_SEAT_SCHEME,
+    evaluation_schedule,
     named_action_counts,
     outcome_summary,
     paired_elo,
@@ -62,6 +64,24 @@ def test_seat_rotation_seeds_repeat_each_map_for_every_player() -> None:
         101,
         101,
     ]
+
+
+def test_fixed_seat_schedule_uses_unique_seeds() -> None:
+    seeds, seats = evaluation_schedule(4, 100, 6, 2)
+
+    assert FIXED_SEAT_SCHEME == "unique_seed_fixed_seat_v1"
+    assert seeds.tolist() == [100, 101, 102, 103]
+    assert seats.tolist() == [2, 2, 2, 2]
+
+
+@pytest.mark.parametrize(
+    ("games", "players", "seat"), [(0, 6, 2), (4, 6, -1), (4, 6, 6)]
+)
+def test_fixed_seat_schedule_rejects_invalid_requests(
+    games: int, players: int, seat: int
+) -> None:
+    with pytest.raises(ValueError):
+        evaluation_schedule(games, 100, players, seat)
 
 
 @pytest.mark.parametrize(("games", "players"), [(3, 4), (5, 4), (8, 1)])
