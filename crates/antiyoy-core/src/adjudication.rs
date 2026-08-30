@@ -23,9 +23,7 @@ pub fn adjudicate(game: &Game) -> Option<PlayerId> {
     if leaders.next().is_some() {
         return None;
     }
-    Some(PlayerId(
-        u8::try_from(leader).expect("player count is bounded by u8"),
-    ))
+    Some(PlayerId(u8::try_from(leader).ok()?))
 }
 
 #[cfg(test)]
