@@ -39,6 +39,10 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(html, /Start rated match/);
   assert.match(html, /Fixed 11×9 Classic arena/);
   assert.match(html, /Stored only in this browser/);
+  assert.match(html, /ONLINE MULTIPLAYER/);
+  assert.match(html, /Create invite room/);
+  assert.match(html, /Join invited room/);
+  assert.match(html, /AUTHORITATIVE SERVER/);
   assert.match(html, /\/og\.png/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton/);
 });
@@ -129,6 +133,10 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, /<summary>GAME CONFIG<\/summary>/);
   assert.match(arena, /RULES_PROFILES\.map/);
   assert.match(arena, /<summary>PROVINCE ECONOMY<\/summary>/);
+  assert.match(arena, /createJoinableDuel\(onlineEndpoint, onlineName, draftConfig\.seed\)/);
+  assert.match(arena, /claimOpenSeat\(onlineEndpoint, joinCode, joinSeat, onlineName\)/);
+  assert.match(arena, /multiplayerConnection\.current\?\.disconnect\(\)/);
+  assert.match(arena, /connection\.submit\(action, onlineSession\.snapshot\.revision\)/);
 });
 
 test("executes greedy and whole-turn search in the compiled WebAssembly engine", async () => {
