@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Digest, ReplayError};
 
-pub const NETWORK_SCHEMA_VERSION: u16 = 5;
+pub const NETWORK_SCHEMA_VERSION: u16 = 6;
 pub const MINIMUM_MATCH_PLAYERS: usize = 2;
 pub const MAXIMUM_MATCH_PLAYERS: usize = 8;
 
@@ -24,8 +24,127 @@ pub struct SeatRequest {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum MatchScenario {
-    SymmetricDuel { width: u16, height: u16, seed: u64 },
-    Procedural(GeneratorConfig),
+    SymmetricDuel {
+        width: u16,
+        height: u16,
+        #[serde(with = "u64_wire")]
+        seed: u64,
+    },
+    Procedural(#[serde(with = "generator_config_wire")] GeneratorConfig),
+}
+
+mod u64_wire {
+    use serde::{Deserialize, Deserializer, Serializer, de};
+
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    pub fn serialize<S>(value: &u64, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if serializer.is_human_readable() {
+            serializer.serialize_str(&value.to_string())
+        } else {
+            serializer.serialize_u64(*value)
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<u64, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        if deserializer.is_human_readable() {
+            String::deserialize(deserializer)?
+                .parse()
+                .map_err(de::Error::custom)
+        } else {
+            u64::deserialize(deserializer)
+        }
+    }
+}
+
+mod generator_config_wire {
+    use antiyoy_core::GeneratorConfig;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+
+    #[derive(Serialize)]
+    struct SerializableGeneratorConfig {
+        schema_version: u16,
+        width: u16,
+        height: u16,
+        players: u8,
+        seed: String,
+        land_density_per_million: u32,
+        starting_province_size: u16,
+        starting_money: i64,
+        tree_density_per_million: u32,
+        neutral_tower_density_per_million: u32,
+        neutral_capital_density_per_million: u32,
+        grave_density_per_million: u32,
+    }
+
+    #[derive(Deserialize)]
+    struct DeserializableGeneratorConfig {
+        schema_version: u16,
+        width: u16,
+        height: u16,
+        players: u8,
+        seed: String,
+        land_density_per_million: u32,
+        starting_province_size: u16,
+        starting_money: i64,
+        tree_density_per_million: u32,
+        neutral_tower_density_per_million: u32,
+        neutral_capital_density_per_million: u32,
+        grave_density_per_million: u32,
+    }
+
+    pub fn serialize<S>(config: &GeneratorConfig, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if !serializer.is_human_readable() {
+            return config.serialize(serializer);
+        }
+        SerializableGeneratorConfig {
+            schema_version: config.schema_version,
+            width: config.width,
+            height: config.height,
+            players: config.players,
+            seed: config.seed.to_string(),
+            land_density_per_million: config.land_density_per_million,
+            starting_province_size: config.starting_province_size,
+            starting_money: config.starting_money,
+            tree_density_per_million: config.tree_density_per_million,
+            neutral_tower_density_per_million: config.neutral_tower_density_per_million,
+            neutral_capital_density_per_million: config.neutral_capital_density_per_million,
+            grave_density_per_million: config.grave_density_per_million,
+        }
+        .serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<GeneratorConfig, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        if !deserializer.is_human_readable() {
+            return GeneratorConfig::deserialize(deserializer);
+        }
+        let config = DeserializableGeneratorConfig::deserialize(deserializer)?;
+        Ok(GeneratorConfig {
+            schema_version: config.schema_version,
+            width: config.width,
+            height: config.height,
+            players: config.players,
+            seed: config.seed.parse().map_err(de::Error::custom)?,
+            land_density_per_million: config.land_density_per_million,
+            starting_province_size: config.starting_province_size,
+            starting_money: config.starting_money,
+            tree_density_per_million: config.tree_density_per_million,
+            neutral_tower_density_per_million: config.neutral_tower_density_per_million,
+            neutral_capital_density_per_million: config.neutral_capital_density_per_million,
+            grave_density_per_million: config.grave_density_per_million,
+        })
+    }
 }
 
 impl MatchScenario {
@@ -187,6 +306,7 @@ pub struct MatchSnapshot {
     pub rating_status: RatingStatus,
     pub actions_played: u32,
     pub digest: Digest,
+    pub rules_profile: RulesProfile,
     pub scenario: MatchScenario,
     pub seats: Vec<SeatRequest>,
     pub game: GameView,
@@ -287,6 +407,7 @@ impl MatchSnapshot {
             rating_status,
             actions_played,
             digest: Digest::of_game(game)?,
+            rules_profile: request.rules_profile,
             scenario: request.scenario.clone(),
             seats: request.seats.clone(),
             game: game_view,
@@ -310,7 +431,7 @@ mod tests {
                 width: 21,
                 height: 15,
                 players: 4,
-                seed: 47,
+                seed: u64::MAX,
                 ..GeneratorConfig::default()
             }),
             seats: (0..4)
@@ -322,12 +443,19 @@ mod tests {
             action_limit: 2_000,
         };
         let encoded = serde_json::to_vec(&request).expect("serializable request");
+        let json: serde_json::Value = serde_json::from_slice(&encoded).expect("json request");
+        assert_eq!(json["scenario"]["Procedural"]["seed"], u64::MAX.to_string());
         let decoded: CreateMatchRequest =
             serde_json::from_slice(&encoded).expect("deserializable request");
         assert_eq!(decoded, request);
+        let binary = postcard::to_allocvec(&request).expect("binary request");
+        assert_eq!(
+            postcard::from_bytes::<CreateMatchRequest>(&binary).expect("binary round trip"),
+            request
+        );
         assert_eq!(request.scenario.players(), 4);
         assert_eq!(request.scenario.width(), 21);
         assert_eq!(request.scenario.height(), 15);
-        assert_eq!(request.scenario.seed(), 47);
+        assert_eq!(request.scenario.seed(), u64::MAX);
     }
 }

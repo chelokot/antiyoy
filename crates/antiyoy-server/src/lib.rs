@@ -1114,11 +1114,14 @@ mod tests {
             ..ServiceLimits::default()
         })
         .expect("valid service limits");
+        let request = four_player_procedural();
         let created = service
-            .create_match(&four_player_procedural())
+            .create_match(&request)
             .expect("valid four-player room");
         assert_eq!(created.credentials.len(), 1);
         assert_eq!(created.snapshot.seats.len(), 4);
+        assert_eq!(created.snapshot.rules_profile, request.rules_profile);
+        assert_eq!(created.snapshot.scenario, request.scenario);
         assert_eq!(created.snapshot.game.relations.len(), 16);
         assert_eq!(created.snapshot.game.active_player, 0);
         let owners = created
@@ -1164,6 +1167,28 @@ mod tests {
                 .final_digest,
             advanced.digest
         );
+    }
+
+    #[test]
+    fn every_bundled_profile_creates_a_four_player_procedural_room() {
+        let service = MatchService::new();
+        for profile in [
+            RulesProfile::ClassicGeneric,
+            RulesProfile::ClassicSlay,
+            RulesProfile::OnlineDefaultV1,
+            RulesProfile::OnlineClassicV1,
+            RulesProfile::OnlineDuelV1,
+            RulesProfile::OnlineExperimentalV1,
+            RulesProfile::OnlineExperimentalV2_260801,
+        ] {
+            let mut request = four_player_procedural();
+            request.rules_profile = profile;
+            let created = service
+                .create_match(&request)
+                .expect("bundled profile creates a multiplayer room");
+            assert_eq!(created.snapshot.rules_profile, profile);
+            assert_eq!(created.snapshot.scenario.players(), 4);
+        }
     }
 
     #[test]
@@ -1517,31 +1542,33 @@ mod tests {
     }
 
     #[test]
-    fn previous_network_schema_room_is_upgraded_during_restoration() {
-        let directory = temporary_directory();
-        let limits = ServiceLimits::default();
-        let service = MatchService::persistent(limits, &directory).expect("writable storage");
-        let created = service.create_match(&joinable_duel()).expect("valid room");
-        drop(service);
-        let stored_path = directory.join(format!("{}.room", created.snapshot.match_id));
-        let mut stored: StoredRoom =
-            postcard::from_bytes(&fs::read(&stored_path).expect("stored room"))
-                .expect("decoded stored room");
-        stored.request.schema_version = 4;
-        fs::write(
-            &stored_path,
-            postcard::to_allocvec(&stored).expect("encoded previous room"),
-        )
-        .expect("previous room written");
+    fn supported_network_schema_rooms_are_upgraded_during_restoration() {
+        for previous_schema in [4, 5] {
+            let directory = temporary_directory();
+            let limits = ServiceLimits::default();
+            let service = MatchService::persistent(limits, &directory).expect("writable storage");
+            let created = service.create_match(&joinable_duel()).expect("valid room");
+            drop(service);
+            let stored_path = directory.join(format!("{}.room", created.snapshot.match_id));
+            let mut stored: StoredRoom =
+                postcard::from_bytes(&fs::read(&stored_path).expect("stored room"))
+                    .expect("decoded stored room");
+            stored.request.schema_version = previous_schema;
+            fs::write(
+                &stored_path,
+                postcard::to_allocvec(&stored).expect("encoded previous room"),
+            )
+            .expect("previous room written");
 
-        let restored = MatchService::persistent(limits, &directory).expect("room restored");
-        let snapshot = restored
-            .snapshot(&created.snapshot.match_id)
-            .expect("upgraded room");
-        assert_eq!(snapshot.schema_version, NETWORK_SCHEMA_VERSION);
-        assert_eq!(snapshot.status, MatchStatus::Waiting);
-        drop(restored);
-        fs::remove_dir_all(directory).expect("remove test storage");
+            let restored = MatchService::persistent(limits, &directory).expect("room restored");
+            let snapshot = restored
+                .snapshot(&created.snapshot.match_id)
+                .expect("upgraded room");
+            assert_eq!(snapshot.schema_version, NETWORK_SCHEMA_VERSION);
+            assert_eq!(snapshot.status, MatchStatus::Waiting);
+            drop(restored);
+            fs::remove_dir_all(directory).expect("remove test storage");
+        }
     }
 
     #[test]

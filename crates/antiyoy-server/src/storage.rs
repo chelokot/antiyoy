@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub(crate) const ROOM_STORAGE_SCHEMA_VERSION: u16 = 2;
-const PREVIOUS_NETWORK_SCHEMA_VERSION: u16 = 4;
+const FIRST_UPGRADABLE_NETWORK_SCHEMA_VERSION: u16 = 4;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) struct StoredRoom {
@@ -129,7 +129,9 @@ impl Storage {
             } else {
                 postcard::from_bytes::<StoredRoom>(&bytes)?
             };
-            if room.request.schema_version == PREVIOUS_NETWORK_SCHEMA_VERSION {
+            if (FIRST_UPGRADABLE_NETWORK_SCHEMA_VERSION..NETWORK_SCHEMA_VERSION)
+                .contains(&room.request.schema_version)
+            {
                 room.request.schema_version = NETWORK_SCHEMA_VERSION;
             }
             if room.id != filename {

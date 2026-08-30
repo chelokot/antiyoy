@@ -1,6 +1,6 @@
 # Authoritative multiplayer
 
-Network schema 5 supports two to eight independently controlled seats. A room
+Network schema 6 supports two to eight independently controlled seats. A room
 uses either a symmetric duel or the exact `GeneratorConfig` consumed by the
 core. The server rejects mismatched seat/player counts, duplicate names, maps
 above its configured cell limit, and action limits above its configured cap
@@ -10,7 +10,7 @@ Create a four-player procedural room with `POST /v1/matches`:
 
 ```json
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "rules_profile": "OnlineDefaultV1",
   "scenario": {
     "Procedural": {
@@ -18,7 +18,7 @@ Create a four-player procedural room with `POST /v1/matches`:
       "width": 17,
       "height": 13,
       "players": 4,
-      "seed": 700,
+      "seed": "700",
       "land_density_per_million": 650000,
       "starting_province_size": 5,
       "starting_money": 10,
@@ -49,7 +49,7 @@ claimed. Claim seat 1 atomically with
 `POST /v1/matches/{match_id}/seats/1/claim`:
 
 ```json
-{ "schema_version": 5, "name": "guest" }
+{ "schema_version": 6, "name": "guest" }
 ```
 
 Exactly one caller receives the new `SeatCredential`; concurrent or repeated
@@ -58,9 +58,10 @@ claims return `seat_unavailable`. The browser invitation contains only the
 authentication frame and never placed in the URL.
 
 The response includes a token only for each human seat. Tokens are shown once;
-only their BLAKE3 hashes are persisted. A snapshot includes the scenario, all
-public seat descriptors, the current revision, rating state, deterministic
-digest, complete game view, and authoritative legal actions.
+only their BLAKE3 hashes are persisted. A snapshot includes the exact rules
+profile and scenario, all public seat descriptors, the current revision, rating
+state, deterministic digest, complete game view, and authoritative legal actions.
+Schema-4 and schema-5 room files upgrade to schema 6 during restoration.
 
 Connect to `GET /v1/matches/{match_id}/watch` as a spectator. Authenticate a
 human seat before submitting an action:
@@ -68,7 +69,7 @@ human seat before submitting an action:
 ```json
 {
   "Authenticate": {
-    "schema_version": 5,
+    "schema_version": 6,
     "seat": 0,
     "token": "returned-seat-token"
   }
@@ -80,7 +81,7 @@ Submit an action with the last observed revision:
 ```json
 {
   "Submit": {
-    "schema_version": 5,
+    "schema_version": 6,
     "revision": 12,
     "action": "EndTurn"
   }
