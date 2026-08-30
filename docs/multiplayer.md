@@ -111,3 +111,16 @@ and increments every participant's game count once. Existing schema-1
 two-player league JSON upgrades without rating drift. Existing schema-1 room
 files are decoded through their old fixed-seat structure and rewritten to the
 variable-seat storage schema after replay verification.
+
+`GET /v1/league` returns league schema 2 with the K-factor, the participant map,
+and the ordered verified match ledger. Each participant contains Elo, games,
+and its win-draw-loss record. Ledger entries include the ordered agent names,
+player count, outcome, action count, termination reason, and final 32-byte state
+digest. Seeds are decimal strings in JSON so every `u64`, including
+`18446744073709551615`, remains exact in browsers; numeric seeds from older
+`league.json` files remain readable and are rewritten in the exact form.
+
+The browser derives the same ordering as `League::standings`: descending Elo,
+then descending games, then bytewise UTF-8 name order. Its Server League panel
+loads lazily, highlights the current server identity, shows the latest verified
+ledger entries, and refreshes automatically when the connected room is rated.

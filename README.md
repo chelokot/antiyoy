@@ -141,7 +141,10 @@ On restart, the service verifies each replay, reconstructs the authoritative
 game, and replays native bot decisions to restore their exact RNG state. Only
 token hashes are written to disk.
 Terminal rooms enter the server's Elo ledger only after replay verification;
-`GET /v1/league` returns its versioned standings and match ledger. Room files
+`GET /v1/league` returns its versioned standings and match ledger, and the
+browser exposes both in a compact Server League panel. Full-range `u64` seeds
+remain decimal strings across JSON while legacy numeric league files still
+load. Room files
 and `league.json` use fsync-plus-rename atomic replacement.
 Match snapshots expose `NotFinished`, `Pending`, `Recorded`, or `Duplicate`
 rating status; an identical replay cannot inflate Elo twice.

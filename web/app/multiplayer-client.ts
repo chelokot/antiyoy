@@ -1,6 +1,7 @@
 import type { CoreAction, StateView } from "./game-types";
 
 export const NETWORK_SCHEMA_VERSION = 6;
+export const LEAGUE_SCHEMA_VERSION = 2;
 export const DEFAULT_MULTIPLAYER_ENDPOINT = "https://antiyoy.test";
 
 export const RULES_PROFILE_WIRE = {
@@ -77,6 +78,43 @@ export type OnlineSession = {
   endpoint: string;
   credential: SeatCredential;
   snapshot: MatchSnapshot;
+};
+
+export type LeagueParticipant = {
+  rating: {
+    elo: number;
+    games: number;
+  };
+  wins: number;
+  draws: number;
+  losses: number;
+};
+
+export type LeagueMatch = {
+  id: string;
+  agents: string[];
+  player_count: number;
+  seed: string;
+  outcome: {
+    winner: number | null;
+    actions: number;
+    termination: "Victory" | "ActionLimit";
+  };
+  final_digest: number[];
+};
+
+export type LeagueSnapshot = {
+  schema_version: number;
+  elo: {
+    k_factor: number;
+  };
+  participants: Record<string, LeagueParticipant>;
+  matches: LeagueMatch[];
+};
+
+export type LeagueStanding = LeagueParticipant & {
+  rank: number;
+  name: string;
 };
 
 type CreateMatchResponse = {
@@ -271,6 +309,26 @@ export async function claimOpenSeat(
   return { endpoint: normalizeEndpoint(endpoint), credential: response.credential, snapshot: response.snapshot };
 }
 
+export async function fetchLeague(endpoint: string): Promise<LeagueSnapshot> {
+  const league = await requestJson<unknown>(endpoint, "/v1/league", { method: "GET" });
+  assertLeagueSnapshot(league);
+  return league;
+}
+
+export function leagueStandings(league: LeagueSnapshot): LeagueStanding[] {
+  return Object.entries(league.participants)
+    .sort(([firstName, first], [secondName, second]) => (
+      second.rating.elo - first.rating.elo
+      || second.rating.games - first.rating.games
+      || compareUtf8(firstName, secondName)
+    ))
+    .map(([name, participant], index) => ({
+      rank: index + 1,
+      name,
+      ...participant,
+    }));
+}
+
 export function createInviteUrl(currentUrl: string, matchId: string, seat: number): string {
   const url = new URL(currentUrl);
   url.hash = new URLSearchParams({ room: validateMatchId(matchId), seat: seat.toString() }).toString();
@@ -413,6 +471,119 @@ function assertSnapshot(snapshot: MatchSnapshot): void {
   if (config.players !== snapshot.seats.length) {
     throw new Error("Server returned a mismatched multiplayer scenario");
   }
+}
+
+function assertLeagueSnapshot(value: unknown): asserts value is LeagueSnapshot {
+  if (!isRecord(value) || value.schema_version !== LEAGUE_SCHEMA_VERSION) {
+    throw new Error("Server returned an incompatible league snapshot");
+  }
+  if (
+    !isRecord(value.elo)
+    || !isFinitePositiveNumber(value.elo.k_factor)
+    || !isRecord(value.participants)
+    || !Array.isArray(value.matches)
+  ) {
+    throw new Error("Server returned an incompatible league snapshot");
+  }
+
+  const appearances = new Map<string, number>();
+  const participantGames = new Map<string, number>();
+  for (const [name, participant] of Object.entries(value.participants)) {
+    if (
+      name.length === 0
+      || name.length > 64
+      || !isRecord(participant)
+      || !isRecord(participant.rating)
+      || !isFiniteNumber(participant.rating.elo)
+      || !isNonNegativeInteger(participant.rating.games)
+      || !isNonNegativeInteger(participant.wins)
+      || !isNonNegativeInteger(participant.draws)
+      || !isNonNegativeInteger(participant.losses)
+      || participant.wins + participant.draws + participant.losses !== participant.rating.games
+    ) {
+      throw new Error("Server returned an incompatible league snapshot");
+    }
+    appearances.set(name, 0);
+    participantGames.set(name, participant.rating.games);
+  }
+
+  const matchIds = new Set<string>();
+  for (const match of value.matches) {
+    if (
+      !isRecord(match)
+      || typeof match.id !== "string"
+      || !/^[0-9a-f]{64}$/.test(match.id)
+      || matchIds.has(match.id)
+      || !Array.isArray(match.agents)
+      || match.agents.length < 2
+      || match.agents.length > 8
+      || new Set(match.agents).size !== match.agents.length
+      || !match.agents.every((agent) => typeof agent === "string" && appearances.has(agent))
+      || match.player_count !== match.agents.length
+      || typeof match.seed !== "string"
+      || !isU64String(match.seed)
+      || !isRecord(match.outcome)
+      || (
+        match.outcome.winner !== null
+        && (!isNonNegativeInteger(match.outcome.winner) || match.outcome.winner >= match.agents.length)
+      )
+      || !isNonNegativeInteger(match.outcome.actions)
+      || (match.outcome.termination !== "Victory" && match.outcome.termination !== "ActionLimit")
+      || !isDigest(match.final_digest)
+    ) {
+      throw new Error("Server returned an incompatible league snapshot");
+    }
+    matchIds.add(match.id);
+    for (const agent of match.agents) {
+      appearances.set(agent, (appearances.get(agent) ?? 0) + 1);
+    }
+  }
+
+  for (const [name, games] of participantGames) {
+    if (games !== appearances.get(name)) {
+      throw new Error("Server returned an incompatible league snapshot");
+    }
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isFinitePositiveNumber(value: unknown): value is number {
+  return isFiniteNumber(value) && value > 0;
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function isDigest(value: unknown): value is number[] {
+  return Array.isArray(value)
+    && value.length === 32
+    && value.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255);
+}
+
+function isU64String(value: string): boolean {
+  return /^\d+$/.test(value) && BigInt(value) <= BigInt("18446744073709551615");
+}
+
+function compareUtf8(first: string, second: string): number {
+  const encoder = new TextEncoder();
+  const firstBytes = encoder.encode(first);
+  const secondBytes = encoder.encode(second);
+  const sharedLength = Math.min(firstBytes.length, secondBytes.length);
+  for (let index = 0; index < sharedLength; index += 1) {
+    const difference = (firstBytes[index] ?? 0) - (secondBytes[index] ?? 0);
+    if (difference !== 0) {
+      return difference;
+    }
+  }
+  return firstBytes.length - secondBytes.length;
 }
 
 async function requestJson<ResponseBody>(

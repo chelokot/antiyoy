@@ -13,9 +13,14 @@ import {
   claimOpenSeat,
   createJoinableMatch,
   createOpenSeatInvites,
+  fetchLeague,
+  leagueStandings,
   parseInvite,
   roomConfigFromSnapshot,
   type ConnectionStatus,
+  type LeagueMatch,
+  type LeagueSnapshot,
+  type LeagueStanding,
   type OnlineRoomConfig,
   type OnlineSession,
   type RulesProfileId,
@@ -37,6 +42,7 @@ type BotStrengthName = typeof BOT_STRENGTH_NAMES[number];
 type BotOpponentName = "neural" | BotStrengthName;
 type BrowserPolicyKey = keyof typeof BROWSER_POLICY_MODELS;
 type PolicyStatus = "loading" | "ready" | "error";
+type LeagueStatus = "idle" | "loading" | "ready" | "error";
 
 type PlacementRating = {
   version: 1;
@@ -320,6 +326,7 @@ export default function Arena() {
   const replay = useRef<WasmReplayType | null>(null);
   const browserPolicies = useRef<Partial<Record<BrowserPolicyKey, RoutedBrowserPolicy>>>({});
   const multiplayerConnection = useRef<MultiplayerConnection | null>(null);
+  const leagueRequest = useRef(0);
   const botResponseInFlight = useRef(false);
   const placementRecorded = useRef(false);
   const boardViewport = useRef<HTMLDivElement | null>(null);
@@ -355,9 +362,36 @@ export default function Arena() {
   const [inviteBaseUrl, setInviteBaseUrl] = useState("");
   const [copiedInviteSeat, setCopiedInviteSeat] = useState<number | null>(null);
   const [onlineBusy, setOnlineBusy] = useState(false);
+  const [league, setLeague] = useState<LeagueSnapshot | null>(null);
+  const [leagueStatus, setLeagueStatus] = useState<LeagueStatus>("idle");
+  const [leagueError, setLeagueError] = useState<string | null>(null);
+  const [leagueEndpoint, setLeagueEndpoint] = useState<string | null>(null);
   const activePolicyKey = policyKeyForProfile(activeConfig.profile);
   const policyStatus = policyStatuses[activePolicyKey];
   const activePolicyKeyRef = useRef(policyKeyForProfile(DEFAULT_CONFIG.profile));
+
+  const refreshLeague = useCallback(async () => {
+    const request = leagueRequest.current + 1;
+    leagueRequest.current = request;
+    setLeagueEndpoint(onlineEndpoint);
+    setLeagueStatus("loading");
+    setLeagueError(null);
+    try {
+      const snapshot = await fetchLeague(onlineEndpoint);
+      if (leagueRequest.current !== request) {
+        return;
+      }
+      setLeague(snapshot);
+      setLeagueStatus("ready");
+    } catch (reason: unknown) {
+      if (leagueRequest.current !== request) {
+        return;
+      }
+      setLeague(null);
+      setLeagueStatus("error");
+      setLeagueError(reason instanceof Error ? reason.message : String(reason));
+    }
+  }, [onlineEndpoint]);
 
   const beginOnlineSession = useCallback((session: OnlineSession) => {
     multiplayerConnection.current?.disconnect();
@@ -386,6 +420,9 @@ export default function Arena() {
           botResponseInFlight.current = false;
           setBotThinking(false);
           setError(null);
+          if (snapshot.rating_status === "Recorded") {
+            void refreshLeague();
+          }
         },
         onStatus: setConnectionStatus,
         onError: (message) => {
@@ -397,7 +434,7 @@ export default function Arena() {
     );
     multiplayerConnection.current = connection;
     connection.connect();
-  }, []);
+  }, [refreshLeague]);
 
   const disconnectOnline = useCallback(() => {
     multiplayerConnection.current?.disconnect();
@@ -962,6 +999,13 @@ export default function Arena() {
       : createOpenSeatInvites(inviteBaseUrl, onlineSession.snapshot),
     [inviteBaseUrl, onlineSession],
   );
+  const displayedLeague = leagueEndpoint === onlineEndpoint ? league : null;
+  const displayedLeagueStatus = leagueEndpoint === onlineEndpoint ? leagueStatus : "idle";
+  const displayedLeagueError = leagueEndpoint === onlineEndpoint ? leagueError : null;
+  const standings = useMemo(
+    () => displayedLeague === null ? [] : leagueStandings(displayedLeague),
+    [displayedLeague],
+  );
   const roomConfigSummary = `${rulesProfileLabel(draftConfig.profile)} · ${draftConfig.map === "duel" ? "duel" : `${draftConfig.width}×${draftConfig.height} procedural`} · ${draftConfig.map === "duel" ? 2 : draftConfig.players} players`;
 
   return (
@@ -983,6 +1027,7 @@ export default function Arena() {
             <div className="panel-section-body"><p className="eyebrow">{onlineSession !== null ? "AUTHORITATIVE MULTIPLAYER" : replayMetadata === null ? placementMode ? "RATED PLACEMENT" : humanMode ? "HUMAN VS AI" : "LIVE SELF-PLAY" : "VERIFIED REPLAY"}</p><h2 className="mt-2 text-xl font-semibold">{replayMetadata === null ? humanMode ? `you are ${playerLabel(humanSeat).toLowerCase()}` : "greedy vs turn-search" : "training trace"}</h2><p className="mt-1 text-sm text-[#8d9690]">{onlineSession !== null ? onlineSession.snapshot.status === "Waiting" ? "waiting for the invited player" : "every move is validated by the Rust server" : replayMetadata === null ? placementMode ? "local Elo vs fixed search-2048" : humanMode ? "select a glowing hex, then choose an action" : "deterministic whole-turn planning" : `${replayMetadata.frames} deterministic actions`}</p><div className="mt-6 space-y-4"><Metric label="RULESET" value={replayMetadata?.rules_profile ?? activeConfig.profile} /><Metric label="MAP" value={replayMetadata === null ? activeConfig.map === "procedural" ? "procedural_v1" : "symmetric_duel_v1" : "replay scenario"} /><Metric label="OPPONENT" value={opponentLabel || "open seat"} /><Metric label="SEED" value={onlineSession === null ? `${replayMetadata?.seed ?? activeConfig.seed} · reproducible` : "server-authoritative"} /><Metric label="ROUND" value={state === null ? "loading" : `${state.round} · ${playerLabel(state.active_player)} to move`} /><Metric label="LEGAL ACTIONS" value={state?.legal_actions.length.toString() ?? "…"} accent />{onlineSession === null && !placementMode && botOpponent === "neural" && <Metric label="NEURAL INFERENCE" value={policyDecision === null ? policyStatus : `${policyDecision.milliseconds.toFixed(1)} ms · ${policyDecision.legalActions} actions`} accent />}</div></div>
           </details>
           {replayMetadata === null && <details className="panel-section panel-section-online"><summary>ONLINE MULTIPLAYER · {onlineSession?.snapshot.status ?? "READY"}</summary><div className="panel-section-body map-config"><label className="config-field"><span>PLAYER NAME</span><input type="text" maxLength={64} value={onlineName} onChange={(event) => setOnlineName(event.target.value)} /></label>{onlineSession === null ? <><div className="online-config-summary"><p className="eyebrow">ROOM SETTINGS</p><p>{roomConfigSummary}</p><span>Change them in Game Config before creating the room.</span></div><button className="generate-button" type="button" disabled={onlineBusy || onlineName.length === 0} onClick={() => void createOnlineRoom()}>{onlineBusy ? "Connecting…" : `Create ${draftConfig.map === "duel" ? 2 : draftConfig.players}-player room`}</button><div className="online-divider"><span>OR JOIN</span></div><div className="config-grid online-join-grid"><label className="config-field"><span>ROOM CODE</span><input type="text" spellCheck={false} value={joinCode} onChange={(event) => setJoinCode(event.target.value.trim())} /></label><label className="config-field"><span>SEAT</span><input type="number" min="2" max="8" value={joinSeat + 1} onChange={(event) => setJoinSeat(Number(event.target.value) - 1)} /></label></div><button className="generate-button" type="button" disabled={onlineBusy || onlineName.length === 0 || joinCode.length !== 32 || joinSeat < 1 || joinSeat > 7} onClick={() => void joinOnlineRoom()}>{onlineBusy ? "Claiming seat…" : `Join as seat ${joinSeat + 1}`}</button></> : <div className="online-session"><div className="online-status-row"><span className={`online-status-dot online-status-${connectionStatus}`} /><span>{connectionStatus}</span><span>seat {onlineSession.credential.seat + 1}/{onlineSession.snapshot.seats.length}</span></div><p className="online-room-code">{onlineSession.snapshot.match_id}</p>{openSeatInvites.length > 0 && <div className="online-invites"><p className="eyebrow">PRIVATE SEAT LINKS · {openSeatInvites.length} OPEN</p>{openSeatInvites.map((invite) => <button className="generate-button" type="button" onClick={() => void copyInvite(invite.seat, invite.url)} key={invite.seat}>{copiedInviteSeat === invite.seat ? `Seat ${invite.seat + 1} invite copied` : `Copy invite for seat ${invite.seat + 1}`}</button>)}<p>Match starts automatically after every open seat is claimed.</p></div>}<button className="online-leave" type="button" onClick={reset}>Leave room</button></div>}<label className="config-field online-endpoint"><span>AUTHORITATIVE SERVER</span><input type="url" spellCheck={false} disabled={onlineSession !== null} value={onlineEndpoint} onChange={(event) => setOnlineEndpoint(event.target.value)} /></label></div></details>}
+          <details className="panel-section panel-section-league" onToggle={(event) => { if (event.currentTarget.open && displayedLeagueStatus === "idle") void refreshLeague(); }}><summary>SERVER LEAGUE · {displayedLeague === null ? "—" : `${displayedLeague.matches.length} RATED`}</summary><div className="panel-section-body"><LeaguePanel league={displayedLeague} standings={standings} status={displayedLeagueStatus} error={displayedLeagueError} currentName={onlineSession?.credential.name ?? onlineName} onRefresh={refreshLeague} /></div></details>
           {replayMetadata === null && onlineSession === null && <details className="panel-section"><summary>GAME CONFIG</summary><div className="panel-section-body map-config"><label className="config-field"><span>RULESET</span><select value={draftConfig.profile} onChange={(event) => setDraftConfig((current) => ({ ...current, profile: event.target.value as RulesProfileName }))}>{RULES_PROFILES.map((profile) => <option value={profile.id} key={profile.id}>{profile.label}</option>)}</select></label><div className="config-grid"><label className="config-field"><span>MODE</span><select value={draftConfig.map} onChange={(event) => setDraftConfig((current) => ({ ...current, map: event.target.value as LiveConfig["map"], players: event.target.value === "duel" ? 2 : current.players }))}><option value="duel">Symmetric duel</option><option value="procedural">Procedural v1</option></select></label><label className="config-field"><span>SEED</span><input type="text" inputMode="numeric" pattern="[0-9]+" value={draftConfig.seed} onChange={(event) => setDraftConfig((current) => ({ ...current, seed: event.target.value }))} /></label><label className="config-field"><span>WIDTH</span><input type="number" min="5" max="41" value={draftConfig.width} onChange={(event) => setDraftConfig((current) => ({ ...current, width: Number(event.target.value) }))} /></label><label className="config-field"><span>HEIGHT</span><input type="number" min="2" max="31" value={draftConfig.height} onChange={(event) => setDraftConfig((current) => ({ ...current, height: Number(event.target.value) }))} /></label><label className="config-field"><span>PLAYERS</span><input type="number" min="2" max="8" disabled={draftConfig.map === "duel"} value={draftConfig.map === "duel" ? 2 : draftConfig.players} onChange={(event) => setDraftConfig((current) => ({ ...current, players: Number(event.target.value) }))} /></label><label className="config-field"><span>LAND PPM</span><input type="number" min="200000" max="1000000" step="50000" disabled={draftConfig.map === "duel"} value={draftConfig.map === "duel" ? 650000 : draftConfig.landDensity} onChange={(event) => setDraftConfig((current) => ({ ...current, landDensity: Number(event.target.value) }))} /></label></div><button className="generate-button" type="button" onClick={generate}>Generate deterministic map</button></div></details>}
           <details className="panel-section"><summary>TERRITORY</summary><div className="panel-section-body space-y-3 text-xs">{territories.map((cells, player) => <Bar label={playerLabel(player)} value={cells} width={`${territoryShares[player]}%`} player={player} key={player} />)}</div></details>
           <details className="panel-section"><summary>ENGINE</summary><div className="panel-section-body"><div className="engine-note mt-0"><p className="eyebrow text-[#d8ff3e]">SAME CORE</p><p className="mt-2 text-sm leading-6 text-[#b8c0ba]">Every displayed transition is executed by the headless Rust environment compiled to WebAssembly.</p></div></div></details>
@@ -1032,6 +1077,41 @@ export default function Arena() {
       </div>
     </main>
   );
+}
+
+function LeaguePanel({
+  league,
+  standings,
+  status,
+  error,
+  currentName,
+  onRefresh,
+}: {
+  league: LeagueSnapshot | null;
+  standings: LeagueStanding[];
+  status: LeagueStatus;
+  error: string | null;
+  currentName: string;
+  onRefresh: () => Promise<void>;
+}) {
+  const currentStanding = standings.find((standing) => standing.name === currentName) ?? null;
+  const recentMatches = league?.matches.slice(-5).reverse() ?? [];
+  return <div className="league-panel">
+    <div className="league-heading"><div><p className="eyebrow text-[#d8ff3e]">REPLAY-VERIFIED ELO</p><p>{league === null ? "Authoritative server" : `${standings.length} players · ${league.matches.length} matches`}</p></div><button className="league-refresh" type="button" disabled={status === "loading"} onClick={() => void onRefresh()}>{status === "loading" ? "Loading…" : "Refresh"}</button></div>
+    {status === "error" && <div className="league-message league-message-error"><strong>League unavailable</strong><span>{error}</span><small>The private server may not be reachable from this device.</small></div>}
+    {(status === "idle" || status === "loading") && league === null && <div className="league-message"><strong>{status === "loading" ? "Loading verified ledger…" : "Ready to connect"}</strong><span>Ratings come only from server-verified completed rooms.</span></div>}
+    {status === "ready" && league !== null && league.matches.length === 0 && <div className="league-message"><strong>No rated matches yet</strong><span>Finish an authoritative room to create the first verified result.</span></div>}
+    {currentStanding !== null && <div className="league-self"><span>YOUR SERVER RANK</span><strong>#{currentStanding.rank}</strong><b>{Math.round(currentStanding.rating.elo)} Elo</b><small>{currentStanding.wins}–{currentStanding.draws}–{currentStanding.losses}</small></div>}
+    {standings.length > 0 && <div className="league-block"><div className="league-block-title"><span>STANDINGS</span><span>ELO · W–D–L</span></div><ol className="league-standings">{standings.slice(0, 20).map((standing) => <li className={standing.name === currentName ? "league-standing-current" : ""} key={standing.name}><span>{standing.rank}</span><strong title={standing.name}>{standing.name}</strong><b>{Math.round(standing.rating.elo)}</b><small>{standing.wins}–{standing.draws}–{standing.losses}</small></li>)}</ol></div>}
+    {recentMatches.length > 0 && <div className="league-block"><div className="league-block-title"><span>VERIFIED LEDGER</span><span>LATEST {recentMatches.length}</span></div><div className="league-ledger">{recentMatches.map((match) => <LeagueMatchRow match={match} key={match.id} />)}</div></div>}
+    {league !== null && <p className="league-proof">K={league.elo.k_factor} · deterministic replay digest required · duplicate replays rejected</p>}
+  </div>;
+}
+
+function LeagueMatchRow({ match }: { match: LeagueMatch }) {
+  const winner = match.outcome.winner === null ? "DRAW" : `${match.agents[match.outcome.winner]} WON`;
+  const digest = match.final_digest.map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return <div className="league-match"><div><strong title={match.agents.join(" · ")}>{match.agents.join(" vs ")}</strong><span>{winner} · {match.outcome.actions} actions</span></div><div><b>{match.player_count}P · {match.outcome.termination === "Victory" ? "VICTORY" : "ADJUDICATED"}</b><span title={`seed ${match.seed} · digest ${digest}`}>{digest.slice(0, 10)}…</span></div></div>;
 }
 
 function Hex({ cell, selected, actionable, onSelect }: { cell: CellView; selected: boolean; actionable: boolean; onSelect: (id: number) => void }) {

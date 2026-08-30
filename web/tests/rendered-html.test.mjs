@@ -44,6 +44,8 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(html, /Join as seat 2/);
   assert.match(html, /ROOM SETTINGS/);
   assert.match(html, /AUTHORITATIVE SERVER/);
+  assert.match(html, /SERVER LEAGUE/);
+  assert.match(html, /REPLAY-VERIFIED ELO/);
   assert.match(html, /\/og\.png/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton/);
 });
@@ -142,6 +144,14 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, /claimOpenSeat\(onlineEndpoint, joinCode, joinSeat, onlineName\)/);
   assert.match(arena, /multiplayerConnection\.current\?\.disconnect\(\)/);
   assert.match(arena, /connection\.submit\(action, onlineSession\.snapshot\.revision\)/);
+  assert.match(arena, /fetchLeague\(onlineEndpoint\)/);
+  assert.match(arena, /leagueStandings\(displayedLeague\)/);
+  assert.match(arena, /snapshot\.rating_status === "Recorded"/);
+  assert.match(arena, /className="league-standings"/);
+  assert.match(arena, /VERIFIED LEDGER/);
+  assert.match(arena, /duplicate replays rejected/);
+  assert.match(styles, /\.league-standings \{[^}]*max-height: 13rem;[^}]*overflow-y: auto;/);
+  assert.match(styles, /\.league-ledger \{[^}]*max-height: 13rem;[^}]*overflow-y: auto;/);
 });
 
 test("executes greedy and whole-turn search in the compiled WebAssembly engine", async () => {

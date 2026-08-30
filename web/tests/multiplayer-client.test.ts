@@ -9,6 +9,8 @@ import {
   createJoinableDuel,
   createJoinableMatch,
   createOpenSeatInvites,
+  fetchLeague,
+  leagueStandings,
   parseInvite,
   roomConfigFromSnapshot,
   type MatchSnapshot,
@@ -190,10 +192,82 @@ test("claims the invited seat through the versioned endpoint", async () => {
   }
 });
 
+test("loads exact authoritative standings and a full-u64 verified ledger", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestUrl = "";
+  let requestMethod = "";
+  const league = {
+    schema_version: 2,
+    elo: { k_factor: 32 },
+    participants: {
+      host: { rating: { elo: 1016, games: 1 }, wins: 1, draws: 0, losses: 0 },
+      guest: { rating: { elo: 984, games: 1 }, wins: 0, draws: 0, losses: 1 },
+    },
+    matches: [{
+      id: "ab".repeat(32),
+      agents: ["host", "guest"],
+      player_count: 2,
+      seed: "18446744073709551615",
+      outcome: { winner: 0, actions: 5, termination: "ActionLimit" },
+      final_digest: Array.from({ length: 32 }, (_, byte) => byte),
+    }],
+  };
+  globalThis.fetch = async (input, init) => {
+    requestUrl = String(input);
+    requestMethod = init?.method ?? "";
+    return Response.json(league);
+  };
+  try {
+    const loaded = await fetchLeague("https://antiyoy.test/");
+    assert.equal(requestUrl, "https://antiyoy.test/v1/league");
+    assert.equal(requestMethod, "GET");
+    assert.equal(loaded.matches[0]?.seed, "18446744073709551615");
+    assert.deepEqual(leagueStandings(loaded).map((standing) => ({
+      rank: standing.rank,
+      name: standing.name,
+      elo: standing.rating.elo,
+      record: [standing.wins, standing.draws, standing.losses],
+    })), [
+      { rank: 1, name: "host", elo: 1016, record: [1, 0, 0] },
+      { rank: 2, name: "guest", elo: 984, record: [0, 0, 1] },
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("rejects lossy or internally inconsistent league payloads", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({
+    schema_version: 2,
+    elo: { k_factor: 32 },
+    participants: {
+      host: { rating: { elo: 1000, games: 1 }, wins: 0, draws: 1, losses: 0 },
+      guest: { rating: { elo: 1000, games: 1 }, wins: 0, draws: 1, losses: 0 },
+    },
+    matches: [{
+      id: "cd".repeat(32),
+      agents: ["host", "guest"],
+      player_count: 2,
+      seed: Number.MAX_SAFE_INTEGER,
+      outcome: { winner: null, actions: 5, termination: "ActionLimit" },
+      final_digest: Array.from({ length: 32 }, () => 0),
+    }],
+  });
+  try {
+    await assert.rejects(
+      fetchLeague("https://antiyoy.test"),
+      /incompatible league snapshot/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("authenticates over WebSocket and submits the exact authoritative action", () => {
   class MockSocket extends EventTarget {
     readonly sent: string[] = [];
-    readyState = WebSocket.OPEN;
+    readyState: number = WebSocket.OPEN;
 
     send(message: string): void {
       this.sent.push(message);
