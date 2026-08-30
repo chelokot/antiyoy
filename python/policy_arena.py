@@ -38,6 +38,7 @@ class PolicyArena:
             profile,
             "symmetric_duel_v1",
             2,
+            1,
         )
         self.environment = VectorEnv(
             1,

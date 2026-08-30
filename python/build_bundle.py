@@ -7,8 +7,8 @@ from pathlib import Path
 import torch
 
 
-BUNDLE_VERSION = 2
-SUPPORTED_BUNDLE_VERSIONS = (1, BUNDLE_VERSION)
+BUNDLE_VERSION = 3
+SUPPORTED_BUNDLE_VERSIONS = (1, 2, BUNDLE_VERSION)
 BUNDLE_KIND = "routed_policy_bundle"
 
 
@@ -62,6 +62,7 @@ def build_bundle(
     route_paths: dict[str, Path],
     output_path: Path,
     context_route_paths: dict[tuple[str, str, int], Path] | None = None,
+    seat_context_route_paths: dict[tuple[str, str, int, int], Path] | None = None,
 ) -> dict[str, object]:
     primary = load_source(primary_path)
     profiles = source_profiles(primary)
@@ -75,6 +76,24 @@ def build_bundle(
         }
     }
     source_experts = {sources["primary"]["sha256"]: "primary"}
+
+    def register_context_expert(
+        path: Path, specialist: dict[str, object]
+    ) -> str:
+        source_sha256 = digest(path)
+        expert = source_experts.get(source_sha256)
+        if expert is not None:
+            return expert
+        expert = f"context:{source_sha256[:16]}"
+        experts[expert] = specialist["model"]
+        sources[expert] = {
+            "path": str(path),
+            "sha256": source_sha256,
+            "size_bytes": path.stat().st_size,
+        }
+        source_experts[source_sha256] = expert
+        return expert
+
     for profile, path in route_paths.items():
         specialist = load_source(path)
         compatible(primary, specialist)
@@ -100,17 +119,7 @@ def build_bundle(
             raise ValueError(f"specialist curriculum does not contain routed profile: {profile}")
         if profile not in routes:
             profiles.append(profile)
-        source_sha256 = digest(path)
-        expert = source_experts.get(source_sha256)
-        if expert is None:
-            expert = f"context:{source_sha256[:16]}"
-            experts[expert] = specialist["model"]
-            sources[expert] = {
-                "path": str(path),
-                "sha256": source_sha256,
-                "size_bytes": path.stat().st_size,
-            }
-            source_experts[source_sha256] = expert
+        expert = register_context_expert(path, specialist)
         if profile not in routes:
             routes[profile] = expert
         context_routes.append(
@@ -118,6 +127,28 @@ def build_bundle(
                 "profile": profile,
                 "generator": generator,
                 "players": players,
+                "expert": expert,
+            }
+        )
+    seat_context_routes = []
+    for (profile, generator, players, seat), path in (
+        seat_context_route_paths or {}
+    ).items():
+        specialist = load_source(path)
+        compatible(primary, specialist)
+        if profile not in source_profiles(specialist):
+            raise ValueError(f"specialist curriculum does not contain routed profile: {profile}")
+        if profile not in routes:
+            profiles.append(profile)
+        expert = register_context_expert(path, specialist)
+        if profile not in routes:
+            routes[profile] = expert
+        seat_context_routes.append(
+            {
+                "profile": profile,
+                "generator": generator,
+                "players": players,
+                "seat": seat,
                 "expert": expert,
             }
         )
@@ -134,12 +165,14 @@ def build_bundle(
         "experts": experts,
         "routes": routes,
         "context_routes": context_routes,
+        "seat_context_routes": seat_context_routes,
         "sources": sources,
         "summary": {
             "algorithm": "deterministic_profile_routed_experts",
             "experts": len(experts),
             "profiles": len(routes),
             "context_routes": len(context_routes),
+            "seat_context_routes": len(seat_context_routes),
         },
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -190,6 +223,38 @@ def parse_context_routes(
     return routes
 
 
+def parse_seat_context_routes(
+    specifications: list[str],
+) -> dict[tuple[str, str, int, int], Path]:
+    routes: dict[tuple[str, str, int, int], Path] = {}
+    for specification in specifications:
+        context, separator, path = specification.partition("=")
+        parts = context.rsplit(":", 3)
+        if not separator or len(parts) != 4 or not path:
+            raise ValueError(
+                "seat context routes use PROFILE:GENERATOR:PLAYERS:SEAT=CHECKPOINT"
+            )
+        profile, generator, players_text, seat_text = parts
+        if generator not in ("symmetric_duel_v1", "procedural_v1"):
+            raise ValueError(f"unsupported seat context route generator: {generator}")
+        try:
+            players = int(players_text)
+            seat = int(seat_text)
+        except ValueError as error:
+            raise ValueError(
+                "seat context routes use PROFILE:GENERATOR:PLAYERS:SEAT=CHECKPOINT"
+            ) from error
+        if players < 2 or players > 8:
+            raise ValueError("seat context route players must be between two and eight")
+        if seat < 0 or seat >= players:
+            raise ValueError("seat context route seat must belong to the player range")
+        key = (profile, generator, players, seat)
+        if key in routes:
+            raise ValueError(f"duplicate seat context route: {context}")
+        routes[key] = Path(path)
+    return routes
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("primary", type=Path)
@@ -201,12 +266,19 @@ def main() -> None:
         default=[],
         metavar="PROFILE:GENERATOR:PLAYERS=CHECKPOINT",
     )
+    parser.add_argument(
+        "--seat-context-route",
+        action="append",
+        default=[],
+        metavar="PROFILE:GENERATOR:PLAYERS:SEAT=CHECKPOINT",
+    )
     arguments = parser.parse_args()
     bundle = build_bundle(
         arguments.primary,
         parse_routes(arguments.route),
         arguments.output,
         parse_context_routes(arguments.context_route),
+        parse_seat_context_routes(arguments.seat_context_route),
     )
     print(
         f"wrote {arguments.output} with {len(bundle['experts'])} experts and "

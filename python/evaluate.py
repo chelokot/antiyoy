@@ -99,6 +99,7 @@ def load_policy(
     profile: str | None = None,
     generator: str | None = None,
     players: int | None = None,
+    seat: int | None = None,
 ) -> tuple[UniversalPolicy, dict[str, object]]:
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     if checkpoint["checkpoint_version"] not in (4, CHECKPOINT_VERSION):
@@ -128,6 +129,18 @@ def load_policy(
             raise ValueError("policy bundle contains duplicate context routes")
         if context_matches:
             selected_expert = context_matches[0]["expert"]
+        seat_context_matches = [
+            route
+            for route in checkpoint.get("seat_context_routes", [])
+            if route["profile"] == selected_profile
+            and route["generator"] == generator
+            and route["players"] == players
+            and route["seat"] == seat
+        ]
+        if len(seat_context_matches) > 1:
+            raise ValueError("policy bundle contains duplicate seat context routes")
+        if seat_context_matches:
+            selected_expert = seat_context_matches[0]["expert"]
         state = checkpoint["experts"][selected_expert]
     if state is None:
         raise ValueError("checkpoint has no policy weights")
@@ -165,13 +178,24 @@ def evaluate(
 ) -> dict[str, object]:
     evaluation_seeds = seat_rotation_seeds(games, seed, players)
     device = torch.device(device_name)
-    model, config = load_policy(
-        checkpoint_path,
-        device,
-        profile,
-        "procedural_v1" if procedural else "symmetric_duel_v1",
-        players,
-    )
+    generator_name = "procedural_v1" if procedural else "symmetric_duel_v1"
+    models: dict[str, UniversalPolicy] = {}
+    selected_experts: list[str] = []
+    configs: list[dict[str, object]] = []
+    for seat in range(players):
+        model, seat_config = load_policy(
+            checkpoint_path,
+            device,
+            profile,
+            generator_name,
+            players,
+            seat,
+        )
+        selected_expert = str(seat_config["selected_expert"])
+        models.setdefault(selected_expert, model)
+        selected_experts.append(selected_expert)
+        configs.append(seat_config)
+    config = configs[0]
     evaluation_profile = profile or config["profile"] or config["profiles"][0]
     evaluation_width = config["width"] if width is None else width
     evaluation_height = config["height"] if height is None else height
@@ -214,6 +238,17 @@ def evaluate(
         environment.reset(index, int(evaluation_seed))
     rules = encode_rules_batch(environment.rules_jsons(), device)
     model_seats = np.arange(games, dtype=np.uint8) % players
+    model_game_masks = {
+        expert: np.isin(
+            model_seats,
+            [
+                seat
+                for seat, selected_expert in enumerate(selected_experts)
+                if selected_expert == expert
+            ],
+        )
+        for expert in models
+    }
     finished = np.zeros(games, dtype=np.bool_)
     seat_wins = np.zeros(players, dtype=np.int64)
     seat_draws = np.zeros(players, dtype=np.int64)
@@ -228,10 +263,16 @@ def evaluate(
     baseline_action_counts = np.zeros(len(ACTION_KIND_NAMES), dtype=np.int64)
     while not bool(finished.all()):
         observation = environment.observe()
+        model_actions = np.empty(games, dtype=np.uint64)
         with torch.no_grad():
-            logits, _ = model(observation, rules)
-            distribution = action_distribution(logits, observation["action_offsets"])
-            model_actions = distribution.logits.argmax(dim=1).cpu().numpy().astype(np.uint64)
+            for expert, model in models.items():
+                logits, _ = model(observation, rules)
+                distribution = action_distribution(logits, observation["action_offsets"])
+                expert_actions = (
+                    distribution.logits.argmax(dim=1).cpu().numpy().astype(np.uint64)
+                )
+                expert_games = model_game_masks[expert]
+                model_actions[expert_games] = expert_actions[expert_games]
         if baseline == "search":
             baseline_actions = np.asarray(
                 environment.search_actions(
@@ -326,9 +367,14 @@ def evaluate(
         "device": str(device),
         "profile": evaluation_profile,
         "policy_kind": config["policy_kind"],
-        "selected_expert": config["selected_expert"],
+        "selected_expert": (
+            selected_experts[0]
+            if len(set(selected_experts)) == 1
+            else "seat_routed"
+        ),
+        "selected_experts": selected_experts,
         "seed": seed,
-        "generator": "procedural_v1" if procedural else "symmetric_duel_v1",
+        "generator": generator_name,
         "players": players,
         "arena_width": evaluation_width,
         "arena_height": evaluation_height,

@@ -11,6 +11,7 @@ from python.build_bundle import (
     build_bundle,
     parse_context_routes,
     parse_routes,
+    parse_seat_context_routes,
 )
 from python.evaluate import load_policy
 from python.train import CHECKPOINT_VERSION
@@ -180,3 +181,48 @@ def test_context_route_parser_rejects_duplicates() -> None:
     route = "classic_generic_2022:procedural_v1:4"
     with pytest.raises(ValueError, match="duplicate context"):
         parse_context_routes([f"{route}=one.pt", f"{route}=two.pt"])
+
+
+def test_bundle_routes_exact_multiplayer_seat(tmp_path: Path) -> None:
+    primary = tmp_path / "primary.pt"
+    general = tmp_path / "general.pt"
+    second_seat = tmp_path / "second-seat.pt"
+    bundle_path = tmp_path / "bundle.pt"
+    write_checkpoint(primary, 1.0, profiles=["classic_generic_2022"])
+    write_checkpoint(general, 5.0, profiles=["classic_generic_2022"])
+    write_checkpoint(second_seat, 9.0, profiles=["classic_generic_2022"])
+
+    bundle = build_bundle(
+        primary,
+        {},
+        bundle_path,
+        {("classic_generic_2022", "procedural_v1", 3): general},
+        {("classic_generic_2022", "procedural_v1", 3, 1): second_seat},
+    )
+
+    general_model, general_config = load_policy(
+        bundle_path,
+        torch.device("cpu"),
+        "classic_generic_2022",
+        "procedural_v1",
+        3,
+        0,
+    )
+    seat_model, seat_config = load_policy(
+        bundle_path,
+        torch.device("cpu"),
+        "classic_generic_2022",
+        "procedural_v1",
+        3,
+        1,
+    )
+    assert torch.all(general_model.missing_source == 5.0)
+    assert torch.all(seat_model.missing_source == 9.0)
+    assert general_config["selected_expert"] != seat_config["selected_expert"]
+    assert len(bundle["seat_context_routes"]) == 1
+
+
+def test_seat_context_route_parser_validates_seat_range() -> None:
+    route = "classic_generic_2022:procedural_v1:3:3=expert.pt"
+    with pytest.raises(ValueError, match="player range"):
+        parse_seat_context_routes([route])
