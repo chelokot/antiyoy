@@ -30,7 +30,7 @@ pub fn adjudicate(game: &Game) -> Option<PlayerId> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{GeneratorConfig, Rules};
+    use crate::{GeneratorConfig, Object, Rules};
 
     use super::adjudicate;
 
@@ -48,7 +48,7 @@ mod tests {
         let fourth_player_cell = scenario
             .cells
             .iter()
-            .position(|cell| cell.owner.0 == 3)
+            .position(|cell| cell.owner.0 == 3 && cell.object == Object::Empty)
             .expect("fourth player start");
         scenario.cells[fourth_player_cell].unit_strength = 4;
         let game = crate::Game::new(Rules::online_default_v1(), scenario).expect("valid game");

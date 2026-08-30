@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use antiyoy_agents::Agent;
 pub use antiyoy_core::adjudicate;
-use antiyoy_core::{Game, PlayerId, Rules, Scenario};
+use antiyoy_core::{PlayerId, Rules, Scenario};
 use antiyoy_protocol::{Digest, Replay, ReplayError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
