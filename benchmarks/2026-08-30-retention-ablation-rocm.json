@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "kind": "policy_retention_ablation",
+  "training_commits": [
+    "ae6c7b6aa9e6b0284366f4748b96f90e0ec0ffc6",
+    "a126abdb3e1ba06a524b7e0941c2649612d49e5d"
+  ],
+  "evaluation_commit": "7e965f7273077d7488098139491cd4412460765a",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 8,
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "pytorch": "2.9.1+rocm6.4",
+    "process_priority": "nice 10"
+  },
+  "training": {
+    "initialized_from": "universal-search-dagger-2026-08-30.pt",
+    "profiles": "all_7_versioned_profiles",
+    "map": "symmetric_duel_v1",
+    "width": 11,
+    "height": 9,
+    "environments": 28,
+    "imitation_updates": 500,
+    "imitation_transitions": 14000,
+    "teacher": "deterministic_whole_turn_search_2048"
+  },
+  "screening_arena": {
+    "pairing": "adjacent_same_seed_opposite_seat_v1",
+    "seed_window": 140000,
+    "unique_maps_per_profile": 8,
+    "games_per_profile": 16,
+    "profiles": 7,
+    "games": 112,
+    "baseline": "deterministic_whole_turn_search_2048"
+  },
+  "results": [
+    {
+      "name": "published_beta",
+      "wins": 64,
+      "draws": 2,
+      "losses": 46,
+      "score": 0.5803571428571429,
+      "relative_elo": 56.32619948285529,
+      "weakest_slice": {
+        "profile": "online_experimental_v2_260801",
+        "seat": 1,
+        "score": 0.0
+      }
+    },
+    {
+      "name": "teacher_rollin_rot180_lr_2e-6",
+      "wins": 66,
+      "draws": 0,
+      "losses": 46,
+      "score": 0.5892857142857143,
+      "relative_elo": 62.71444154411786,
+      "weakest_score": 0.0,
+      "status": "rejected"
+    },
+    {
+      "name": "teacher_rollin_rot180_kl_10_lr_5e-6",
+      "wins": 72,
+      "draws": 3,
+      "losses": 37,
+      "score": 0.65625,
+      "relative_elo": 112.3306438302777,
+      "weakest_score": 0.0,
+      "status": "rejected"
+    },
+    {
+      "name": "teacher_rollin_kl_100_lr_5e-6",
+      "checkpoint_sha256": "8ed6b323e7dbf0eec4f554086257b171a15c07b5c6f5d71986b031cbaa7fa467",
+      "wins": 76,
+      "draws": 2,
+      "losses": 34,
+      "score": 0.6875,
+      "relative_elo": 136.9690723288825,
+      "profile_results": {
+        "classic_generic_2022": "16-0-0",
+        "classic_slay_2022": "16-0-0",
+        "online_default_v1": "16-0-0",
+        "online_classic_v1": "16-0-0",
+        "online_duel_v1": "2-1-13",
+        "online_experimental_v1": "2-1-13",
+        "online_experimental_v2_260801": "8-0-8"
+      },
+      "weakest_slice": {
+        "profile": "online_duel_v1",
+        "seat": 0,
+        "score": 0.0
+      },
+      "status": "rejected"
+    }
+  ],
+  "conclusion": "Reference KL substantially improved aggregate retention and made four profiles perfect on the screening window, but every candidate retained a zero-score profile-seat slice. No checkpoint was promoted. The next curriculum must directly optimize worst-case profile-seat performance instead of mean teacher loss."
+}
