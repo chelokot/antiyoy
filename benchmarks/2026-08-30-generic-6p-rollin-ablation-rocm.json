@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "kind": "generic_six_player_rollin_ablation",
+  "training_commit": "b64c4147736316205063552029fbf3661e3b3772",
+  "evaluation_commit": "bdaf4ead006a20b8aaca40aa1066f9e7bbf1f1d7",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 8,
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "pytorch": "2.9.1+rocm6.4",
+    "maximum_parallel_jobs": 1
+  },
+  "hypothesis": "The earlier seat-2-only policy-roll-in specialist improved imitation accuracy but regressed held-out wins. Starting from the same exact Generic 6-player checkpoint, matched all-seat teacher and policy roll-ins isolate whether asymmetric state collection or policy roll-in caused the collapse.",
+  "domain": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v1",
+    "width": 21,
+    "height": 15,
+    "players": 6,
+    "land_density_per_million": 650000,
+    "action_limit": 2800
+  },
+  "training": {
+    "initialized_from": {
+      "asset": "generic-dagger-6p-exact-v1.pt",
+      "sha256": "6ac462bb6af40e9c66f04e8c759e961e0fd3146ddcfabfd0e60ede5d1bec825f",
+      "size_bytes": 10828511
+    },
+    "seed": 3100000,
+    "environments": 24,
+    "imitation_updates": 2500,
+    "imitation_transitions": 60000,
+    "teacher": "deterministic_whole_turn_search_2048",
+    "symmetry_augmentation": "rot180",
+    "map_reset_interval": 250,
+    "learning_rate": 0.000005,
+    "reference_kl_weight": 0.25,
+    "slice_weight": "classic_generic_2022:2:6"
+  },
+  "candidates": [
+    {
+      "name": "teacher_rollin",
+      "asset": "generic-6p-seat2-teacher-weight-v1.pt",
+      "sha256": "a529a92e542d5b21044dd85340c8c71d269aa2173e13114a3de27f9209cbb132",
+      "size_bytes": 10830271,
+      "training_seconds": 92.67218917998252,
+      "transitions_per_second": 647.4434296946573,
+      "imitation_accuracy": 0.6817833522796632,
+      "imitation_loss": 0.9493000824555751
+    },
+    {
+      "name": "global_policy_rollin",
+      "asset": "generic-6p-seat2-global-policy-v1.pt",
+      "sha256": "f430ca410f71fc5c58463e8c8cd9b6df81f08daf2146dfde49c6a2fa01408fbf",
+      "size_bytes": 10830075,
+      "training_seconds": 114.97798160201637,
+      "transitions_per_second": 521.8390439978621,
+      "imitation_accuracy": 0.6229333505094051,
+      "imitation_loss": 1.1429526225409568
+    }
+  ],
+  "evaluation": {
+    "baseline": "deterministic_whole_turn_search_256",
+    "search": {
+      "beam_width": 32,
+      "branch_width": 48,
+      "maximum_actions_per_turn": 24
+    },
+    "scout": {
+      "matrix_sha256": "b68c9f3a92e32bd719ab029da341c9ba2745280e74a8513774a00488bb60bd81",
+      "seed_windows": [410000, 420000],
+      "games_per_candidate": 12,
+      "results": [
+        {
+          "name": "base",
+          "raw_result_sha256": "a2c9e5763dc8ba9e87462b9999b2d06c8483e4f19f4cd14bb5f544678eeb6f7e",
+          "wins": 1,
+          "draws": 0,
+          "losses": 11,
+          "relative_elo": -136.9690723288825,
+          "truncations": 0
+        },
+        {
+          "name": "teacher_rollin",
+          "raw_result_sha256": "00310777550453478ed4075da640a2e74bfc6f406dd600e8b5142efa3e7b96ab",
+          "wins": 2,
+          "draws": 0,
+          "losses": 10,
+          "relative_elo": 0.0,
+          "truncations": 0,
+          "selected_for_confirmation": true
+        },
+        {
+          "name": "global_policy_rollin",
+          "raw_result_sha256": "91aca7b47d1ad19c20af355129ed8db1983ce26c2635d7d72c51631dec15138b",
+          "wins": 1,
+          "draws": 0,
+          "losses": 11,
+          "relative_elo": -136.9690723288825,
+          "truncations": 0,
+          "selected_for_confirmation": false
+        }
+      ]
+    },
+    "confirmation": {
+      "matrix_sha256": "30db828b06996882913f0748411030b186341df9a4c648995bf26f89b0248132",
+      "seed_windows": [430000, 440000, 450000, 460000, 470000, 480000],
+      "games_per_candidate": 36,
+      "results": [
+        {
+          "name": "base",
+          "raw_result_sha256": "7df4c5f08dbcdec3eaf5d9792fb01c65975514dcf7fe9ec2ed5fc5e7031f4a8a",
+          "elapsed_seconds": 132.14274289697642,
+          "wins": 4,
+          "draws": 0,
+          "losses": 32,
+          "relative_elo": -81.64799306236988,
+          "target_seat_wins": 1,
+          "truncations": 0
+        },
+        {
+          "name": "teacher_rollin",
+          "raw_result_sha256": "99c40f8365bdff6639a2abb864ef4cfe65affe320c41522a2986ab71a58f0799",
+          "elapsed_seconds": 111.06526449800003,
+          "wins": 1,
+          "draws": 0,
+          "losses": 35,
+          "relative_elo": -338.03921600570266,
+          "target_seat_wins": 0,
+          "truncations": 0
+        }
+      ]
+    }
+  },
+  "selection": {
+    "promoted_checkpoint": null,
+    "published_bundle_changed": false,
+    "status": "all_candidates_rejected"
+  },
+  "conclusion": "The teacher-roll-in candidate's higher imitation accuracy produced a one-win scout improvement that reversed on six fresh seed windows: aggregate wins fell from 4 to 1 and the weighted target seat fell from 1 to 0. Global policy roll-in did not improve the scout. Per-action search imitation and heavier seat weighting are not reliable policy-improvement operators for this long-horizon multiplayer domain; the next iteration must train against fixed opponents with whole-turn or terminal-outcome credit rather than promote either checkpoint."
+}

@@ -65,6 +65,12 @@ keeps unsuccessful candidates as ablation evidence, reports unchanged domains,
 and preserves failed release gates instead of presenting an aggregate gain as
 a universal policy improvement.
 
+Roll-in ablations use a small selection window only to choose which candidate
+earns a larger confirmation run. A scout improvement is never a promotion gate:
+the candidate must preserve the gain across fresh seeds and every seat. Records
+retain higher-accuracy checkpoints that fail this outcome test so imitation
+metrics cannot be mistaken for strategic strength.
+
 The 5–8 player matrix gives every seat one game on each of two held-out seeds
 for every compatibility profile. Its increasing board sizes and action limits
 are part of the domain identity. Use a search-node override only for explicitly
