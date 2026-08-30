@@ -58,6 +58,46 @@
       }
     },
     {
+      "id": "classic-generic-duel-value-v3-2026-08-31",
+      "asset": "classic-generic-duel-value-v3-2026-08-31.pt",
+      "url": "https://github.com/chelokot/antiyoy/releases/download/model-v0.5.0-beta.1/classic-generic-duel-value-v3-2026-08-31.pt",
+      "sha256": "04bca34ac15301908e3c65db33730e99355247df72ff044dcd4745553c07251c",
+      "size_bytes": 3702092,
+      "checkpoint_version": 5,
+      "engine_version": 6,
+      "observation_version": 7,
+      "status": "experimental-value-specialist",
+      "source_model": "universal-routed-2to8p-engine-v6-2026-08-31",
+      "route": {
+        "profile": "classic_generic_2022",
+        "generator": "symmetric_duel_v1",
+        "players": 2
+      },
+      "policy_parameters_frozen": true,
+      "value_calibration": {
+        "games": 512,
+        "samples": 32597,
+        "heldout_sign_accuracy_before": 0.7269912052520748,
+        "heldout_sign_accuracy_after": 0.9209711383624427,
+        "heldout_correlation_before": 0.6063434293874641,
+        "heldout_correlation_after": 0.8479915523195396
+      },
+      "policy_guided_puct_vs_direct_policy": {
+        "protocol": "schema-v3 same-map opposite-seat",
+        "games": 512,
+        "record": "280-0-232",
+        "truncations": 0,
+        "node_budget": 8,
+        "root_value_weight": 1.0,
+        "relative_elo": 32.668018580527814,
+        "wilson_95_score_interval": [
+          0.5035666073562264,
+          0.5894852386697533
+        ],
+        "benchmark": "benchmarks/2026-08-31-policy-guided-puct-amplification-rocm.json"
+      }
+    },
+    {
       "id": "universal-routed-2to8p-2026-08-30",
       "asset": "universal-routed-2to8p-2026-08-30.pt",
       "url": "https://github.com/chelokot/antiyoy/releases/download/model-v0.4.0-beta.1/universal-routed-2to8p-2026-08-30.pt",

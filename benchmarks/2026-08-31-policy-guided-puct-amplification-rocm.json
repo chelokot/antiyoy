@@ -1,0 +1,222 @@
+{
+  "schema_version": 3,
+  "kind": "policy_guided_puct_amplification",
+  "engine_version": 6,
+  "implementation_commits": {
+    "batched_puct": "b5c280d714ae00c22c6476d75d03cf39bd41d508",
+    "value_calibration": "c628b605c5a813788f3ebb963ecd73e8709f4643",
+    "root_policy_value_blend": "b5b1801e8c722adf85e1c114720fcf541fa04263",
+    "off_policy_calibration": "25248d82cd9f39799385dc1e346e1433ae20f4e4"
+  },
+  "system": {
+    "allocated_cpu_threads": 8,
+    "cpu": "Intel Core i9-11900K",
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "process_priority": "nice 10",
+    "pytorch": "2.9.1+rocm6.4"
+  },
+  "source_model": {
+    "asset": "universal-routed-2to8p-engine-v6-2026-08-31.pt",
+    "url": "https://github.com/chelokot/antiyoy/releases/download/model-v0.5.0-beta.1/universal-routed-2to8p-engine-v6-2026-08-31.pt",
+    "sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "size_bytes": 151179257,
+    "expert": "primary",
+    "policy_parameters_changed": false
+  },
+  "value_specialist": {
+    "asset": "classic-generic-duel-value-v3-2026-08-31.pt",
+    "url": "https://github.com/chelokot/antiyoy/releases/download/model-v0.5.0-beta.1/classic-generic-duel-value-v3-2026-08-31.pt",
+    "sha256": "04bca34ac15301908e3c65db33730e99355247df72ff044dcd4745553c07251c",
+    "size_bytes": 3702092,
+    "route": {
+      "profile": "classic_generic_2022",
+      "generator": "symmetric_duel_v1",
+      "players": 2
+    },
+    "overlay_sha256": "849c12f639c864f613614d9de3f5d9dbcb42fff651eb748135d9ecf241bfb34e"
+  },
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "symmetric_duel_v1",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "action_limit": 1000,
+    "pairing": "adjacent_same_seed_opposite_seat_v1",
+    "baseline": "same routed checkpoint, direct policy argmax",
+    "truncations": 0,
+    "adjudications": 0
+  },
+  "search": {
+    "algorithm": "native asynchronous policy-guided PUCT",
+    "node_budget": 8,
+    "exploration": 1.5,
+    "virtual_loss": 1.0,
+    "maximum_depth": 128,
+    "root_selection": "log(policy_prior) + root_value_weight * searched_mean_value",
+    "root_value_weight": 1.0,
+    "leaf_batch_size": 512,
+    "multiplayer_backup": "root-player paranoid minimax"
+  },
+  "calibration": {
+    "kind": "frozen-trunk Monte Carlo value-head calibration",
+    "seed_first": 640000,
+    "games": 512,
+    "training_games": 384,
+    "validation_games": 128,
+    "samples": 32597,
+    "sample_stride": 4,
+    "exploration_probability": 0.005,
+    "exploration_top_k": 4,
+    "exploratory_actions": 543,
+    "epochs": 8,
+    "batch_size": 128,
+    "learning_rate": 0.0003,
+    "elapsed_seconds": 43.59,
+    "policy_parameters_frozen": true,
+    "validation_before": {
+      "samples": 8073,
+      "mae": 0.8695062941777102,
+      "rmse": 0.8891795286617156,
+      "sign_accuracy": 0.7269912052520748,
+      "correlation": 0.6063434293874641
+    },
+    "validation_after": {
+      "samples": 8073,
+      "mae": 0.30162800911079807,
+      "rmse": 0.5258031640482893,
+      "sign_accuracy": 0.9209711383624427,
+      "correlation": 0.8479915523195396
+    },
+    "raw_result_sha256": "a8b5fd14429d83653ffe6acb6443c25a860aa4bd1df784be406b23ecaa2d2552"
+  },
+  "accepted_holdout": {
+    "seed_first": 700000,
+    "unique_maps": 256,
+    "games": 512,
+    "record": "280-0-232",
+    "wins": 280,
+    "draws": 0,
+    "losses": 232,
+    "score": 0.546875,
+    "baseline_score": 0.5,
+    "score_delta": 0.046875,
+    "relative_elo": 32.668018580527814,
+    "wilson_95_score_interval": [
+      0.5035666073562264,
+      0.5894852386697533
+    ],
+    "elapsed_seconds": 124.01,
+    "decisions": 57799,
+    "evaluated_leaves": 457878,
+    "tree_nodes": 459002,
+    "root_visits": 405160,
+    "maximum_reached_depth": 7,
+    "seats": {
+      "0": {
+        "puct_record": "256-0-0",
+        "direct_policy_record": "234-0-22",
+        "score_delta": 0.0859375
+      },
+      "1": {
+        "puct_record": "24-0-232",
+        "direct_policy_record": "22-0-234",
+        "score_delta": 0.0078125
+      }
+    },
+    "raw_result_sha256": "efb6c6b4456acd779df6bade1e16d3386db9f736c4eaf079df5bea07dc290001"
+  },
+  "preceding_confirmations": [
+    {
+      "seed_first": 650000,
+      "games": 16,
+      "record": "10-0-6",
+      "relative_elo": 88.73949984654254,
+      "raw_result_sha256": "5d8b607c40d46e634a40ca8c7aacb90c9fba191937bc481395436c268b7b27fb"
+    },
+    {
+      "seed_first": 660000,
+      "games": 64,
+      "record": "35-0-29",
+      "relative_elo": 32.668018580527814,
+      "raw_result_sha256": "da1396b39efd029709d8756960160d325f67505c3ab18d7ab492fa78de95b143"
+    },
+    {
+      "seed_first": 670000,
+      "games": 256,
+      "record": "140-0-116",
+      "relative_elo": 32.668018580527814,
+      "raw_result_sha256": "a5f47b08c581ba99acec380ade606a5fc5c787b845e5878a981cee03a8e5b644"
+    }
+  ],
+  "controls_and_rejected_attempts": [
+    {
+      "method": "PUCT-2, original value, canonical visit-count root",
+      "seed_first": 530000,
+      "games": 16,
+      "record": "8-0-8",
+      "relative_elo": 0.0,
+      "decision": "control accepted; exactly reproduces policy argmax",
+      "raw_result_sha256": "147644073f3bfdda0e4b1e63380e06d7ce47e72d60d0f367bb816bf55fce2a65"
+    },
+    {
+      "method": "PUCT-8, original value, canonical visit-count root",
+      "seed_first": 530000,
+      "games": 16,
+      "record": "0-0-16",
+      "relative_elo": -596.5446775337091,
+      "decision": "rejected; imitation policy had an uncalibrated value head",
+      "raw_result_sha256": "0486aba10025a5dd03eef5d8d9428b1d821cbda2cfb2e6af5415c216a46aa143"
+    },
+    {
+      "method": "PUCT-32, original value, canonical visit-count root",
+      "seed_first": 530000,
+      "games": 16,
+      "record": "0-0-16",
+      "relative_elo": -596.5446775337091,
+      "decision": "rejected; more search amplified value error",
+      "raw_result_sha256": "ca4d65ed840dcc0e4923cb053f57c93698bbcffe2f0de1dfb102a7f121a10cc2"
+    },
+    {
+      "method": "on-policy value v1, PUCT-8 canonical root",
+      "seed_first": 610000,
+      "games": 16,
+      "record": "2-0-14",
+      "relative_elo": -338.03921600570277,
+      "decision": "rejected; on-policy value did not generalize to tree leaves",
+      "raw_result_sha256": "3a6bb7238018894c16fe68d5ce27a1f3fecb7eeaf103f35847fd1241211f456e"
+    },
+    {
+      "method": "15% top-k exploration value v2, PUCT-8 blend weight 1",
+      "seed_first": 630000,
+      "games": 16,
+      "record": "1-0-15",
+      "relative_elo": -470.43650362227254,
+      "decision": "rejected; approximately 27 deviations per game moved calibration too far off policy",
+      "raw_result_sha256": "81bce89c7338f9f57a368b5ca512bcc8ece4ded632b0027e0a87db011e2607d0"
+    }
+  ],
+  "heldout": {
+    "calibration_seeds_end": 640511,
+    "scout_seeds": [
+      650000,
+      650007
+    ],
+    "confirmation_seed_ranges": [
+      [
+        660000,
+        660031
+      ],
+      [
+        670000,
+        670127
+      ],
+      [
+        700000,
+        700255
+      ]
+    ],
+    "disjoint": true
+  },
+  "conclusion": "A frozen-policy value calibration with sparse plausible deviations converted canonical PUCT's catastrophic regression into a reproducible +32.67 observed relative-Elo gain on a fresh 512-game arena. The result is specific to the classic Generic duel route; no claim is made for other profiles, maps, or player counts."
+}

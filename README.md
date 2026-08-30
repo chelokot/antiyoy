@@ -206,6 +206,27 @@ Neither result is an absolute human Elo or a claim of universal superhuman play.
 Exact results and training provenance live under
 [`benchmarks/`](benchmarks/).
 
+The first policy-guided PUCT loop is measured separately from that search-2048
+pool. A frozen-policy value specialist trained on sparse plausible deviations
+improved held-out value sign accuracy from 72.7% to 92.1%. At eight PUCT nodes
+and a root value weight of one, it scored 280–232 against the tensor-identical
+direct policy on 512 fresh paired games: an observed +32.67 relative Elo with no
+truncations. This result applies only to the classic Generic 11×9 duel route.
+Canonical PUCT with the original uncalibrated value head lost its 16-game scout
+0–16 and was rejected. Full accepted and rejected evidence is in
+[`benchmarks/2026-08-31-policy-guided-puct-amplification-rocm.json`](benchmarks/2026-08-31-policy-guided-puct-amplification-rocm.json).
+
+Reproduce the accepted direct-policy comparison with the small specialist:
+
+```bash
+python python/fetch_model.py classic-generic-duel-value-v3-2026-08-31
+PYTHONPATH=python python python/evaluate.py \
+  models/classic-generic-duel-value-v3-2026-08-31.pt \
+  --games 64 --seed 700000 --device cuda --baseline policy \
+  --model-agent puct --puct-nodes 8 --puct-root-value-weight 1 \
+  --profile classic_generic_2022 --width 11 --height 9 --action-limit 1000
+```
+
 Play against the neural beta in a local browser (cyan moves first):
 
 ```bash

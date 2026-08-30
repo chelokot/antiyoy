@@ -34,6 +34,23 @@ def test_registry_defaults_to_the_universal_two_to_eight_player_bundle() -> None
     assert sum(model["status"] == "beta" for model in payload["models"]) == 1
 
 
+def test_registry_records_the_frozen_policy_puct_specialist() -> None:
+    payload = json.loads(Path("model-registry/models.json").read_text())
+    specialist = next(
+        model
+        for model in payload["models"]
+        if model["id"] == "classic-generic-duel-value-v3-2026-08-31"
+    )
+
+    assert specialist["policy_parameters_frozen"] is True
+    assert specialist["value_calibration"]["heldout_sign_accuracy_after"] > 0.92
+    puct = specialist["policy_guided_puct_vs_direct_policy"]
+    assert puct["games"] == 512
+    assert puct["record"] == "280-0-232"
+    assert puct["truncations"] == 0
+    assert puct["relative_elo"] > 32
+
+
 def test_neural_arena_page_has_board_and_legal_action_controls() -> None:
     page = Path("python/policy_arena.html").read_text()
 

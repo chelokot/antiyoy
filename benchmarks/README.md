@@ -92,3 +92,11 @@ Browser export records require action-level parity across a complete game, not
 only a successful ONNX conversion. They name the routed expert, model and
 runtime hashes, dynamic legal-action range, maximum numeric error, and a
 WebAssembly-runtime smoke transition through the authoritative Rust engine.
+
+Policy-guided PUCT records use the same checkpoint as both amplified agent and
+direct-policy opponent. Node count, leaf batches, root visits, root selection,
+and value-calibration provenance are part of the arena identity. A zero-weight
+policy/value blend must reproduce direct policy exactly before any non-zero
+weight is measured. Calibration games, tuning scouts, and accepted holdouts use
+disjoint seed windows; failed value datasets and search budgets remain in the
+record instead of being discarded after a successful run.
