@@ -259,6 +259,39 @@ impl VectorEnv {
         Ok(Self::from_batch(batch))
     }
 
+    #[staticmethod]
+    #[pyo3(signature = (profiles, configs, action_limit=1000, fog=false, diplomacy=false, initial_relation="neutral", objective=None))]
+    #[expect(clippy::needless_pass_by_value)]
+    #[expect(clippy::too_many_arguments)]
+    fn procedural_domains(
+        py: Python<'_>,
+        profiles: Vec<String>,
+        configs: Vec<Py<ProceduralConfig>>,
+        action_limit: u32,
+        fog: bool,
+        diplomacy: bool,
+        initial_relation: &str,
+        objective: Option<PyRef<'_, ScenarioObjective>>,
+    ) -> PyResult<Self> {
+        let rules = profiles
+            .iter()
+            .map(|profile| {
+                let mut rules = rules_for_profile(profile)?;
+                configure_diplomacy(&mut rules, diplomacy, initial_relation)?;
+                Ok(rules)
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let generators = configs
+            .iter()
+            .map(|config| config.borrow(py).inner.clone())
+            .collect();
+        let mut batch =
+            BatchEnv::procedural_domains(rules, generators, action_limit).map_err(runtime_error)?;
+        apply_objective(&mut batch, objective.as_deref().map(|value| &value.inner))?;
+        batch.set_fog(fog);
+        Ok(Self::from_batch(batch))
+    }
+
     #[getter]
     fn environments(&self) -> usize {
         self.batch.len()

@@ -119,8 +119,11 @@ Procedural `BatchEnv` instances retain one config per environment. Consecutive
 environments start at consecutive seeds, and `reset_with_seed` regenerates the
 topology, objects, starts, and treasuries atomically. Python exposes the same
 contract through `ProceduralConfig`, `VectorEnv.procedural`, and
-`VectorEnv.procedural_mixed`. `generator_jsons()` records the exact per-worker
-configs in checkpoints.
+`VectorEnv.procedural_mixed`. `VectorEnv.procedural_domains` additionally takes
+one typed config per worker for heterogeneous curricula. The trainer's
+`--land-density-schedule-per-million` cycles exact densities across that batch;
+resets change only seeds, so every worker retains its assigned domain.
+`generator_jsons()` records the exact per-worker configs in checkpoints.
 
 ## Search teacher
 

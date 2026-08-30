@@ -64,7 +64,9 @@ python train.py --environments 64 --updates 1000 --device cuda \
 The profile list is cycled across the vector batch and each environment keeps
 its rules through resets. Procedural reset seeds rebuild the entire connected
 map and starting position; the exact generator configs are stored in the
-checkpoint. Add `--fog` to train from the active player's exact
+checkpoint. Use `--land-density-schedule-per-million 600000 650000 700000` to
+cycle heterogeneous map densities across workers while keeping their assignments
+stable through deterministic resets. Add `--fog` to train from the active player's exact
 visibility projection; full-state mode is the faster default for centralized
 self-play. Add `--diplomacy --initial-relation neutral` to expose bilateral
 offers, declarations of war, alliance propagation, and their exact action mask.

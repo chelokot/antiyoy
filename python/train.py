@@ -43,6 +43,7 @@ class TrainingConfig:
     players: int
     seed: int
     land_density_per_million: int
+    land_density_schedule_per_million: list[int] | None
     starting_province_size: int
     starting_money: int
     tree_density_per_million: int
@@ -115,13 +116,15 @@ def reward_tensor(result: dict[str, np.ndarray], config: TrainingConfig, device:
     )
 
 
-def make_environment(config: TrainingConfig) -> VectorEnv:
-    generator = ProceduralConfig(
+def procedural_config(
+    config: TrainingConfig, seed: int, land_density_per_million: int
+) -> ProceduralConfig:
+    return ProceduralConfig(
         width=config.width,
         height=config.height,
         players=config.players,
-        seed=config.seed,
-        land_density_per_million=config.land_density_per_million,
+        seed=seed,
+        land_density_per_million=land_density_per_million,
         starting_province_size=config.starting_province_size,
         starting_money=config.starting_money,
         tree_density_per_million=config.tree_density_per_million,
@@ -129,11 +132,37 @@ def make_environment(config: TrainingConfig) -> VectorEnv:
         neutral_capital_density_per_million=config.neutral_capital_density_per_million,
         grave_density_per_million=config.grave_density_per_million,
     )
+
+
+def make_environment(config: TrainingConfig) -> VectorEnv:
+    generator = procedural_config(
+        config, config.seed, config.land_density_per_million
+    )
     objective = (
         None
         if config.objective_json is None
         else ScenarioObjective.from_json(config.objective_json)
     )
+    schedule = profile_schedule(config)
+    if config.procedural and config.land_density_schedule_per_million is not None:
+        densities = config.land_density_schedule_per_million
+        generators = [
+            procedural_config(
+                config,
+                config.seed + index,
+                densities[index % len(densities)],
+            )
+            for index in range(config.environments)
+        ]
+        return VectorEnv.procedural_domains(
+            schedule,
+            generators,
+            action_limit=config.action_limit,
+            fog=config.fog,
+            diplomacy=config.diplomacy,
+            initial_relation=config.initial_relation,
+            objective=objective,
+        )
     if config.profiles is None:
         if config.procedural:
             return VectorEnv.procedural(
@@ -158,7 +187,6 @@ def make_environment(config: TrainingConfig) -> VectorEnv:
             initial_relation=config.initial_relation,
             objective=objective,
         )
-    schedule = profile_schedule(config)
     if config.procedural:
         return VectorEnv.procedural_mixed(
             schedule,
@@ -358,8 +386,18 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("initialize_profile requires an initialization checkpoint")
     if config.procedural and config.players < 2:
         raise ValueError("procedural maps require at least two players")
+    if config.land_density_schedule_per_million is not None:
+        if not config.procedural:
+            raise ValueError("land density schedule requires procedural maps")
+        if not config.land_density_schedule_per_million:
+            raise ValueError("land density schedule must not be empty")
+    land_densities = (
+        [config.land_density_per_million]
+        if config.land_density_schedule_per_million is None
+        else config.land_density_schedule_per_million
+    )
     densities = [
-        config.land_density_per_million,
+        *land_densities,
         config.tree_density_per_million,
         config.neutral_tower_density_per_million,
         config.neutral_capital_density_per_million,
@@ -367,7 +405,7 @@ def validate_config(config: TrainingConfig) -> None:
     ]
     if config.procedural and any(density < 0 or density > 1_000_000 for density in densities):
         raise ValueError("procedural densities must be between zero and one million")
-    if config.procedural and sum(densities[1:]) > 1_000_000:
+    if config.procedural and sum(densities[len(land_densities):]) > 1_000_000:
         raise ValueError("procedural neutral object densities exceed one million")
 
 
@@ -827,6 +865,10 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "updates": config.updates,
         "environments": config.environments,
         "map_generator": "procedural_v1" if config.procedural else "symmetric_duel_v1",
+        "land_density_schedule_per_million": ",".join(
+            str(density)
+            for density in config.land_density_schedule_per_million or []
+        ),
         "parameters": parameters,
         "transitions": config.updates * config.rollout_steps * config.environments,
         "optimizer_steps": config.updates * config.rollout_steps * config.epochs,
@@ -883,6 +925,9 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--players", type=int, default=2)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--land-density-per-million", type=int, default=650_000)
+    parser.add_argument(
+        "--land-density-schedule-per-million", type=int, nargs="+"
+    )
     parser.add_argument("--starting-province-size", type=int, default=5)
     parser.add_argument("--starting-money", type=int, default=10)
     parser.add_argument("--tree-density-per-million", type=int, default=150_000)

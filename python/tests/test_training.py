@@ -1,3 +1,4 @@
+import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -31,6 +32,7 @@ def training_config() -> TrainingConfig:
         players=2,
         seed=1,
         land_density_per_million=650_000,
+        land_density_schedule_per_million=None,
         starting_province_size=5,
         starting_money=10,
         tree_density_per_million=150_000,
@@ -115,6 +117,41 @@ def test_training_environment_uses_procedural_domain_randomization() -> None:
         torch.from_numpy(observation["playable"][:221]),
         torch.from_numpy(observation["playable"][221:]),
     )
+
+
+def test_training_environment_cycles_land_density_schedule() -> None:
+    config = replace(
+        training_config(),
+        environments=4,
+        procedural=True,
+        width=17,
+        height=13,
+        players=4,
+        profiles=["classic_generic_2022", "online_default_v1"],
+        profile=None,
+        land_density_schedule_per_million=[650_000, 700_000],
+    )
+
+    environment = make_environment(config)
+    generators = [json.loads(value) for value in environment.generator_jsons()]
+
+    assert [value["land_density_per_million"] for value in generators] == [
+        650_000,
+        700_000,
+        650_000,
+        700_000,
+    ]
+    assert [value["seed"] for value in generators] == [1, 2, 3, 4]
+
+
+def test_training_rejects_land_density_schedule_without_procedural_maps() -> None:
+    with pytest.raises(ValueError, match="requires procedural"):
+        validate_config(
+            replace(
+                training_config(),
+                land_density_schedule_per_million=[650_000, 700_000],
+            )
+        )
 
 
 def test_training_rejects_invalid_procedural_density() -> None:

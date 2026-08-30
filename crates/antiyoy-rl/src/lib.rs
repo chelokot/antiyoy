@@ -179,6 +179,8 @@ pub enum BatchError {
     ZeroActionLimit,
     #[error("received {actual} rules profiles for {expected} scenarios")]
     RulesCount { actual: usize, expected: usize },
+    #[error("received {actual} generator configs for {expected} rules profiles")]
+    GeneratorCount { actual: usize, expected: usize },
     #[error("received {actual} action indices for {expected} environments")]
     ActionCount { actual: usize, expected: usize },
     #[error("received {actual} objectives for {expected} environments")]
@@ -360,17 +362,36 @@ impl BatchEnv {
             return Err(BatchError::Empty);
         }
         let mut generators = Vec::with_capacity(rules.len());
-        let mut scenarios = Vec::with_capacity(rules.len());
         let mut seed = config.seed;
         for _ in &rules {
             let mut environment_config = config.clone();
             environment_config.seed = seed;
-            scenarios.push(environment_config.generate()?);
-            generators.push(Some(environment_config));
+            generators.push(environment_config);
             seed = seed.wrapping_add(1);
         }
+        Self::procedural_domains(rules, generators, action_limit)
+    }
+
+    pub fn procedural_domains(
+        rules: Vec<Rules>,
+        generators: Vec<GeneratorConfig>,
+        action_limit: u32,
+    ) -> Result<Self, BatchError> {
+        if rules.is_empty() {
+            return Err(BatchError::Empty);
+        }
+        if generators.len() != rules.len() {
+            return Err(BatchError::GeneratorCount {
+                actual: generators.len(),
+                expected: rules.len(),
+            });
+        }
+        let scenarios = generators
+            .iter()
+            .map(GeneratorConfig::generate)
+            .collect::<Result<Vec<_>, _>>()?;
         let mut batch = Self::new_mixed(rules, scenarios, action_limit)?;
-        batch.generators = generators;
+        batch.generators = generators.into_iter().map(Some).collect();
         Ok(batch)
     }
 
@@ -719,7 +740,7 @@ mod tests {
         Rules, Scenario, VictoryCondition,
     };
 
-    use super::{ActionFeatures, ActionKind, BatchEnv, BatchObservation};
+    use super::{ActionFeatures, ActionKind, BatchEnv, BatchError, BatchObservation};
 
     #[test]
     fn observation_offsets_partition_cells_and_legal_actions() {
@@ -849,6 +870,64 @@ mod tests {
                 .seed,
             config.seed
         );
+    }
+
+    #[test]
+    fn procedural_domains_keep_distinct_configs_across_resets() {
+        let first = GeneratorConfig {
+            width: 17,
+            height: 13,
+            players: 4,
+            seed: 900,
+            land_density_per_million: 650_000,
+            ..GeneratorConfig::default()
+        };
+        let second = GeneratorConfig {
+            seed: 901,
+            land_density_per_million: 700_000,
+            ..first.clone()
+        };
+        let mut environment = BatchEnv::procedural_domains(
+            vec![Rules::classic_generic(), Rules::online_default_v1()],
+            vec![first.clone(), second.clone()],
+            500,
+        )
+        .expect("valid domain schedule");
+
+        assert_eq!(environment.generator_config(0), Some(&first));
+        assert_eq!(environment.generator_config(1), Some(&second));
+        environment.reset_with_seed(1, 999).expect("valid reset");
+        assert_eq!(
+            environment
+                .generator_config(1)
+                .expect("second generator")
+                .land_density_per_million,
+            700_000
+        );
+        assert_eq!(
+            environment
+                .generator_config(1)
+                .expect("second generator")
+                .seed,
+            999
+        );
+    }
+
+    #[test]
+    fn procedural_domains_reject_mismatched_rules_and_configs() {
+        let result = BatchEnv::procedural_domains(
+            vec![Rules::classic_generic(), Rules::online_default_v1()],
+            vec![GeneratorConfig::default()],
+            500,
+        );
+
+        assert!(matches!(
+            result,
+            Err(BatchError::GeneratorCount {
+                actual: 1,
+                expected: 2
+            })
+        ));
     }
 
     #[test]

@@ -211,6 +211,36 @@ def test_procedural_batch_regenerates_topology_from_seed() -> None:
     assert np.array_equal(reset["owners"][:221], reset["owners"][221:])
 
 
+def test_procedural_domains_preserve_each_worker_density() -> None:
+    profiles = ["classic_generic_2022", "online_default_v1"]
+    configs = [
+        ProceduralConfig(
+            width=17,
+            height=13,
+            players=4,
+            seed=900,
+            land_density_per_million=650_000,
+        ),
+        ProceduralConfig(
+            width=17,
+            height=13,
+            players=4,
+            seed=901,
+            land_density_per_million=700_000,
+        ),
+    ]
+    environment = VectorEnv.procedural_domains(profiles, configs)
+
+    environment.reset(1, 999)
+    generators = [json.loads(value) for value in environment.generator_jsons()]
+
+    assert [value["land_density_per_million"] for value in generators] == [
+        650_000,
+        700_000,
+    ]
+    assert [value["seed"] for value in generators] == [900, 999]
+
+
 def test_scenario_objective_controls_episode_termination() -> None:
     objective = ScenarioObjective.survive_through_round(0, 1)
     serialized = json.loads(objective.to_json())
