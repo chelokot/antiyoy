@@ -309,6 +309,16 @@ export default function Arena() {
   const [openPanel, setOpenPanel] = useState<"left" | "right" | null>(null);
 
   useEffect(() => {
+    const closePanel = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenPanel(null);
+      }
+    };
+    window.addEventListener("keydown", closePanel);
+    return () => window.removeEventListener("keydown", closePanel);
+  }, []);
+
+  useEffect(() => {
     let disposed = false;
     void import("@/lib/antiyoy-wasm/antiyoy_wasm").then(async (module) => {
       await module.default({
