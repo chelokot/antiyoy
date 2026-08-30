@@ -94,6 +94,10 @@ from specializing its spatial filters to one side of a symmetric arena.
 and adds `W × KL(reference || candidate)` to the teacher loss. This provides an
 explicit stability objective when fine-tuning weak profiles would otherwise
 erase strong behavior from the published checkpoint.
+Repeat `--imitation-slice-weight PROFILE:SEAT:WEIGHT` to emphasize a measured
+worst-case slice in both teacher and retention losses. Unspecified slices keep
+weight one; malformed, duplicate, unscheduled, or out-of-range slices fail
+before the environment or model is allocated.
 Set `--updates 0` for an imitation-only run without a PPO phase; at least one
 imitation update is then required.
 

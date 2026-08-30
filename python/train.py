@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import math
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -58,6 +59,7 @@ class TrainingConfig:
     imitation_rollin: str
     imitation_symmetry_augmentation: bool
     imitation_reference_weight: float
+    imitation_slice_weights: list[str]
     checkpoint_every: int
     search_nodes: int
     search_beam_width: int
@@ -147,10 +149,7 @@ def make_environment(config: TrainingConfig) -> VectorEnv:
             initial_relation=config.initial_relation,
             objective=objective,
         )
-    schedule = [
-        config.profiles[index % len(config.profiles)]
-        for index in range(config.environments)
-    ]
+    schedule = profile_schedule(config)
     if config.procedural:
         return VectorEnv.procedural_mixed(
             schedule,
@@ -174,6 +173,57 @@ def make_environment(config: TrainingConfig) -> VectorEnv:
     )
 
 
+def profile_schedule(config: TrainingConfig) -> list[str]:
+    if config.profiles is None:
+        return [cast(str, config.profile)] * config.environments
+    return [
+        config.profiles[index % len(config.profiles)]
+        for index in range(config.environments)
+    ]
+
+
+def parsed_slice_weights(config: TrainingConfig) -> dict[tuple[str, int], float]:
+    scheduled = set(profile_schedule(config))
+    parsed: dict[tuple[str, int], float] = {}
+    for specification in config.imitation_slice_weights:
+        parts = specification.rsplit(":", 2)
+        if len(parts) != 3:
+            raise ValueError("imitation slice weights use PROFILE:SEAT:WEIGHT")
+        profile, seat_text, weight_text = parts
+        try:
+            seat = int(seat_text)
+            weight = float(weight_text)
+        except ValueError as error:
+            raise ValueError("imitation slice weights use PROFILE:SEAT:WEIGHT") from error
+        if profile not in scheduled:
+            raise ValueError(f"imitation slice profile is not scheduled: {profile}")
+        if seat < 0 or seat >= config.players:
+            raise ValueError(f"imitation slice seat is out of range: {seat}")
+        if not math.isfinite(weight) or weight <= 0:
+            raise ValueError("imitation slice weight must be finite and positive")
+        key = (profile, seat)
+        if key in parsed:
+            raise ValueError(f"duplicate imitation slice weight: {profile}:{seat}")
+        parsed[key] = weight
+    return parsed
+
+
+def imitation_weights(
+    config: TrainingConfig,
+    observation: dict[str, np.ndarray],
+    device: torch.device,
+) -> Tensor:
+    configured = parsed_slice_weights(config)
+    active_players = np.asarray(observation["active_players"], dtype=np.int64)
+    weights = [
+        configured.get((profile, int(active_player)), 1.0)
+        for profile, active_player in zip(
+            profile_schedule(config), active_players, strict=True
+        )
+    ]
+    return torch.tensor(weights, dtype=torch.float32, device=device)
+
+
 def validate_config(config: TrainingConfig) -> None:
     positive = {
         "environments": config.environments,
@@ -189,6 +239,9 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("imitation_updates must not be negative")
     if config.imitation_reference_weight < 0:
         raise ValueError("imitation_reference_weight must not be negative")
+    if config.profiles is not None and not config.profiles:
+        raise ValueError("profiles must not be empty")
+    parsed_slice_weights(config)
     if config.checkpoint_every < 0:
         raise ValueError("checkpoint_every must not be negative")
     if config.checkpoint_every > 0 and config.checkpoint is None:
@@ -209,8 +262,6 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("search_branch_width must be at least two")
     if config.search_maximum_actions_per_turn < 1:
         raise ValueError("search_maximum_actions_per_turn must be positive")
-    if config.profiles is not None and not config.profiles:
-        raise ValueError("profiles must not be empty")
     if config.initialize is not None and config.resume is not None:
         raise ValueError("initialize and resume are mutually exclusive")
     if config.procedural and config.players < 2:
@@ -321,7 +372,10 @@ def pretrain_teacher(
             model_observation = rotate_observation_180(observation, rotation_mask)
         logits, _ = model(model_observation, rules)
         distribution = action_distribution(logits, model_observation["action_offsets"])
-        loss = -distribution.log_prob(targets).mean()
+        weights = imitation_weights(config, observation, device)
+        weight_sum = weights.sum()
+        teacher_losses = -distribution.log_prob(targets)
+        loss = (teacher_losses * weights).sum() / weight_sum
         retention_kl = 0.0
         if reference_model is not None:
             with torch.no_grad():
@@ -331,7 +385,8 @@ def pretrain_teacher(
                 )
             retention = torch.distributions.kl_divergence(
                 reference_distribution, distribution
-            ).mean()
+            )
+            retention = (retention * weights).sum() / weight_sum
             loss = loss + config.imitation_reference_weight * retention
             retention_kl = float(retention.item())
         optimizer.zero_grad(set_to_none=True)
@@ -622,6 +677,8 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             algorithm += "_rot180_augmented"
         if config.imitation_reference_weight > 0:
             algorithm += "_reference_regularized"
+        if config.imitation_slice_weights:
+            algorithm += "_slice_weighted"
         if config.updates > 0:
             algorithm += "_perspective_ppo_gae"
     summary: dict[str, float | int | str] = {
@@ -637,6 +694,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "imitation_rollin": config.imitation_rollin,
         "imitation_symmetry_augmentation": config.imitation_symmetry_augmentation,
         "imitation_reference_weight": config.imitation_reference_weight,
+        "imitation_slice_weights": ",".join(config.imitation_slice_weights),
         "imitation_transitions": imitation_transitions,
         "imitation_seconds": imitation_seconds,
         "imitation_transitions_per_second": (
@@ -702,6 +760,13 @@ def parse_args() -> TrainingConfig:
     )
     parser.add_argument("--imitation-symmetry-augmentation", action="store_true")
     parser.add_argument("--imitation-reference-weight", type=float, default=0.0)
+    parser.add_argument(
+        "--imitation-slice-weight",
+        action="append",
+        dest="imitation_slice_weights",
+        default=[],
+        metavar="PROFILE:SEAT:WEIGHT",
+    )
     parser.add_argument("--checkpoint-every", type=int, default=0)
     parser.add_argument("--search-nodes", type=int, default=2048)
     parser.add_argument("--search-beam-width", type=int, default=32)
