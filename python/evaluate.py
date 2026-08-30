@@ -280,6 +280,7 @@ def evaluate(
     puct_exploration: float = 1.5,
     puct_virtual_loss: float = 1.0,
     puct_maximum_depth: int = 128,
+    puct_root_value_weight: float | None = None,
     puct_leaf_batch_size: int = 512,
 ) -> dict[str, object]:
     if model_agent not in ("policy", "puct"):
@@ -464,6 +465,7 @@ def evaluate(
         exploration=puct_exploration,
         virtual_loss=puct_virtual_loss,
         maximum_depth=puct_maximum_depth,
+        root_value_weight=puct_root_value_weight,
         leaf_batch_size=puct_leaf_batch_size,
     )
     while not bool(finished.all()):
@@ -650,6 +652,9 @@ def evaluate(
             "exploration": puct_exploration if model_agent == "puct" else 0.0,
             "virtual_loss": puct_virtual_loss if model_agent == "puct" else 0.0,
             "maximum_depth": puct_maximum_depth if model_agent == "puct" else 0,
+            "root_value_weight": (
+                puct_root_value_weight if model_agent == "puct" else None
+            ),
             "leaf_batch_size": puct_leaf_batch_size if model_agent == "puct" else 0,
             "decisions": puct_decisions,
             "evaluated_leaves": puct_evaluated_leaves,
@@ -696,6 +701,7 @@ def main() -> None:
     parser.add_argument("--puct-exploration", type=float, default=1.5)
     parser.add_argument("--puct-virtual-loss", type=float, default=1.0)
     parser.add_argument("--puct-maximum-depth", type=int, default=128)
+    parser.add_argument("--puct-root-value-weight", type=float)
     parser.add_argument("--puct-leaf-batch-size", type=int, default=512)
     parser.add_argument("--land-density-per-million", type=int, default=650_000)
     parser.add_argument("--starting-province-size", type=int, default=5)
@@ -752,6 +758,7 @@ def main() -> None:
                 arguments.puct_exploration,
                 arguments.puct_virtual_loss,
                 arguments.puct_maximum_depth,
+                arguments.puct_root_value_weight,
                 arguments.puct_leaf_batch_size,
             ),
             sort_keys=True,

@@ -223,6 +223,20 @@ nodes, root visits, and maximum reached depth. Compare it with the same seed,
 seat, baseline, and model using `--model-agent policy`; changing only the PUCT
 budget isolates the value of search from the value of the checkpoint.
 
+Canonical PUCT chooses the most visited root action. For a distilled policy
+whose value head is still being calibrated, use the continuous policy/value
+root blend instead:
+
+```bash
+python evaluate.py ../models/universal-routed.pt --games 64 \
+  --baseline policy --model-agent puct --puct-nodes 64 \
+  --puct-root-value-weight 0.25 --device cuda
+```
+
+The score is `log(policy prior) + weight × searched mean value`. Weight zero is
+an exact direct-policy endpoint; increasing it measures how much authority the
+search value receives without conflating the result with a different model.
+
 For the direct amplification match, use the checkpoint itself as the opponent:
 
 ```bash

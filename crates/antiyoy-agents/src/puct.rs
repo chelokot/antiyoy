@@ -9,6 +9,7 @@ pub struct PuctConfig {
     pub exploration: f64,
     pub virtual_loss: f64,
     pub maximum_depth: usize,
+    pub root_value_weight: Option<f64>,
 }
 
 impl Default for PuctConfig {
@@ -18,6 +19,7 @@ impl Default for PuctConfig {
             exploration: 1.5,
             virtual_loss: 1.0,
             maximum_depth: 128,
+            root_value_weight: None,
         }
     }
 }
@@ -43,6 +45,8 @@ pub enum PuctError {
     VirtualLoss,
     #[error("PUCT maximum depth must be positive")]
     MaximumDepth,
+    #[error("PUCT root value weight must be finite and non-negative")]
+    RootValueWeight,
     #[error("PUCT root must be a non-terminal state with legal actions")]
     TerminalRoot,
     #[error("unknown or already completed PUCT leaf token: {0}")]
@@ -231,6 +235,18 @@ impl PuctSearch {
         let NodeState::Expanded(edges) = &self.nodes[0].state else {
             return Err(PuctError::NoRootAction);
         };
+        if let Some(value_weight) = self.config.root_value_weight {
+            return edges
+                .iter()
+                .enumerate()
+                .max_by(|(first_index, first), (second_index, second)| {
+                    root_policy_value_score(first, value_weight)
+                        .total_cmp(&root_policy_value_score(second, value_weight))
+                        .then_with(|| second_index.cmp(first_index))
+                })
+                .map(|(index, _)| index)
+                .ok_or(PuctError::NoRootAction);
+        }
         edges
             .iter()
             .enumerate()
@@ -429,6 +445,12 @@ fn validate_config(config: PuctConfig) -> Result<(), PuctError> {
     if config.maximum_depth == 0 {
         return Err(PuctError::MaximumDepth);
     }
+    if config
+        .root_value_weight
+        .is_some_and(|weight| !weight.is_finite() || weight < 0.0)
+    {
+        return Err(PuctError::RootValueWeight);
+    }
     Ok(())
 }
 
@@ -443,6 +465,10 @@ fn mean_value(edge: &Edge) -> f64 {
     } else {
         edge.value_sum / f64::from(edge.visits)
     }
+}
+
+fn root_policy_value_score(edge: &Edge, value_weight: f64) -> f64 {
+    edge.prior.ln() + value_weight * mean_value(edge)
 }
 
 fn edge_score(edge: &Edge, parent_visits: u32, config: PuctConfig, maximizing: bool) -> f64 {
@@ -467,7 +493,7 @@ fn edge_score(edge: &Edge, parent_visits: u32, config: PuctConfig, maximizing: b
 mod tests {
     use antiyoy_core::{Game, Rules, Scenario};
 
-    use super::{Edge, PuctConfig, PuctError, PuctSearch, edge_score};
+    use super::{Edge, NodeState, PuctConfig, PuctError, PuctSearch, edge_score};
 
     fn search_with_uniform_evaluation(config: PuctConfig) -> PuctSearch {
         let scenario = Scenario::symmetric_duel(7, 5, 211).expect("valid duel");
@@ -579,6 +605,49 @@ mod tests {
             ),
             Err(PuctError::NodeBudget)
         ));
+        assert!(matches!(
+            PuctSearch::new(
+                &game,
+                &actions,
+                PuctConfig {
+                    root_value_weight: Some(-1.0),
+                    ..PuctConfig::default()
+                }
+            ),
+            Err(PuctError::RootValueWeight)
+        ));
+    }
+
+    #[test]
+    fn policy_value_root_selection_has_an_exact_policy_only_endpoint() {
+        let scenario = Scenario::symmetric_duel(7, 5, 233).expect("valid duel");
+        let game = Game::new(Rules::classic_generic(), scenario).expect("valid game");
+        let mut actions = Vec::new();
+        game.legal_actions(&mut actions);
+        let mut search = PuctSearch::new(
+            &game,
+            &actions,
+            PuctConfig {
+                root_value_weight: Some(0.0),
+                ..PuctConfig::default()
+            },
+        )
+        .expect("valid search");
+        let root = search.select_leaves(1)[0];
+        let mut priors = vec![0.0; actions.len()];
+        priors[0] = 0.1;
+        priors[1] = 0.9;
+        search
+            .complete_leaf(root.token, &priors, 0.0)
+            .expect("root evaluation");
+        let NodeState::Expanded(edges) = &mut search.nodes[0].state else {
+            panic!("expanded root");
+        };
+        edges[0].visits = 100;
+        edges[0].value_sum = 100.0;
+        edges[1].visits = 1;
+        edges[1].value_sum = -1.0;
+        assert_eq!(search.selected_action_index().expect("root action"), 1);
     }
 
     #[test]

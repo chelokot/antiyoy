@@ -27,6 +27,7 @@ class PolicySearchConfig:
     exploration: float = 1.5
     virtual_loss: float = 1.0
     maximum_depth: int = 128
+    root_value_weight: float | None = None
     leaf_batch_size: int = 512
 
 
@@ -48,6 +49,7 @@ def policy_search_actions(
         exploration=config.exploration,
         virtual_loss=config.virtual_loss,
         maximum_depth=config.maximum_depth,
+        root_value_weight=config.root_value_weight,
         active_mask=active,
     )
     leaf_batches = 0

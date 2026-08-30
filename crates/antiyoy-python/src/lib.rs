@@ -628,13 +628,14 @@ impl VectorEnv {
         Ok(PyArray1::from_vec(py, indices))
     }
 
-    #[pyo3(signature = (node_budget=256, exploration=1.5, virtual_loss=1.0, maximum_depth=128, active_mask=None))]
+    #[pyo3(signature = (node_budget=256, exploration=1.5, virtual_loss=1.0, maximum_depth=128, root_value_weight=None, active_mask=None))]
     fn policy_search(
         &self,
         node_budget: usize,
         exploration: f64,
         virtual_loss: f64,
         maximum_depth: usize,
+        root_value_weight: Option<f64>,
         active_mask: Option<PyReadonlyArray1<'_, u8>>,
     ) -> PyResult<PolicySearchBatch> {
         let active = active_mask_values(active_mask, self.batch.len())?;
@@ -643,6 +644,7 @@ impl VectorEnv {
             exploration,
             virtual_loss,
             maximum_depth,
+            root_value_weight,
         };
         let searches = (0..self.batch.len())
             .map(|index| {

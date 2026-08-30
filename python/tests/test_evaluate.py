@@ -101,6 +101,7 @@ def test_policy_search_runs_the_native_tree_for_every_model_decision(
         action_limit=12,
         model_agent="puct",
         puct_nodes=4,
+        puct_root_value_weight=0.0,
         puct_leaf_batch_size=8,
     )
 
@@ -110,6 +111,8 @@ def test_policy_search_runs_the_native_tree_for_every_model_decision(
     assert search["leaf_batches"] > 0
     assert search["total_nodes"] == search["decisions"] * search["node_budget"]
     assert search["total_root_visits"] > 0
+    assert search["root_value_weight"] == 0.0
+    assert result["score_delta"] == pytest.approx(0.0)
 
 
 def test_paired_seeds_repeat_each_map_for_opposite_seats() -> None:
