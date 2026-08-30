@@ -8,9 +8,11 @@ torch = pytest.importorskip("torch")
 from python.train import (
     Rollout,
     TrainingConfig,
+    imitation_action_weights,
     imitation_weights,
     initialization_state,
     make_environment,
+    parsed_action_weights,
     parsed_slice_weights,
     policy_rollin_mask,
     recovery_checkpoint_path,
@@ -51,6 +53,7 @@ def training_config() -> TrainingConfig:
         imitation_symmetry_augmentation=False,
         imitation_reference_weight=0.0,
         imitation_slice_weights=[],
+        imitation_action_weights=[],
         imitation_policy_rollin_slices=[],
         checkpoint_every=0,
         search_nodes=256,
@@ -175,6 +178,51 @@ def test_training_rejects_invalid_slice_weights(specification: str) -> None:
 
     with pytest.raises(ValueError, match="slice"):
         parsed_slice_weights(config)
+
+
+def test_action_weights_target_teacher_action_kind() -> None:
+    config = replace(
+        training_config(),
+        environments=3,
+        imitation_action_weights=["build:8", "recruit:2"],
+    )
+    observation = {
+        "action_offsets": torch.tensor([0, 2, 5, 7], dtype=torch.uint64).numpy(),
+        "action_kinds": torch.tensor(
+            [0, 3, 0, 1, 2, 3, 1], dtype=torch.uint8
+        ).numpy(),
+    }
+
+    weights = imitation_action_weights(
+        config,
+        observation,
+        torch.tensor([1, 2, 1], dtype=torch.uint64).numpy(),
+        torch.device("cpu"),
+    )
+
+    assert weights.tolist() == [8.0, 2.0, 1.0]
+
+
+@pytest.mark.parametrize(
+    "specification",
+    ["build", "unknown:2", "build:x", "build:0", "build:nan"],
+)
+def test_training_rejects_invalid_action_weights(specification: str) -> None:
+    config = replace(
+        training_config(), imitation_action_weights=[specification]
+    )
+
+    with pytest.raises(ValueError, match="action weight"):
+        parsed_action_weights(config)
+
+
+def test_training_rejects_duplicate_action_weights() -> None:
+    config = replace(
+        training_config(), imitation_action_weights=["build:2", "build:3"]
+    )
+
+    with pytest.raises(ValueError, match="duplicate imitation action weight"):
+        parsed_action_weights(config)
 
 
 def test_policy_rollin_mask_selects_only_configured_profile_seat() -> None:

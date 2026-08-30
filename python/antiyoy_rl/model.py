@@ -10,6 +10,14 @@ from torch.nn import functional as functional
 
 
 RULE_FEATURES = 45
+ACTION_KIND_NAMES = (
+    "end_turn",
+    "move",
+    "recruit",
+    "build",
+    "plant_tree",
+    "diplomacy",
+)
 CELL_FEATURES = (
     "playable",
     "visible",
@@ -188,7 +196,7 @@ class UniversalPolicy(nn.Module):
             nn.Linear(hidden, hidden),
         )
         self.blocks = nn.ModuleList(HexBlock(hidden) for _ in range(layers))
-        self.action_kind_embedding = nn.Embedding(6, hidden)
+        self.action_kind_embedding = nn.Embedding(len(ACTION_KIND_NAMES), hidden)
         self.action_parameter_embedding = nn.Embedding(6, hidden)
         self.relation_embedding = nn.Embedding(4, hidden)
         self.proposal_embedding = nn.Embedding(5, hidden)

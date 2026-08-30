@@ -98,6 +98,11 @@ Repeat `--imitation-slice-weight PROFILE:SEAT:WEIGHT` to emphasize a measured
 worst-case slice in both teacher and retention losses. Unspecified slices keep
 weight one; malformed, duplicate, unscheduled, or out-of-range slices fail
 before the environment or model is allocated.
+Repeat `--imitation-action-weight ACTION_KIND:WEIGHT` to counter a measured
+teacher-label imbalance across `end_turn`, `move`, `recruit`, `build`,
+`plant_tree`, and `diplomacy`. The action weight multiplies the profile-seat
+weight and is normalized across the batch, so rare strategic actions can be
+emphasized without changing environment sampling or the authoritative mask.
 Repeat `--imitation-policy-rollin-slice PROFILE:SEAT` for asymmetric DAgger.
 The selected seats advance with the candidate's action while every opponent
 seat advances with the search label. This trains recovery against an exact
@@ -195,7 +200,7 @@ The suite hashes the checkpoint, records the fixed arena and search budget,
 keeps per-profile/per-seed action and timeout diagnostics, and exits nonzero
 when the optional aggregate regression gate fails. Its JSON output is atomic.
 
-`evaluate_matrix.py CHECKPOINT --matrix
+`evaluate_matrix.py CHECKPOINT
 ../benchmarks/configs/universal-cross-domain-v1.json` applies the same
 self-play-calibrated seat gate across symmetric and procedural map domains,
 different sizes, densities, and player counts.

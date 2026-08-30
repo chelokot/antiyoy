@@ -11,6 +11,7 @@ import torch
 
 from antiyoy_rl import OBSERVATION_VERSION, ProceduralConfig, VectorEnv
 from antiyoy_rl.model import (
+    ACTION_KIND_NAMES,
     RULE_FEATURES,
     UniversalPolicy,
     action_distribution,
@@ -27,7 +28,6 @@ except ImportError:
     from train import CHECKPOINT_VERSION
 
 
-ACTION_KIND_NAMES = ("end_turn", "move", "recruit", "build", "plant_tree", "diplomacy")
 PAIRING_SCHEME = "adjacent_same_seed_opposite_seat_v1"
 SEAT_ROTATION_SCHEME = "adjacent_same_seed_all_seats_v1"
 

@@ -16,6 +16,7 @@ from torch import Tensor
 
 from antiyoy_rl import OBSERVATION_VERSION, ProceduralConfig, ScenarioObjective, VectorEnv
 from antiyoy_rl.model import (
+    ACTION_KIND_NAMES,
     RULE_FEATURES,
     UniversalPolicy,
     action_distribution,
@@ -64,6 +65,7 @@ class TrainingConfig:
     imitation_symmetry_augmentation: bool
     imitation_reference_weight: float
     imitation_slice_weights: list[str]
+    imitation_action_weights: list[str]
     imitation_policy_rollin_slices: list[str]
     checkpoint_every: int
     search_nodes: int
@@ -214,6 +216,28 @@ def parsed_slice_weights(config: TrainingConfig) -> dict[tuple[str, int], float]
     return parsed
 
 
+def parsed_action_weights(config: TrainingConfig) -> dict[int, float]:
+    action_kinds = {name: index for index, name in enumerate(ACTION_KIND_NAMES)}
+    parsed: dict[int, float] = {}
+    for specification in config.imitation_action_weights:
+        kind_name, separator, weight_text = specification.rpartition(":")
+        if not separator or kind_name not in action_kinds:
+            raise ValueError("imitation action weights use ACTION_KIND:WEIGHT")
+        try:
+            weight = float(weight_text)
+        except ValueError as error:
+            raise ValueError(
+                "imitation action weights use ACTION_KIND:WEIGHT"
+            ) from error
+        if not math.isfinite(weight) or weight <= 0:
+            raise ValueError("imitation action weight must be finite and positive")
+        kind = action_kinds[kind_name]
+        if kind in parsed:
+            raise ValueError(f"duplicate imitation action weight: {kind_name}")
+        parsed[kind] = weight
+    return parsed
+
+
 def parsed_policy_rollin_slices(config: TrainingConfig) -> set[tuple[str, int]]:
     scheduled = set(profile_schedule(config))
     parsed: set[tuple[str, int]] = set()
@@ -253,6 +277,20 @@ def imitation_weights(
     return torch.tensor(weights, dtype=torch.float32, device=device)
 
 
+def imitation_action_weights(
+    config: TrainingConfig,
+    observation: dict[str, np.ndarray],
+    actions: np.ndarray,
+    device: torch.device,
+) -> Tensor:
+    configured = parsed_action_weights(config)
+    offsets = np.asarray(observation["action_offsets"][:-1], dtype=np.int64)
+    indices = offsets + np.asarray(actions, dtype=np.int64)
+    kinds = np.asarray(observation["action_kinds"], dtype=np.uint8)[indices]
+    weights = [configured.get(int(kind), 1.0) for kind in kinds]
+    return torch.tensor(weights, dtype=torch.float32, device=device)
+
+
 def policy_rollin_mask(
     config: TrainingConfig,
     observation: dict[str, np.ndarray],
@@ -287,6 +325,7 @@ def validate_config(config: TrainingConfig) -> None:
     if config.profiles is not None and not config.profiles:
         raise ValueError("profiles must not be empty")
     parsed_slice_weights(config)
+    parsed_action_weights(config)
     policy_slices = parsed_policy_rollin_slices(config)
     if policy_slices and config.imitation_rollin != "teacher":
         raise ValueError("asymmetric policy rollin requires teacher rollin as its base")
@@ -422,7 +461,9 @@ def pretrain_teacher(
             model_observation = rotate_observation_180(observation, rotation_mask)
         logits, _ = model(model_observation, rules)
         distribution = action_distribution(logits, model_observation["action_offsets"])
-        weights = imitation_weights(config, observation, device)
+        weights = imitation_weights(config, observation, device) * imitation_action_weights(
+            config, observation, selected, device
+        )
         weight_sum = weights.sum()
         teacher_losses = -distribution.log_prob(targets)
         loss = (teacher_losses * weights).sum() / weight_sum
@@ -761,6 +802,8 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             algorithm += "_reference_regularized"
         if config.imitation_slice_weights:
             algorithm += "_slice_weighted"
+        if config.imitation_action_weights:
+            algorithm += "_action_weighted"
         if config.imitation_policy_rollin_slices:
             algorithm += "_asymmetric_dagger"
         if config.updates > 0:
@@ -779,6 +822,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "imitation_symmetry_augmentation": config.imitation_symmetry_augmentation,
         "imitation_reference_weight": config.imitation_reference_weight,
         "imitation_slice_weights": ",".join(config.imitation_slice_weights),
+        "imitation_action_weights": ",".join(config.imitation_action_weights),
         "imitation_policy_rollin_slices": ",".join(
             config.imitation_policy_rollin_slices
         ),
@@ -854,6 +898,13 @@ def parse_args() -> TrainingConfig:
         dest="imitation_slice_weights",
         default=[],
         metavar="PROFILE:SEAT:WEIGHT",
+    )
+    parser.add_argument(
+        "--imitation-action-weight",
+        action="append",
+        dest="imitation_action_weights",
+        default=[],
+        metavar="ACTION_KIND:WEIGHT",
     )
     parser.add_argument(
         "--imitation-policy-rollin-slice",
