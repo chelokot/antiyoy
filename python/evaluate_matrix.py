@@ -30,7 +30,7 @@ except ImportError:
     )
 
 
-MATRIX_SCHEMA_VERSION = 1
+MATRIX_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -67,8 +67,8 @@ class Search:
 @dataclass(frozen=True)
 class Gates:
     minimum_domain_relative_elo: float
-    minimum_slice_normalized_score: float
-    maximum_truncation_rate: float
+    minimum_slice_score_delta: float
+    maximum_truncation_rate_delta: float
 
 
 @dataclass(frozen=True)
@@ -105,10 +105,15 @@ def parse_matrix(path: Path) -> Matrix:
     ) < 1:
         raise ValueError("search limits must be positive")
     gates = Gates(**payload["gates"])
-    if gates.minimum_slice_normalized_score < 0:
-        raise ValueError("minimum slice normalized score must be non-negative")
-    if gates.maximum_truncation_rate < 0 or gates.maximum_truncation_rate > 1:
-        raise ValueError("maximum truncation rate must be between zero and one")
+    if gates.minimum_slice_score_delta < -1 or gates.minimum_slice_score_delta > 1:
+        raise ValueError("minimum slice score delta must be between minus one and one")
+    if (
+        gates.maximum_truncation_rate_delta < -1
+        or gates.maximum_truncation_rate_delta > 1
+    ):
+        raise ValueError(
+            "maximum truncation rate delta must be between minus one and one"
+        )
     return Matrix(profiles, domains, baseline, search, gates)
 
 
@@ -212,6 +217,9 @@ def summarize_domains(domains: list[dict[str, object]]) -> dict[str, object]:
     draws = sum(int(aggregate["draws"]) for aggregate in aggregates)
     losses = sum(int(aggregate["losses"]) for aggregate in aggregates)
     truncations = sum(int(aggregate["truncations"]) for aggregate in aggregates)
+    baseline_truncations = sum(
+        int(aggregate["baseline_truncations"]) for aggregate in aggregates
+    )
     weakest_domain = min(
         domains, key=lambda domain: float(domain["aggregate"]["relative_elo"])
     )
@@ -219,12 +227,10 @@ def summarize_domains(domains: list[dict[str, object]]) -> dict[str, object]:
         {
             "domain": domain["id"],
             **domain["weakest_seat"],
-            "normalized_score": float(domain["weakest_seat"]["score"])
-            * int(domain["players"]),
         }
         for domain in domains
     ]
-    weakest_slice = min(slices, key=lambda result: float(result["normalized_score"]))
+    weakest_slice = min(slices, key=lambda result: float(result["score_delta"]))
     return {
         "games": games,
         "wins": wins,
@@ -232,6 +238,9 @@ def summarize_domains(domains: list[dict[str, object]]) -> dict[str, object]:
         "losses": losses,
         "truncations": truncations,
         "truncation_rate": truncations / games,
+        "baseline_truncations": baseline_truncations,
+        "baseline_truncation_rate": baseline_truncations / games,
+        "truncation_rate_delta": (truncations - baseline_truncations) / games,
         "weakest_domain": {
             "id": weakest_domain["id"],
             **weakest_domain["aggregate"],
@@ -249,18 +258,18 @@ def gate_failures(summary: dict[str, object], gates: Gates) -> list[str]:
             f"weakest domain relative Elo {weakest_domain['relative_elo']:.3f} is below "
             f"{gates.minimum_domain_relative_elo:.3f}"
         )
+    if float(weakest_slice["score_delta"]) < gates.minimum_slice_score_delta:
+        failures.append(
+            f"weakest slice score delta {weakest_slice['score_delta']:.3f} "
+            f"is below {gates.minimum_slice_score_delta:.3f}"
+        )
     if (
-        float(weakest_slice["normalized_score"])
-        < gates.minimum_slice_normalized_score
+        float(summary["truncation_rate_delta"])
+        > gates.maximum_truncation_rate_delta
     ):
         failures.append(
-            f"weakest slice normalized score {weakest_slice['normalized_score']:.3f} "
-            f"is below {gates.minimum_slice_normalized_score:.3f}"
-        )
-    if float(summary["truncation_rate"]) > gates.maximum_truncation_rate:
-        failures.append(
-            f"truncation rate {summary['truncation_rate']:.6f} exceeds "
-            f"{gates.maximum_truncation_rate:.6f}"
+            f"truncation rate delta {summary['truncation_rate_delta']:.6f} exceeds "
+            f"{gates.maximum_truncation_rate_delta:.6f}"
         )
     return failures
 

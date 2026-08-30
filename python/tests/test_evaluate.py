@@ -8,6 +8,7 @@ from python.evaluate import (
     outcome_summary,
     paired_elo,
     paired_seeds,
+    reference_adjusted_outcome,
     relative_skill_delta,
     seat_rotation_seeds,
     selected_action_kinds,
@@ -89,6 +90,15 @@ def test_outcome_summary_reports_complete_seat_slice() -> None:
         "score": 0.625,
         "elo_delta": paired_elo(0.625, 4),
     }
+
+
+def test_reference_adjustment_calibrates_asymmetric_seat() -> None:
+    outcome = outcome_summary(6, 1, 0, 5, 0, 0, players=3)
+
+    adjusted = reference_adjusted_outcome(outcome, 6, 1, 0, 0)
+
+    assert adjusted["baseline_score"] == pytest.approx(1 / 6)
+    assert adjusted["score_delta"] == pytest.approx(0.0)
 
 
 def test_suite_aggregate_counts_draws_and_truncations() -> None:
@@ -210,6 +220,41 @@ def test_suite_aggregate_supports_every_multiplayer_seat() -> None:
     assert [seat["seat"] for seat in aggregate["seats"]] == [0, 1, 2, 3]
 
 
+def test_suite_aggregate_preserves_self_play_calibration() -> None:
+    result = {
+        "players": 3,
+        "games": 6,
+        "wins": 3,
+        "draws": 0,
+        "losses": 3,
+        "truncations": 0,
+        "terminal_draws": 0,
+        "baseline_wins": 2,
+        "baseline_draws": 0,
+        "baseline_truncations": 0,
+        "seats": [
+            {
+                "games": 2,
+                "wins": wins,
+                "draws": 0,
+                "losses": 2 - wins,
+                "truncations": 0,
+                "terminal_draws": 0,
+                "baseline_wins": baseline_wins,
+                "baseline_draws": 0,
+                "baseline_truncations": 0,
+            }
+            for wins, baseline_wins in ((2, 1), (1, 1), (0, 0))
+        ],
+    }
+
+    aggregate = aggregate_results([result])
+
+    assert aggregate["baseline_score"] == pytest.approx(1 / 3)
+    assert aggregate["score_delta"] == pytest.approx(1 / 6)
+    assert aggregate["seats"][2]["score_delta"] == pytest.approx(0.0)
+
+
 def test_minimum_seat_slice_preserves_profile_and_seed() -> None:
     results = [
         {
@@ -236,3 +281,18 @@ def test_minimum_seat_slice_preserves_profile_and_seed() -> None:
         "seat": 1,
         "score": 0.125,
     }
+
+
+def test_minimum_seat_slice_uses_self_play_calibrated_delta() -> None:
+    results = [
+        {
+            "profile": "online_experimental_v2_260801",
+            "seed": 100,
+            "seats": [
+                {"seat": 0, "score": 0.5, "score_delta": 0.0},
+                {"seat": 1, "score": 0.25, "score_delta": 0.125},
+            ],
+        }
+    ]
+
+    assert minimum_seat_slice(results)["seat"] == 0

@@ -41,10 +41,16 @@ def test_summary_and_gates_select_cross_domain_weakness() -> None:
                 "draws": 0,
                 "losses": 2,
                 "truncations": 0,
+                "baseline_truncations": 0,
                 "relative_elo": 190.0,
             },
             "players": 2,
-            "weakest_seat": {"seat": 1, "score": 0.5, "elo_delta": 0.0},
+            "weakest_seat": {
+                "seat": 1,
+                "score": 0.5,
+                "score_delta": 0.0,
+                "elo_delta": 0.0,
+            },
         },
         {
             "id": "four-player",
@@ -54,10 +60,16 @@ def test_summary_and_gates_select_cross_domain_weakness() -> None:
                 "draws": 0,
                 "losses": 7,
                 "truncations": 1,
+                "baseline_truncations": 0,
                 "relative_elo": -150.0,
             },
             "players": 4,
-            "weakest_seat": {"seat": 3, "score": 0.0, "elo_delta": -300.0},
+            "weakest_seat": {
+                "seat": 3,
+                "score": 0.0,
+                "score_delta": -0.25,
+                "elo_delta": -300.0,
+            },
         },
     ]
 

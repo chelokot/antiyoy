@@ -55,7 +55,7 @@ def aggregate_outcomes(
     players = int(results[0].get("players", 2))
     if any(int(result.get("players", 2)) != players for result in results):
         raise ValueError("cannot aggregate evaluations with different player counts")
-    return {
+    aggregate = {
         "games": games,
         "wins": wins,
         "draws": draws,
@@ -66,6 +66,31 @@ def aggregate_outcomes(
         "score": score,
         "relative_elo": relative_skill_delta(score, games, players),
     }
+    reference_outcomes = ["baseline_wins" in result for result in outcomes]
+    if any(reference_outcomes) and not all(reference_outcomes):
+        raise ValueError("cannot mix seat-calibrated and uncalibrated evaluations")
+    if all(reference_outcomes):
+        baseline_wins = sum(int(result["baseline_wins"]) for result in outcomes)
+        baseline_draws = sum(int(result["baseline_draws"]) for result in outcomes)
+        baseline_truncations = sum(
+            int(result["baseline_truncations"]) for result in outcomes
+        )
+        baseline_score = (baseline_wins + 0.5 * baseline_draws) / games
+        baseline_truncation_rate = baseline_truncations / games
+        aggregate.update(
+            {
+                "baseline_wins": baseline_wins,
+                "baseline_draws": baseline_draws,
+                "baseline_truncations": baseline_truncations,
+                "baseline_score": baseline_score,
+                "score_delta": score - baseline_score,
+                "baseline_truncation_rate": baseline_truncation_rate,
+                "truncation_rate_delta": (
+                    truncations / games - baseline_truncation_rate
+                ),
+            }
+        )
+    return aggregate
 
 
 def aggregate_results(results: list[dict[str, object]]) -> dict[str, object]:
@@ -90,7 +115,8 @@ def minimum_seat_slice(results: list[dict[str, object]]) -> dict[str, object]:
         for result in results
         for seat_result in result["seats"]
     ]
-    return min(slices, key=lambda result: float(result["score"]))
+    metric = "score_delta" if "score_delta" in slices[0] else "score"
+    return min(slices, key=lambda result: float(result[metric]))
 
 
 def checkpoint_digest(path: Path) -> str:
@@ -136,6 +162,7 @@ def main() -> None:
     parser.add_argument("--grave-density-per-million", type=int, default=15_000)
     parser.add_argument("--minimum-aggregate-score", type=float)
     parser.add_argument("--minimum-seat-score", type=float)
+    parser.add_argument("--minimum-seat-score-delta", type=float)
     parser.add_argument("--output", type=Path)
     arguments = parser.parse_args()
     if arguments.players < 2:
@@ -152,6 +179,10 @@ def main() -> None:
         0 <= arguments.minimum_seat_score <= 1
     ):
         parser.error("minimum seat score must be between zero and one")
+    if arguments.minimum_seat_score_delta is not None and not (
+        -1 <= arguments.minimum_seat_score_delta <= 1
+    ):
+        parser.error("minimum seat score delta must be between minus one and one")
 
     started = time.perf_counter()
     results: list[dict[str, object]] = []
@@ -187,7 +218,7 @@ def main() -> None:
     aggregate = aggregate_results(results)
     weakest_seat = minimum_seat_slice(results)
     result: dict[str, object] = {
-        "schema_version": 2,
+        "schema_version": 3,
         "kind": "universal_policy_seed_sweep",
         "checkpoint": {
             "path": str(arguments.checkpoint),
@@ -258,6 +289,14 @@ def main() -> None:
         raise SystemExit(
             f"weakest seat score {weakest_seat['score']:.6f} is below required "
             f"{minimum_seat_score:.6f}"
+        )
+    minimum_seat_score_delta = arguments.minimum_seat_score_delta
+    if minimum_seat_score_delta is not None and float(
+        weakest_seat["score_delta"]
+    ) < minimum_seat_score_delta:
+        raise SystemExit(
+            f"weakest seat score delta {weakest_seat['score_delta']:.6f} is below required "
+            f"{minimum_seat_score_delta:.6f}"
         )
 
 

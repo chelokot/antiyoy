@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "profiles": [
     "classic_generic_2022",
     "classic_slay_2022",
@@ -18,8 +18,8 @@
   },
   "gates": {
     "minimum_domain_relative_elo": 0.0,
-    "minimum_slice_normalized_score": 0.5,
-    "maximum_truncation_rate": 0.02
+    "minimum_slice_score_delta": 0.0,
+    "maximum_truncation_rate_delta": 0.02
   },
   "domains": [
     {

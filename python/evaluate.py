@@ -4,6 +4,7 @@ import argparse
 import json
 import math
 from pathlib import Path
+from typing import TypedDict
 
 import numpy as np
 import torch
@@ -29,6 +30,14 @@ except ImportError:
 ACTION_KIND_NAMES = ("end_turn", "move", "recruit", "build", "plant_tree", "diplomacy")
 PAIRING_SCHEME = "adjacent_same_seed_opposite_seat_v1"
 SEAT_ROTATION_SCHEME = "adjacent_same_seed_all_seats_v1"
+
+
+class BaselineSelfPlay(TypedDict):
+    games: int
+    wins_by_seat: list[int]
+    draws: int
+    terminal_draws: int
+    truncations: int
 
 
 def paired_elo(score: float, games: int) -> float:
@@ -78,6 +87,32 @@ def outcome_summary(
     }
 
 
+def reference_adjusted_outcome(
+    outcome: dict[str, float | int],
+    baseline_games: int,
+    baseline_wins: int,
+    baseline_draws: int,
+    baseline_truncations: int,
+) -> dict[str, float | int]:
+    if baseline_games != int(outcome["games"]):
+        raise ValueError("baseline and policy outcome counts must match")
+    baseline_score = (baseline_wins + 0.5 * baseline_draws) / baseline_games
+    baseline_truncation_rate = baseline_truncations / baseline_games
+    return {
+        **outcome,
+        "baseline_wins": baseline_wins,
+        "baseline_draws": baseline_draws,
+        "baseline_truncations": baseline_truncations,
+        "baseline_score": baseline_score,
+        "score_delta": float(outcome["score"]) - baseline_score,
+        "baseline_truncation_rate": baseline_truncation_rate,
+        "truncation_rate_delta": (
+            int(outcome["truncations"]) / baseline_games
+            - baseline_truncation_rate
+        ),
+    }
+
+
 def selected_action_kinds(
     observation: dict[str, np.ndarray], actions: np.ndarray
 ) -> np.ndarray:
@@ -91,6 +126,34 @@ def named_action_counts(counts: np.ndarray) -> dict[str, int]:
         name: int(counts[index])
         for index, name in enumerate(ACTION_KIND_NAMES)
     }
+
+
+def choose_baseline_actions(
+    environment: VectorEnv,
+    observation: dict[str, np.ndarray],
+    baseline: str,
+    finished: np.ndarray,
+    random: np.random.Generator,
+    search_nodes: int,
+    search_beam_width: int,
+    search_branch_width: int,
+    search_maximum_actions_per_turn: int,
+) -> np.ndarray:
+    if baseline == "search":
+        return np.asarray(
+            environment.search_actions(
+                node_budget=search_nodes,
+                beam_width=search_beam_width,
+                branch_width=search_branch_width,
+                maximum_actions_per_turn=search_maximum_actions_per_turn,
+                active_mask=np.logical_not(finished).astype(np.uint8),
+            ),
+            dtype=np.uint64,
+        )
+    if baseline == "greedy":
+        return np.asarray(environment.greedy_actions(), dtype=np.uint64)
+    counts = np.diff(observation["action_offsets"])
+    return np.array([random.integers(0, count) for count in counts], dtype=np.uint64)
 
 
 def load_policy(
@@ -209,31 +272,93 @@ def evaluate(
         "diplomacy": config.get("diplomacy", False),
         "initial_relation": config.get("initial_relation", "neutral"),
     }
-    if procedural:
-        generator = ProceduralConfig(
-            width=evaluation_width,
-            height=evaluation_height,
-            players=players,
-            seed=seed,
-            land_density_per_million=land_density_per_million,
-            starting_province_size=starting_province_size,
-            starting_money=starting_money,
-            tree_density_per_million=tree_density_per_million,
-            neutral_tower_density_per_million=neutral_tower_density_per_million,
-            neutral_capital_density_per_million=neutral_capital_density_per_million,
-            grave_density_per_million=grave_density_per_million,
-        )
-        environment = VectorEnv.procedural(games, generator, **environment_arguments)
-    else:
+
+    def create_environment(environments: int) -> VectorEnv:
+        if procedural:
+            generator = ProceduralConfig(
+                width=evaluation_width,
+                height=evaluation_height,
+                players=players,
+                seed=seed,
+                land_density_per_million=land_density_per_million,
+                starting_province_size=starting_province_size,
+                starting_money=starting_money,
+                tree_density_per_million=tree_density_per_million,
+                neutral_tower_density_per_million=neutral_tower_density_per_million,
+                neutral_capital_density_per_million=neutral_capital_density_per_million,
+                grave_density_per_million=grave_density_per_million,
+            )
+            return VectorEnv.procedural(
+                environments, generator, **environment_arguments
+            )
         if players != 2:
             raise ValueError("symmetric duel evaluation requires exactly two players")
-        environment = VectorEnv(
-            games,
+        return VectorEnv(
+            environments,
             width=evaluation_width,
             height=evaluation_height,
             seed=seed,
             **environment_arguments,
         )
+
+    environment = create_environment(games)
+
+    def evaluate_baseline_reference() -> BaselineSelfPlay:
+        reference_games = games // players
+        reference_environment = create_environment(reference_games)
+        for index in range(reference_games):
+            reference_environment.reset(index, seed + index)
+        reference_finished = np.zeros(reference_games, dtype=np.bool_)
+        reference_wins = np.zeros(players, dtype=np.int64)
+        reference_draws = 0
+        reference_terminal_draws = 0
+        reference_truncations = 0
+        reference_reset_seed = seed + reference_games
+        reference_random = np.random.default_rng(seed ^ 0xA11CE)
+        while not bool(reference_finished.all()):
+            reference_observation = reference_environment.observe()
+            reference_actions = choose_baseline_actions(
+                reference_environment,
+                reference_observation,
+                baseline,
+                reference_finished,
+                reference_random,
+                search_nodes,
+                search_beam_width,
+                search_branch_width,
+                search_maximum_actions_per_turn,
+            )
+            reference_result = reference_environment.step(reference_actions)
+            reference_done = np.logical_or(
+                reference_result["terminal"], reference_result["truncated"]
+            )
+            for index in np.flatnonzero(reference_done):
+                if not reference_finished[index]:
+                    winner = int(reference_result["winners"][index])
+                    truncated = bool(reference_result["truncated"][index])
+                    if truncated:
+                        reference_truncations += 1
+                        winner = int(
+                            reference_result["adjudicated_winners"][index]
+                        )
+                    if winner == 255:
+                        reference_draws += 1
+                        if not truncated:
+                            reference_terminal_draws += 1
+                    else:
+                        reference_wins[winner] += 1
+                    reference_finished[index] = True
+                reference_environment.reset(int(index), reference_reset_seed)
+                reference_reset_seed += 1
+        return {
+            "games": reference_games,
+            "wins_by_seat": reference_wins.tolist(),
+            "draws": reference_draws,
+            "terminal_draws": reference_terminal_draws,
+            "truncations": reference_truncations,
+        }
+
+    baseline_reference = evaluate_baseline_reference()
     for index, evaluation_seed in enumerate(evaluation_seeds):
         environment.reset(index, int(evaluation_seed))
     rules = encode_rules_batch(environment.rules_jsons(), device)
@@ -273,24 +398,17 @@ def evaluate(
                 )
                 expert_games = model_game_masks[expert]
                 model_actions[expert_games] = expert_actions[expert_games]
-        if baseline == "search":
-            baseline_actions = np.asarray(
-                environment.search_actions(
-                    node_budget=search_nodes,
-                    beam_width=search_beam_width,
-                    branch_width=search_branch_width,
-                    maximum_actions_per_turn=search_maximum_actions_per_turn,
-                    active_mask=np.logical_not(finished).astype(np.uint8),
-                ),
-                dtype=np.uint64,
-            )
-        elif baseline == "greedy":
-            baseline_actions = np.asarray(environment.greedy_actions(), dtype=np.uint64)
-        else:
-            counts = np.diff(observation["action_offsets"])
-            baseline_actions = np.array(
-                [random.integers(0, count) for count in counts], dtype=np.uint64
-            )
+        baseline_actions = choose_baseline_actions(
+            environment,
+            observation,
+            baseline,
+            finished,
+            random,
+            search_nodes,
+            search_beam_width,
+            search_branch_width,
+            search_maximum_actions_per_turn,
+        )
         active_players = observation["active_players"]
         actions = np.where(active_players == model_seats, model_actions, baseline_actions)
         action_kinds = selected_action_kinds(observation, actions)
@@ -326,28 +444,40 @@ def evaluate(
                 finished[index] = True
             environment.reset(int(index), reset_seed)
             reset_seed += 1
-    summary = outcome_summary(
+    summary = reference_adjusted_outcome(
+        outcome_summary(
+            games,
+            int(seat_wins.sum()),
+            int(seat_draws.sum()),
+            int(seat_losses.sum()),
+            int(seat_terminal_draws.sum()),
+            int(seat_truncations.sum()),
+            players,
+            int(seat_adjudications.sum()),
+        ),
         games,
-        int(seat_wins.sum()),
-        int(seat_draws.sum()),
-        int(seat_losses.sum()),
-        int(seat_terminal_draws.sum()),
-        int(seat_truncations.sum()),
-        players,
-        int(seat_adjudications.sum()),
+        sum(int(wins) for wins in baseline_reference["wins_by_seat"]),
+        int(baseline_reference["draws"]) * players,
+        int(baseline_reference["truncations"]) * players,
     )
     seats = [
         {
             "seat": seat,
-            **outcome_summary(
+            **reference_adjusted_outcome(
+                outcome_summary(
+                    games // players,
+                    int(seat_wins[seat]),
+                    int(seat_draws[seat]),
+                    int(seat_losses[seat]),
+                    int(seat_terminal_draws[seat]),
+                    int(seat_truncations[seat]),
+                    players,
+                    int(seat_adjudications[seat]),
+                ),
                 games // players,
-                int(seat_wins[seat]),
-                int(seat_draws[seat]),
-                int(seat_losses[seat]),
-                int(seat_terminal_draws[seat]),
-                int(seat_truncations[seat]),
-                players,
-                int(seat_adjudications[seat]),
+                int(baseline_reference["wins_by_seat"][seat]),
+                int(baseline_reference["draws"]),
+                int(baseline_reference["truncations"]),
             ),
         }
         for seat in range(players)
@@ -373,6 +503,7 @@ def evaluate(
             else "seat_routed"
         ),
         "selected_experts": selected_experts,
+        "baseline_self_play": baseline_reference,
         "seed": seed,
         "generator": generator_name,
         "players": players,

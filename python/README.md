@@ -152,7 +152,10 @@ Cross-checkpoint comparisons must pass the same explicit `--width`, `--height`,
 and `--action-limit`; all three values are emitted in every result.
 
 `evaluate_suite.py` writes the weakest `profile × seed window × seat` slice.
-Use `--minimum-seat-score` together with `--minimum-aggregate-score` as a
+For every map window it also runs baseline self-play. The reported
+`baseline_score` and `score_delta` calibrate each seat against the actual turn
+order advantage instead of assuming that every seat wins exactly `1/N` games.
+Use `--minimum-seat-score-delta` together with `--minimum-aggregate-score` as a
 release gate so a one-sided specialization cannot pass on its average alone.
 
 `build_bundle.py PRIMARY OUTPUT --route PROFILE=CHECKPOINT` creates one atomic
@@ -162,12 +165,20 @@ the bundle stores every source SHA-256 and evaluator output names the selected
 expert. This isolates genuinely conflicting rulesets without duplicating game
 state or legality code.
 
+More specific `--context-route PROFILE:GENERATOR:PLAYERS=CHECKPOINT` and
+`--seat-context-route PROFILE:GENERATOR:PLAYERS:SEAT=CHECKPOINT` selectors
+override the profile route. Exact seat routes make multiplayer specialists
+possible while the original two-player expert remains immutable. Bundle
+versions 1 and 2 remain loadable.
+
 Evaluation alternates model seats, uses held-out seeds, and reports the raw
 win/draw/loss score plus an Elo difference against the named baseline. Terminal
 draws and action-limit truncations are reported separately, along with action
 kind histograms for both competitors, so a stalling policy cannot hide behind
-an aggregate draw rate. It does not assign an absolute leaderboard rating to
-an uncalibrated baseline.
+an aggregate draw rate. The release matrix gates the truncation-rate delta over
+baseline self-play, so rulesets that naturally adjudicate long stalemates are
+not confused with a model that stalls more often. It does not assign an
+absolute leaderboard rating to an uncalibrated baseline.
 
 Run the regression suite across every versioned profile and multiple seed
 windows with one command:
@@ -181,6 +192,11 @@ python evaluate_suite.py ../models/universal-routed-search-dagger-2026-08-30.pt 
 The suite hashes the checkpoint, records the fixed arena and search budget,
 keeps per-profile/per-seed action and timeout diagnostics, and exits nonzero
 when the optional aggregate regression gate fails. Its JSON output is atomic.
+
+`evaluate_matrix.py CHECKPOINT --matrix
+../benchmarks/configs/universal-cross-domain-v1.json` applies the same
+self-play-calibrated seat gate across symmetric and procedural map domains,
+different sizes, densities, and player counts.
 
 ## Play against a checkpoint
 
