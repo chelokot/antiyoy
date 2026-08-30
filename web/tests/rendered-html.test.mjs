@@ -24,9 +24,9 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(html, /classic_generic_2022/);
   assert.match(html, /BETA POLICY/);
   assert.match(html, /vs search-2048/);
-  assert.match(html, /Same-map, opposite-seat relative Elo/);
-  assert.match(html, /Seven-profile aggregate: 138–2–84/);
-  assert.match(html, /Download verified checkpoint/);
+  assert.match(html, /vs search-2048 · 336–0/);
+  assert.match(html, /every profile finished 48–0/);
+  assert.match(html, /Download verified bundle/);
   assert.match(html, /Load replay/);
   assert.match(html, /MAP GENERATOR/);
   assert.match(html, /Generate deterministic map/);

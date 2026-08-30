@@ -60,7 +60,9 @@ def fetch(identifier: str, destination: Path | None) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "identifier", nargs="?", default="universal-search-dagger-2026-08-30"
+        "identifier",
+        nargs="?",
+        default="universal-routed-search-dagger-2026-08-30",
     )
     parser.add_argument("--output", type=Path)
     arguments = parser.parse_args()

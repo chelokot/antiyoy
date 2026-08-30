@@ -1,0 +1,125 @@
+{
+  "schema_version": 2,
+  "kind": "universal_routed_policy_release_candidate",
+  "training_commits": [
+    "3465d8536046ccd743a6146c0be8852e624a98cb",
+    "06123e8e16d2213badcc06f1fd9e44470fe86517"
+  ],
+  "evaluation_commit": "b71cb43c4ecce13869ce6c22283f703bf94cf92f",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 8,
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "pytorch": "2.9.1+rocm6.4",
+    "process_priority": "nice 10"
+  },
+  "bundle": {
+    "asset": "universal-routed-search-dagger-2026-08-30.pt",
+    "sha256": "9f8404ae53c36820de0616e55a3f4c058fd564298347761110f939fc6770186b",
+    "size_bytes": 7372423,
+    "bundle_version": 1,
+    "checkpoint_version": 5,
+    "observation_version": 7,
+    "experts": 2,
+    "routes": 7
+  },
+  "experts": {
+    "primary": {
+      "sha256": "4c11396fe73bcde45aaa3350b233d1b4d6c41f09b9c57b3fe0863c2418f6922d",
+      "size_bytes": 10824575,
+      "routes": [
+        "classic_generic_2022",
+        "classic_slay_2022",
+        "online_default_v1",
+        "online_classic_v1",
+        "online_duel_v1",
+        "online_experimental_v1"
+      ],
+      "training": {
+        "initialized_from": "universal-search-dagger-2026-08-30.pt",
+        "teacher": "deterministic_whole_turn_search_2048",
+        "rollin": "teacher",
+        "imitation_updates": 500,
+        "imitation_transitions": 14000,
+        "reference_kl_weight": 100.0,
+        "slice_weights": {
+          "online_duel_v1:0": 8.0,
+          "online_duel_v1:1": 8.0,
+          "online_experimental_v1:0": 8.0,
+          "online_experimental_v1:1": 8.0,
+          "online_experimental_v2_260801:1": 8.0
+        }
+      }
+    },
+    "specialist:online_experimental_v2_260801": {
+      "sha256": "7e34cc4a9497896b4ed067572931369d069b6d4d6686bbf12bb114b9dfc69356",
+      "size_bytes": 10824707,
+      "routes": [
+        "online_experimental_v2_260801"
+      ],
+      "training": {
+        "initialized_from": "primary",
+        "teacher": "deterministic_whole_turn_search_2048",
+        "rollin": "asymmetric_dagger_policy_seat_1_search_seat_0",
+        "imitation_updates": 2000,
+        "imitation_transitions": 56000,
+        "reference_kl_weight": 0.0,
+        "slice_weights": {
+          "online_experimental_v2_260801:0": 0.001,
+          "online_experimental_v2_260801:1": 64.0
+        }
+      }
+    }
+  },
+  "arena": {
+    "generator": "symmetric_duel_v1",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "action_limit": 1000,
+    "pairing": "adjacent_same_seed_opposite_seat_v1",
+    "seed_windows": [
+      120000,
+      130000,
+      140000
+    ],
+    "unique_maps_per_profile_seed_window": 8,
+    "games_per_profile_seed_window": 16,
+    "baseline": "deterministic_whole_turn_search",
+    "search_nodes": 2048,
+    "search_beam_width": 32,
+    "search_branch_width": 48,
+    "search_maximum_actions_per_turn": 24
+  },
+  "held_out_vs_search": [
+    {"profile": "classic_generic_2022", "wins": 48, "draws": 0, "losses": 0},
+    {"profile": "classic_slay_2022", "wins": 48, "draws": 0, "losses": 0},
+    {"profile": "online_default_v1", "wins": 48, "draws": 0, "losses": 0},
+    {"profile": "online_classic_v1", "wins": 48, "draws": 0, "losses": 0},
+    {"profile": "online_duel_v1", "wins": 48, "draws": 0, "losses": 0},
+    {"profile": "online_experimental_v1", "wins": 48, "draws": 0, "losses": 0},
+    {"profile": "online_experimental_v2_260801", "wins": 48, "draws": 0, "losses": 0}
+  ],
+  "aggregate": {
+    "games": 336,
+    "wins": 336,
+    "draws": 0,
+    "losses": 0,
+    "truncations": 0,
+    "terminal_draws": 0,
+    "score": 1.0,
+    "relative_elo": 1130.6890080675973,
+    "seats": [
+      {"seat": 0, "games": 168, "wins": 168, "draws": 0, "losses": 0},
+      {"seat": 1, "games": 168, "wins": 168, "draws": 0, "losses": 0}
+    ]
+  },
+  "weakest_profile_seed_seat": {
+    "games": 8,
+    "wins": 8,
+    "draws": 0,
+    "losses": 0,
+    "score": 1.0
+  },
+  "conclusion": "The routed bundle passed both release gates at 1.0: 336-0 against search-2048, with every profile, seed window, and seat slice scoring 8-0. Relative Elo is a finite-sample, arena-specific lower-bound transform rather than an absolute rating; broader maps and seeds remain future evaluation domains."
+}

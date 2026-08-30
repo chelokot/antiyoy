@@ -173,7 +173,7 @@ Run the regression suite across every versioned profile and multiple seed
 windows with one command:
 
 ```bash
-python evaluate_suite.py ../models/universal-search-dagger-2026-08-30.pt \
+python evaluate_suite.py ../models/universal-routed-search-dagger-2026-08-30.pt \
   --seeds 100000 130000 --games 32 --baseline search --search-nodes 2048 \
   --minimum-aggregate-score 0.5 --output ../runs/seed-sweep.json
 ```

@@ -164,19 +164,19 @@ verification. Fetch the current universal beta policy with:
 ```bash
 python python/fetch_model.py
 PYTHONPATH=python python python/evaluate.py \
-  models/universal-search-dagger-2026-08-30.pt \
+  models/universal-routed-search-dagger-2026-08-30.pt \
   --games 32 --baseline search --search-nodes 2048 \
   --profile online_experimental_v2_260801 \
   --width 11 --height 9 --action-limit 1000
 ```
 
-This checkpoint is not assigned an absolute Elo. Under the schema-v2 paired
-protocol it scores 138–2–84 against the native 2048-node search baseline across
-all seven versioned profiles, for +85 paired relative Elo on the recorded arena.
-The benchmark reports both seats and exposes weaker Duel, Experimental v1, and
-second-seat Experimental v2 play. The earlier schema-v1 result used different
-seeds across alternating seats and is retained only as a historical record.
-Exact results live under [`benchmarks/`](benchmarks/).
+This routed two-expert bundle is not assigned an absolute Elo. Under the
+schema-v2 paired protocol it scores 336–0 against the native 2048-node search
+baseline: 48–0 in every versioned profile and 168–0 from each seat. The fixed
+11×9 arena uses three held-out seed windows and eight same-map, opposite-seat
+pairs per profile and window. Its finite-sample +1131 paired relative Elo is
+specific to this arena and baseline, not a universal rating. Exact results and
+training provenance live under [`benchmarks/`](benchmarks/).
 
 Play against the neural beta in a local browser (cyan moves first):
 
