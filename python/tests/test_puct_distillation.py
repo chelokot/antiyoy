@@ -30,7 +30,6 @@ def test_puct_distillation_changes_only_the_action_head(tmp_path: Path) -> None:
             width=7,
             height=5,
             action_limit=12,
-            disagreement_only=False,
             puct_nodes=4,
             puct_leaf_batch_size=8,
         ),
@@ -65,6 +64,7 @@ def test_puct_distillation_changes_only_the_action_head(tmp_path: Path) -> None:
         PuctDistillationConfig(learning_rate=0),
         PuctDistillationConfig(retention_weight=-1),
         PuctDistillationConfig(rollin="unknown"),
+        PuctDistillationConfig(target_mode="unknown"),
         PuctDistillationConfig(puct_nodes=1),
     ],
 )

@@ -291,10 +291,12 @@ python distill_puct.py ../models/classic-generic-duel-value.pt \
 
 Only the student's action head is trainable. The board encoder, rules context,
 and calibrated value path must remain bit-identical to the teacher or the run
-fails. By default the imitation loss labels only states where PUCT changes the
-direct action; KL retention covers the complete batch, so the much larger set
-of already-correct decisions is not needlessly sharpened. The checkpoint records
-search cost, labeled examples, direct-policy disagreement,
+fails. By default the imitation loss matches the complete soft root distribution
+emitted by the Rust tree: for the blended root this is the normalized
+`prior × exp(weight × searched mean value)` target. It preserves uncertainty and
+the magnitude of small search corrections instead of turning every target into
+a hard argmax. KL retention covers the complete batch. The checkpoint records
+search cost, target KL, labeled examples, direct-policy disagreement,
 imitation accuracy, KL retention, completed games, and all deterministic seeds.
 Compare the cheap student against the exact frozen source on disjoint seeds:
 

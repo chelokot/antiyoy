@@ -51,7 +51,7 @@ class PuctDistillationConfig:
     retention_weight: float = 1.0
     rollin: str = "teacher"
     symmetry_augmentation: bool = True
-    disagreement_only: bool = True
+    target_mode: str = "root_distribution"
     puct_nodes: int = 8
     puct_exploration: float = 1.5
     puct_virtual_loss: float = 1.0
@@ -69,6 +69,12 @@ def validate_config(config: PuctDistillationConfig) -> None:
         raise ValueError("distillation optimization values are invalid")
     if config.rollin not in ("teacher", "student"):
         raise ValueError("distillation roll-in must be teacher or student")
+    if config.target_mode not in (
+        "root_distribution",
+        "selected_disagreements",
+        "selected_all",
+    ):
+        raise ValueError("unsupported PUCT distillation target mode")
     if config.puct_nodes < 2 or config.puct_leaf_batch_size < 1:
         raise ValueError("distillation PUCT budgets are invalid")
     if config.puct_exploration <= 0 or config.puct_virtual_loss < 0:
@@ -190,6 +196,7 @@ def distill_puct(
     accuracy_average = 0.0
     disagreement_accuracy_average = 0.0
     disagreement_average = 0.0
+    root_target_kl_average = 0.0
     labeled_examples = 0
     disagreement_updates = 0
     evaluated_leaves = 0
@@ -207,6 +214,15 @@ def distill_puct(
             rules,
             active_mask,
             search_config,
+            include_root_targets=True,
+        )
+        root_offsets = search_metrics["root_action_offsets"]
+        if not np.array_equal(root_offsets, observation["action_offsets"]):
+            raise RuntimeError("PUCT root targets do not match legal action offsets")
+        root_probabilities = torch.as_tensor(
+            search_metrics["root_probabilities"],
+            dtype=torch.float32,
+            device=device,
         )
         with torch.no_grad():
             direct_logits, _ = teacher(observation, rules)
@@ -233,15 +249,46 @@ def distill_puct(
         teacher_losses = -student_distribution.log_prob(targets)
         disagreement_mask = direct_actions != targets
         disagreements = int(disagreement_mask.sum().item())
-        if config.disagreement_only:
+        if config.target_mode == "root_distribution":
+            root_losses = []
+            root_target_kls = []
+            for environment_index in range(config.environments):
+                start = int(root_offsets[environment_index])
+                end = int(root_offsets[environment_index + 1])
+                target_probabilities = root_probabilities[start:end]
+                student_log_probabilities = torch.log_softmax(
+                    student_logits[start:end], dim=0
+                )
+                direct_log_probabilities = torch.log_softmax(
+                    direct_logits[start:end], dim=0
+                )
+                root_losses.append(
+                    -(target_probabilities * student_log_probabilities).sum()
+                )
+                positive = target_probabilities > 0
+                root_target_kls.append(
+                    (
+                        target_probabilities[positive]
+                        * (
+                            target_probabilities[positive].log()
+                            - direct_log_probabilities[positive]
+                        )
+                    ).sum()
+                )
+            imitation_loss = torch.stack(root_losses).mean()
+            root_target_kl = float(torch.stack(root_target_kls).mean().item())
+            labeled_examples += config.environments
+        elif config.target_mode == "selected_disagreements":
             imitation_loss = (
                 teacher_losses[disagreement_mask].mean()
                 if disagreements > 0
                 else student_logits.sum() * 0
             )
+            root_target_kl = 0.0
             labeled_examples += disagreements
         else:
             imitation_loss = teacher_losses.mean()
+            root_target_kl = 0.0
             labeled_examples += config.environments
         retention = torch.distributions.kl_divergence(
             reference_distribution, student_distribution
@@ -279,6 +326,7 @@ def distill_puct(
                 disagreement_accuracy - disagreement_accuracy_average
             ) / disagreement_updates
         disagreement_average += (disagreement - disagreement_average) / update
+        root_target_kl_average += (root_target_kl - root_target_kl_average) / update
         evaluated_leaves += int(search_metrics["evaluated_leaves"])
         leaf_batches += int(search_metrics["leaf_batches"])
         total_nodes += int(search_metrics["nodes"].sum())
@@ -328,6 +376,7 @@ def distill_puct(
                         "teacher_accuracy": accuracy,
                         "disagreement_accuracy": disagreement_accuracy,
                         "teacher_direct_disagreement": disagreement,
+                        "root_target_kl": root_target_kl,
                         "labeled_examples": labeled_examples,
                         "completed_games": completed_games,
                     },
@@ -366,7 +415,7 @@ def distill_puct(
         "retention_weight": config.retention_weight,
         "rollin": config.rollin,
         "symmetry_augmentation": config.symmetry_augmentation,
-        "disagreement_only": config.disagreement_only,
+        "target_mode": config.target_mode,
         "policy_parameters": "action_head_only",
         "frozen_parameters_preserved": True,
         "changed_action_parameters": changed_action_parameters,
@@ -377,6 +426,7 @@ def distill_puct(
             "teacher_accuracy": accuracy_average,
             "disagreement_accuracy": disagreement_accuracy_average,
             "teacher_direct_disagreement": disagreement_average,
+            "root_target_kl": root_target_kl_average,
             "labeled_examples": labeled_examples,
             "disagreement_updates": disagreement_updates,
             "completed_games": completed_games,
@@ -444,9 +494,9 @@ def main() -> None:
         default=True,
     )
     parser.add_argument(
-        "--disagreement-only",
-        action=argparse.BooleanOptionalAction,
-        default=True,
+        "--target-mode",
+        choices=("root_distribution", "selected_disagreements", "selected_all"),
+        default="root_distribution",
     )
     parser.add_argument("--puct-nodes", type=int, default=8)
     parser.add_argument("--puct-exploration", type=float, default=1.5)
@@ -471,7 +521,7 @@ def main() -> None:
             retention_weight=arguments.retention_weight,
             rollin=arguments.rollin,
             symmetry_augmentation=arguments.symmetry_augmentation,
-            disagreement_only=arguments.disagreement_only,
+            target_mode=arguments.target_mode,
             puct_nodes=arguments.puct_nodes,
             puct_exploration=arguments.puct_exploration,
             puct_virtual_loss=arguments.puct_virtual_loss,
