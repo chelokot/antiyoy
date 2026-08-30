@@ -19,8 +19,8 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /<title>Antiyoy Arena Lab<\/title>/i);
-  assert.match(html, /RUST STRATEGY/);
-  assert.match(html, /PLAYABLE WASM/);
+  assert.match(html, /STRATEGY ARENA/);
+  assert.match(html, /LIVE ENGINE/);
   assert.match(html, /classic_generic_2022/);
   assert.match(html, /BETA POLICY/);
   assert.match(html, /vs search-2048/);
@@ -86,7 +86,7 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(styles, /\.arena-sidebar \{[^}]*position: absolute;[^}]*overflow-x: hidden;[^}]*overflow-y: auto;[^}]*overscroll-behavior: contain;/);
   assert.match(styles, /\.arena-sidebar\.panel-open \{[^}]*transform: translateX\(0\);[^}]*visibility: visible;/);
   assert.match(styles, /\.board-scroll \{[^}]*overflow: hidden;/);
-  assert.match(styles, /\.board-scroll-human \{[^}]*bottom: 10\.25rem;/);
+  assert.match(styles, /\.board-scroll-human \{[^}]*bottom: 9\.75rem;/);
   assert.match(styles, /\.action-dock \{[^}]*position: absolute;/);
   assert.match(styles, /\.action-dock-buttons \{[^}]*overflow-x: auto;[^}]*overscroll-behavior-inline: contain;/);
   assert.match(styles, /clip-path: polygon\(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%\)/);
@@ -96,8 +96,11 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, /new ResizeObserver\(fit\)/);
   assert.match(arena, /event\.key === "Escape"/);
   assert.match(arena, /translate\(-50%, -50%\) scale\(\$\{boardScale\}\)/);
-  assert.match(arena, />Game<\/button>/);
-  assert.match(arena, />Details<\/button>/);
+  assert.match(arena, /aria-controls="match-drawer"/);
+  assert.match(arena, /aria-controls="inspector-drawer"/);
+  assert.match(arena, />Match<\/button>/);
+  assert.match(arena, />Inspect<\/button>/);
+  assert.match(arena, /piece-\$\{cell\.object\.toLowerCase\(\)\}/);
   assert.match(arena, /actionable=\{humanCanAct && actionableTargets\.has\(cell\.id\)\}/);
   assert.match(arena, /<summary>GAME CONFIG<\/summary>/);
   assert.match(arena, /RULES_PROFILES\.map/);

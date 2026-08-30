@@ -252,9 +252,9 @@ function pieceGlyph(cell: CellView): string {
     return ["", "Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ"][cell.strength];
   }
   return {
-    Capital: "●",
+    Capital: "♛",
     Farm: "⌂",
-    Tower: "◆",
+    Tower: "♜",
     StrongTower: "⬟",
     Pine: "♠",
     Palm: "♣",
@@ -674,13 +674,13 @@ export default function Arena() {
       <header className="arena-header">
         <div className="flex items-center gap-4">
           <div className="brand-mark">AY</div>
-          <div><p className="eyebrow">RUST STRATEGY</p><h1 className="text-sm font-semibold">Antiyoy</h1></div>
+          <div><p className="eyebrow">STRATEGY ARENA</p><h1 className="text-sm font-semibold">Antiyoy</h1></div>
         </div>
-        <div className="flex items-center gap-3 font-mono text-xs"><span className="live-pill">● PLAYABLE WASM</span><span className="hidden text-[#8d9690] sm:inline">engine v{engineVersion ?? "…"}</span></div>
+        <div className="flex items-center gap-3 font-mono text-xs"><span className="live-pill">● LIVE ENGINE</span><span className="hidden text-[#8d9690] sm:inline">core v{engineVersion ?? "…"}</span></div>
       </header>
 
       <div className="arena-layout">
-        <aside className={`arena-sidebar arena-sidebar-left ${openPanel === "left" ? "panel-open" : ""}`}>
+        <aside id="match-drawer" aria-label="Match settings" className={`arena-sidebar arena-sidebar-left ${openPanel === "left" ? "panel-open" : ""}`}>
           <button className="panel-close" type="button" aria-label="Close overview panel" onClick={() => setOpenPanel(null)}>×</button>
           <details className="panel-section panel-section-hero" open>
             <summary>MATCH</summary>
@@ -707,7 +707,7 @@ export default function Arena() {
         </aside>
 
         <section className="board-panel">
-          <div className="board-controls"><button className="control panel-toggle" type="button" onClick={() => setOpenPanel("left")}>Game</button><div className="turn-chip"><span className={`turn-dot territory-player-${(state?.active_player ?? 0) % PLAYER_NAMES.length}`} /><span className="turn-copy">ROUND {state?.round ?? "…"} · {state === null ? "LOADING" : state.active_player === humanSeat && humanMode ? "YOUR TURN" : `${playerLabel(state.active_player)} TO MOVE`}</span></div>{!humanMode && <><button className="control control-primary" type="button" disabled={state === null || state.terminal || (replayMetadata !== null && actions === replayMetadata.frames)} onClick={() => setPlaying((current) => !current)}>{playing ? "Ⅱ Pause" : "▶ Play"}</button><button className="control" type="button" disabled={state === null || state.terminal || playing || (replayMetadata !== null && actions === replayMetadata.frames)} onClick={step}>Step</button></>}<button className="control" type="button" disabled={state === null} onClick={reset}>New game</button>{replayMetadata === null ? <><button className={`control ${humanMode ? "control-active" : ""}`} type="button" onClick={toggleHumanMode}>{humanMode ? "Watch bots" : "Play yourself"}</button><label className="control cursor-pointer">Replay<input className="sr-only" type="file" accept=".antiyoy,application/octet-stream" onChange={(event) => void loadReplay(event.target.files?.[0])} /></label></> : <button className="control" type="button" onClick={restoreLive}>Live game</button>}<button className="control panel-toggle" type="button" onClick={() => setOpenPanel("right")}>Details</button></div>
+          <div className="board-controls"><button aria-expanded={openPanel === "left"} aria-controls="match-drawer" className="control panel-toggle" type="button" onClick={() => setOpenPanel("left")}>Match</button><div className="turn-chip"><span className={`turn-dot territory-player-${(state?.active_player ?? 0) % PLAYER_NAMES.length}`} /><span className="turn-copy">ROUND {state?.round ?? "…"} · {state === null ? "LOADING" : state.active_player === humanSeat && humanMode ? "YOUR TURN" : `${playerLabel(state.active_player)} TO MOVE`}</span></div>{!humanMode && <><button className="control control-primary" type="button" disabled={state === null || state.terminal || (replayMetadata !== null && actions === replayMetadata.frames)} onClick={() => setPlaying((current) => !current)}>{playing ? "Ⅱ Pause" : "▶ Play"}</button><button className="control" type="button" disabled={state === null || state.terminal || playing || (replayMetadata !== null && actions === replayMetadata.frames)} onClick={step}>Step</button></>}<button className="control" type="button" disabled={state === null} onClick={reset}>New game</button>{replayMetadata === null ? <><button className={`control ${humanMode ? "control-active" : ""}`} type="button" onClick={toggleHumanMode}>{humanMode ? "Watch bots" : "Play yourself"}</button><label className="control cursor-pointer">Replay<input className="sr-only" type="file" accept=".antiyoy,application/octet-stream" onChange={(event) => void loadReplay(event.target.files?.[0])} /></label></> : <button className="control" type="button" onClick={restoreLive}>Live game</button>}<button aria-expanded={openPanel === "right"} aria-controls="inspector-drawer" className="control panel-toggle" type="button" onClick={() => setOpenPanel("right")}>Inspect</button></div>
           <div className={`board-scroll ${humanMode && replayMetadata === null ? "board-scroll-human" : ""}`} ref={boardViewport} aria-label="Interactive hex game board">
             <div className="board-transform" style={{ transform: `translate(-50%, -50%) scale(${boardScale})` }}>
               <div ref={boardContent} className={`hex-board ${state !== null && state.width > 15 ? "hex-board-compact" : ""}`}>
@@ -721,7 +721,7 @@ export default function Arena() {
           <div className={`timeline ${humanMode && replayMetadata === null ? "timeline-human" : ""}`}><div className="flex items-center justify-between font-mono text-[0.65rem] text-[#8d9690]"><span>ACTION {actions}{replayMetadata === null ? "" : ` / ${replayMetadata.frames}`}</span><span>{state?.terminal ? "TERMINAL" : replayMetadata === null ? "DETERMINISTIC TRACE" : "REPLAY VERIFIED"}</span></div>{replayMetadata === null ? <div className="mt-3 flex h-1.5 overflow-hidden bg-white/10">{territoryShares.map((share, player) => <div className={`territory-player-${player % PLAYER_NAMES.length}`} style={{ width: `${share}%` }} key={player} />)}</div> : <input className="replay-scrubber" type="range" min="0" max={replayMetadata.frames} value={actions} aria-label="Replay action" onChange={(event) => seekReplay(Number(event.target.value))} />}</div>
         </section>
 
-        <aside className={`arena-sidebar arena-sidebar-right ${openPanel === "right" ? "panel-open" : ""}`}>
+        <aside id="inspector-drawer" aria-label="Selected hex inspector" className={`arena-sidebar arena-sidebar-right ${openPanel === "right" ? "panel-open" : ""}`}>
           <button className="panel-close" type="button" aria-label="Close inspector panel" onClick={() => setOpenPanel(null)}>×</button>
           <details className="panel-section panel-section-hero" open><summary>SELECTED HEX · {String(selectedQ).padStart(2, "0")},{String(selectedR).padStart(2, "0")}</summary><div className="panel-section-body"><p className="font-mono text-lg">q: {String(selectedQ).padStart(2, "0")} · r: {String(selectedR).padStart(2, "0")}</p><div className="mt-4 grid grid-cols-2 gap-px bg-white/10"><Stat label="OWNER" value={selected?.owner === null || selected === null ? "NEUTRAL" : playerLabel(selected.owner)} /><Stat label="PIECE" value={selected === null ? "…" : pieceLabel(selected)} /><Stat label="DEFENSE" value={selected?.defense.toString() ?? "…"} /><Stat label="READY" value={selected?.strength === 0 ? "—" : selected?.ready ? "YES" : "NO"} /></div></div></details>
           <details className="panel-section" open><summary>PROVINCE ECONOMY</summary><div className="panel-section-body">{province === null ? <p className="text-sm leading-6 text-[#77817b]">This hex is not part of a connected province.</p> : <dl className="space-y-3 font-mono text-xs"><Row label="Treasury" value={`$${province.money}`} /><Row label="Hex income" value={`+${province.income}`} /><Row label="Upkeep" value={`−${province.upkeep}`} /><Row label="Next turn" value={`${province.profit >= 0 ? "+" : "−"}$${Math.abs(province.profit)}`} accent /></dl>}</div></details>
@@ -736,7 +736,8 @@ export default function Arena() {
 
 function Hex({ cell, selected, actionable, onSelect }: { cell: CellView; selected: boolean; actionable: boolean; onSelect: (id: number) => void }) {
   const owner = cell.owner === null ? "neutral" : `player-${cell.owner % PLAYER_NAMES.length}`;
-  return <button className={`hex hex-${owner} ${cell.playable ? "" : "hex-void"} ${selected ? "hex-selected" : ""} ${actionable ? "hex-actionable" : ""}`} type="button" disabled={!cell.playable} aria-label={cell.playable ? `Hex ${cell.id}, ${pieceLabel(cell)}${actionable ? ", legal target" : ""}` : `Inactive hex ${cell.id}`} onClick={() => onSelect(cell.id)}><span className={cell.strength > 0 ? "unit" : "piece"}>{pieceGlyph(cell)}</span></button>;
+  const pieceClass = cell.strength > 0 ? "unit" : `piece piece-${cell.object.toLowerCase()}`;
+  return <button className={`hex hex-${owner} ${cell.playable ? "" : "hex-void"} ${selected ? "hex-selected" : ""} ${actionable ? "hex-actionable" : ""}`} type="button" disabled={!cell.playable} aria-label={cell.playable ? `Hex ${cell.id}, ${pieceLabel(cell)}${actionable ? ", legal target" : ""}` : `Inactive hex ${cell.id}`} onClick={() => onSelect(cell.id)}><span className={pieceClass}>{pieceGlyph(cell)}</span></button>;
 }
 
 function Metric({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
