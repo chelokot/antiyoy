@@ -48,6 +48,11 @@ Aggregate training loss is never used to select a checkpoint: held-out mirrored
 games against a named baseline are authoritative, including regressions and
 profiles on which a candidate remains weak.
 
+Policy evaluation schema v2 uses adjacent games with the same map seed and
+opposite model seats. It reports each seat separately as well as the aggregate.
+Earlier schema-v1 policy records alternated seats across different seeds; they
+are preserved as historical measurements but are not paired ratings.
+
 Search-teacher records separate target generation from authoritative stepping
 and reset time. Reproduce them with `python/benchmark_teacher.py`; the reported
 throughput includes cached whole-turn plans, legal-index projection, and every

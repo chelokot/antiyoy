@@ -10,9 +10,9 @@ from pathlib import Path
 import torch
 
 try:
-    from .evaluate import evaluate, paired_elo
+    from .evaluate import PAIRING_SCHEME, evaluate, paired_elo
 except ImportError:
-    from evaluate import evaluate, paired_elo
+    from evaluate import PAIRING_SCHEME, evaluate, paired_elo
 
 
 ALL_PROFILES = (
@@ -26,13 +26,20 @@ ALL_PROFILES = (
 )
 
 
-def aggregate_results(results: list[dict[str, object]]) -> dict[str, float | int]:
-    games = sum(int(result["games"]) for result in results)
-    wins = sum(int(result["wins"]) for result in results)
-    draws = sum(int(result["draws"]) for result in results)
-    losses = sum(int(result["losses"]) for result in results)
-    truncations = sum(int(result["truncations"]) for result in results)
-    terminal_draws = sum(int(result["terminal_draws"]) for result in results)
+def aggregate_outcomes(
+    results: list[dict[str, object]], seat: int | None = None
+) -> dict[str, float | int]:
+    outcomes = (
+        results
+        if seat is None
+        else [result["seats"][seat] for result in results]
+    )
+    games = sum(int(result["games"]) for result in outcomes)
+    wins = sum(int(result["wins"]) for result in outcomes)
+    draws = sum(int(result["draws"]) for result in outcomes)
+    losses = sum(int(result["losses"]) for result in outcomes)
+    truncations = sum(int(result["truncations"]) for result in outcomes)
+    terminal_draws = sum(int(result["terminal_draws"]) for result in outcomes)
     score = (wins + 0.5 * draws) / games
     return {
         "games": games,
@@ -43,6 +50,15 @@ def aggregate_results(results: list[dict[str, object]]) -> dict[str, float | int
         "terminal_draws": terminal_draws,
         "score": score,
         "relative_elo": paired_elo(score, games),
+    }
+
+
+def aggregate_results(results: list[dict[str, object]]) -> dict[str, object]:
+    return {
+        **aggregate_outcomes(results),
+        "seats": [
+            {"seat": seat, **aggregate_outcomes(results, seat)} for seat in range(2)
+        ],
     }
 
 
@@ -81,8 +97,8 @@ def main() -> None:
     parser.add_argument("--minimum-aggregate-score", type=float)
     parser.add_argument("--output", type=Path)
     arguments = parser.parse_args()
-    if arguments.games < 1:
-        parser.error("games must be positive")
+    if arguments.games < 2 or arguments.games % 2 != 0:
+        parser.error("games must be a positive even number for paired evaluation")
     if arguments.minimum_aggregate_score is not None and not (
         0 <= arguments.minimum_aggregate_score <= 1
     ):
@@ -112,7 +128,7 @@ def main() -> None:
             )
     aggregate = aggregate_results(results)
     result: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "kind": "universal_policy_seed_sweep",
         "checkpoint": {
             "path": str(arguments.checkpoint),
@@ -141,6 +157,8 @@ def main() -> None:
             "players": 2,
             "action_limit": arguments.action_limit,
             "games_per_profile_seed": arguments.games,
+            "unique_maps_per_profile_seed": arguments.games // 2,
+            "pairing": PAIRING_SCHEME,
             "profiles": arguments.profiles,
             "seeds": arguments.seeds,
         },

@@ -3,7 +3,13 @@ import pytest
 
 pytest.importorskip("torch")
 
-from python.evaluate import named_action_counts, paired_elo, selected_action_kinds
+from python.evaluate import (
+    named_action_counts,
+    outcome_summary,
+    paired_elo,
+    paired_seeds,
+    selected_action_kinds,
+)
 from python.evaluate_suite import aggregate_results
 
 
@@ -34,6 +40,29 @@ def test_named_action_counts_preserves_zero_categories() -> None:
     }
 
 
+def test_paired_seeds_repeat_each_map_for_opposite_seats() -> None:
+    assert paired_seeds(6, 100).tolist() == [100, 100, 101, 101, 102, 102]
+
+
+@pytest.mark.parametrize("games", [0, 1, 3])
+def test_paired_seeds_reject_unpaired_game_counts(games: int) -> None:
+    with pytest.raises(ValueError, match="positive even"):
+        paired_seeds(games, 100)
+
+
+def test_outcome_summary_reports_complete_seat_slice() -> None:
+    assert outcome_summary(4, 2, 1, 1, 0, 1) == {
+        "games": 4,
+        "wins": 2,
+        "draws": 1,
+        "terminal_draws": 0,
+        "truncations": 1,
+        "losses": 1,
+        "score": 0.625,
+        "elo_delta": paired_elo(0.625, 4),
+    }
+
+
 def test_suite_aggregate_counts_draws_and_truncations() -> None:
     aggregate = aggregate_results(
         [
@@ -44,6 +73,24 @@ def test_suite_aggregate_counts_draws_and_truncations() -> None:
                 "losses": 0,
                 "truncations": 1,
                 "terminal_draws": 0,
+                "seats": [
+                    {
+                        "games": 2,
+                        "wins": 2,
+                        "draws": 0,
+                        "losses": 0,
+                        "truncations": 0,
+                        "terminal_draws": 0,
+                    },
+                    {
+                        "games": 2,
+                        "wins": 1,
+                        "draws": 1,
+                        "losses": 0,
+                        "truncations": 1,
+                        "terminal_draws": 0,
+                    },
+                ],
             },
             {
                 "games": 4,
@@ -52,6 +99,24 @@ def test_suite_aggregate_counts_draws_and_truncations() -> None:
                 "losses": 3,
                 "truncations": 0,
                 "terminal_draws": 0,
+                "seats": [
+                    {
+                        "games": 2,
+                        "wins": 1,
+                        "draws": 0,
+                        "losses": 1,
+                        "truncations": 0,
+                        "terminal_draws": 0,
+                    },
+                    {
+                        "games": 2,
+                        "wins": 0,
+                        "draws": 0,
+                        "losses": 2,
+                        "truncations": 0,
+                        "terminal_draws": 0,
+                    },
+                ],
             },
         ]
     )
@@ -60,3 +125,27 @@ def test_suite_aggregate_counts_draws_and_truncations() -> None:
     assert aggregate["score"] == 0.5625
     assert aggregate["truncations"] == 1
     assert aggregate["relative_elo"] == paired_elo(0.5625, 8)
+    assert aggregate["seats"] == [
+        {
+            "seat": 0,
+            "games": 4,
+            "wins": 3,
+            "draws": 0,
+            "losses": 1,
+            "truncations": 0,
+            "terminal_draws": 0,
+            "score": 0.75,
+            "relative_elo": paired_elo(0.75, 4),
+        },
+        {
+            "seat": 1,
+            "games": 4,
+            "wins": 1,
+            "draws": 1,
+            "losses": 2,
+            "truncations": 1,
+            "terminal_draws": 0,
+            "score": 0.375,
+            "relative_elo": paired_elo(0.375, 4),
+        },
+    ]

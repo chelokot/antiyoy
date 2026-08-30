@@ -78,7 +78,9 @@ the exact cached turn plan after each selected action, releases the GIL, and
 computes independent environments through Rayon. Node, beam, branch, and turn
 depth budgets are explicit CLI parameters and are stored in the checkpoint.
 Held-out mirrored matches still determine whether the resulting model exceeds
-its teacher.
+its teacher. Evaluation requires an even game count, repeats every map seed for
+both model seats, and emits both seat slices so first-player advantage cannot be
+hidden by an aggregate score.
 
 `--imitation-rollin teacher` follows the expert trajectory and is the default
 behavioral-cloning curriculum. `--imitation-rollin policy` performs online
