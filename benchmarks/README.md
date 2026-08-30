@@ -77,6 +77,11 @@ control and overlay must use identical seeds; outcomes for every unchanged seat
 must match exactly. A candidate that loses the target-seat scout is rejected
 without a confirmation run, regardless of its on-policy training win rate.
 
+Counterfactual terminal runs pair each sampled learner game with a frozen,
+greedy policy on the identical seed and report both records. Exact-seat scouts
+may avoid replaying unchanged routes, but a tie still fails selection and any
+actual gain must subsequently survive the all-seat release suite.
+
 The 5–8 player matrix gives every seat one game on each of two held-out seeds
 for every compatibility profile. Its increasing board sizes and action limits
 are part of the domain identity. Use a search-node override only for explicitly

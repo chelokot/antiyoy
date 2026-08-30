@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "kind": "generic_six_player_counterfactual_terminal_ablation",
+  "training_commit": "a33b6e6893ff000834c5d793f7e2845ab7735248",
+  "evaluation_commit": "40682a5ce83250e6d408809064bc28ed57201602",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 8,
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "pytorch": "2.9.1+rocm6.4",
+    "maximum_parallel_jobs": 1
+  },
+  "hypothesis": "A frozen-policy outcome on the identical map can remove seed variance from terminal policy credit and avoid the held-out regression produced by unpaired terminal PPO.",
+  "domain": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v1",
+    "domain_key": "a84f743db1f620e6a9136cf4e328d4b8ffbec47f8a1d055ce084e1be4f0a8748",
+    "width": 21,
+    "height": 15,
+    "players": 6,
+    "learner_seat": 2,
+    "land_density_per_million": 650000,
+    "action_limit": 2800
+  },
+  "training": {
+    "initialized_from": {
+      "asset": "generic-dagger-6p-exact-v1.pt",
+      "sha256": "6ac462bb6af40e9c66f04e8c759e961e0fd3146ddcfabfd0e60ede5d1bec825f",
+      "size_bytes": 10828511
+    },
+    "candidate": {
+      "asset": "generic-6p-seat2-counterfactual-v1.pt",
+      "sha256": "7063ee1e65be9b0d220e5c020890375c91b554810c15f7fdc1134ef4aa27c502",
+      "size_bytes": 10817599
+    },
+    "seed": 3400000,
+    "environments": 16,
+    "learner_environments": 8,
+    "updates": 12,
+    "learner_episodes": 96,
+    "frozen_baseline_episodes": 96,
+    "transitions": 286128,
+    "optimizer_steps": 114,
+    "elapsed_seconds": 382,
+    "opponent": "deterministic_whole_turn_search_256",
+    "counterfactual_credit": "(sampled_terminal_outcome-frozen_greedy_terminal_outcome)/2",
+    "search": {
+      "beam_width": 32,
+      "branch_width": 48,
+      "maximum_actions_per_turn": 24
+    },
+    "learning_rate": 0.000001,
+    "epochs": 2,
+    "minibatch": 256,
+    "entropy_weight": 0.0,
+    "reference_kl_weight": 0.25,
+    "mean_credit": -0.020833333333333336,
+    "mean_loss": -0.07150827700530302,
+    "learner_record": {
+      "wins": 11,
+      "draws": 0,
+      "losses": 85
+    },
+    "frozen_baseline_record": {
+      "wins": 13,
+      "draws": 0,
+      "losses": 83
+    }
+  },
+  "evaluation": {
+    "baseline": "deterministic_whole_turn_search_256",
+    "scheme": "unique_seed_fixed_seat_v1",
+    "seed": 500000,
+    "unique_seeds": 12,
+    "games_per_candidate": 12,
+    "model_seat": 2,
+    "truncations": 0,
+    "base_bundle": {
+      "asset": "universal-2to8p-release-v5g-candidate.pt",
+      "sha256": "d13d009217d262e503f988d61273e8bf56d0c7790f874bd9c29644b142328736"
+    },
+    "candidate_overlay": {
+      "asset": "universal-2to8p-release-v5g-counterfactual-seat2-scout.pt",
+      "sha256": "848385f8b3306e381dba2440471e6a63b4ddd412b0f5e2c76105a0e999b11996",
+      "route": "classic_generic_2022:procedural_v1:6:2:a84f743db1f620e6a9136cf4e328d4b8ffbec47f8a1d055ce084e1be4f0a8748"
+    },
+    "results": [
+      {
+        "name": "control",
+        "raw_result_sha256": "7b21da0286ee4e498de965c07d715a0575e7f2b0bf3797ea0474bd435f33c862",
+        "elapsed_seconds": 37.43,
+        "wins": 2,
+        "draws": 0,
+        "losses": 10,
+        "elo_delta": 0.0
+      },
+      {
+        "name": "counterfactual_terminal",
+        "raw_result_sha256": "ac60d9ac74d17326a33bc8ae9e66efe9defe25f0231c6aeb6761574d9c7f9941",
+        "elapsed_seconds": 41.58,
+        "wins": 2,
+        "draws": 0,
+        "losses": 10,
+        "elo_delta": 0.0
+      }
+    ]
+  },
+  "selection": {
+    "promoted_checkpoint": null,
+    "published_bundle_changed": false,
+    "confirmation_run_started": false,
+    "status": "candidate_tied_control_and_was_rejected"
+  },
+  "conclusion": "Paired counterfactual credit removed the prior candidate's one-game scout regression, but it did not improve the exact target seat: control and candidate both finished 2-0-10 on twelve fresh seeds. The learner also trailed its frozen paired baseline 11-13 during training. A tie is insufficient for promotion, so the release bundle remains unchanged and no all-seat confirmation was run."
+}
