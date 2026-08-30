@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 from pathlib import Path
 
@@ -18,6 +19,14 @@ def digest(path: Path) -> str:
         while block := source.read(1024 * 1024):
             value.update(block)
     return value.hexdigest()
+
+
+def source_record(path: Path) -> dict[str, str | int]:
+    return {
+        "path": str(path),
+        "sha256": digest(path),
+        "size_bytes": path.stat().st_size,
+    }
 
 
 def load_source(path: Path) -> dict[str, object]:
@@ -57,6 +66,34 @@ def source_profiles(checkpoint: dict[str, object]) -> list[str]:
     return [profile]
 
 
+def register_context_expert(
+    experts: dict[str, object],
+    sources: dict[str, dict[str, str | int]],
+    source_experts: dict[str, str],
+    path: Path,
+    specialist: dict[str, object],
+) -> str:
+    source = source_record(path)
+    source_sha256 = str(source["sha256"])
+    existing = source_experts.get(source_sha256)
+    if existing is not None:
+        return existing
+    expert = f"context:{source_sha256[:16]}"
+    if expert in experts:
+        expert = f"context:{source_sha256}"
+    experts[expert] = specialist["model"]
+    sources[expert] = source
+    source_experts[source_sha256] = expert
+    return expert
+
+
+def save_bundle(bundle: dict[str, object], output_path: Path) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output_path.with_name(f".{output_path.name}.tmp")
+    torch.save(bundle, temporary)
+    temporary.replace(output_path)
+
+
 def build_bundle(
     primary_path: Path,
     route_paths: dict[str, Path],
@@ -68,31 +105,8 @@ def build_bundle(
     profiles = source_profiles(primary)
     routes = {profile: "primary" for profile in profiles}
     experts = {"primary": primary["model"]}
-    sources = {
-        "primary": {
-            "path": str(primary_path),
-            "sha256": digest(primary_path),
-            "size_bytes": primary_path.stat().st_size,
-        }
-    }
+    sources = {"primary": source_record(primary_path)}
     source_experts = {sources["primary"]["sha256"]: "primary"}
-
-    def register_context_expert(
-        path: Path, specialist: dict[str, object]
-    ) -> str:
-        source_sha256 = digest(path)
-        expert = source_experts.get(source_sha256)
-        if expert is not None:
-            return expert
-        expert = f"context:{source_sha256[:16]}"
-        experts[expert] = specialist["model"]
-        sources[expert] = {
-            "path": str(path),
-            "sha256": source_sha256,
-            "size_bytes": path.stat().st_size,
-        }
-        source_experts[source_sha256] = expert
-        return expert
 
     for profile, path in route_paths.items():
         specialist = load_source(path)
@@ -104,11 +118,7 @@ def build_bundle(
         expert = f"specialist:{profile}"
         routes[profile] = expert
         experts[expert] = specialist["model"]
-        source = {
-            "path": str(path),
-            "sha256": digest(path),
-            "size_bytes": path.stat().st_size,
-        }
+        source = source_record(path)
         sources[expert] = source
         source_experts[source["sha256"]] = expert
     context_routes = []
@@ -119,7 +129,9 @@ def build_bundle(
             raise ValueError(f"specialist curriculum does not contain routed profile: {profile}")
         if profile not in routes:
             profiles.append(profile)
-        expert = register_context_expert(path, specialist)
+        expert = register_context_expert(
+            experts, sources, source_experts, path, specialist
+        )
         if profile not in routes:
             routes[profile] = expert
         context_routes.append(
@@ -140,7 +152,9 @@ def build_bundle(
             raise ValueError(f"specialist curriculum does not contain routed profile: {profile}")
         if profile not in routes:
             profiles.append(profile)
-        expert = register_context_expert(path, specialist)
+        expert = register_context_expert(
+            experts, sources, source_experts, path, specialist
+        )
         if profile not in routes:
             routes[profile] = expert
         seat_context_routes.append(
@@ -175,10 +189,149 @@ def build_bundle(
             "seat_context_routes": len(seat_context_routes),
         },
     }
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = output_path.with_name(f".{output_path.name}.tmp")
-    torch.save(bundle, temporary)
-    temporary.replace(output_path)
+    save_bundle(bundle, output_path)
+    return bundle
+
+
+def overlay_bundle(
+    base_path: Path,
+    route_paths: dict[str, Path],
+    output_path: Path,
+    context_route_paths: dict[tuple[str, str, int], Path] | None = None,
+    seat_context_route_paths: dict[tuple[str, str, int, int], Path] | None = None,
+) -> dict[str, object]:
+    loaded = torch.load(base_path, map_location="cpu", weights_only=False)
+    if loaded.get("kind") != BUNDLE_KIND:
+        raise ValueError("overlay source is not a routed policy bundle")
+    if loaded.get("bundle_version") not in SUPPORTED_BUNDLE_VERSIONS:
+        raise ValueError("overlay source bundle version does not match")
+    required = {
+        "checkpoint_version",
+        "observation_version",
+        "rule_features",
+        "config",
+        "experts",
+        "routes",
+        "sources",
+    }
+    missing = required.difference(loaded)
+    if missing:
+        raise ValueError(
+            f"overlay bundle is missing fields: {', '.join(sorted(missing))}"
+        )
+    bundle = copy.deepcopy(loaded)
+    experts = dict(bundle["experts"])
+    sources = dict(bundle["sources"])
+    routes = dict(bundle["routes"])
+    context_routes = [dict(route) for route in bundle.get("context_routes", [])]
+    seat_context_routes = [
+        dict(route) for route in bundle.get("seat_context_routes", [])
+    ]
+    config = dict(bundle["config"])
+    profiles = list(config["profiles"])
+    source_experts = {
+        str(source["sha256"]): expert for expert, source in sources.items()
+    }
+
+    def register(profile: str, path: Path) -> str:
+        specialist = load_source(path)
+        compatible(bundle, specialist)
+        if profile not in source_profiles(specialist):
+            raise ValueError(
+                f"specialist curriculum does not contain routed profile: {profile}"
+            )
+        if profile not in profiles:
+            profiles.append(profile)
+        return register_context_expert(
+            experts, sources, source_experts, path, specialist
+        )
+
+    for profile, path in route_paths.items():
+        routes[profile] = register(profile, path)
+    for (profile, generator, players), path in (context_route_paths or {}).items():
+        expert = register(profile, path)
+        context_routes = [
+            route
+            for route in context_routes
+            if (
+                route["profile"],
+                route["generator"],
+                route["players"],
+            )
+            != (profile, generator, players)
+        ]
+        context_routes.append(
+            {
+                "profile": profile,
+                "generator": generator,
+                "players": players,
+                "expert": expert,
+            }
+        )
+        routes.setdefault(profile, expert)
+    for (profile, generator, players, seat), path in (
+        seat_context_route_paths or {}
+    ).items():
+        expert = register(profile, path)
+        seat_context_routes = [
+            route
+            for route in seat_context_routes
+            if (
+                route["profile"],
+                route["generator"],
+                route["players"],
+                route["seat"],
+            )
+            != (profile, generator, players, seat)
+        ]
+        seat_context_routes.append(
+            {
+                "profile": profile,
+                "generator": generator,
+                "players": players,
+                "seat": seat,
+                "expert": expert,
+            }
+        )
+        routes.setdefault(profile, expert)
+
+    referenced = set(routes.values())
+    referenced.update(str(route["expert"]) for route in context_routes)
+    referenced.update(str(route["expert"]) for route in seat_context_routes)
+    missing_experts = referenced.difference(experts)
+    if missing_experts:
+        raise ValueError(
+            f"overlay bundle references missing experts: {', '.join(sorted(missing_experts))}"
+        )
+    config["profiles"] = profiles
+    bundle.update(
+        {
+            "bundle_version": BUNDLE_VERSION,
+            "config": config,
+            "experts": {
+                expert: state for expert, state in experts.items() if expert in referenced
+            },
+            "routes": routes,
+            "context_routes": context_routes,
+            "seat_context_routes": seat_context_routes,
+            "sources": {
+                expert: source for expert, source in sources.items() if expert in referenced
+            },
+            "summary": {
+                "algorithm": "deterministic_profile_routed_experts",
+                "experts": len(referenced),
+                "profiles": len(routes),
+                "context_routes": len(context_routes),
+                "seat_context_routes": len(seat_context_routes),
+                "overlay_base": {
+                    "path": str(base_path),
+                    "sha256": digest(base_path),
+                    "size_bytes": base_path.stat().st_size,
+                },
+            },
+        }
+    )
+    save_bundle(bundle, output_path)
     return bundle
 
 
@@ -259,6 +412,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("primary", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--overlay", action="store_true")
     parser.add_argument("--route", action="append", default=[], metavar="PROFILE=CHECKPOINT")
     parser.add_argument(
         "--context-route",
@@ -273,7 +427,8 @@ def main() -> None:
         metavar="PROFILE:GENERATOR:PLAYERS:SEAT=CHECKPOINT",
     )
     arguments = parser.parse_args()
-    bundle = build_bundle(
+    builder = overlay_bundle if arguments.overlay else build_bundle
+    bundle = builder(
         arguments.primary,
         parse_routes(arguments.route),
         arguments.output,

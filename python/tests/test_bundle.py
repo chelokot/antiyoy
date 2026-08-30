@@ -9,6 +9,8 @@ from antiyoy_rl.model import RULE_FEATURES, UniversalPolicy
 from python.build_bundle import (
     BUNDLE_KIND,
     build_bundle,
+    digest,
+    overlay_bundle,
     parse_context_routes,
     parse_routes,
     parse_seat_context_routes,
@@ -226,3 +228,47 @@ def test_seat_context_route_parser_validates_seat_range() -> None:
     route = "classic_generic_2022:procedural_v1:3:3=expert.pt"
     with pytest.raises(ValueError, match="player range"):
         parse_seat_context_routes([route])
+
+
+def test_bundle_overlay_replaces_route_and_prunes_old_expert(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "primary.pt"
+    previous = tmp_path / "previous.pt"
+    replacement = tmp_path / "replacement.pt"
+    base_path = tmp_path / "base.pt"
+    output_path = tmp_path / "overlay.pt"
+    profile = "classic_generic_2022"
+    context = (profile, "procedural_v1", 4, 2)
+    write_checkpoint(primary, 1.0, profiles=[profile])
+    write_checkpoint(previous, 5.0, profiles=[profile])
+    write_checkpoint(replacement, 9.0, profiles=[profile])
+    base = build_bundle(
+        primary,
+        {},
+        base_path,
+        seat_context_route_paths={context: previous},
+    )
+
+    overlay = overlay_bundle(
+        base_path,
+        {},
+        output_path,
+        seat_context_route_paths={context: replacement},
+    )
+
+    selected, config = load_policy(
+        output_path,
+        torch.device("cpu"),
+        profile,
+        "procedural_v1",
+        4,
+        2,
+    )
+    assert torch.all(selected.missing_source == 9.0)
+    assert config["selected_expert"] in overlay["experts"]
+    assert len(base["experts"]) == 2
+    assert len(overlay["experts"]) == 2
+    assert digest(previous) not in {
+        source["sha256"] for source in overlay["sources"].values()
+    }

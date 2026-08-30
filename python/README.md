@@ -185,6 +185,13 @@ override the profile route. Exact seat routes make multiplayer specialists
 possible while the original two-player expert remains immutable. Bundle
 versions 1 and 2 remain loadable.
 
+Pass `--overlay` when `PRIMARY` is an existing routed bundle. The builder
+replaces only the supplied selectors, verifies every new checkpoint against the
+base architecture, deduplicates identical source hashes, and removes experts
+that no route references. The output records the exact base bundle hash, making
+iterative specialist acceptance reproducible without repeating a long route
+manifest or retaining superseded weights.
+
 Evaluation alternates model seats, uses held-out seeds, and reports the raw
 win/draw/loss score plus an Elo difference against the named baseline. Terminal
 draws and action-limit truncations are reported separately, along with action
