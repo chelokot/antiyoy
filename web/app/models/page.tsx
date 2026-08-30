@@ -41,8 +41,18 @@ const engineSixRatings = [
 
 const ratingPools = [
   {
+    name: "Policy amplification",
+    arena: "core v6 · classic Generic 11×9 · same checkpoint",
+    evidence: "2026-08-31-policy-guided-puct-amplification-rocm.json",
+    rows: [
+      ["Value-calibrated PUCT-8", "policy + search", "1033", "+33 vs direct", "280–0–232 / 512"],
+      ["Direct routed v6", "policy intuition", "1000", "anchor", "same-checkpoint baseline"],
+    ],
+  },
+  {
     name: "Search ladder",
     arena: "core v5 · fixed 11×9 · seven profiles",
+    evidence: "2026-08-30-turn-search-i9-11900k.json",
     rows: [
       ["Turn search 4096", "search", "1434", "+434 vs greedy", "207–0–17 / 224"],
       ["Greedy", "heuristic", "1000", "anchor", "224 mirrored"],
@@ -51,6 +61,7 @@ const ratingPools = [
   {
     name: "Distillation history",
     arena: "core v5 · fixed 11×9 · versus search 2048",
+    evidence: "2026-08-31-engine-v6-amplify-distill-rocm.json",
     rows: [
       ["Routed v0.3", "2 experts", "2131", "+1131", "336–0–0"],
       ["Search DAgger v0.2", "single policy", "1085", "+85", "138–2–84"],
@@ -74,9 +85,9 @@ const experiments = [
   },
   {
     method: "Policy-guided PUCT / MCTS",
-    status: "next",
-    description: "Use policy logits as priors and the value head at leaves, then spend a fixed node budget per turn.",
-    result: "No rating yet. The leaderboard will not invent one before a paired run exists.",
+    status: "measured",
+    description: "Batched native PUCT uses policy priors, a frozen-policy calibrated value head, and a controlled policy/value root blend.",
+    result: "PUCT-8: 280–232 over direct policy on 512 fresh paired games, +32.67 relative Elo; 95% score CI 50.36–58.95%.",
   },
   {
     method: "Amplify → distill",
@@ -107,8 +118,8 @@ export default function ModelsPage() {
       </section>
 
       <section className="models-section pools-section">
-        <div className="section-heading"><div><p>Pools 02–03</p><h2>Other controlled ladders</h2></div><p>Useful comparisons stay inside their own protocol. This avoids laundering incompatible measurements into one impressive-looking number.</p></div>
-        <div className="pool-grid">{ratingPools.map((pool) => <article className="rating-pool" key={pool.name}><header><h3>{pool.name}</h3><p>{pool.arena}</p></header><table><tbody>{pool.rows.map(([agent, method, rating, delta, record]) => <tr key={agent}><th scope="row"><span>{agent}</span><small>{method}</small></th><td><strong>{rating}</strong><small>{delta}</small></td><td>{record}</td></tr>)}</tbody></table></article>)}</div>
+        <div className="section-heading"><div><p>Pools 02–04</p><h2>Other controlled ladders</h2></div><p>Useful comparisons stay inside their own protocol. This avoids laundering incompatible measurements into one impressive-looking number.</p></div>
+        <div className="pool-grid">{ratingPools.map((pool) => <article className="rating-pool" key={pool.name}><header><h3>{pool.name}</h3><p>{pool.arena}</p><EvidenceLink file={pool.evidence} /></header><table><tbody>{pool.rows.map(([agent, method, rating, delta, record]) => <tr key={agent}><th scope="row"><span>{agent}</span><small>{method}</small></th><td><strong>{rating}</strong><small>{delta}</small></td><td>{record}</td></tr>)}</tbody></table></article>)}</div>
       </section>
 
       <section className="models-section">
@@ -119,7 +130,7 @@ export default function ModelsPage() {
       <section className="models-section report-section">
         <div className="section-heading"><div><p>Promotion gate</p><h2>How a model earns the top row</h2></div></div>
         <div className="promotion-flow"><div><b>AMPLIFY</b><span>Search or PUCT labels policy-visited states.</span></div><i>→</i><div><b>DISTILL</b><span>A compact policy learns priors and values.</span></div><i>→</i><div><b>ATTACK</b><span>Fresh seeds, both seats, every rules profile.</span></div><i>→</i><div><b>PROMOTE</b><span>Only if the weakest slice does not regress.</span></div></div>
-        <footer><span>Next controlled experiment</span><strong>Policy-guided PUCT: 64 / 256 / 2048 nodes, then distill the winning budget.</strong></footer>
+        <footer><span>Next controlled experiment</span><strong>Distill accepted PUCT decisions, then repeat the gate across every profile and multiplayer route.</strong></footer>
       </section>
     </main>
   );

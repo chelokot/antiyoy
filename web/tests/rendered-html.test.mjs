@@ -101,6 +101,9 @@ test("renders the benchmark-backed model arena", async () => {
   assert.match(html, /Routed v6 candidate/);
   assert.match(html, /336–0–0/);
   assert.match(html, /Policy-guided PUCT \/ MCTS/);
+  assert.match(html, /Value-calibrated PUCT-8/);
+  assert.match(html, /280–0–232/);
+  assert.match(html, /\+32\.67 relative Elo/);
   assert.match(html, /Ratings from different pools are deliberately not merged/);
 });
 
