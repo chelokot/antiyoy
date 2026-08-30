@@ -35,6 +35,9 @@ maps, provinces, and legal-action counts.
 - Persistent rooms store a versioned request, replay, bot-controller position,
   and hashes of human credentials. Restoration verifies replay hashes and
   replays bot choices before accepting new actions.
+- Room requests carry a tagged scenario descriptor and a variable two-to-eight
+  seat vector. The seat count must exactly match the generated scenario player
+  count, and the same descriptor is returned in every snapshot.
 - Terminal rooms are admitted to the atomic league ledger only through its
   replay verifier; pending and duplicate rating outcomes remain explicit in
   network snapshots.

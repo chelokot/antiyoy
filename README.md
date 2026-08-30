@@ -102,10 +102,12 @@ league.
 
 ## Multiplayer rooms
 
-The multiplayer service owns each game, checks an optimistic revision and a
-256-bit human seat credential, applies actions through the core, advances native
-bots, broadcasts versioned snapshots, and exposes the exact verified replay.
-Independent room locks prevent a bot in one match from blocking other matches.
+The multiplayer service owns each two-to-eight-player game, checks an optimistic
+revision and a 256-bit human seat credential, applies actions through the core,
+advances native bots, broadcasts versioned snapshots, and exposes the exact
+verified replay. Rooms can use the symmetric two-player arena or the complete
+typed `procedural_v1` generator configuration. Independent room locks prevent a
+bot in one match from blocking other matches.
 
 ```bash
 cargo run --release -p antiyoy-server -- \
@@ -121,8 +123,8 @@ Create a room with `POST /v1/matches`, inspect it with
 `GET /v1/matches/{match_id}/replay`, or connect to
 `GET /v1/matches/{match_id}/watch`. A connection begins as a read-only spectator;
 a human sends the versioned `ClientMessage::Authenticate` frame with its seat
-and returned token before submitting actions. Seats can be human, random,
-greedy, or bounded whole-turn search agents. Network structures carry
+and returned token before submitting actions. Every seat can independently be
+human, random, greedy, or a bounded whole-turn search agent. Network structures carry
 `NETWORK_SCHEMA_VERSION` and every update includes a deterministic state digest.
 `DELETE /v1/matches/{match_id}?seat=…` with the seat token in an Authorization
 Bearer header closes and removes a room. All memory-amplifying limits are
@@ -136,6 +138,11 @@ Terminal rooms enter the server's Elo ledger only after replay verification;
 and `league.json` use fsync-plus-rename atomic replacement.
 Match snapshots expose `NotFinished`, `Pending`, `Recorded`, or `Duplicate`
 rating status; an identical replay cannot inflate Elo twice.
+Multiplayer Elo computes all pairwise expectations from the pre-match ratings,
+normalizes each pair by `players − 1`, and applies every delta simultaneously.
+The update is zero-sum, preserves the ordinary two-player formula, and counts
+one game per participant. The exact schema and request examples are documented
+in [`docs/multiplayer.md`](docs/multiplayer.md).
 
 Python trainers can install the native environment in an active virtual
 environment:

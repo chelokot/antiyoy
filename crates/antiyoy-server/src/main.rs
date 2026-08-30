@@ -167,7 +167,7 @@ async fn socket_loop(
     mut updates: broadcast::Receiver<MatchSnapshot>,
 ) {
     let mut seat = None;
-    if send_message(&mut socket, ServerMessage::Snapshot(snapshot))
+    if send_message(&mut socket, ServerMessage::Snapshot(Box::new(snapshot)))
         .await
         .is_err()
     {
@@ -243,7 +243,7 @@ async fn socket_loop(
                     },
                     Err(broadcast::error::RecvError::Closed) => return,
                 };
-                if send_message(&mut socket, ServerMessage::Snapshot(snapshot)).await.is_err() { return }
+                if send_message(&mut socket, ServerMessage::Snapshot(Box::new(snapshot))).await.is_err() { return }
             }
         }
     }

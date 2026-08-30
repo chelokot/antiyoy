@@ -2,22 +2,71 @@ use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use antiyoy_core::RulesProfile;
 use antiyoy_eval::League;
-use antiyoy_protocol::{CreateMatchRequest, Replay};
+use antiyoy_protocol::{
+    CreateMatchRequest, MatchScenario, NETWORK_SCHEMA_VERSION, Replay, SeatRequest,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub(crate) const ROOM_STORAGE_SCHEMA_VERSION: u16 = 1;
+pub(crate) const ROOM_STORAGE_SCHEMA_VERSION: u16 = 2;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) struct StoredRoom {
     pub schema_version: u16,
     pub id: String,
     pub request: CreateMatchRequest,
+    pub human_token_hashes: Vec<Option<[u8; 32]>>,
+    pub replay: Replay,
+    pub rated: bool,
+    pub duplicate: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub(crate) struct LegacyCreateMatchRequest {
+    pub schema_version: u16,
+    pub rules_profile: RulesProfile,
+    pub width: u16,
+    pub height: u16,
+    pub seed: u64,
+    pub seats: [SeatRequest; 2],
+    pub action_limit: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub(crate) struct LegacyStoredRoom {
+    pub schema_version: u16,
+    pub id: String,
+    pub request: LegacyCreateMatchRequest,
     pub human_token_hashes: [Option<[u8; 32]>; 2],
     pub replay: Replay,
     pub rated: bool,
     pub duplicate: bool,
+}
+
+impl From<LegacyStoredRoom> for StoredRoom {
+    fn from(legacy: LegacyStoredRoom) -> Self {
+        Self {
+            schema_version: ROOM_STORAGE_SCHEMA_VERSION,
+            id: legacy.id,
+            request: CreateMatchRequest {
+                schema_version: NETWORK_SCHEMA_VERSION,
+                rules_profile: legacy.request.rules_profile,
+                scenario: MatchScenario::SymmetricDuel {
+                    width: legacy.request.width,
+                    height: legacy.request.height,
+                    seed: legacy.request.seed,
+                },
+                seats: legacy.request.seats.into_iter().collect(),
+                action_limit: legacy.request.action_limit,
+            },
+            human_token_hashes: legacy.human_token_hashes.into_iter().collect(),
+            replay: legacy.replay,
+            rated: legacy.rated,
+            duplicate: legacy.duplicate,
+        }
+    }
 }
 
 pub(crate) struct Storage {
@@ -73,7 +122,12 @@ impl Storage {
                 .and_then(|stem| stem.to_str())
                 .ok_or_else(|| StorageError::InvalidFilename(path.display().to_string()))?;
             let bytes = fs::read(&path)?;
-            let room: StoredRoom = postcard::from_bytes(&bytes)?;
+            let (schema_version, _) = postcard::take_from_bytes::<u16>(&bytes)?;
+            let room = if schema_version == 1 {
+                postcard::from_bytes::<LegacyStoredRoom>(&bytes)?.into()
+            } else {
+                postcard::from_bytes::<StoredRoom>(&bytes)?
+            };
             if room.id != filename {
                 return Err(StorageError::IdentityMismatch {
                     filename: filename.into(),
@@ -100,11 +154,9 @@ impl Storage {
         if !path.exists() {
             return Ok(League::default());
         }
-        let league: League = serde_json::from_slice(&fs::read(path)?)?;
-        league
-            .validate()
-            .map_err(|error| StorageError::InvalidLeague(error.to_string()))?;
-        Ok(league)
+        serde_json::from_slice::<League>(&fs::read(path)?)?
+            .upgrade()
+            .map_err(|error| StorageError::InvalidLeague(error.to_string()))
     }
 
     pub fn save_league(&self, league: &League) -> Result<(), StorageError> {

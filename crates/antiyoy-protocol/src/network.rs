@@ -1,9 +1,11 @@
-use antiyoy_core::{Action, Game, HexId, Object, Relation, RulesProfile};
+use antiyoy_core::{Action, Game, GeneratorConfig, HexId, Object, Relation, RulesProfile};
 use serde::{Deserialize, Serialize};
 
 use crate::{Digest, ReplayError};
 
-pub const NETWORK_SCHEMA_VERSION: u16 = 3;
+pub const NETWORK_SCHEMA_VERSION: u16 = 4;
+pub const MINIMUM_MATCH_PLAYERS: usize = 2;
+pub const MAXIMUM_MATCH_PLAYERS: usize = 8;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum SeatKind {
@@ -20,13 +22,47 @@ pub struct SeatRequest {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum MatchScenario {
+    SymmetricDuel { width: u16, height: u16, seed: u64 },
+    Procedural(GeneratorConfig),
+}
+
+impl MatchScenario {
+    pub const fn width(&self) -> u16 {
+        match self {
+            Self::SymmetricDuel { width, .. } => *width,
+            Self::Procedural(config) => config.width,
+        }
+    }
+
+    pub const fn height(&self) -> u16 {
+        match self {
+            Self::SymmetricDuel { height, .. } => *height,
+            Self::Procedural(config) => config.height,
+        }
+    }
+
+    pub const fn seed(&self) -> u64 {
+        match self {
+            Self::SymmetricDuel { seed, .. } => *seed,
+            Self::Procedural(config) => config.seed,
+        }
+    }
+
+    pub const fn players(&self) -> u8 {
+        match self {
+            Self::SymmetricDuel { .. } => 2,
+            Self::Procedural(config) => config.players,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CreateMatchRequest {
     pub schema_version: u16,
     pub rules_profile: RulesProfile,
-    pub width: u16,
-    pub height: u16,
-    pub seed: u64,
-    pub seats: [SeatRequest; 2],
+    pub scenario: MatchScenario,
+    pub seats: Vec<SeatRequest>,
     pub action_limit: u32,
 }
 
@@ -62,7 +98,7 @@ pub enum ClientMessage {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum ServerMessage {
-    Snapshot(MatchSnapshot),
+    Snapshot(Box<MatchSnapshot>),
     Authenticated { seat: u8 },
     Error { code: String, message: String },
 }
@@ -137,6 +173,8 @@ pub struct MatchSnapshot {
     pub rating_status: RatingStatus,
     pub actions_played: u32,
     pub digest: Digest,
+    pub scenario: MatchScenario,
+    pub seats: Vec<SeatRequest>,
     pub game: GameView,
 }
 
@@ -220,6 +258,7 @@ impl MatchSnapshot {
         status: MatchStatus,
         rating_status: RatingStatus,
         actions_played: u32,
+        request: &CreateMatchRequest,
         game: &Game,
     ) -> Result<Self, ReplayError> {
         Ok(Self {
@@ -230,7 +269,47 @@ impl MatchSnapshot {
             rating_status,
             actions_played,
             digest: Digest::of_game(game)?,
+            scenario: request.scenario.clone(),
+            seats: request.seats.clone(),
             game: GameView::from_game(game),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use antiyoy_core::{GENERATOR_SCHEMA_VERSION, GeneratorConfig, RulesProfile};
+
+    use super::{CreateMatchRequest, MatchScenario, NETWORK_SCHEMA_VERSION, SeatKind, SeatRequest};
+
+    #[test]
+    fn procedural_match_request_round_trips_every_seat() {
+        let request = CreateMatchRequest {
+            schema_version: NETWORK_SCHEMA_VERSION,
+            rules_profile: RulesProfile::OnlineDefaultV1,
+            scenario: MatchScenario::Procedural(GeneratorConfig {
+                schema_version: GENERATOR_SCHEMA_VERSION,
+                width: 21,
+                height: 15,
+                players: 4,
+                seed: 47,
+                ..GeneratorConfig::default()
+            }),
+            seats: (0..4)
+                .map(|seat| SeatRequest {
+                    name: format!("player-{seat}"),
+                    kind: SeatKind::Human,
+                })
+                .collect(),
+            action_limit: 2_000,
+        };
+        let encoded = serde_json::to_vec(&request).expect("serializable request");
+        let decoded: CreateMatchRequest =
+            serde_json::from_slice(&encoded).expect("deserializable request");
+        assert_eq!(decoded, request);
+        assert_eq!(request.scenario.players(), 4);
+        assert_eq!(request.scenario.width(), 21);
+        assert_eq!(request.scenario.height(), 15);
+        assert_eq!(request.scenario.seed(), 47);
     }
 }

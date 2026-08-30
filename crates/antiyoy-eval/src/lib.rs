@@ -9,7 +9,8 @@ use antiyoy_protocol::{Digest, Replay, ReplayError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const LEAGUE_SCHEMA_VERSION: u16 = 1;
+pub const LEAGUE_SCHEMA_VERSION: u16 = 2;
+pub const PREVIOUS_LEAGUE_SCHEMA_VERSION: u16 = 1;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Termination {
@@ -26,7 +27,7 @@ pub struct MatchOutcome {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MatchReport {
-    pub agents: [String; 2],
+    pub agents: Vec<String>,
     pub seed: u64,
     pub outcome: MatchOutcome,
     pub replay: Replay,
@@ -80,7 +81,9 @@ pub struct Participant {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct LeagueMatch {
     pub id: String,
-    pub agents: [String; 2],
+    pub agents: Vec<String>,
+    #[serde(default = "default_league_player_count")]
+    pub player_count: u8,
     pub seed: u64,
     pub outcome: MatchOutcome,
     pub final_digest: Digest,
@@ -125,8 +128,14 @@ pub enum LeagueError {
     DuplicateMatch(String),
     #[error("league standings do not match its ordered match ledger")]
     CorruptStandings,
-    #[error("both seats use the same agent identity {0}")]
-    IdenticalAgents(String),
+    #[error("agent identity {0} appears in more than one seat")]
+    DuplicateAgent(String),
+    #[error("a rated match must contain at least two agents")]
+    TooFewAgents,
+    #[error("winner seat {winner} is outside a match with {agents} agents")]
+    InvalidWinner { winner: u8, agents: usize },
+    #[error("match names {agents} agents but its replay contains {players} players")]
+    PlayerCount { agents: usize, players: u8 },
     #[error("match seed differs from its replay scenario")]
     SeedMismatch,
     #[error("match reports {reported} actions but replay contains {recorded}")]
@@ -140,6 +149,14 @@ pub enum LeagueError {
 }
 
 impl League {
+    pub fn upgrade(mut self) -> Result<Self, LeagueError> {
+        if self.schema_version == PREVIOUS_LEAGUE_SCHEMA_VERSION {
+            self.schema_version = LEAGUE_SCHEMA_VERSION;
+        }
+        self.validate()?;
+        Ok(self)
+    }
+
     pub fn validate(&self) -> Result<(), LeagueError> {
         if self.schema_version != LEAGUE_SCHEMA_VERSION {
             return Err(LeagueError::UnsupportedSchema {
@@ -156,15 +173,9 @@ impl League {
             if !match_ids.insert(&record.id) {
                 return Err(LeagueError::DuplicateMatch(record.id.clone()));
             }
-            if record.agents[0] == record.agents[1] {
-                return Err(LeagueError::IdenticalAgents(record.agents[0].clone()));
-            }
-            Self::apply_result(
-                &mut participants,
-                self.elo,
-                &record.agents,
-                score_for_first(record.outcome),
-            );
+            Self::validate_agents(&record.agents, record.outcome)?;
+            Self::validate_player_count(&record.agents, record.player_count)?;
+            Self::apply_result(&mut participants, self.elo, &record.agents, record.outcome);
         }
         if participants != self.participants {
             return Err(LeagueError::CorruptStandings);
@@ -174,13 +185,12 @@ impl League {
 
     pub fn record(&mut self, report: &MatchReport) -> Result<LeagueMatch, LeagueError> {
         self.validate()?;
-        if report.agents[0] == report.agents[1] {
-            return Err(LeagueError::IdenticalAgents(report.agents[0].clone()));
-        }
+        Self::validate_agents(&report.agents, report.outcome)?;
         if report.seed != report.replay.header.scenario.seed {
             return Err(LeagueError::SeedMismatch);
         }
         let verified = report.replay.play()?;
+        Self::validate_player_count(&report.agents, verified.game.player_count())?;
         let recorded_actions = verified.verification.frames;
         if usize::try_from(report.outcome.actions).ok() != Some(recorded_actions) {
             return Err(LeagueError::ActionCount {
@@ -204,16 +214,16 @@ impl League {
             return Err(LeagueError::DuplicateMatch(id));
         }
 
-        let first_score = score_for_first(report.outcome);
         Self::apply_result(
             &mut self.participants,
             self.elo,
             &report.agents,
-            first_score,
+            report.outcome,
         );
         let record = LeagueMatch {
             id,
             agents: report.agents.clone(),
+            player_count: verified.game.player_count(),
             seed: report.seed,
             outcome: report.outcome,
             final_digest: verified.verification.final_digest,
@@ -246,30 +256,93 @@ impl League {
             .collect()
     }
 
-    fn record_score(participant: &mut Participant, score: f64) {
-        if score > 0.5 {
+    fn record_score(participant: &mut Participant, won: bool, drawn: bool) {
+        if won {
             participant.wins += 1;
-        } else if score < 0.5 {
-            participant.losses += 1;
-        } else {
+        } else if drawn {
             participant.draws += 1;
+        } else {
+            participant.losses += 1;
         }
     }
 
     fn apply_result(
         participants: &mut BTreeMap<String, Participant>,
         elo: Elo,
-        agents: &[String; 2],
-        first_score: f64,
+        agents: &[String],
+        outcome: MatchOutcome,
     ) {
-        let mut first = participants.get(&agents[0]).cloned().unwrap_or_default();
-        let mut second = participants.get(&agents[1]).cloned().unwrap_or_default();
-        elo.update(&mut first.rating, &mut second.rating, first_score);
-        Self::record_score(&mut first, first_score);
-        Self::record_score(&mut second, 1.0 - first_score);
-        participants.insert(agents[0].clone(), first);
-        participants.insert(agents[1].clone(), second);
+        let previous = agents
+            .iter()
+            .map(|agent| participants.get(agent).cloned().unwrap_or_default())
+            .collect::<Vec<_>>();
+        let mut deltas = vec![0.0; agents.len()];
+        let opponents = u32::try_from(agents.len() - 1).expect("player count fits in u32");
+        let pair_weight = 1.0 / f64::from(opponents);
+        for first in 0..agents.len() {
+            for second in first + 1..agents.len() {
+                let expected = 1.0
+                    / (1.0
+                        + 10.0_f64.powf(
+                            (previous[second].rating.elo - previous[first].rating.elo) / 400.0,
+                        ));
+                let score = match outcome.winner {
+                    Some(winner) if winner.index() == first => 1.0,
+                    Some(winner) if winner.index() == second => 0.0,
+                    _ => 0.5,
+                };
+                let delta = elo.k_factor * pair_weight * (score - expected);
+                deltas[first] += delta;
+                deltas[second] -= delta;
+            }
+        }
+        for (seat, agent) in agents.iter().enumerate() {
+            let mut participant = previous[seat].clone();
+            participant.rating.elo += deltas[seat];
+            participant.rating.games += 1;
+            Self::record_score(
+                &mut participant,
+                outcome.winner.is_some_and(|winner| winner.index() == seat),
+                outcome.winner.is_none(),
+            );
+            participants.insert(agent.clone(), participant);
+        }
     }
+
+    fn validate_agents(agents: &[String], outcome: MatchOutcome) -> Result<(), LeagueError> {
+        if agents.len() < 2 {
+            return Err(LeagueError::TooFewAgents);
+        }
+        let mut unique = BTreeSet::new();
+        for agent in agents {
+            if !unique.insert(agent) {
+                return Err(LeagueError::DuplicateAgent(agent.clone()));
+            }
+        }
+        if let Some(winner) = outcome.winner
+            && winner.index() >= agents.len()
+        {
+            return Err(LeagueError::InvalidWinner {
+                winner: winner.0,
+                agents: agents.len(),
+            });
+        }
+        Ok(())
+    }
+
+    fn validate_player_count(agents: &[String], players: u8) -> Result<(), LeagueError> {
+        if agents.len() != usize::from(players) {
+            return Err(LeagueError::PlayerCount {
+                agents: agents.len(),
+                players,
+            });
+        }
+        Ok(())
+    }
+}
+
+const fn default_league_player_count() -> u8 {
+    2
 }
 
 #[derive(Debug, Error)]
@@ -292,7 +365,7 @@ pub fn run_match<First: Agent + ?Sized, Second: Agent + ?Sized>(
     action_limit: u32,
 ) -> Result<MatchReport, MatchError> {
     let seed = scenario.seed;
-    let names = [first.name().to_owned(), second.name().to_owned()];
+    let names = vec![first.name().to_owned(), second.name().to_owned()];
     let (mut replay, mut game) = Replay::new(rules, scenario)?;
     let mut legal_actions = Vec::new();
 
@@ -341,9 +414,13 @@ pub fn score_for_first(outcome: MatchOutcome) -> f64 {
 #[cfg(test)]
 mod tests {
     use antiyoy_agents::{GreedyAgent, RandomAgent};
-    use antiyoy_core::{PlayerId, Rules};
+    use antiyoy_core::{Action, GENERATOR_SCHEMA_VERSION, GeneratorConfig, PlayerId, Rules};
+    use antiyoy_protocol::Replay;
 
-    use super::{Elo, League, LeagueError, Rating, run_match, score_for_first, symmetric_duel};
+    use super::{
+        Elo, League, LeagueError, MatchOutcome, MatchReport, Rating, Termination, adjudicate,
+        run_match, score_for_first, symmetric_duel,
+    };
 
     #[test]
     fn rating_update_is_zero_sum() {
@@ -421,5 +498,81 @@ mod tests {
             League::default().record(&report),
             Err(LeagueError::OutcomeMismatch)
         ));
+    }
+
+    #[test]
+    fn multiplayer_elo_is_zero_sum_and_counts_one_game_per_agent() {
+        let scenario = GeneratorConfig {
+            schema_version: GENERATOR_SCHEMA_VERSION,
+            width: 17,
+            height: 13,
+            players: 4,
+            seed: 91,
+            ..GeneratorConfig::default()
+        }
+        .generate()
+        .expect("valid multiplayer map");
+        let (mut replay, mut game) =
+            Replay::new(Rules::online_default_v1(), scenario).expect("valid multiplayer replay");
+        for _ in 0..4 {
+            replay
+                .record(&mut game, Action::EndTurn)
+                .expect("end turn is legal");
+        }
+        let report = MatchReport {
+            agents: (0..4).map(|seat| format!("agent-{seat}")).collect(),
+            seed: 91,
+            outcome: MatchOutcome {
+                winner: adjudicate(&game),
+                actions: 4,
+                termination: Termination::ActionLimit,
+            },
+            replay,
+        };
+        let mut incomplete = report.clone();
+        incomplete.agents.pop();
+        assert!(matches!(
+            League::default().record(&incomplete),
+            Err(LeagueError::PlayerCount {
+                agents: 3,
+                players: 4
+            })
+        ));
+        let mut league = League::default();
+        league.record(&report).expect("verified multiplayer result");
+        let standings = league.standings();
+        assert_eq!(standings.len(), 4);
+        assert!(standings.iter().all(|standing| standing.rating.games == 1));
+        let rating_total = standings
+            .iter()
+            .map(|standing| standing.rating.elo)
+            .sum::<f64>();
+        assert!((rating_total - 4_000.0).abs() < 1e-9);
+        league
+            .validate()
+            .expect("reproducible multiplayer standings");
+    }
+
+    #[test]
+    fn schema_one_two_player_league_upgrades_without_rating_drift() {
+        let scenario = symmetric_duel(7, 5, 63).expect("valid duel");
+        let report = run_match(
+            Rules::classic_generic(),
+            scenario,
+            &mut GreedyAgent::new("legacy-greedy"),
+            &mut RandomAgent::new("legacy-random", 64),
+            100,
+        )
+        .expect("valid legacy match");
+        let mut current = League::default();
+        current.record(&report).expect("verified legacy result");
+        let mut legacy = serde_json::to_value(&current).expect("serialized legacy league");
+        legacy["schema_version"] = 1.into();
+        legacy["matches"][0]
+            .as_object_mut()
+            .expect("legacy match object")
+            .remove("player_count");
+        let legacy: League = serde_json::from_value(legacy).expect("decoded schema-one league");
+        assert_eq!(legacy.upgrade().expect("upgraded league"), current);
     }
 }

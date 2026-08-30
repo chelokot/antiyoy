@@ -10,8 +10,9 @@ use antiyoy_agents::{Agent, GreedyAgent, RandomAgent, SearchAgent, SearchConfig}
 use antiyoy_core::{Action, Game, Rules, Scenario};
 use antiyoy_eval::{League, LeagueError, MatchOutcome, MatchReport, Termination, adjudicate};
 use antiyoy_protocol::{
-    CreateMatchRequest, CreateMatchResponse, MatchSnapshot, MatchStatus, NETWORK_SCHEMA_VERSION,
-    RatingStatus, Replay, SeatCredential, SeatKind, SubmitAction,
+    CreateMatchRequest, CreateMatchResponse, MAXIMUM_MATCH_PLAYERS, MINIMUM_MATCH_PLAYERS,
+    MatchScenario, MatchSnapshot, MatchStatus, NETWORK_SCHEMA_VERSION, RatingStatus, Replay,
+    SeatCredential, SeatKind, SubmitAction,
 };
 use thiserror::Error;
 use tokio::sync::broadcast;
@@ -20,7 +21,6 @@ use crate::storage::{ROOM_STORAGE_SCHEMA_VERSION, Storage, StoredRoom};
 
 const RANDOM_ID_BYTES: usize = 16;
 const TOKEN_BYTES: usize = 32;
-const PREVIOUS_NETWORK_SCHEMA_VERSION: u16 = 2;
 
 #[derive(Clone)]
 pub struct MatchService {
@@ -47,7 +47,7 @@ struct MatchRoom {
     replay: Replay,
     revision: u64,
     action_limit: u32,
-    seats: [SeatController; 2],
+    seats: Vec<SeatController>,
     updates: broadcast::Sender<MatchSnapshot>,
     closed: bool,
     rated: bool,
@@ -165,14 +165,17 @@ impl MatchService {
         let rules = Rules::from_profile(request.rules_profile).ok_or_else(|| {
             ServiceError::InvalidRequest("custom rules require a full rules document".into())
         })?;
-        let scenario = Scenario::symmetric_duel(request.width, request.height, request.seed)
-            .map_err(|error| ServiceError::InvalidRequest(error.to_string()))?;
+        let scenario = scenario_from_request(request).map_err(ServiceError::InvalidRequest)?;
         let (replay, game) = Replay::new(rules, scenario)
             .map_err(|error| ServiceError::Internal(error.to_string()))?;
         let (updates, _) = broadcast::channel(self.limits.update_capacity);
         let mut credentials = Vec::new();
-        let first = self.seat_controller(request, 0, &mut credentials)?;
-        let second = self.seat_controller(request, 1, &mut credentials)?;
+        let seats = request
+            .seats
+            .iter()
+            .enumerate()
+            .map(|(seat, _)| self.seat_controller(request, seat, &mut credentials))
+            .collect::<Result<Vec<_>, _>>()?;
         let mut room = MatchRoom {
             id: String::new(),
             request: request.clone(),
@@ -180,7 +183,7 @@ impl MatchService {
             replay,
             revision: 0,
             action_limit: request.action_limit,
-            seats: [first, second],
+            seats,
             updates,
             closed: false,
             rated: false,
@@ -339,7 +342,19 @@ impl MatchService {
                 self.limits.maximum_action_limit
             )));
         }
-        let cells = usize::from(request.width) * usize::from(request.height);
+        if !(MINIMUM_MATCH_PLAYERS..=MAXIMUM_MATCH_PLAYERS).contains(&request.seats.len()) {
+            return Err(ServiceError::InvalidRequest(format!(
+                "seat count must be within {MINIMUM_MATCH_PLAYERS}..={MAXIMUM_MATCH_PLAYERS}"
+            )));
+        }
+        if usize::from(request.scenario.players()) != request.seats.len() {
+            return Err(ServiceError::InvalidRequest(format!(
+                "scenario has {} players but {} seats were supplied",
+                request.scenario.players(),
+                request.seats.len()
+            )));
+        }
+        let cells = usize::from(request.scenario.width()) * usize::from(request.scenario.height());
         if cells > self.limits.maximum_cells {
             return Err(ServiceError::InvalidRequest(format!(
                 "map contains {cells} cells, limit is {}",
@@ -353,10 +368,13 @@ impl MatchService {
                 ));
             }
         }
-        if request.seats[0].name == request.seats[1].name {
-            return Err(ServiceError::InvalidRequest(
-                "seat names must be distinct".into(),
-            ));
+        let mut names = std::collections::BTreeSet::new();
+        for seat in &request.seats {
+            if !names.insert(&seat.name) {
+                return Err(ServiceError::InvalidRequest(
+                    "seat names must be distinct".into(),
+                ));
+            }
         }
         Ok(())
     }
@@ -372,7 +390,7 @@ impl MatchService {
             SeatKind::Human => {
                 let token = random_hex(TOKEN_BYTES)?;
                 credentials.push(SeatCredential {
-                    seat: u8::try_from(seat).expect("two-seat matches fit in u8"),
+                    seat: u8::try_from(seat).expect("match seat count fits in u8"),
                     name: requested.name.clone(),
                     token: token.clone(),
                 });
@@ -383,7 +401,7 @@ impl MatchService {
             SeatKind::Greedy => SeatController::Greedy(GreedyAgent::new(&requested.name)),
             SeatKind::Random => SeatController::Random(RandomAgent::new(
                 &requested.name,
-                request.seed ^ (u64::try_from(seat).expect("seat fits in u64") + 1),
+                request.scenario.seed() ^ (u64::try_from(seat).expect("seat fits in u64") + 1),
             )),
             SeatKind::Search => SeatController::Search(
                 SearchAgent::with_config(
@@ -587,6 +605,7 @@ impl MatchRoom {
             self.status(),
             self.rating_status(),
             u32::try_from(self.replay.frames.len()).expect("replay length is capped by u32"),
+            &self.request,
             &self.game,
         )
         .map_err(|error| ServiceError::Internal(error.to_string()))
@@ -597,12 +616,16 @@ impl MatchRoom {
             schema_version: ROOM_STORAGE_SCHEMA_VERSION,
             id: self.id.clone(),
             request: self.request.clone(),
-            human_token_hashes: std::array::from_fn(|seat| match &self.seats[seat] {
-                SeatController::Human { token_hash } => Some(*token_hash),
-                SeatController::Greedy(_)
-                | SeatController::Random(_)
-                | SeatController::Search(_) => None,
-            }),
+            human_token_hashes: self
+                .seats
+                .iter()
+                .map(|seat| match seat {
+                    SeatController::Human { token_hash } => Some(*token_hash),
+                    SeatController::Greedy(_)
+                    | SeatController::Random(_)
+                    | SeatController::Search(_) => None,
+                })
+                .collect(),
             replay: self.replay.clone(),
             rated: self.rated,
             duplicate: self.duplicate,
@@ -610,7 +633,7 @@ impl MatchRoom {
     }
 
     fn restore(
-        mut stored: StoredRoom,
+        stored: StoredRoom,
         update_capacity: usize,
         search_nodes: usize,
     ) -> Result<Self, ServiceError> {
@@ -620,18 +643,11 @@ impl MatchRoom {
                 stored.id, stored.schema_version, ROOM_STORAGE_SCHEMA_VERSION
             )));
         }
-        if stored.request.schema_version == PREVIOUS_NETWORK_SCHEMA_VERSION {
-            stored.request.schema_version = NETWORK_SCHEMA_VERSION;
-        }
         let rules = Rules::from_profile(stored.request.rules_profile).ok_or_else(|| {
             ServiceError::CorruptStorage("stored room uses custom rules without a document".into())
         })?;
-        let scenario = Scenario::symmetric_duel(
-            stored.request.width,
-            stored.request.height,
-            stored.request.seed,
-        )
-        .map_err(|error| ServiceError::CorruptStorage(error.to_string()))?;
+        let scenario =
+            scenario_from_request(&stored.request).map_err(ServiceError::CorruptStorage)?;
         if stored.replay.header.rules != rules || stored.replay.header.scenario != scenario {
             return Err(ServiceError::CorruptStorage(format!(
                 "room {} request differs from its replay header",
@@ -699,8 +715,14 @@ impl MatchRoom {
     fn restore_seats(
         stored: &StoredRoom,
         search_nodes: usize,
-    ) -> Result<[SeatController; 2], ServiceError> {
-        let mut restored = Vec::with_capacity(2);
+    ) -> Result<Vec<SeatController>, ServiceError> {
+        if stored.human_token_hashes.len() != stored.request.seats.len() {
+            return Err(ServiceError::CorruptStorage(format!(
+                "room {} credential count differs from its seat count",
+                stored.id
+            )));
+        }
+        let mut restored = Vec::with_capacity(stored.request.seats.len());
         for (seat, requested) in stored.request.seats.iter().enumerate() {
             let controller = match requested.kind {
                 SeatKind::Human => SeatController::Human {
@@ -714,7 +736,8 @@ impl MatchRoom {
                 SeatKind::Greedy => SeatController::Greedy(GreedyAgent::new(&requested.name)),
                 SeatKind::Random => SeatController::Random(RandomAgent::new(
                     &requested.name,
-                    stored.request.seed ^ (u64::try_from(seat).expect("seat fits in u64") + 1),
+                    stored.request.scenario.seed()
+                        ^ (u64::try_from(seat).expect("seat fits in u64") + 1),
                 )),
                 SeatKind::Search => SeatController::Search(
                     SearchAgent::with_config(
@@ -729,9 +752,7 @@ impl MatchRoom {
             };
             restored.push(controller);
         }
-        restored.try_into().map_err(|_| {
-            ServiceError::CorruptStorage(format!("room {} seat count is invalid", stored.id))
-        })
+        Ok(restored)
     }
 
     fn rating_status(&self) -> RatingStatus {
@@ -757,11 +778,13 @@ impl MatchRoom {
             Termination::ActionLimit => adjudicate(&self.game),
         };
         Some(MatchReport {
-            agents: [
-                self.request.seats[0].name.clone(),
-                self.request.seats[1].name.clone(),
-            ],
-            seed: self.request.seed,
+            agents: self
+                .request
+                .seats
+                .iter()
+                .map(|seat| seat.name.clone())
+                .collect(),
+            seed: self.request.scenario.seed(),
             outcome: MatchOutcome {
                 winner,
                 actions: u32::try_from(self.replay.frames.len())
@@ -770,6 +793,17 @@ impl MatchRoom {
             },
             replay: self.replay.clone(),
         })
+    }
+}
+
+fn scenario_from_request(request: &CreateMatchRequest) -> Result<Scenario, String> {
+    match &request.scenario {
+        MatchScenario::SymmetricDuel {
+            width,
+            height,
+            seed,
+        } => Scenario::symmetric_duel(*width, *height, *seed).map_err(|error| error.to_string()),
+        MatchScenario::Procedural(config) => config.generate().map_err(|error| error.to_string()),
     }
 }
 
@@ -793,23 +827,25 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use antiyoy_core::{Action, RulesProfile};
+    use antiyoy_core::{Action, GENERATOR_SCHEMA_VERSION, GeneratorConfig, RulesProfile};
     use antiyoy_protocol::{
-        CreateMatchRequest, MatchStatus, NETWORK_SCHEMA_VERSION, RatingStatus, Replay, SeatKind,
-        SeatRequest, SubmitAction,
+        CreateMatchRequest, MatchScenario, MatchStatus, NETWORK_SCHEMA_VERSION, RatingStatus,
+        Replay, SeatKind, SeatRequest, SubmitAction,
     };
 
-    use super::storage::StoredRoom;
+    use super::storage::{LegacyCreateMatchRequest, LegacyStoredRoom, StoredRoom};
     use super::{MatchService, ServiceError, ServiceLimits, random_hex};
 
     fn human_against_random() -> CreateMatchRequest {
         CreateMatchRequest {
             schema_version: NETWORK_SCHEMA_VERSION,
             rules_profile: RulesProfile::OnlineDuelV1,
-            width: 7,
-            height: 5,
-            seed: 47,
-            seats: [
+            scenario: MatchScenario::SymmetricDuel {
+                width: 7,
+                height: 5,
+                seed: 47,
+            },
+            seats: vec![
                 SeatRequest {
                     name: "human".into(),
                     kind: SeatKind::Human,
@@ -839,6 +875,41 @@ mod tests {
             kind: SeatKind::Search,
         };
         request
+    }
+
+    fn four_player_procedural() -> CreateMatchRequest {
+        CreateMatchRequest {
+            schema_version: NETWORK_SCHEMA_VERSION,
+            rules_profile: RulesProfile::OnlineDefaultV1,
+            scenario: MatchScenario::Procedural(GeneratorConfig {
+                schema_version: GENERATOR_SCHEMA_VERSION,
+                width: 17,
+                height: 13,
+                players: 4,
+                seed: 700,
+                land_density_per_million: 650_000,
+                ..GeneratorConfig::default()
+            }),
+            seats: vec![
+                SeatRequest {
+                    name: "human-four".into(),
+                    kind: SeatKind::Human,
+                },
+                SeatRequest {
+                    name: "random-four".into(),
+                    kind: SeatKind::Random,
+                },
+                SeatRequest {
+                    name: "greedy-four".into(),
+                    kind: SeatKind::Greedy,
+                },
+                SeatRequest {
+                    name: "search-four".into(),
+                    kind: SeatKind::Search,
+                },
+            ],
+            action_limit: 1_000,
+        }
     }
 
     fn temporary_directory() -> PathBuf {
@@ -883,6 +954,84 @@ mod tests {
             usize::try_from(snapshot.actions_played).unwrap()
         );
         assert_eq!(verified.final_digest, snapshot.digest);
+    }
+
+    #[test]
+    fn procedural_multiplayer_room_advances_every_bot_and_verifies_replay() {
+        let service = MatchService::with_limits(ServiceLimits {
+            search_nodes: 32,
+            ..ServiceLimits::default()
+        })
+        .expect("valid service limits");
+        let created = service
+            .create_match(&four_player_procedural())
+            .expect("valid four-player room");
+        assert_eq!(created.credentials.len(), 1);
+        assert_eq!(created.snapshot.seats.len(), 4);
+        assert_eq!(created.snapshot.game.relations.len(), 16);
+        assert_eq!(created.snapshot.game.active_player, 0);
+        let owners = created
+            .snapshot
+            .game
+            .cells
+            .iter()
+            .filter_map(|cell| cell.owner)
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(owners, std::collections::BTreeSet::from([0, 1, 2, 3]));
+        let end_turn = created
+            .snapshot
+            .game
+            .legal_actions
+            .iter()
+            .copied()
+            .find(|action| *action == Action::EndTurn)
+            .expect("end turn is legal");
+        let advanced = service
+            .submit(
+                &created.snapshot.match_id,
+                0,
+                &created.credentials[0].token,
+                SubmitAction {
+                    schema_version: NETWORK_SCHEMA_VERSION,
+                    revision: created.snapshot.revision,
+                    action: end_turn,
+                },
+            )
+            .expect("all three bots reply");
+        assert_eq!(advanced.game.active_player, 0);
+        assert!(advanced.revision >= 4);
+        let replay = Replay::decode(
+            &service
+                .replay(&advanced.match_id)
+                .expect("encodable multiplayer replay"),
+        )
+        .expect("decodable multiplayer replay");
+        assert_eq!(
+            replay
+                .verify()
+                .expect("verified multiplayer replay")
+                .final_digest,
+            advanced.digest
+        );
+    }
+
+    #[test]
+    fn multiplayer_seat_count_and_generator_players_must_match() {
+        let service = MatchService::new();
+        let mut request = four_player_procedural();
+        request.seats.pop();
+        assert!(matches!(
+            service.create_match(&request),
+            Err(ServiceError::InvalidRequest(_))
+        ));
+        request.seats.extend((3..9).map(|seat| SeatRequest {
+            name: format!("overflow-{seat}"),
+            kind: SeatKind::Random,
+        }));
+        assert!(matches!(
+            service.create_match(&request),
+            Err(ServiceError::InvalidRequest(_))
+        ));
     }
 
     #[test]
@@ -1077,8 +1226,11 @@ mod tests {
             Err(ServiceError::InvalidRequest(_))
         ));
         let mut request = request;
-        request.width = 5;
-        request.height = 2;
+        request.scenario = MatchScenario::SymmetricDuel {
+            width: 5,
+            height: 2,
+            seed: 47,
+        };
         assert!(matches!(
             service.create_match(&request),
             Err(ServiceError::InvalidRequest(_))
@@ -1153,20 +1305,51 @@ mod tests {
     }
 
     #[test]
-    fn previous_network_schema_rooms_are_upgraded_during_restoration() {
+    fn legacy_fixed_seat_room_files_are_upgraded_during_restoration() {
         let directory = temporary_directory();
         let limits = ServiceLimits::default();
         let service = MatchService::persistent(limits, &directory).expect("writable storage");
         let created = service.create_match(&human_duel()).expect("valid room");
         drop(service);
         let stored_path = directory.join(format!("{}.room", created.snapshot.match_id));
-        let mut stored: StoredRoom =
+        let stored: StoredRoom =
             postcard::from_bytes(&fs::read(&stored_path).expect("stored room"))
                 .expect("decoded stored room");
-        stored.request.schema_version = 2;
+        let MatchScenario::SymmetricDuel {
+            width,
+            height,
+            seed,
+        } = stored.request.scenario
+        else {
+            panic!("legacy fixture is a duel");
+        };
+        let legacy = LegacyStoredRoom {
+            schema_version: 1,
+            id: stored.id,
+            request: LegacyCreateMatchRequest {
+                schema_version: 3,
+                rules_profile: stored.request.rules_profile,
+                width,
+                height,
+                seed,
+                seats: stored
+                    .request
+                    .seats
+                    .try_into()
+                    .expect("legacy fixture has two seats"),
+                action_limit: stored.request.action_limit,
+            },
+            human_token_hashes: stored
+                .human_token_hashes
+                .try_into()
+                .expect("legacy fixture has two credentials"),
+            replay: stored.replay,
+            rated: stored.rated,
+            duplicate: stored.duplicate,
+        };
         fs::write(
             &stored_path,
-            postcard::to_allocvec(&stored).expect("encoded legacy room"),
+            postcard::to_allocvec(&legacy).expect("encoded legacy room"),
         )
         .expect("legacy room written");
 
@@ -1299,5 +1482,30 @@ mod tests {
         );
         drop(restored);
         fs::remove_dir_all(directory).expect("remove test storage");
+    }
+
+    #[test]
+    fn completed_multiplayer_match_updates_every_rating_once() {
+        let mut request = four_player_procedural();
+        request.action_limit = 8;
+        for seat in &mut request.seats {
+            seat.kind = SeatKind::Greedy;
+        }
+        let service = MatchService::new();
+        let created = service
+            .create_match(&request)
+            .expect("completed multiplayer room");
+        assert_eq!(created.snapshot.status, MatchStatus::ActionLimit);
+        assert_eq!(created.snapshot.rating_status, RatingStatus::Recorded);
+        let league = service.league().expect("valid multiplayer league");
+        let standings = league.standings();
+        assert_eq!(league.matches.len(), 1);
+        assert_eq!(standings.len(), 4);
+        assert!(standings.iter().all(|standing| standing.rating.games == 1));
+        let rating_total = standings
+            .iter()
+            .map(|standing| standing.rating.elo)
+            .sum::<f64>();
+        assert!((rating_total - 4_000.0).abs() < 1e-9);
     }
 }
