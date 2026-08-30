@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "kind": "browser_neural_policy_export",
+  "source_commit": "d5b006be6bd663d1a641e0b91a1dfa5ceca86b24",
+  "source_policy": {
+    "asset": "universal-2to8p-release-v5g-candidate.pt",
+    "sha256": "d13d009217d262e503f988d61273e8bf56d0c7790f874bd9c29644b142328736",
+    "expert": "primary",
+    "parameters": 916518,
+    "parameter_bytes": 3666072
+  },
+  "domain": {
+    "profile": "classic_generic_2022",
+    "generator": "symmetric_duel",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "model_seat": 1,
+    "seed": 47
+  },
+  "export": {
+    "format": "onnx",
+    "opset": 18,
+    "asset": "classic-generic-browser.onnx",
+    "size_bytes": 3751739,
+    "sha256": "558d31731da41ef66fc67b66052f8eaf1a79f853edc208aa27fde557c9a5892f",
+    "dynamic_legal_action_axis": true
+  },
+  "full_game_parity": {
+    "runtime": "onnxruntime 1.29.0 CPUExecutionProvider",
+    "actions_compared": 233,
+    "matching_argmax_actions": 233,
+    "smallest_legal_action_set": 1,
+    "largest_legal_action_set": 1001,
+    "maximum_logit_absolute_error": 0.0000133514404296875,
+    "maximum_value_absolute_error": 3.5762786865234375e-7
+  },
+  "web_runtime_smoke": {
+    "runtime": "onnxruntime-web 1.23.2 wasm",
+    "node": "22.18.0",
+    "cpu": "Intel Core i5-12500H",
+    "runtime_wasm_size_bytes": 11905541,
+    "runtime_wasm_sha256": "45eaee27761ad883742a8d4b8fce1538d60ce43b51adf1726fafccc59b8c1a15",
+    "initial_legal_actions": 44,
+    "selected_action": 6,
+    "expected_action": 6,
+    "inference_milliseconds": 38.8,
+    "transition_accepted_by_rust": true
+  },
+  "scope": "The shipped browser expert is the fixed Classic Generic 11x9 duel route. Other browser configurations retain explicit native search opponents until their routed experts are exported and validated."
+}

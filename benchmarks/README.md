@@ -87,3 +87,8 @@ The 5–8 player matrix gives every seat one game on each of two held-out seeds
 for every compatibility profile. Its increasing board sizes and action limits
 are part of the domain identity. Use a search-node override only for explicitly
 labelled scouting runs; release records retain the configured 2048-node budget.
+
+Browser export records require action-level parity across a complete game, not
+only a successful ONNX conversion. They name the routed expert, model and
+runtime hashes, dynamic legal-action range, maximum numeric error, and a
+WebAssembly-runtime smoke transition through the authoritative Rust engine.
