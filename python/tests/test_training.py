@@ -44,6 +44,7 @@ def training_config() -> TrainingConfig:
         imitation_updates=0,
         imitation_teacher="greedy",
         imitation_rollin="teacher",
+        imitation_symmetry_augmentation=False,
         checkpoint_every=0,
         search_nodes=256,
         search_beam_width=12,

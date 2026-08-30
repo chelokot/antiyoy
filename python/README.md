@@ -87,6 +87,9 @@ behavioral-cloning curriculum. `--imitation-rollin policy` performs online
 DAgger-style recovery training: search labels every current state, while the
 policy's own greedy action advances the environment. This exposes compounding
 errors and loops that are absent from clean teacher trajectories.
+`--imitation-symmetry-augmentation` rotates alternating batch observations by
+180 degrees while preserving each legal action index. It prevents the hex CNN
+from specializing its spatial filters to one side of a symmetric arena.
 Set `--updates 0` for an imitation-only run without a PPO phase; at least one
 imitation update is then required.
 

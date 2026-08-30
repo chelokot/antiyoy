@@ -19,6 +19,7 @@ from antiyoy_rl.model import (
     action_distribution,
     encode_rules_batch,
     load_policy_state,
+    rotate_observation_180,
 )
 
 
@@ -54,6 +55,7 @@ class TrainingConfig:
     imitation_updates: int
     imitation_teacher: str
     imitation_rollin: str
+    imitation_symmetry_augmentation: bool
     checkpoint_every: int
     search_nodes: int
     search_beam_width: int
@@ -306,8 +308,14 @@ def pretrain_teacher(
         targets = torch.as_tensor(
             selected, dtype=torch.long, device=device
         )
-        logits, _ = model(observation, rules)
-        distribution = action_distribution(logits, observation["action_offsets"])
+        model_observation = observation
+        if config.imitation_symmetry_augmentation:
+            rotation_mask = (
+                np.arange(config.environments, dtype=np.uint64) + update
+            ) % 2 == 0
+            model_observation = rotate_observation_180(observation, rotation_mask)
+        logits, _ = model(model_observation, rules)
+        distribution = action_distribution(logits, model_observation["action_offsets"])
         loss = -distribution.log_prob(targets).mean()
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
@@ -587,6 +595,8 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     algorithm = "perspective_ppo_gae"
     if config.imitation_updates > 0:
         algorithm = f"{config.imitation_teacher}_distilled_{config.imitation_rollin}_rollin"
+        if config.imitation_symmetry_augmentation:
+            algorithm += "_rot180_augmented"
         if config.updates > 0:
             algorithm += "_perspective_ppo_gae"
     summary: dict[str, float | int | str] = {
@@ -600,6 +610,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "imitation_updates": config.imitation_updates,
         "imitation_teacher": config.imitation_teacher,
         "imitation_rollin": config.imitation_rollin,
+        "imitation_symmetry_augmentation": config.imitation_symmetry_augmentation,
         "imitation_transitions": imitation_transitions,
         "imitation_seconds": imitation_seconds,
         "imitation_transitions_per_second": (
@@ -663,6 +674,7 @@ def parse_args() -> TrainingConfig:
     parser.add_argument(
         "--imitation-rollin", choices=("teacher", "policy"), default="teacher"
     )
+    parser.add_argument("--imitation-symmetry-augmentation", action="store_true")
     parser.add_argument("--checkpoint-every", type=int, default=0)
     parser.add_argument("--search-nodes", type=int, default=2048)
     parser.add_argument("--search-beam-width", type=int, default=32)

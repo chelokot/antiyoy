@@ -10,6 +10,7 @@ from antiyoy_rl.model import (
     encode_rules,
     encode_rules_batch,
     load_policy_state,
+    rotate_observation_180,
 )
 
 
@@ -87,3 +88,29 @@ def test_policy_scores_player_targeted_diplomacy_actions() -> None:
     assert 5 in observation["action_kinds"]
     assert logits.shape == (int(observation["action_offsets"][-1]),)
     assert values.shape == (1,)
+
+
+def test_rotating_an_observation_twice_restores_every_tensor() -> None:
+    environment = VectorEnv(2, width=7, height=5, seed=97, diplomacy=True)
+    observation = environment.observe()
+
+    restored = rotate_observation_180(rotate_observation_180(observation))
+
+    for key, value in observation.items():
+        if isinstance(value, np.ndarray):
+            assert np.array_equal(restored[key], value), key
+
+
+def test_rotation_preserves_diplomacy_targets_and_remaps_cells() -> None:
+    environment = VectorEnv(1, width=7, height=5, seed=101, diplomacy=True)
+    observation = environment.observe()
+
+    rotated = rotate_observation_180(observation)
+
+    diplomacy = observation["action_kinds"] == 5
+    assert np.array_equal(rotated["action_targets"][diplomacy], observation["action_targets"][diplomacy])
+    cell_targets = np.logical_and(observation["action_targets"] != 65535, ~diplomacy)
+    assert np.array_equal(
+        rotated["action_targets"][cell_targets],
+        34 - observation["action_targets"][cell_targets],
+    )

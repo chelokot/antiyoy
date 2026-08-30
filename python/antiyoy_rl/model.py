@@ -10,6 +10,79 @@ from torch.nn import functional as functional
 
 
 RULE_FEATURES = 45
+CELL_FEATURES = (
+    "playable",
+    "visible",
+    "owners",
+    "objects",
+    "unit_strengths",
+    "ready",
+    "defenses",
+    "province_ids",
+)
+
+
+def rotate_observation_180(
+    observation: Mapping[str, np.ndarray],
+    rotation_mask: np.ndarray | None = None,
+) -> dict[str, np.ndarray]:
+    environments = len(observation["widths"])
+    selected = (
+        np.ones(environments, dtype=np.bool_)
+        if rotation_mask is None
+        else np.asarray(rotation_mask, dtype=np.bool_)
+    )
+    if selected.shape != (environments,):
+        raise ValueError("rotation mask must contain one value per environment")
+    rotated = dict(observation)
+    cell_offsets = np.asarray(observation["cell_offsets"], dtype=np.int64)
+    action_offsets = np.asarray(observation["action_offsets"], dtype=np.int64)
+    province_offsets = np.asarray(observation["province_offsets"], dtype=np.int64)
+    for key in CELL_FEATURES:
+        values = np.asarray(observation[key])
+        transformed = values.copy()
+        for environment in np.flatnonzero(selected):
+            start, end = cell_offsets[environment : environment + 2]
+            transformed[start:end] = values[start:end][::-1]
+        rotated[key] = transformed
+    sources = np.asarray(observation["action_sources"])
+    targets = np.asarray(observation["action_targets"])
+    kinds = np.asarray(observation["action_kinds"])
+    rotated_sources = sources.copy()
+    rotated_targets = targets.copy()
+    capitals = np.asarray(observation["province_capitals"])
+    rotated_capitals = capitals.copy()
+    for environment in np.flatnonzero(selected):
+        cell_count = int(cell_offsets[environment + 1] - cell_offsets[environment])
+        action_start, action_end = action_offsets[environment : environment + 2]
+        action_slice = slice(action_start, action_end)
+        source_values = sources[action_slice]
+        valid_sources = source_values != 65535
+        source_indices = action_start + np.flatnonzero(valid_sources)
+        rotated_sources[source_indices] = (
+            cell_count - 1 - source_values[valid_sources]
+        )
+        target_values = targets[action_slice]
+        valid_targets = np.logical_and(
+            target_values != 65535,
+            kinds[action_slice] != 5,
+        )
+        target_indices = action_start + np.flatnonzero(valid_targets)
+        rotated_targets[target_indices] = (
+            cell_count - 1 - target_values[valid_targets]
+        )
+        province_start, province_end = province_offsets[environment : environment + 2]
+        province_slice = slice(province_start, province_end)
+        capital_values = capitals[province_slice]
+        valid_capitals = capital_values != 65535
+        capital_indices = province_start + np.flatnonzero(valid_capitals)
+        rotated_capitals[capital_indices] = (
+            cell_count - 1 - capital_values[valid_capitals]
+        )
+    rotated["action_sources"] = rotated_sources
+    rotated["action_targets"] = rotated_targets
+    rotated["province_capitals"] = rotated_capitals
+    return rotated
 
 
 def encode_rules(serialized: str, device: torch.device) -> Tensor:
