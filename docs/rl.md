@@ -101,6 +101,12 @@ adjudicated winner. This gives every decision in a turn sequence outcome credit
 without inventing opponent-perspective reward signs in games with more than two
 players. A frozen reference-policy KL term bounds specialization drift.
 
+The optional counterfactual baseline runs sampled and frozen-greedy learner
+policies on paired copies of the same seed with the same fixed opponents. The
+training return is half their terminal-outcome difference. Equal paired
+outcomes therefore contribute zero policy credit, reducing map and turn-order
+variance without changing engine rewards or adjudication.
+
 Exact-seat evaluation fixes the policy to one requested seat and assigns a
 unique deterministic seed to every game. Its baseline self-play calibration
 uses that same number of seeds and the same seat, so route ablations spend no

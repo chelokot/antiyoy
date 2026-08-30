@@ -1,4 +1,5 @@
 import argparse
+import copy
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -14,6 +15,7 @@ from python.train import (
     imitation_weights,
     initialization_state,
     collect_fixed_opponent_episodes,
+    fixed_opponent_advantages,
     make_environment,
     optimize_fixed_opponent_episodes,
     parse_map_size,
@@ -79,6 +81,7 @@ def training_config() -> TrainingConfig:
         learner_seat=0,
         opponent_minibatch=32,
         opponent_reference_weight=0.0,
+        opponent_counterfactual_baseline=False,
         profile="classic_generic_2022",
         profiles=None,
         fog=False,
@@ -293,6 +296,19 @@ def test_training_rejects_invalid_fixed_opponent_configuration() -> None:
         validate_config(replace(training_config(), learner_seat=2))
     with pytest.raises(ValueError, match="opponent_reference_weight"):
         validate_config(replace(training_config(), opponent_reference_weight=-0.1))
+    with pytest.raises(ValueError, match="requires a fixed opponent"):
+        validate_config(
+            replace(training_config(), opponent_counterfactual_baseline=True)
+        )
+    with pytest.raises(ValueError, match="even environment count"):
+        validate_config(
+            replace(
+                training_config(),
+                environments=3,
+                fixed_opponent="greedy",
+                opponent_counterfactual_baseline=True,
+            )
+        )
 
 
 def test_fixed_opponent_training_collects_complete_episodes_and_optimizes() -> None:
@@ -335,6 +351,70 @@ def test_fixed_opponent_training_collects_complete_episodes_and_optimizes() -> N
     assert metrics["episodes"] == config.environments
     assert metrics["decisions"] >= config.environments
     assert metrics["optimizer_steps"] > 0
+
+
+def test_counterfactual_fixed_opponent_training_pairs_frozen_policy_games() -> None:
+    config = replace(
+        training_config(),
+        environments=4,
+        action_limit=20,
+        fixed_opponent="greedy",
+        learner_seat=0,
+        opponent_minibatch=8,
+        opponent_counterfactual_baseline=True,
+    )
+    device = torch.device("cpu")
+    environment = make_environment(config)
+    model = UniversalPolicy(hidden=config.hidden, layers=config.layers)
+    reference_model = copy.deepcopy(model).eval()
+    reference_model.requires_grad_(False)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+    rules = encode_rules_batch(environment.rules_jsons(), device)
+
+    episodes, _, _ = collect_fixed_opponent_episodes(
+        environment,
+        model,
+        rules,
+        config,
+        device,
+        config.seed + config.environments,
+        reference_model,
+    )
+    metrics = optimize_fixed_opponent_episodes(
+        model,
+        reference_model,
+        optimizer,
+        rules,
+        episodes,
+        config,
+        device,
+    )
+
+    assert len(episodes) == config.environments // 2
+    assert all(episode.baseline_outcome is not None for episode in episodes)
+    assert all(
+        episode.outcome
+        == pytest.approx((episode.terminal_outcome - episode.baseline_outcome) / 2)
+        for episode in episodes
+    )
+    assert metrics["episodes"] == config.environments // 2
+    assert metrics["baseline_episodes"] == config.environments // 2
+    assert (
+        metrics["baseline_wins"]
+        + metrics["baseline_draws"]
+        + metrics["baseline_losses"]
+        == config.environments // 2
+    )
+
+
+def test_counterfactual_advantages_preserve_zero_credit() -> None:
+    returns = torch.tensor([-1.0, 0.0, 1.0])
+    behavior_values = torch.tensor([0.4, -0.2, 0.7])
+
+    advantages = fixed_opponent_advantages(returns, behavior_values, True)
+
+    assert advantages[1].item() == 0.0
+    assert advantages[0].item() == pytest.approx(-advantages[2].item())
 
 
 def test_slice_weights_target_profile_and_active_player() -> None:

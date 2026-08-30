@@ -135,10 +135,20 @@ anchor while fine-tuning. Each update consumes one complete episode per worker;
 the checkpoint reports games, outcomes, environment transitions, and optimizer
 steps separately. Held-out all-seat evaluation remains the promotion gate.
 
+`--opponent-counterfactual-baseline` splits an even environment batch into
+matched pairs. The first game samples the learner while the second runs the
+frozen initialization policy greedily on the identical map against identical
+opponents. PPO receives half the difference between their terminal outcomes,
+so maps where both policies win or both lose contribute zero credit instead of
+gradient noise. The checkpoint reports learner and frozen-baseline records
+separately. This doubles simulation per learner episode and is intended for
+sparse multiplayer outcomes.
+
 ```bash
 python train.py --environments 24 --updates 8 --device cuda \
   --procedural --width 21 --height 15 --players 6 --action-limit 2800 \
   --fixed-opponent search --learner-seat 2 --search-nodes 256 \
+  --opponent-counterfactual-baseline \
   --opponent-minibatch 256 --opponent-reference-weight 0.25 \
   --initialize ../models/generic-6p.pt \
   --checkpoint ../models/generic-6p-seat2-best-response.pt

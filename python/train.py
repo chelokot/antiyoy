@@ -97,6 +97,7 @@ class TrainingConfig:
     learner_seat: int
     opponent_minibatch: int
     opponent_reference_weight: float
+    opponent_counterfactual_baseline: bool
     profile: str | None
     profiles: list[str] | None
     fog: bool
@@ -138,6 +139,8 @@ class EpisodeDecision:
 class EpisodeTrajectory:
     decisions: tuple[EpisodeDecision, ...]
     outcome: float
+    terminal_outcome: float
+    baseline_outcome: float | None
 
 
 def reward_tensor(
@@ -448,6 +451,15 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("opponent_reference_weight must not be negative")
     if config.fixed_opponent not in {None, "greedy", "search"}:
         raise ValueError("fixed_opponent must be greedy, search, or omitted")
+    if config.opponent_counterfactual_baseline:
+        if config.fixed_opponent is None:
+            raise ValueError(
+                "opponent_counterfactual_baseline requires a fixed opponent"
+            )
+        if config.environments < 2 or config.environments % 2 != 0:
+            raise ValueError(
+                "counterfactual fixed-opponent training requires an even environment count"
+            )
     if config.profiles is not None and not config.profiles:
         raise ValueError("profiles must not be empty")
     if config.procedural and (config.players < 2 or config.players > 8):
@@ -619,13 +631,23 @@ def collect_fixed_opponent_episodes(
     config: TrainingConfig,
     device: torch.device,
     reset_seed: int,
+    reference_model: UniversalPolicy | None = None,
 ) -> tuple[list[EpisodeTrajectory], int, int]:
-    for environment_index in range(config.environments):
-        environment.reset(environment_index, reset_seed)
+    paired_baseline = config.opponent_counterfactual_baseline
+    learner_environments = (
+        config.environments // 2 if paired_baseline else config.environments
+    )
+    if paired_baseline and reference_model is None:
+        raise ValueError("counterfactual collection requires a reference model")
+    for learner_environment in range(learner_environments):
+        environment.reset(learner_environment, reset_seed)
+        if paired_baseline:
+            environment.reset(learner_environment + learner_environments, reset_seed)
         reset_seed += 1
     finished = np.zeros(config.environments, dtype=np.bool_)
-    decisions: list[list[EpisodeDecision]] = [[] for _ in range(config.environments)]
+    decisions: list[list[EpisodeDecision]] = [[] for _ in range(learner_environments)]
     outcomes = np.zeros(config.environments, dtype=np.float32)
+    environment_indices = np.arange(config.environments)
     environment_steps = 0
     while not bool(np.all(finished)):
         observation = environment.observe()
@@ -637,6 +659,17 @@ def collect_fixed_opponent_episodes(
             selected_actions = distribution.sample()
             log_probabilities = distribution.log_prob(selected_actions)
             policy_actions = selected_actions.cpu().numpy().astype(np.uint64)
+            if paired_baseline:
+                reference_logits, _ = reference_model(observation, rules)
+                reference_distribution = action_distribution(
+                    reference_logits, observation["action_offsets"]
+                )
+                reference_actions = (
+                    reference_distribution.logits.argmax(dim=1)
+                    .cpu()
+                    .numpy()
+                    .astype(np.uint64)
+                )
         if config.fixed_opponent == "search":
             opponent_actions = np.asarray(
                 environment.search_actions(
@@ -644,16 +677,28 @@ def collect_fixed_opponent_episodes(
                     beam_width=config.search_beam_width,
                     branch_width=config.search_branch_width,
                     maximum_actions_per_turn=config.search_maximum_actions_per_turn,
-                    active_mask=np.asarray(~learner_active, dtype=np.uint8),
+                    active_mask=np.asarray(
+                        np.logical_and(~learner_active, ~finished), dtype=np.uint8
+                    ),
                 ),
                 dtype=np.uint64,
             )
         else:
             opponent_actions = np.asarray(environment.greedy_actions(), dtype=np.uint64)
         actions = np.where(learner_active, policy_actions, opponent_actions)
-        for environment_index in np.flatnonzero(
-            np.logical_and(learner_active, ~finished)
-        ):
+        if paired_baseline:
+            reference_active = np.logical_and(
+                learner_active, environment_indices >= learner_environments
+            )
+            actions[reference_active] = reference_actions[reference_active]
+        learner_policy_active = np.logical_and.reduce(
+            (
+                learner_active,
+                ~finished,
+                environment_indices < learner_environments,
+            )
+        )
+        for environment_index in np.flatnonzero(learner_policy_active):
             decisions[environment_index].append(
                 EpisodeDecision(
                     observation=select_environments(
@@ -682,11 +727,38 @@ def collect_fixed_opponent_episodes(
                 finished[environment_index] = True
             environment.reset(int(environment_index), reset_seed)
             reset_seed += 1
-    episodes = [
-        EpisodeTrajectory(tuple(trajectory), float(outcome))
-        for trajectory, outcome in zip(decisions, outcomes, strict=True)
-    ]
+    episodes = []
+    for learner_environment, trajectory in enumerate(decisions):
+        terminal_outcome = float(outcomes[learner_environment])
+        baseline_outcome = (
+            float(outcomes[learner_environment + learner_environments])
+            if paired_baseline
+            else None
+        )
+        credit = (
+            (terminal_outcome - baseline_outcome) / 2
+            if baseline_outcome is not None
+            else terminal_outcome
+        )
+        episodes.append(
+            EpisodeTrajectory(
+                tuple(trajectory), credit, terminal_outcome, baseline_outcome
+            )
+        )
     return episodes, reset_seed, environment_steps
+
+
+def fixed_opponent_advantages(
+    returns: Tensor,
+    behavior_values: Tensor,
+    counterfactual_baseline: bool,
+) -> Tensor:
+    advantages = (
+        returns.clone() if counterfactual_baseline else returns - behavior_values
+    )
+    if not counterfactual_baseline:
+        advantages -= advantages.mean()
+    return advantages / advantages.std(correction=0).clamp_min(1e-6)
 
 
 def optimize_fixed_opponent_episodes(
@@ -711,13 +783,14 @@ def optimize_fixed_opponent_episodes(
         dtype=torch.float32,
         device=device,
     )
-    advantages = returns - torch.tensor(
+    behavior_values = torch.tensor(
         [decision.value for decision, _ in samples],
         dtype=torch.float32,
         device=device,
     )
-    advantages -= advantages.mean()
-    advantages /= advantages.std(correction=0).clamp_min(1e-6)
+    advantages = fixed_opponent_advantages(
+        returns, behavior_values, config.opponent_counterfactual_baseline
+    )
     loss_sum = 0.0
     entropy_sum = 0.0
     retention_sum = 0.0
@@ -753,7 +826,11 @@ def optimize_fixed_opponent_episodes(
                 * advantages[indices]
             )
             policy_loss = -torch.minimum(unclipped, clipped).mean()
-            value_loss = (values - returns[indices]).square().mean()
+            value_loss = (
+                torch.zeros((), device=device)
+                if config.opponent_counterfactual_baseline
+                else (values - returns[indices]).square().mean()
+            )
             entropy = distribution.entropy().mean()
             retention = torch.zeros((), device=device)
             if reference_model is not None and config.opponent_reference_weight > 0:
@@ -779,16 +856,33 @@ def optimize_fixed_opponent_episodes(
             loss_sum += float(loss.item())
             entropy_sum += float(entropy.item())
             retention_sum += float(retention.item())
-    episode_outcomes = np.asarray(
-        [episode.outcome for episode in episodes], dtype=np.float32
+    credits = np.asarray([episode.outcome for episode in episodes], dtype=np.float32)
+    terminal_outcomes = np.asarray(
+        [episode.terminal_outcome for episode in episodes], dtype=np.float32
+    )
+    baseline_outcomes = np.asarray(
+        [
+            episode.baseline_outcome
+            for episode in episodes
+            if episode.baseline_outcome is not None
+        ],
+        dtype=np.float32,
     )
     return {
         "episodes": len(episodes),
         "decisions": len(samples),
-        "wins": int(np.count_nonzero(episode_outcomes == 1)),
-        "draws": int(np.count_nonzero(episode_outcomes == 0)),
-        "losses": int(np.count_nonzero(episode_outcomes == -1)),
-        "mean_outcome": float(episode_outcomes.mean()),
+        "wins": int(np.count_nonzero(terminal_outcomes == 1)),
+        "draws": int(np.count_nonzero(terminal_outcomes == 0)),
+        "losses": int(np.count_nonzero(terminal_outcomes == -1)),
+        "mean_outcome": float(terminal_outcomes.mean()),
+        "mean_credit": float(credits.mean()),
+        "baseline_episodes": len(baseline_outcomes),
+        "baseline_wins": int(np.count_nonzero(baseline_outcomes == 1)),
+        "baseline_draws": int(np.count_nonzero(baseline_outcomes == 0)),
+        "baseline_losses": int(np.count_nonzero(baseline_outcomes == -1)),
+        "baseline_mean_outcome": (
+            float(baseline_outcomes.mean()) if len(baseline_outcomes) > 0 else 0.0
+        ),
         "loss": loss_sum / optimizer_steps,
         "entropy": entropy_sum / optimizer_steps,
         "retention_kl": retention_sum / optimizer_steps,
@@ -1103,7 +1197,11 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     elif config.resume is not None:
         restore_checkpoint(config.resume, model, optimizer, device)
     reference_model = None
-    if config.imitation_reference_weight > 0 or config.opponent_reference_weight > 0:
+    if (
+        config.imitation_reference_weight > 0
+        or config.opponent_reference_weight > 0
+        or config.opponent_counterfactual_baseline
+    ):
         reference_model = copy.deepcopy(model).eval()
         reference_model.requires_grad_(False)
     rules = encode_rules_batch(environment.rules_jsons(), device)
@@ -1158,6 +1256,9 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     opponent_wins = 0
     opponent_draws = 0
     opponent_losses = 0
+    opponent_baseline_wins = 0
+    opponent_baseline_draws = 0
+    opponent_baseline_losses = 0
     for update in range(1, config.updates + 1):
         if config.fixed_opponent is None:
             rollout, reset_seed = collect_rollout(
@@ -1176,7 +1277,13 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             }
         else:
             episodes, reset_seed, environment_steps = collect_fixed_opponent_episodes(
-                environment, model, rules, config, device, reset_seed
+                environment,
+                model,
+                rules,
+                config,
+                device,
+                reset_seed,
+                reference_model,
             )
             metrics = optimize_fixed_opponent_episodes(
                 model,
@@ -1188,19 +1295,27 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
                 device,
             )
             loss = float(metrics["loss"])
-            reward = float(metrics["mean_outcome"])
+            reward = float(metrics["mean_credit"])
             training_transitions += environment_steps
             training_optimizer_steps += int(metrics["optimizer_steps"])
             opponent_episodes += int(metrics["episodes"])
             opponent_wins += int(metrics["wins"])
             opponent_draws += int(metrics["draws"])
             opponent_losses += int(metrics["losses"])
+            opponent_baseline_wins += int(metrics["baseline_wins"])
+            opponent_baseline_draws += int(metrics["baseline_draws"])
+            opponent_baseline_losses += int(metrics["baseline_losses"])
             progress = {
                 "episodes": metrics["episodes"],
                 "decisions": metrics["decisions"],
                 "wins": metrics["wins"],
                 "draws": metrics["draws"],
                 "losses": metrics["losses"],
+                "mean_outcome": metrics["mean_outcome"],
+                "mean_credit": metrics["mean_credit"],
+                "baseline_wins": metrics["baseline_wins"],
+                "baseline_draws": metrics["baseline_draws"],
+                "baseline_losses": metrics["baseline_losses"],
                 "entropy": metrics["entropy"],
                 "retention_kl": metrics["retention_kl"],
             }
@@ -1243,7 +1358,8 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             )
     parameters = sum(parameter.numel() for parameter in model.parameters())
     algorithm = (
-        f"fixed_{config.fixed_opponent}_opponent_terminal_ppo"
+        f"fixed_{config.fixed_opponent}_opponent_"
+        f"{'counterfactual_' if config.opponent_counterfactual_baseline else ''}terminal_ppo"
         if config.fixed_opponent is not None
         else "perspective_ppo_gae"
     )
@@ -1264,7 +1380,10 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         if config.imitation_policy_rollin_slices:
             algorithm += "_asymmetric_dagger"
         if config.fixed_opponent is not None:
-            algorithm += f"_fixed_{config.fixed_opponent}_opponent_terminal_ppo"
+            algorithm += f"_fixed_{config.fixed_opponent}_opponent_"
+            if config.opponent_counterfactual_baseline:
+                algorithm += "counterfactual_"
+            algorithm += "terminal_ppo"
         elif config.updates > 0:
             algorithm += "_perspective_ppo_gae"
     summary: dict[str, float | int | str] = {
@@ -1287,10 +1406,14 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "fixed_opponent": config.fixed_opponent or "",
         "learner_seat": config.learner_seat,
         "opponent_reference_weight": config.opponent_reference_weight,
+        "opponent_counterfactual_baseline": config.opponent_counterfactual_baseline,
         "opponent_episodes": opponent_episodes,
         "opponent_wins": opponent_wins,
         "opponent_draws": opponent_draws,
         "opponent_losses": opponent_losses,
+        "opponent_baseline_wins": opponent_baseline_wins,
+        "opponent_baseline_draws": opponent_baseline_draws,
+        "opponent_baseline_losses": opponent_baseline_losses,
         "imitation_updates": config.imitation_updates,
         "imitation_reset_interval": config.imitation_reset_interval,
         "imitation_environment_resets": imitation_environment_resets,
@@ -1424,6 +1547,7 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--learner-seat", type=int, default=0)
     parser.add_argument("--opponent-minibatch", type=int, default=256)
     parser.add_argument("--opponent-reference-weight", type=float, default=0.0)
+    parser.add_argument("--opponent-counterfactual-baseline", action="store_true")
     profiles = parser.add_mutually_exclusive_group()
     profiles.add_argument("--profile")
     profiles.add_argument("--profiles", nargs="+")
