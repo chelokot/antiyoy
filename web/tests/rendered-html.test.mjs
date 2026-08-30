@@ -92,11 +92,15 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
   assert.match(styles, /html, body \{[^}]*height: 100%;[^}]*overflow: hidden;[^}]*overscroll-behavior: none;/);
-  assert.match(styles, /body > div \{[^}]*height: 100%;[^}]*overflow: hidden;/);
+  assert.match(styles, /body > \* \{[^}]*height: 100%;[^}]*overflow: hidden;/);
   assert.match(styles, /\.arena-shell \{[^}]*position: fixed;[^}]*height: 100dvh;[^}]*overflow: hidden;/);
   assert.match(styles, /\.arena-layout \{[^}]*min-width: 0;[^}]*min-height: 0;[^}]*overflow: hidden;[^}]*grid-template-columns: minmax\(0, 1fr\);/);
   assert.match(styles, /\.arena-sidebar \{[^}]*position: absolute;[^}]*overflow-x: hidden;[^}]*overflow-y: auto;[^}]*overscroll-behavior: contain;/);
   assert.match(styles, /\.arena-sidebar\.panel-open \{[^}]*transform: translateX\(0\);[^}]*visibility: visible;/);
+  assert.match(styles, /@media \(min-width: 90rem\) \{[^}]*\.arena-layout \{ grid-template-columns: 18rem minmax\(0, 1fr\) 19rem;/);
+  assert.match(styles, /\.arena-sidebar-left \{ grid-column: 1; grid-row: 1; border-right:/);
+  assert.match(styles, /\.arena-sidebar-right \{ grid-column: 3; grid-row: 1; border-left:/);
+  assert.match(styles, /\.panel-close, \.panel-backdrop, \.panel-toggle \{ display: none; \}/);
   assert.match(styles, /\.board-scroll \{[^}]*overflow: hidden;/);
   assert.match(styles, /\.board-scroll-human \{[^}]*bottom: 9\.75rem;/);
   assert.match(styles, /\.action-dock \{[^}]*position: absolute;/);
