@@ -282,9 +282,12 @@ def evaluate(
     puct_maximum_depth: int = 128,
     puct_root_value_weight: float | None = None,
     puct_leaf_batch_size: int = 512,
+    baseline_checkpoint_path: Path | None = None,
 ) -> dict[str, object]:
     if model_agent not in ("policy", "puct"):
         raise ValueError(f"unsupported model agent: {model_agent}")
+    if baseline_checkpoint_path is not None and baseline != "policy":
+        raise ValueError("a baseline checkpoint requires the policy baseline")
     evaluation_seeds, model_seats = evaluation_schedule(
         games, seed, players, model_seat
     )
@@ -380,6 +383,41 @@ def evaluate(
     rules = encode_rules_batch(environment.rules_jsons(), device)
 
     routed_policy = RoutedPolicy(models, selected_experts)
+    baseline_policy = routed_policy
+    baseline_selected_experts = selected_experts
+    if baseline_checkpoint_path is not None:
+        baseline_checkpoint = load_policy_checkpoint(baseline_checkpoint_path, device)
+        baseline_base_config = dict(baseline_checkpoint["config"])
+        environment_defaults = {
+            "fog": False,
+            "diplomacy": False,
+            "initial_relation": "neutral",
+        }
+        for field, default in environment_defaults.items():
+            if baseline_base_config.get(field, default) != base_config.get(
+                field, default
+            ):
+                raise ValueError(
+                    f"baseline checkpoint environment field does not match: {field}"
+                )
+        baseline_models: dict[str, UniversalPolicy] = {}
+        baseline_selected_experts = []
+        for seat in range(players):
+            baseline_state, baseline_config = select_policy_state(
+                baseline_checkpoint,
+                evaluation_profile,
+                generator_name,
+                players,
+                seat,
+                evaluation_domain,
+            )
+            baseline_expert = str(baseline_config["selected_expert"])
+            if baseline_expert not in baseline_models:
+                baseline_models[baseline_expert] = instantiate_policy(
+                    baseline_state, baseline_config, device
+                )
+            baseline_selected_experts.append(baseline_expert)
+        baseline_policy = RoutedPolicy(baseline_models, baseline_selected_experts)
 
     def evaluate_baseline_reference() -> BaselineSelfPlay:
         reference_games = games // players if model_seat is None else games
@@ -399,7 +437,7 @@ def evaluate(
         while not bool(reference_finished.all()):
             reference_observation = reference_environment.observe()
             reference_actions = (
-                routed_policy.actions(reference_observation, reference_rules)
+                baseline_policy.actions(reference_observation, reference_rules)
                 if baseline == "policy"
                 else choose_baseline_actions(
                     reference_environment,
@@ -495,8 +533,8 @@ def evaluate(
         if baseline == "policy":
             baseline_actions = (
                 model_actions
-                if model_agent == "policy"
-                else routed_policy.actions(observation, rules)
+                if model_agent == "policy" and baseline_checkpoint_path is None
+                else baseline_policy.actions(observation, rules)
             )
         else:
             baseline_actions = choose_baseline_actions(
@@ -593,6 +631,11 @@ def evaluate(
     return {
         "checkpoint": str(checkpoint_path),
         "baseline": baseline,
+        "baseline_checkpoint": (
+            str(baseline_checkpoint_path)
+            if baseline_checkpoint_path is not None
+            else None
+        ),
         **summary,
         "pairing": {
             "scheme": (
@@ -621,6 +664,9 @@ def evaluate(
             else "seat_routed"
         ),
         "selected_experts": selected_experts,
+        "baseline_selected_experts": (
+            baseline_selected_experts if baseline == "policy" else []
+        ),
         "model_seat": model_seat,
         "baseline_self_play": baseline_reference,
         "seed": seed,
@@ -685,6 +731,7 @@ def main() -> None:
         choices=("policy", "search", "greedy", "random"),
         default="greedy",
     )
+    parser.add_argument("--baseline-checkpoint", type=Path)
     parser.add_argument("--profile")
     parser.add_argument("--search-nodes", type=int, default=2048)
     parser.add_argument("--search-beam-width", type=int, default=32)
@@ -727,6 +774,8 @@ def main() -> None:
         parser.error("model seat must belong to the player range")
     if not arguments.procedural and arguments.players != 2:
         parser.error("symmetric duel evaluation requires exactly two players")
+    if arguments.baseline_checkpoint is not None and arguments.baseline != "policy":
+        parser.error("--baseline-checkpoint requires --baseline policy")
     print(
         json.dumps(
             evaluate(
@@ -760,6 +809,7 @@ def main() -> None:
                 arguments.puct_maximum_depth,
                 arguments.puct_root_value_weight,
                 arguments.puct_leaf_batch_size,
+                arguments.baseline_checkpoint,
             ),
             sort_keys=True,
         )

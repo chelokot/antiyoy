@@ -79,6 +79,56 @@ def test_policy_self_match_is_an_exact_zero_delta(tmp_path: Path) -> None:
     assert result["policy_search"]["decisions"] == 0
 
 
+def test_policy_pair_uses_an_independent_baseline_checkpoint(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "policy.pt"
+    write_checkpoint(checkpoint, 1.0)
+
+    result = evaluate(
+        checkpoint,
+        games=2,
+        seed=91_050,
+        device_name="cpu",
+        baseline="policy",
+        profile="classic_generic_2022",
+        search_nodes=8,
+        search_beam_width=4,
+        search_branch_width=4,
+        search_maximum_actions_per_turn=4,
+        width=7,
+        height=5,
+        action_limit=12,
+        baseline_checkpoint_path=checkpoint,
+    )
+
+    assert result["baseline_checkpoint"] == str(checkpoint)
+    assert result["baseline_selected_experts"] == ["single", "single"]
+    assert result["score_delta"] == pytest.approx(0.0)
+    assert result["elo_delta"] == pytest.approx(0.0)
+
+
+def test_baseline_checkpoint_requires_policy_baseline(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "policy.pt"
+    write_checkpoint(checkpoint, 1.0)
+
+    with pytest.raises(ValueError, match="requires the policy baseline"):
+        evaluate(
+            checkpoint,
+            games=2,
+            seed=91_075,
+            device_name="cpu",
+            baseline="greedy",
+            profile="classic_generic_2022",
+            search_nodes=8,
+            search_beam_width=4,
+            search_branch_width=4,
+            search_maximum_actions_per_turn=4,
+            width=7,
+            height=5,
+            action_limit=12,
+            baseline_checkpoint_path=checkpoint,
+        )
+
+
 def test_policy_search_runs_the_native_tree_for_every_model_decision(
     tmp_path: Path,
 ) -> None:
