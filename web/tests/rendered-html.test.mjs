@@ -17,6 +17,7 @@ test("server-renders the arena shell and metadata", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
+  assert.equal(response.headers.get("cache-control"), "no-cache, must-revalidate");
   const html = await response.text();
   assert.match(html, /<title>Antiyoy Arena Lab<\/title>/i);
   assert.match(html, /STRATEGY ARENA/);

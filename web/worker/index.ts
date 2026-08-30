@@ -43,7 +43,23 @@ const worker = {
       }, allowedWidths);
     }
 
-    return handler.fetch(request, env, ctx);
+    const response = await handler.fetch(request, env, ctx);
+    const contentType = response.headers.get("content-type");
+    const mutableRuntimeAsset = url.pathname === "/antiyoy_wasm_bg.wasm"
+      || url.pathname.endsWith(".onnx")
+      || url.pathname.startsWith("/ort-wasm-");
+
+    if ((contentType !== null && contentType.startsWith("text/html")) || mutableRuntimeAsset) {
+      const headers = new Headers(response.headers);
+      headers.set("cache-control", "no-cache, must-revalidate");
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
+    }
+
+    return response;
   },
 };
 
