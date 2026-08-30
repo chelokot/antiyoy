@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import type {
   WasmGame as WasmGameType,
   WasmReplay as WasmReplayType,
@@ -103,14 +104,17 @@ const BOT_STRENGTH_NAMES = ["quick", "strong", "brutal"] as const;
 const BROWSER_POLICY_MODELS = {
   primary: "/browser-primary.onnx",
   experimentalV2: "/browser-experimental-v2.onnx",
+  onlineDefaultSeat0: "/browser-online-default-seat0-v6.onnx",
+  onlineDuelSeat0: "/browser-online-duel-seat0-v6.onnx",
+  onlineExperimentalV1Seat0: "/browser-online-experimental-v1-seat0-v6.onnx",
 } as const;
 const PLAYER_NAMES = ["CYAN", "AMBER", "VIOLET", "CORAL", "LIME", "BLUE", "PINK", "SILVER"] as const;
-const MODEL_URL = "https://github.com/chelokot/antiyoy/releases/tag/model-v0.4.0-beta.1";
+const MODEL_URL = "https://github.com/chelokot/antiyoy/releases/tag/model-v0.5.0-beta.1";
 const MODEL_RESULTS = [
   ["Classic · Generic + Slay", "96–0"],
-  ["Online Default", "24–24"],
+  ["Online Default", "48–0"],
   ["Online Classic", "48–0"],
-  ["Duel + Experimental v1", "94–2"],
+  ["Duel + Experimental v1", "96–0"],
   ["Experimental v2", "48–0"],
 ] as const;
 
@@ -307,7 +311,7 @@ function matchOpponentLabel(
       ? "routed neural · ONNX"
       : `${BOT_STRENGTHS[opponent].label.toLowerCase()} search`;
   }
-  return "greedy vs full-turn search";
+  return opponent === "neural" ? "routed neural self-play" : "greedy vs full-turn search";
 }
 
 function supportsNeuralPolicy(config: LiveConfig): boolean {
@@ -317,7 +321,18 @@ function supportsNeuralPolicy(config: LiveConfig): boolean {
     && config.players === 2;
 }
 
-function policyKeyForProfile(profile: RulesProfileName): BrowserPolicyKey {
+function policyKeyForProfile(profile: RulesProfileName, seat = 1): BrowserPolicyKey {
+  if (seat === 0) {
+    if (profile === "online_default_v1") {
+      return "onlineDefaultSeat0";
+    }
+    if (profile === "online_duel_v1") {
+      return "onlineDuelSeat0";
+    }
+    if (profile === "online_experimental_v1") {
+      return "onlineExperimentalV1Seat0";
+    }
+  }
   return profile === "online_experimental_v2_260801" ? "experimentalV2" : "primary";
 }
 
@@ -355,6 +370,9 @@ export default function Arena() {
   const [policyStatuses, setPolicyStatuses] = useState<Record<BrowserPolicyKey, PolicyStatus>>({
     primary: "loading",
     experimentalV2: "loading",
+    onlineDefaultSeat0: "loading",
+    onlineDuelSeat0: "loading",
+    onlineExperimentalV1Seat0: "loading",
   });
   const [botThinking, setBotThinking] = useState(false);
   const [policyDecision, setPolicyDecision] = useState<PolicyDecision | null>(null);
@@ -371,7 +389,8 @@ export default function Arena() {
   const [leagueStatus, setLeagueStatus] = useState<LeagueStatus>("idle");
   const [leagueError, setLeagueError] = useState<string | null>(null);
   const [leagueEndpoint, setLeagueEndpoint] = useState<string | null>(null);
-  const activePolicyKey = policyKeyForProfile(activeConfig.profile);
+  const neuralPolicySeat = humanMode ? (humanSeat + 1) % 2 : state?.active_player ?? 0;
+  const activePolicyKey = policyKeyForProfile(activeConfig.profile, neuralPolicySeat);
   const policyStatus = policyStatuses[activePolicyKey];
   const activePolicyKeyRef = useRef(policyKeyForProfile(DEFAULT_CONFIG.profile));
 
@@ -451,6 +470,10 @@ export default function Arena() {
   }, []);
 
   useEffect(() => {
+    activePolicyKeyRef.current = activePolicyKey;
+  }, [activePolicyKey]);
+
+  useEffect(() => {
     let disposed = false;
     const load = async (key: BrowserPolicyKey) => {
       try {
@@ -470,7 +493,11 @@ export default function Arena() {
         }
       }
     };
-    void load("primary").then(() => load("experimentalV2"));
+    void load("primary")
+      .then(() => load("experimentalV2"))
+      .then(() => load("onlineDefaultSeat0"))
+      .then(() => load("onlineDuelSeat0"))
+      .then(() => load("onlineExperimentalV1Seat0"));
     return () => {
       disposed = true;
       Object.values(browserPolicies.current).forEach((policy) => policy.release());
@@ -737,7 +764,7 @@ export default function Arena() {
     }
   }, [disconnectOnline, placement]);
 
-  const step = useCallback(() => {
+  const step = useCallback(async () => {
     const replayInstance = replay.current;
     if (replayInstance !== null && replayMetadata !== null) {
       const nextFrame = Math.min(actions + 1, replayMetadata.frames);
@@ -757,6 +784,37 @@ export default function Arena() {
     if (instance === null) {
       return;
     }
+    if (!humanMode && botOpponent === "neural") {
+      if (botResponseInFlight.current || state === null) {
+        return;
+      }
+      const policy = browserPolicies.current[
+        policyKeyForProfile(activeConfig.profile, state.active_player)
+      ];
+      if (policy === undefined) {
+        return;
+      }
+      botResponseInFlight.current = true;
+      setBotThinking(true);
+      try {
+        const decision = await policy.decide(instance.policy_observation_json());
+        setPolicyDecision(decision);
+        const next = parseState(instance.step(decision.actionIndex));
+        setState(next);
+        setActions((current) => current + 1);
+        if (next.terminal) {
+          setPlaying(false);
+        }
+        setError(null);
+      } catch (reason: unknown) {
+        setPlaying(false);
+        setError(reason instanceof Error ? reason.message : String(reason));
+      } finally {
+        botResponseInFlight.current = false;
+        setBotThinking(false);
+      }
+      return;
+    }
     try {
       const next = parseState(instance.step_bot());
       setState(next);
@@ -768,13 +826,13 @@ export default function Arena() {
       setPlaying(false);
       setError(reason instanceof Error ? reason.message : String(reason));
     }
-  }, [actions, replayMetadata]);
+  }, [actions, activeConfig.profile, botOpponent, humanMode, replayMetadata, state]);
 
   useEffect(() => {
     if (!playing) {
       return;
     }
-    const interval = window.setInterval(step, 180);
+    const interval = window.setInterval(() => void step(), 180);
     return () => window.clearInterval(interval);
   }, [playing, step]);
 
@@ -858,15 +916,17 @@ export default function Arena() {
       let responseState = afterHuman;
       let responseActions = 0;
       if (!placementMode && botOpponent === "neural") {
-        const policy = browserPolicies.current[policyKeyForProfile(activeConfig.profile)];
-        if (policy === undefined) {
-          throw new Error("Neural policy is still loading");
-        }
         while (
           !responseState.terminal
           && responseState.active_player !== humanSeat
           && responseActions < 2_000
         ) {
+          const policy = browserPolicies.current[
+            policyKeyForProfile(activeConfig.profile, responseState.active_player)
+          ];
+          if (policy === undefined) {
+            throw new Error("Neural policy is still loading");
+          }
           const decision = await policy.decide(instance.policy_observation_json());
           setPolicyDecision(decision);
           responseState = parseState(instance.step(decision.actionIndex));
@@ -1052,50 +1112,58 @@ export default function Arena() {
     [displayedLeague],
   );
   const roomConfigSummary = `${rulesProfileLabel(draftConfig.profile)} · ${draftConfig.map === "duel" ? "duel" : `${draftConfig.width}×${draftConfig.height} procedural`} · ${draftConfig.map === "duel" ? 2 : draftConfig.players} players`;
+  const economyPlayer = humanMode ? humanSeat : state?.active_player ?? 0;
+  const economyProvince = province?.owner === economyPlayer
+    ? province
+    : state?.provinces.find((candidate) => candidate.owner === economyPlayer) ?? null;
+  const economy = economyProvince ?? { money: 0, profit: 0 };
 
   return (
-    <main className="arena-shell bg-[#080b0d] text-[#e9eee9]">
-      <header className="arena-header">
-        <div className="flex items-center gap-4">
-          <div className="brand-mark">AY</div>
-          <div><p className="eyebrow">STRATEGY ARENA</p><h1 className="text-sm font-semibold">Antiyoy</h1></div>
-        </div>
-        <div className="flex items-center gap-3 font-mono text-xs"><span className="live-pill">● {onlineSession === null ? "LIVE ENGINE" : connectionStatus.toUpperCase()}</span><span className="hidden text-[#8d9690] sm:inline">core v{engineVersion ?? "…"}</span></div>
-      </header>
-
+    <main className="arena-shell">
       <div className="arena-layout">
         <aside id="match-drawer" aria-label="Match settings" className={`arena-sidebar arena-sidebar-left ${openPanel === "left" ? "panel-open" : ""}`}>
           <div className="panel-heading"><div><p className="eyebrow">CONTROL ROOM</p><p className="panel-heading-title">Match &amp; setup</p></div><button className="panel-close" type="button" aria-label="Close overview panel" onClick={() => setOpenPanel(null)}>×</button></div>
           <div className="panel-scroll">
           <details className="panel-section panel-section-hero" open>
             <summary>MATCH</summary>
-            <div className="panel-section-body"><p className="eyebrow">{onlineSession !== null ? "AUTHORITATIVE MULTIPLAYER" : replayMetadata === null ? placementMode ? "RATED PLACEMENT" : humanMode ? "HUMAN VS AI" : "LIVE SELF-PLAY" : "VERIFIED REPLAY"}</p><h2 className="mt-2 text-xl font-semibold">{replayMetadata === null ? humanMode ? `you are ${playerLabel(humanSeat).toLowerCase()}` : "greedy vs turn-search" : "training trace"}</h2><p className="mt-1 text-sm text-[#8d9690]">{onlineSession !== null ? onlineSession.snapshot.status === "Waiting" ? "waiting for the invited player" : "every move is validated by the Rust server" : replayMetadata === null ? placementMode ? "local Elo vs fixed search-2048" : humanMode ? "select a glowing hex, then choose an action" : "deterministic whole-turn planning" : `${replayMetadata.frames} deterministic actions`}</p><div className="mt-6 space-y-4"><Metric label="RULESET" value={replayMetadata?.rules_profile ?? activeConfig.profile} /><Metric label="MAP" value={replayMetadata === null ? activeConfig.map === "procedural" ? "procedural_v1" : "symmetric_duel_v1" : "replay scenario"} /><Metric label="OPPONENT" value={opponentLabel || "open seat"} /><Metric label="SEED" value={onlineSession === null ? `${replayMetadata?.seed ?? activeConfig.seed} · reproducible` : "server-authoritative"} /><Metric label="ROUND" value={state === null ? "loading" : `${state.round} · ${playerLabel(state.active_player)} to move`} /><Metric label="LEGAL ACTIONS" value={state?.legal_actions.length.toString() ?? "…"} accent />{onlineSession === null && !placementMode && botOpponent === "neural" && <Metric label="NEURAL INFERENCE" value={policyDecision === null ? policyStatus : `${policyDecision.milliseconds.toFixed(1)} ms · ${policyDecision.legalActions} actions`} accent />}</div></div>
+            <div className="panel-section-body"><p className="eyebrow">{onlineSession !== null ? "AUTHORITATIVE MULTIPLAYER" : replayMetadata === null ? placementMode ? "RATED PLACEMENT" : humanMode ? "HUMAN VS AI" : "SELF-PLAY" : "VERIFIED REPLAY"}</p><h2 className="mt-2 text-xl font-semibold">{replayMetadata === null ? humanMode ? `you are ${playerLabel(humanSeat).toLowerCase()}` : botOpponent === "neural" ? "neural policy mirror" : "greedy vs turn-search" : "training trace"}</h2><p className="mt-1 text-sm text-[#686a65]">{onlineSession !== null ? onlineSession.snapshot.status === "Waiting" ? "waiting for the invited player" : "every move is validated by the Rust server" : replayMetadata === null ? placementMode ? "local Elo vs fixed search-2048" : humanMode ? "select a highlighted hex, then choose an action" : botOpponent === "neural" ? "the routed model plays every seat" : "deterministic whole-turn planning" : `${replayMetadata.frames} deterministic actions`}</p><div className="mt-6 space-y-4"><Metric label="RULESET" value={replayMetadata?.rules_profile ?? activeConfig.profile} /><Metric label="MAP" value={replayMetadata === null ? activeConfig.map === "procedural" ? "procedural_v1" : "symmetric_duel_v1" : "replay scenario"} /><Metric label="OPPONENT" value={opponentLabel || "open seat"} /><Metric label="SEED" value={onlineSession === null ? `${replayMetadata?.seed ?? activeConfig.seed} · reproducible` : "server-authoritative"} /><Metric label="ROUND" value={state === null ? "loading" : `${state.round} · ${playerLabel(state.active_player)} to move`} /><Metric label="LEGAL ACTIONS" value={state?.legal_actions.length.toString() ?? "…"} accent />{onlineSession === null && !placementMode && botOpponent === "neural" && <Metric label="NEURAL INFERENCE" value={policyDecision === null ? policyStatus : `${policyDecision.milliseconds.toFixed(1)} ms · ${policyDecision.legalActions} actions`} accent />}</div></div>
           </details>
           {replayMetadata === null && <details className="panel-section panel-section-online"><summary>ONLINE MULTIPLAYER · {onlineSession?.snapshot.status ?? "READY"}</summary><div className="panel-section-body map-config"><label className="config-field"><span>PLAYER NAME</span><input type="text" maxLength={64} value={onlineName} onChange={(event) => setOnlineName(event.target.value)} /></label>{onlineSession === null ? <><div className="online-config-summary"><p className="eyebrow">ROOM SETTINGS</p><p>{roomConfigSummary}</p><span>Change them in Game Config before creating the room.</span></div><button className="generate-button" type="button" disabled={onlineBusy || onlineName.length === 0} onClick={() => void createOnlineRoom()}>{onlineBusy ? "Connecting…" : `Create ${draftConfig.map === "duel" ? 2 : draftConfig.players}-player room`}</button><button className="generate-button rated-challenge-button" type="button" disabled={onlineBusy || onlineName.length === 0} onClick={() => void startRatedChallenge()}>{onlineBusy ? "Starting…" : `Play rated vs ${draftConfig.players - 1} server search ${draftConfig.players === 2 ? "bot" : "bots"}`}</button><p className="rated-challenge-note">Your seat rotates after every successful challenge. The replay-verified result enters Server League Elo.</p><div className="online-divider"><span>OR JOIN</span></div><div className="config-grid online-join-grid"><label className="config-field"><span>ROOM CODE</span><input type="text" spellCheck={false} value={joinCode} onChange={(event) => setJoinCode(event.target.value.trim())} /></label><label className="config-field"><span>SEAT</span><input type="number" min="2" max="8" value={joinSeat + 1} onChange={(event) => setJoinSeat(Number(event.target.value) - 1)} /></label></div><button className="generate-button" type="button" disabled={onlineBusy || onlineName.length === 0 || joinCode.length !== 32 || joinSeat < 1 || joinSeat > 7} onClick={() => void joinOnlineRoom()}>{onlineBusy ? "Claiming seat…" : `Join as seat ${joinSeat + 1}`}</button></> : <div className="online-session"><div className="online-status-row"><span className={`online-status-dot online-status-${connectionStatus}`} /><span>{connectionStatus}</span><span>seat {onlineSession.credential.seat + 1}/{onlineSession.snapshot.seats.length}</span></div><p className="online-room-code">{onlineSession.snapshot.match_id}</p><p className={`online-rating-status online-rating-${onlineSession.snapshot.rating_status.toLowerCase()}`}>ELO · {onlineSession.snapshot.rating_status}</p>{openSeatInvites.length > 0 && <div className="online-invites"><p className="eyebrow">PRIVATE SEAT LINKS · {openSeatInvites.length} OPEN</p>{openSeatInvites.map((invite) => <button className="generate-button" type="button" onClick={() => void copyInvite(invite.seat, invite.url)} key={invite.seat}>{copiedInviteSeat === invite.seat ? `Seat ${invite.seat + 1} invite copied` : `Copy invite for seat ${invite.seat + 1}`}</button>)}<p>Match starts automatically after every open seat is claimed.</p></div>}<button className="online-leave" type="button" onClick={reset}>Leave room</button></div>}<label className="config-field online-endpoint"><span>AUTHORITATIVE SERVER</span><input type="url" spellCheck={false} disabled={onlineSession !== null} value={onlineEndpoint} onChange={(event) => setOnlineEndpoint(event.target.value)} /></label></div></details>}
           <details className="panel-section panel-section-league" onToggle={(event) => { if (event.currentTarget.open && displayedLeagueStatus === "idle") void refreshLeague(); }}><summary>SERVER LEAGUE · {displayedLeague === null ? "—" : `${displayedLeague.matches.length} RATED`}</summary><div className="panel-section-body"><LeaguePanel league={displayedLeague} standings={standings} status={displayedLeagueStatus} error={displayedLeagueError} currentName={onlineSession?.credential.name ?? onlineName} onRefresh={refreshLeague} /></div></details>
           {replayMetadata === null && onlineSession === null && <details className="panel-section"><summary>GAME CONFIG</summary><div className="panel-section-body map-config"><label className="config-field"><span>RULESET</span><select value={draftConfig.profile} onChange={(event) => setDraftConfig((current) => ({ ...current, profile: event.target.value as RulesProfileName }))}>{RULES_PROFILES.map((profile) => <option value={profile.id} key={profile.id}>{profile.label}</option>)}</select></label><div className="config-grid"><label className="config-field"><span>MODE</span><select value={draftConfig.map} onChange={(event) => setDraftConfig((current) => ({ ...current, map: event.target.value as LiveConfig["map"], players: event.target.value === "duel" ? 2 : current.players }))}><option value="duel">Symmetric duel</option><option value="procedural">Procedural v1</option></select></label><label className="config-field"><span>SEED</span><input type="text" inputMode="numeric" pattern="[0-9]+" value={draftConfig.seed} onChange={(event) => setDraftConfig((current) => ({ ...current, seed: event.target.value }))} /></label><label className="config-field"><span>WIDTH</span><input type="number" min="5" max="41" value={draftConfig.width} onChange={(event) => setDraftConfig((current) => ({ ...current, width: Number(event.target.value) }))} /></label><label className="config-field"><span>HEIGHT</span><input type="number" min="2" max="31" value={draftConfig.height} onChange={(event) => setDraftConfig((current) => ({ ...current, height: Number(event.target.value) }))} /></label><label className="config-field"><span>PLAYERS</span><input type="number" min="2" max="8" disabled={draftConfig.map === "duel"} value={draftConfig.map === "duel" ? 2 : draftConfig.players} onChange={(event) => setDraftConfig((current) => ({ ...current, players: Number(event.target.value) }))} /></label><label className="config-field"><span>LAND PPM</span><input type="number" min="200000" max="1000000" step="50000" disabled={draftConfig.map === "duel"} value={draftConfig.map === "duel" ? 650000 : draftConfig.landDensity} onChange={(event) => setDraftConfig((current) => ({ ...current, landDensity: Number(event.target.value) }))} /></label></div><button className="generate-button" type="button" onClick={generate}>Generate deterministic map</button></div></details>}
           <details className="panel-section"><summary>TERRITORY</summary><div className="panel-section-body space-y-3 text-xs">{territories.map((cells, player) => <Bar label={playerLabel(player)} value={cells} width={`${territoryShares[player]}%`} player={player} key={player} />)}</div></details>
-          <details className="panel-section"><summary>ENGINE</summary><div className="panel-section-body"><div className="engine-note mt-0"><p className="eyebrow text-[#d8ff3e]">SAME CORE</p><p className="mt-2 text-sm leading-6 text-[#b8c0ba]">Every displayed transition is executed by the headless Rust environment compiled to WebAssembly.</p></div></div></details>
-          <details className="panel-section"><summary>BETA POLICY · 310–26</summary><div className="panel-section-body model-card">
-            <div className="flex items-center justify-between gap-3"><p className="eyebrow text-[#d8ff3e]">BETA POLICY</p><span className="font-mono text-[0.65rem] text-[#8d9690]">38 experts</span></div>
+          <details className="panel-section"><summary>ENGINE · V{engineVersion ?? "…"}</summary><div className="panel-section-body"><div className="engine-note mt-0"><p className="eyebrow">RUST + WEBASSEMBLY</p><p className="mt-2 text-sm leading-6 text-[#555752]">Every displayed transition is executed by the same deterministic headless environment used for training.</p></div></div></details>
+          <details className="panel-section"><summary>BETA POLICY · 336–0</summary><div className="panel-section-body model-card">
+            <div className="flex items-center justify-between gap-3"><p className="eyebrow">BETA POLICY</p><span className="font-mono text-[0.65rem] text-[#62645f]">41 experts</span></div>
             <p className="mt-2 text-sm font-semibold">universal routed · 2–8 players</p>
-            <p className="mt-3 font-mono text-[0.65rem] uppercase tracking-[0.12em] text-[#8d9690]">core v6 · vs search-2048 · 310–26</p>
+            <p className="mt-3 font-mono text-[0.65rem] uppercase tracking-[0.12em] text-[#62645f]">core v6 · vs search-2048 · 336–0</p>
             <dl className="mt-4 space-y-2 font-mono text-xs">{MODEL_RESULTS.map(([profile, score]) => <Row label={profile} value={score} accent key={profile} />)}</dl>
             <a className="model-download" href={MODEL_URL} target="_blank" rel="noreferrer">Download verified bundle ↗</a>
-            <p className="mt-3 text-[0.65rem] leading-5 text-[#77817b]">Fresh engine-v6 evaluation: 336 paired games, every profile and both seats. Online Default exposes a first-seat weakness. This is not an absolute human rating.</p>
+            <Link className="model-download model-results-link" href="/models">Compare agents and methods →</Link>
+            <p className="mt-3 text-[0.65rem] leading-5 text-[#62645f]">Fresh held-out engine-v6 evaluation: 336 paired games, every profile and both seats, no losses or action-limit adjudications. This is not an absolute human rating.</p>
           </div></details>
           <details className="panel-section"><summary>YOUR ELO · {Math.round(placement.elo)}</summary><div className="panel-section-body model-card">
-            <div className="flex items-center justify-between gap-3"><p className="eyebrow text-[#d8ff3e]">YOUR PLACEMENT</p><span className="font-mono text-[0.65rem] text-[#8d9690]">LOCAL</span></div>
-            <p className="mt-2 font-mono text-3xl font-semibold text-[#d8ff3e]">{Math.round(placement.elo)}</p>
+            <div className="flex items-center justify-between gap-3"><p className="eyebrow">YOUR PLACEMENT</p><span className="font-mono text-[0.65rem] text-[#62645f]">LOCAL</span></div>
+            <p className="placement-rating">{Math.round(placement.elo)}</p>
             <dl className="mt-4 space-y-2 font-mono text-xs"><Row label="Games" value={placement.games.toString()} /><Row label="Record" value={`${placement.wins}–${placement.draws}–${placement.losses}`} /><Row label="Opponent" value="search-2048" /></dl>
             <button className="generate-button" type="button" onClick={startPlacement}>{placementMode ? "Start next rated match" : "Start rated match"}</button>
-            <p className="mt-3 text-[0.65rem] leading-5 text-[#77817b]">Fixed 11×9 Classic arena. New deterministic seed every attempt, alternating seats, provisional K=40 for ten completed games. Stored only in this browser.</p>
+            <p className="panel-fine-print">Fixed 11×9 Classic arena. New deterministic seed every attempt, alternating seats, provisional K=40 for ten completed games. Stored only in this browser.</p>
           </div></details>
           </div>
         </aside>
 
         <section className="board-panel">
-          <div className="board-controls"><button aria-expanded={openPanel === "left"} aria-controls="match-drawer" className="control panel-toggle" type="button" onClick={() => setOpenPanel("left")}>Match</button><div className="turn-chip"><span className={`turn-dot territory-player-${(state?.active_player ?? 0) % PLAYER_NAMES.length}`} /><span className="turn-copy">{onlineSession?.snapshot.status === "Waiting" ? "WAITING FOR INVITED PLAYER" : `ROUND ${state?.round ?? "…"} · ${state === null ? "LOADING" : state.active_player === humanSeat && humanMode ? "YOUR TURN" : `${playerLabel(state.active_player)} TO MOVE`}`}</span></div>{onlineSession === null && humanMode && replayMetadata === null && <label className="bot-strength"><span>BOT</span><select aria-label="Bot opponent" disabled={placementMode || botThinking} value={placementMode ? "brutal" : botOpponent} onChange={(event) => setBotOpponent(event.target.value as BotOpponentName)}><option value="neural" disabled={!supportsNeuralPolicy(activeConfig) || policyStatus === "error"}>Neural beta{policyStatus === "loading" ? " · loading" : ""}</option>{BOT_STRENGTH_NAMES.map((strength) => <option value={strength} key={strength}>{BOT_STRENGTHS[strength].label}</option>)}</select></label>}{!humanMode && <><button className="control control-primary" type="button" disabled={state === null || state.terminal || (replayMetadata !== null && actions === replayMetadata.frames)} onClick={() => setPlaying((current) => !current)}>{playing ? "Ⅱ Pause" : "▶ Play"}</button><button className="control" type="button" disabled={state === null || state.terminal || playing || (replayMetadata !== null && actions === replayMetadata.frames)} onClick={step}>Step</button></>}<button className="control" type="button" disabled={state === null || botThinking} onClick={reset}>{onlineSession === null ? "New game" : "Leave room"}</button>{onlineSession === null && (replayMetadata === null ? <><button className={`control ${humanMode ? "control-active" : ""}`} type="button" disabled={botThinking} onClick={toggleHumanMode}>{humanMode ? "Watch bots" : "Play yourself"}</button><label className="control cursor-pointer">Replay<input className="sr-only" type="file" accept=".antiyoy,application/octet-stream" onChange={(event) => void loadReplay(event.target.files?.[0])} /></label></> : <button className="control" type="button" onClick={restoreLive}>Live game</button>)}<button aria-expanded={openPanel === "right"} aria-controls="inspector-drawer" className="control panel-toggle" type="button" onClick={() => setOpenPanel("right")}>Inspect</button></div>
+          <div className="board-controls">
+            <div className="economy-hud" aria-label={`Player economy: ${economy.money} money, ${economy.profit >= 0 ? "+" : ""}${economy.profit} income`}><span className="coin-mark">$</span><strong>{economy.money}</strong><b>{economy.profit >= 0 ? "+" : ""}{economy.profit}</b></div>
+            <div className="turn-chip"><span className={`turn-dot territory-player-${(state?.active_player ?? 0) % PLAYER_NAMES.length}`} /><span className="turn-copy">{onlineSession?.snapshot.status === "Waiting" ? "Waiting for player" : `Turn ${state?.round ?? "…"} · ${state === null ? "Loading" : state.active_player === humanSeat && humanMode ? "your move" : `${playerLabel(state.active_player).toLowerCase()} moves`}`}</span></div>
+            {onlineSession === null && humanMode && replayMetadata === null && <label className="bot-strength"><span>Opponent</span><select aria-label="Bot opponent" disabled={placementMode || botThinking} value={placementMode ? "brutal" : botOpponent} onChange={(event) => setBotOpponent(event.target.value as BotOpponentName)}><option value="neural" disabled={!supportsNeuralPolicy(activeConfig) || policyStatus === "error"}>Neural policy{policyStatus === "loading" ? " · loading" : ""}</option>{BOT_STRENGTH_NAMES.map((strength) => <option value={strength} key={strength}>{BOT_STRENGTHS[strength].label}</option>)}</select></label>}
+            {!humanMode && <><button className="control control-primary" type="button" disabled={state === null || state.terminal || (botOpponent === "neural" && policyStatus !== "ready") || (replayMetadata !== null && actions === replayMetadata.frames)} onClick={() => setPlaying((current) => !current)} aria-label={playing ? "Pause" : "Play"}>{playing ? "Ⅱ" : "▶"}</button><button className="control" type="button" disabled={state === null || state.terminal || playing || (botOpponent === "neural" && policyStatus !== "ready") || (replayMetadata !== null && actions === replayMetadata.frames)} onClick={() => void step()}>Step</button></>}
+            <button className="control control-icon" type="button" disabled={state === null || botThinking} onClick={reset} aria-label={onlineSession === null ? "New game" : "Leave room"}>↻</button>
+            {onlineSession === null && (replayMetadata === null ? <><button className={`control ${humanMode ? "control-active" : ""}`} type="button" disabled={botThinking} onClick={toggleHumanMode}>{humanMode ? "Auto" : "Play"}</button><label className="control cursor-pointer">Replay<input className="sr-only" type="file" accept=".antiyoy,application/octet-stream" onChange={(event) => void loadReplay(event.target.files?.[0])} /></label></> : <button className="control" type="button" onClick={restoreLive}>Live</button>)}
+            <Link className="control research-link" href="/models">Models</Link>
+            <button aria-expanded={openPanel === "right"} aria-controls="inspector-drawer" className="control control-icon" type="button" onClick={() => setOpenPanel("right")} aria-label="Inspect selected hex">i</button>
+            <button aria-expanded={openPanel === "left"} aria-controls="match-drawer" className="control control-icon panel-toggle" type="button" onClick={() => setOpenPanel("left")} aria-label="Open game menu">⋮</button>
+          </div>
           <div className={`board-scroll ${humanMode && replayMetadata === null ? "board-scroll-human" : ""}`} ref={boardViewport} aria-label="Interactive hex game board">
             <div className="board-transform" style={{ transform: `translate(-50%, -50%) scale(${boardScale})` }}>
               <div ref={boardContent} className={`hex-board ${state !== null && state.width > 15 ? "hex-board-compact" : ""}`}>
@@ -1105,7 +1173,7 @@ export default function Arena() {
           </div>
           {state?.terminal && <div className="result-banner">{state.winner === null ? "DRAW" : `${playerLabel(state.winner)} WINS`} · {actions} ACTIONS</div>}
           {error !== null && <div className="error-banner">ENGINE ERROR · {error}</div>}
-          {humanMode && replayMetadata === null && <div className="action-dock"><div className="action-dock-heading"><div><p className="eyebrow text-[#d8ff3e]">YOUR MOVE</p><p className="action-dock-title">HEX {String(selectedQ).padStart(2, "0")},{String(selectedR).padStart(2, "0")} · {selected === null ? "LOADING" : pieceLabel(selected)}</p></div><span className="action-dock-status">{onlineSession?.snapshot.status === "Waiting" ? "WAITING FOR PLAYER" : connectionStatus !== "authenticated" && onlineSession !== null ? "CONNECTING" : state?.terminal ? "GAME OVER" : botThinking ? onlineSession !== null ? "SYNCING MOVE" : placementMode || botOpponent !== "neural" ? "BOT THINKING" : "NEURAL THINKING" : onlineSession === null && !placementMode && botOpponent === "neural" && policyStatus === "loading" ? "MODEL LOADING" : humanCanAct ? `${selectedActions.length + globalActions.length} OPTIONS` : "OPPONENT TURN"}</span></div><div className="action-dock-buttons">{selectedActions.map(({ action, index }) => <button className="action-button action-button-inline" type="button" disabled={!humanCanAct} onClick={() => void playHumanAction(index)} key={index}>{actionLabel(action, state?.width ?? WIDTH)}</button>)}{globalActions.map(({ action, index }) => <button className="action-button action-button-inline action-button-global" type="button" disabled={!humanCanAct} onClick={() => void playHumanAction(index)} key={index}>{actionLabel(action, state?.width ?? WIDTH)}</button>)}{selectedActions.length === 0 && globalActions.length === 0 && <p className="action-dock-empty">{onlineSession?.snapshot.status === "Waiting" ? "Share the private invite link to unlock the match." : "Select a glowing hex to move, recruit, or build."}</p>}</div></div>}
+          {humanMode && replayMetadata === null && <div className="action-dock"><div className="action-dock-heading"><div><p className="eyebrow action-dock-eyebrow">YOUR MOVE</p><p className="action-dock-title">HEX {String(selectedQ).padStart(2, "0")},{String(selectedR).padStart(2, "0")} · {selected === null ? "LOADING" : pieceLabel(selected)}</p></div><span className="action-dock-status">{onlineSession?.snapshot.status === "Waiting" ? "WAITING FOR PLAYER" : connectionStatus !== "authenticated" && onlineSession !== null ? "CONNECTING" : state?.terminal ? "GAME OVER" : botThinking ? onlineSession !== null ? "SYNCING MOVE" : placementMode || botOpponent !== "neural" ? "BOT THINKING" : "NEURAL THINKING" : onlineSession === null && !placementMode && botOpponent === "neural" && policyStatus === "loading" ? "MODEL LOADING" : humanCanAct ? `${selectedActions.length + globalActions.length} OPTIONS` : "OPPONENT TURN"}</span></div><div className="action-dock-buttons">{selectedActions.map(({ action, index }) => <button className="action-button action-button-inline" type="button" disabled={!humanCanAct} onClick={() => void playHumanAction(index)} key={index}>{actionLabel(action, state?.width ?? WIDTH)}</button>)}{globalActions.map(({ action, index }) => <button className="action-button action-button-inline action-button-global" type="button" disabled={!humanCanAct} onClick={() => void playHumanAction(index)} key={index}>{actionLabel(action, state?.width ?? WIDTH)}</button>)}{selectedActions.length === 0 && globalActions.length === 0 && <p className="action-dock-empty">{onlineSession?.snapshot.status === "Waiting" ? "Share the private invite link to unlock the match." : "Select a glowing hex to move, recruit, or build."}</p>}</div></div>}
           <div className={`timeline ${humanMode && replayMetadata === null ? "timeline-human" : ""}`}><div className="flex items-center justify-between font-mono text-[0.65rem] text-[#8d9690]"><span>ACTION {actions}{replayMetadata === null ? "" : ` / ${replayMetadata.frames}`}</span><span>{state?.terminal ? "TERMINAL" : replayMetadata === null ? "DETERMINISTIC TRACE" : "REPLAY VERIFIED"}</span></div>{replayMetadata === null ? <div className="mt-3 flex h-1.5 overflow-hidden bg-white/10">{territoryShares.map((share, player) => <div className={`territory-player-${player % PLAYER_NAMES.length}`} style={{ width: `${share}%` }} key={player} />)}</div> : <input className="replay-scrubber" type="range" min="0" max={replayMetadata.frames} value={actions} aria-label="Replay action" onChange={(event) => seekReplay(Number(event.target.value))} />}</div>
         </section>
 
@@ -1142,7 +1210,7 @@ function LeaguePanel({
   const currentStanding = standings.find((standing) => standing.name === currentName) ?? null;
   const recentMatches = league?.matches.slice(-5).reverse() ?? [];
   return <div className="league-panel">
-    <div className="league-heading"><div><p className="eyebrow text-[#d8ff3e]">REPLAY-VERIFIED ELO</p><p>{league === null ? "Authoritative server" : `${standings.length} players · ${league.matches.length} matches`}</p></div><button className="league-refresh" type="button" disabled={status === "loading"} onClick={() => void onRefresh()}>{status === "loading" ? "Loading…" : "Refresh"}</button></div>
+    <div className="league-heading"><div><p className="eyebrow">REPLAY-VERIFIED ELO</p><p>{league === null ? "Authoritative server" : `${standings.length} players · ${league.matches.length} matches`}</p></div><button className="league-refresh" type="button" disabled={status === "loading"} onClick={() => void onRefresh()}>{status === "loading" ? "Loading…" : "Refresh"}</button></div>
     {status === "error" && <div className="league-message league-message-error"><strong>League unavailable</strong><span>{error}</span><small>The private server may not be reachable from this device.</small></div>}
     {(status === "idle" || status === "loading") && league === null && <div className="league-message"><strong>{status === "loading" ? "Loading verified ledger…" : "Ready to connect"}</strong><span>Ratings come only from server-verified completed rooms.</span></div>}
     {status === "ready" && league !== null && league.matches.length === 0 && <div className="league-message"><strong>No rated matches yet</strong><span>Finish an authoritative room to create the first verified result.</span></div>}
@@ -1166,17 +1234,17 @@ function Hex({ cell, selected, actionable, onSelect }: { cell: CellView; selecte
 }
 
 function Metric({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
-  return <div><p className="eyebrow">{label}</p><p className={`mt-1 break-words font-mono text-sm ${accent ? "text-[#d8ff3e]" : ""}`}>{value}</p></div>;
+  return <div><p className="eyebrow">{label}</p><p className={`metric-value ${accent ? "metric-accent" : ""}`}>{value}</p></div>;
 }
 
 function Bar({ label, value, width, player }: { label: string; value: number; width: string; player: number }) {
-  return <div><div className="mb-1 flex justify-between"><span>{label}</span><span className="font-mono">{value}</span></div><div className="h-1 bg-white/10"><div className={`h-full territory-player-${player % PLAYER_NAMES.length}`} style={{ width }} /></div></div>;
+  return <div><div className="bar-heading"><span>{label}</span><span>{value}</span></div><div className="bar-track"><div className={`bar-fill territory-player-${player % PLAYER_NAMES.length}`} style={{ width }} /></div></div>;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
-  return <div className="bg-[#0d1215] p-3"><dt className="eyebrow">{label}</dt><dd className="mt-1 break-words font-mono text-xs">{value}</dd></div>;
+  return <div className="stat-cell"><dt className="eyebrow">{label}</dt><dd>{value}</dd></div>;
 }
 
 function Row({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
-  return <div className="flex justify-between gap-3"><dt className="text-[#8d9690]">{label}</dt><dd className={accent ? "text-[#d8ff3e]" : ""}>{value}</dd></div>;
+  return <div className="data-row"><dt>{label}</dt><dd className={accent ? "row-accent" : ""}>{value}</dd></div>;
 }

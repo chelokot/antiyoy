@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { access, readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
-async function render() {
+async function render(pathname = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
   return worker.fetch(
-    new Request("http://localhost/", { headers: { accept: "text/html" } }),
+    new Request(new URL(pathname, "http://localhost/"), { headers: { accept: "text/html" } }),
     { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
     { waitUntil() {}, passThroughOnException() {} },
   );
@@ -20,21 +20,20 @@ test("server-renders the arena shell and metadata", async () => {
   assert.equal(response.headers.get("cache-control"), "no-cache, must-revalidate");
   const html = await response.text();
   assert.match(html, /<title>Antiyoy Arena Lab<\/title>/i);
-  assert.match(html, /STRATEGY ARENA/);
-  assert.match(html, /LIVE ENGINE/);
   assert.match(html, /classic_generic_2022/);
   assert.match(html, /BETA POLICY/);
   assert.match(html, /vs search-2048/);
-  assert.match(html, /core v6 · vs search-2048 · 310–26/);
-  assert.match(html, /38 experts/);
+  assert.match(html, /core v6 · vs search-2048 · 336–0/);
+  assert.match(html, /41 experts/);
   assert.match(html, /universal routed · 2–8 players/);
-  assert.match(html, /Fresh engine-v6 evaluation: 336 paired games/);
-  assert.match(html, /Online Default exposes a first-seat weakness/);
+  assert.match(html, /Fresh held-out engine-v6 evaluation: 336 paired games/);
+  assert.match(html, /no losses or action-limit adjudications/);
   assert.match(html, /Download verified bundle/);
+  assert.match(html, /Compare agents and methods/);
   assert.match(html, /Replay/);
   assert.match(html, /GAME CONFIG/);
   assert.match(html, /Generate deterministic map/);
-  assert.match(html, /Watch bots/);
+  assert.match(html, />Auto</);
   assert.match(html, /YOUR MOVE/);
   assert.match(html, /Select a glowing hex to move, recruit, or build/);
   assert.match(html, /YOUR PLACEMENT/);
@@ -62,6 +61,9 @@ test("ships the generated engine and social card", async () => {
     access(new URL("../public/og.png", import.meta.url)),
     access(new URL("../public/browser-primary.onnx", import.meta.url)),
     access(new URL("../public/browser-experimental-v2.onnx", import.meta.url)),
+    access(new URL("../public/browser-online-default-seat0-v6.onnx", import.meta.url)),
+    access(new URL("../public/browser-online-duel-seat0-v6.onnx", import.meta.url)),
+    access(new URL("../public/browser-online-experimental-v1-seat0-v6.onnx", import.meta.url)),
     access(new URL("../public/ort-wasm-simd-threaded.wasm", import.meta.url)),
     access(new URL("../public/ort-wasm-simd-threaded.mjs", import.meta.url)),
   ]);
@@ -80,8 +82,23 @@ test("ships the generated engine and social card", async () => {
   await access(new URL("../public/antiyoy_wasm_bg.wasm", import.meta.url));
   await access(new URL("../dist/client/browser-primary.onnx", import.meta.url));
   await access(new URL("../dist/client/browser-experimental-v2.onnx", import.meta.url));
+  await access(new URL("../dist/client/browser-online-default-seat0-v6.onnx", import.meta.url));
+  await access(new URL("../dist/client/browser-online-duel-seat0-v6.onnx", import.meta.url));
+  await access(new URL("../dist/client/browser-online-experimental-v1-seat0-v6.onnx", import.meta.url));
   await access(new URL("../dist/client/ort-wasm-simd-threaded.wasm", import.meta.url));
   await access(new URL("../dist/client/ort-wasm-simd-threaded.mjs", import.meta.url));
+});
+
+test("renders the benchmark-backed model arena", async () => {
+  const response = await render("/models");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Who actually wins\?/);
+  assert.match(html, /Engine-v6 fixed duel/);
+  assert.match(html, /Routed v6 candidate/);
+  assert.match(html, /336–0–0/);
+  assert.match(html, /Policy-guided PUCT \/ MCTS/);
+  assert.match(html, /Ratings from different pools are deliberately not merged/);
 });
 
 test("loads WebAssembly from a deployable same-origin URL", async () => {
@@ -112,7 +129,7 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(styles, /\.arena-sidebar\.panel-open \{[^}]*transform: translateX\(0\);[^}]*visibility: visible;/);
   assert.doesNotMatch(styles, /@media \(min-width: 90rem\)/);
   assert.match(styles, /\.board-scroll \{[^}]*overflow: hidden;/);
-  assert.match(styles, /\.board-scroll-human \{[^}]*bottom: 9\.75rem;/);
+  assert.match(styles, /\.board-scroll-human \{[^}]*bottom: 6\.35rem;/);
   assert.match(styles, /\.action-dock \{[^}]*position: absolute;/);
   assert.match(styles, /\.action-dock-buttons \{[^}]*overflow-x: auto;[^}]*overscroll-behavior-inline: contain;/);
   assert.match(styles, /clip-path: polygon\(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%\)/);
@@ -127,15 +144,15 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, /aria-controls="match-drawer"/);
   assert.match(arena, /aria-controls="inspector-drawer"/);
   assert.match(arena, /aria-label="Bot opponent"/);
-  assert.match(arena, /Neural beta/);
+  assert.match(arena, /Neural policy/);
   assert.match(arena, /Quick · 64/);
   assert.match(arena, /Strong · 256/);
   assert.match(arena, /Brutal · full turn/);
   assert.match(arena, /useState<BotOpponentName>\("neural"\)/);
   assert.match(arena, /placementMode\s+\? RATED_SEARCH_NODES/);
   assert.match(arena, /step_search_with_budget\(searchNodes\)/);
-  assert.match(arena, />Match<\/button>/);
-  assert.match(arena, />Inspect<\/button>/);
+  assert.match(arena, /aria-label="Open game menu"/);
+  assert.match(arena, /aria-label="Inspect selected hex"/);
   assert.match(arena, /piece-\$\{cell\.object\.toLowerCase\(\)\}/);
   assert.match(arena, /actionable=\{humanCanAct && actionableTargets\.has\(cell\.id\)\}/);
   assert.match(arena, /<summary>GAME CONFIG<\/summary>/);
