@@ -175,19 +175,21 @@ verification. Fetch the current universal beta policy with:
 ```bash
 python python/fetch_model.py
 PYTHONPATH=python python python/evaluate.py \
-  models/universal-routed-search-dagger-2026-08-30.pt \
+  models/universal-routed-2to8p-2026-08-30.pt \
   --games 32 --baseline search --search-nodes 2048 \
   --profile online_experimental_v2_260801 \
   --width 11 --height 9 --action-limit 1000
 ```
 
-This routed two-expert bundle is not assigned an absolute Elo. Under the
-schema-v2 paired protocol it scores 336–0 against the native 2048-node search
-baseline: 48–0 in every versioned profile and 168–0 from each seat. The fixed
-11×9 arena uses three held-out seed windows and eight same-map, opposite-seat
-pairs per profile and window. Its finite-sample +1131 paired relative Elo is
-specific to this arena and baseline, not a universal rating. Exact results and
-training provenance live under [`benchmarks/`](benchmarks/).
+The current routed bundle contains 38 immutable experts and selects them through
+profile, generator, player-count, seat, and exact-domain routes covering two to
+eight players. Its seven fixed 11×9 duel routes are tensor-identical to the
+previous two-expert beta and therefore preserve that release's 336–0 held-out
+record against native search-2048. The separate 5–8-player procedural matrix is
+much harder: 55 wins in 364 games against search-256, with 132 action-limit
+truncations. Neither result is an absolute human Elo or a claim of universal
+superhuman play. Exact results and training provenance live under
+[`benchmarks/`](benchmarks/).
 
 Play against the neural beta in a local browser (cyan moves first):
 

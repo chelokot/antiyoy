@@ -20,7 +20,7 @@ except ImportError:
     from policy_arena import PolicyArena
 
 
-DEFAULT_MODEL = "universal-routed-search-dagger-2026-08-30"
+DEFAULT_MODEL = "universal-routed-2to8p-2026-08-30"
 PAGE = Path(__file__).with_name("policy_arena.html")
 
 

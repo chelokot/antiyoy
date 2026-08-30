@@ -25,7 +25,9 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(html, /BETA POLICY/);
   assert.match(html, /vs search-2048/);
   assert.match(html, /vs search-2048 · 336–0/);
-  assert.match(html, /every profile finished 48–0/);
+  assert.match(html, /38 experts/);
+  assert.match(html, /universal routed · 2–8 players/);
+  assert.match(html, /fixed-duel routes preserve the verified 48–0 profile results/);
   assert.match(html, /Download verified bundle/);
   assert.match(html, /Replay/);
   assert.match(html, /MAP GENERATOR/);

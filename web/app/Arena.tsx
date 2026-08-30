@@ -108,7 +108,7 @@ const DEFAULT_CONFIG: LiveConfig = {
   landDensity: 650_000,
 };
 const PLAYER_NAMES = ["CYAN", "AMBER", "VIOLET", "CORAL", "LIME", "BLUE", "PINK", "SILVER"] as const;
-const MODEL_URL = "https://github.com/chelokot/antiyoy/releases/tag/model-v0.3.0-beta.1";
+const MODEL_URL = "https://github.com/chelokot/antiyoy/releases/tag/model-v0.4.0-beta.1";
 const MODEL_RESULTS = [
   ["Classic Generic", "48–0"],
   ["Online Default", "48–0"],
@@ -670,12 +670,12 @@ export default function Arena() {
           <details className="panel-section" open><summary>TERRITORY</summary><div className="panel-section-body space-y-3 text-xs">{territories.map((cells, player) => <Bar label={playerLabel(player)} value={cells} width={`${territoryShares[player]}%`} player={player} key={player} />)}</div></details>
           <details className="panel-section"><summary>ENGINE</summary><div className="panel-section-body"><div className="engine-note mt-0"><p className="eyebrow text-[#d8ff3e]">SAME CORE</p><p className="mt-2 text-sm leading-6 text-[#b8c0ba]">Every displayed transition is executed by the headless Rust environment compiled to WebAssembly.</p></div></div></details>
           <details className="panel-section"><summary>BETA POLICY · 336–0</summary><div className="panel-section-body model-card">
-            <div className="flex items-center justify-between gap-3"><p className="eyebrow text-[#d8ff3e]">BETA POLICY</p><span className="font-mono text-[0.65rem] text-[#8d9690]">2 experts</span></div>
-            <p className="mt-2 text-sm font-semibold">routed search-dagger · 1.83M</p>
+            <div className="flex items-center justify-between gap-3"><p className="eyebrow text-[#d8ff3e]">BETA POLICY</p><span className="font-mono text-[0.65rem] text-[#8d9690]">38 experts</span></div>
+            <p className="mt-2 text-sm font-semibold">universal routed · 2–8 players</p>
             <p className="mt-3 font-mono text-[0.65rem] uppercase tracking-[0.12em] text-[#8d9690]">vs search-2048 · 336–0</p>
             <dl className="mt-4 space-y-2 font-mono text-xs">{MODEL_RESULTS.map(([profile, score]) => <Row label={profile} value={score} accent key={profile} />)}</dl>
             <a className="model-download" href={MODEL_URL} target="_blank" rel="noreferrer">Download verified bundle ↗</a>
-            <p className="mt-3 text-[0.65rem] leading-5 text-[#77817b]">Seven profiles, three held-out seed windows, both seats: every profile finished 48–0 on the fixed 11×9 arena. This is an arena-specific benchmark, not an absolute rating.</p>
+            <p className="mt-3 text-[0.65rem] leading-5 text-[#77817b]">The seven fixed-duel routes preserve the verified 48–0 profile results. Multiplayer routes are separate beta experts; this is not an absolute human rating.</p>
           </div></details>
           <details className="panel-section"><summary>YOUR ELO · {Math.round(placement.elo)}</summary><div className="panel-section-body model-card">
             <div className="flex items-center justify-between gap-3"><p className="eyebrow text-[#d8ff3e]">YOUR PLACEMENT</p><span className="font-mono text-[0.65rem] text-[#8d9690]">LOCAL</span></div>
