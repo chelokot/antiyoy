@@ -127,7 +127,9 @@ Create a room with `POST /v1/matches`, inspect it with
 `GET /v1/matches/{match_id}/watch`. A connection begins as a read-only spectator;
 a human sends the versioned `ClientMessage::Authenticate` frame with its seat
 and returned token before submitting actions. Every seat can independently be
-human, random, greedy, or a bounded whole-turn search agent. Network structures carry
+human, open for an atomic invite claim, random, greedy, or a bounded whole-turn search agent.
+An open room remains waiting with an empty legal mask until every guest has claimed
+their seat; the browser invitation contains no credential. Network structures carry
 `NETWORK_SCHEMA_VERSION` and every update includes a deterministic state digest.
 `DELETE /v1/matches/{match_id}?seat=…` with the seat token in an Authorization
 Bearer header closes and removes a room. All memory-amplifying limits are

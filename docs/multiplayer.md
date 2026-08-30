@@ -1,6 +1,6 @@
 # Authoritative multiplayer
 
-Network schema 4 supports two to eight independently controlled seats. A room
+Network schema 5 supports two to eight independently controlled seats. A room
 uses either a symmetric duel or the exact `GeneratorConfig` consumed by the
 core. The server rejects mismatched seat/player counts, duplicate names, maps
 above its configured cell limit, and action limits above its configured cap
@@ -10,7 +10,7 @@ Create a four-player procedural room with `POST /v1/matches`:
 
 ```json
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "rules_profile": "OnlineDefaultV1",
   "scenario": {
     "Procedural": {
@@ -38,6 +38,25 @@ Create a four-player procedural room with `POST /v1/matches`:
 }
 ```
 
+A human seat can instead be advertised without issuing its credential:
+
+```json
+{ "name": "open-seat-2", "kind": "Open" }
+```
+
+The room remains `Waiting` and exposes no legal actions until every open seat is
+claimed. Claim seat 1 atomically with
+`POST /v1/matches/{match_id}/seats/1/claim`:
+
+```json
+{ "schema_version": 5, "name": "guest" }
+```
+
+Exactly one caller receives the new `SeatCredential`; concurrent or repeated
+claims return `seat_unavailable`. The browser invitation contains only the
+128-bit room identifier and seat number. Credentials are sent in the first WSS
+authentication frame and never placed in the URL.
+
 The response includes a token only for each human seat. Tokens are shown once;
 only their BLAKE3 hashes are persisted. A snapshot includes the scenario, all
 public seat descriptors, the current revision, rating state, deterministic
@@ -49,7 +68,7 @@ human seat before submitting an action:
 ```json
 {
   "Authenticate": {
-    "schema_version": 4,
+    "schema_version": 5,
     "seat": 0,
     "token": "returned-seat-token"
   }
@@ -61,7 +80,7 @@ Submit an action with the last observed revision:
 ```json
 {
   "Submit": {
-    "schema_version": 4,
+    "schema_version": 5,
     "revision": 12,
     "action": "EndTurn"
   }
@@ -72,6 +91,10 @@ The server serializes the accepted human action, advances consecutive bot seats
 until another human owns the turn or the match ends, atomically persists the
 room, then broadcasts one snapshot. A restart verifies the replay and replays
 every deterministic bot decision to restore search plans and random streams.
+
+The binary can terminate TLS directly with `--tls-certificate` and `--tls-key`.
+Pass each browser origin explicitly with a repeated `--allowed-origin`; the
+server then answers credential-free CORS preflights only for those origins.
 
 ## Multiplayer Elo
 
