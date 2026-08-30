@@ -1,0 +1,217 @@
+{
+  "schema_version": 1,
+  "kind": "universal_large_multiplayer_curriculum_ablation",
+  "training_commit": "ed935db7ba6c8a1d974c4dd7127e1c00c095b8a1",
+  "evaluation_commit": "ed935db7ba6c8a1d974c4dd7127e1c00c095b8a1",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 8,
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "pytorch": "2.9.1+rocm6.4",
+    "process_priority": "nice 10"
+  },
+  "base_bundle": {
+    "asset": "universal-2to4p-release-v4g-candidate.pt",
+    "sha256": "c24798d85641fea31b23ad8ead802af4b46661a9b15f31d60fd3df97430cee59",
+    "size_bytes": 125341553,
+    "experts": 34
+  },
+  "curriculum": {
+    "generator": "procedural_v1",
+    "width": 25,
+    "height": 17,
+    "player_counts": [5, 6, 7, 8],
+    "profiles": [
+      "classic_generic_2022",
+      "classic_slay_2022",
+      "online_default_v1",
+      "online_classic_v1",
+      "online_duel_v1",
+      "online_experimental_v1",
+      "online_experimental_v2_260801"
+    ],
+    "land_density_per_million": 650000,
+    "action_limit": 3600,
+    "teacher": "deterministic_whole_turn_search_2048",
+    "symmetry_augmentation": "rot180",
+    "map_reset_interval": 250
+  },
+  "training_stages": [
+    {
+      "id": "universal-bc-5to8p",
+      "sha256": "f41f46bc8511b5adb89273eed5202e3deef6b78df80442930a40c8e7c60d3f18",
+      "size_bytes": 10833471,
+      "environments": 28,
+      "rollin": "teacher",
+      "updates": 5000,
+      "transitions": 140000,
+      "seconds": 147.20048907701857,
+      "transitions_per_second": 951.0837965133994,
+      "learning_rate": 0.00001,
+      "reference_kl_weight": 0.0
+    },
+    {
+      "id": "universal-dagger-5to8p",
+      "sha256": "3d1dd86df53392bedd48f47554598f663ad67f7ef492ca96b5c5f51fa2f2e4da",
+      "size_bytes": 10834255,
+      "environments": 28,
+      "rollin": "policy",
+      "updates": 6000,
+      "transitions": 168000,
+      "seconds": 229.15743390499847,
+      "transitions_per_second": 733.120445351328,
+      "learning_rate": 0.00001,
+      "reference_kl_weight": 0.1
+    },
+    {
+      "id": "generic-dagger-5to8p",
+      "profiles": ["classic_generic_2022"],
+      "sha256": "ea1a83a813d1f57f5475a865fd1c427077c0b98bee8c5a8d73d614fa1039b242",
+      "size_bytes": 10827079,
+      "rollin": "policy",
+      "updates": 5000,
+      "transitions": 120000,
+      "seconds": 200.24918085400714,
+      "transitions_per_second": 599.2533876454992,
+      "learning_rate": 0.000005,
+      "reference_kl_weight": 0.25,
+      "accepted": true
+    },
+    {
+      "id": "default-dagger-5to8p",
+      "profiles": ["online_default_v1"],
+      "sha256": "d1ef82fbe2472b6fbfd798f7a8fb5c204d582409a3229ee863b088a8de62b5e1",
+      "size_bytes": 10827079,
+      "rollin": "policy",
+      "updates": 5000,
+      "transitions": 120000,
+      "seconds": 198.81422616395866,
+      "transitions_per_second": 603.5785381929262,
+      "learning_rate": 0.000005,
+      "reference_kl_weight": 0.25,
+      "accepted": false
+    },
+    {
+      "id": "slay-dagger-5to8p",
+      "profiles": ["classic_slay_2022", "online_classic_v1"],
+      "sha256": "87cc13a3a5d0b58d6b8c7f4cf75296cce4bdbec1542a675ca99d7a11ee687f44",
+      "size_bytes": 10826555,
+      "rollin": "policy",
+      "updates": 5000,
+      "transitions": 120000,
+      "seconds": 156.2664916550275,
+      "transitions_per_second": 767.9189487718897,
+      "learning_rate": 0.000005,
+      "reference_kl_weight": 0.25,
+      "accepted": true
+    }
+  ],
+  "selection": {
+    "generic": {
+      "wins": {"base": 5, "candidate": 6},
+      "truncations": {"base": 0, "candidate": 0}
+    },
+    "default": {
+      "wins": {"base": 3, "candidate": 2},
+      "truncations": {"base": 0, "candidate": 0}
+    },
+    "slay_and_online_classic": {
+      "wins": {"base": 8, "candidate": 8},
+      "truncations": {"base": 102, "candidate": 100}
+    },
+    "unchanged_control_profiles": {
+      "profiles": [
+        "online_duel_v1",
+        "online_experimental_v1",
+        "online_experimental_v2_260801"
+      ],
+      "wins": {"base": 36, "candidate": 36},
+      "truncations": {"base": 32, "candidate": 32}
+    }
+  },
+  "candidate_progression": [
+    {
+      "id": "profile-fallback-baseline",
+      "games": 364,
+      "wins": 10,
+      "truncations": 125,
+      "elapsed_seconds": 1230.0295830100076
+    },
+    {
+      "id": "v5a-teacher-rollin",
+      "sha256": "98584aa45397e6eb9a2b96ac7f4a1433be0fa10f2ca47b9e8260f5eaa7e61c03",
+      "size_bytes": 129030408,
+      "wins": 34,
+      "truncations": 140,
+      "elapsed_seconds": 1424.312420036993
+    },
+    {
+      "id": "v5b-policy-rollin",
+      "sha256": "0d6a8095ccdfa28dfb446fecf0d83952cb996520f104d00a6b5df81b7effe047",
+      "size_bytes": 129030408,
+      "wins": 52,
+      "truncations": 134,
+      "elapsed_seconds": 1455.6935703569907
+    },
+    {
+      "id": "v5c-all-family-overlays",
+      "sha256": "db4869179086e2052571902f9611c600f8edb561e8ffe1b3fd4b003aed90c814",
+      "size_bytes": 140089549,
+      "wins": 52,
+      "truncations": 132,
+      "elapsed_seconds": 1449.451805419987
+    },
+    {
+      "id": "v5d-accepted-family-overlays",
+      "sha256": "0f6a96cda162af890cbec1b7501e5d488af483f9cf10f00a34ad68537289cb56",
+      "size_bytes": 136403190,
+      "wins": 53,
+      "truncations": 132,
+      "elapsed_seconds": 1447.7484780030209
+    }
+  ],
+  "final_bundle": {
+    "asset": "universal-2to8p-release-v5d-candidate.pt",
+    "sha256": "0f6a96cda162af890cbec1b7501e5d488af483f9cf10f00a34ad68537289cb56",
+    "size_bytes": 136403190,
+    "bundle_version": 4,
+    "checkpoint_version": 5,
+    "observation_version": 7,
+    "experts": 37,
+    "profile_routes": 7,
+    "context_routes": 49,
+    "seat_context_routes": 18,
+    "domain_routes": 10
+  },
+  "full_matrix": {
+    "config": "benchmarks/configs/universal-cross-domain-5to8p-v1.json",
+    "config_sha256": "ffd88e6d65988046d5455e0d2ebfd860285199bfdf8b698f2762d4e32d4a0a10",
+    "search_nodes_override": 256,
+    "games": 364,
+    "wins": 53,
+    "losses": 311,
+    "draws": 0,
+    "truncations": 132,
+    "baseline_truncations": 139,
+    "domains": [
+      {"id": "procedural-19x15-5p", "games": 70, "wins": 16, "truncations": 25, "relative_elo": 29.514485664367456},
+      {"id": "procedural-21x15-6p", "games": 84, "wins": 12, "truncations": 29, "relative_elo": -31.672498419049965},
+      {"id": "procedural-23x17-7p", "games": 98, "wins": 13, "truncations": 37, "relative_elo": -14.92972920952492},
+      {"id": "procedural-25x17-8p", "games": 112, "wins": 12, "truncations": 41, "relative_elo": -30.288285575247343}
+    ],
+    "profiles": [
+      {"id": "classic_generic_2022", "games": 52, "wins": 6, "baseline_wins": 8, "truncations": 0},
+      {"id": "classic_slay_2022", "games": 52, "wins": 4, "baseline_wins": 8, "truncations": 50},
+      {"id": "online_default_v1", "games": 52, "wins": 3, "baseline_wins": 8, "truncations": 0},
+      {"id": "online_classic_v1", "games": 52, "wins": 4, "baseline_wins": 8, "truncations": 50},
+      {"id": "online_duel_v1", "games": 52, "wins": 11, "baseline_wins": 8, "truncations": 6},
+      {"id": "online_experimental_v1", "games": 52, "wins": 11, "baseline_wins": 8, "truncations": 6},
+      {"id": "online_experimental_v2_260801", "games": 52, "wins": 14, "baseline_wins": 8, "truncations": 20}
+    ],
+    "gate_failures": [
+      "weakest domain procedural-21x15-6p has -31.672 relative Elo",
+      "weakest profile-seat slice has -1.000 score delta"
+    ]
+  },
+  "conclusion": "Mixed-player teacher distillation followed by policy-rollin DAgger raised large-table wins from 10 to 53 out of 364 and reduced truncations below the search baseline. Five-player play passed the domain gate, while six-, seven-, and eight-player domains remain slightly below search-256 and individual sparse two-game seat slices still fail. The candidate is a measured improvement, not a final universal release or an absolute Elo claim."
+}
