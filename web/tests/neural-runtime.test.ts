@@ -31,6 +31,21 @@ test("browser policies select legal actions from routed Rust observations", asyn
       model: "browser-experimental-v2.onnx",
       expectedAction: 24,
     },
+    {
+      profile: "online_default_v1",
+      model: "browser-online-default-seat0-v6.onnx",
+      expectedAction: 3,
+    },
+    {
+      profile: "online_duel_v1",
+      model: "browser-online-duel-seat0-v6.onnx",
+      expectedAction: 2,
+    },
+    {
+      profile: "online_experimental_v1",
+      model: "browser-online-experimental-v1-seat0-v6.onnx",
+      expectedAction: 2,
+    },
   ] as const;
   for (const route of cases) {
     const game = WasmGame.with_profile(11, 9, 47n, route.profile);

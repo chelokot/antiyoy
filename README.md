@@ -187,21 +187,23 @@ verification. Fetch the current universal beta policy with:
 ```bash
 python python/fetch_model.py
 PYTHONPATH=python python python/evaluate.py \
-  models/universal-routed-2to8p-2026-08-30.pt \
+  models/universal-routed-2to8p-engine-v6-2026-08-31.pt \
   --games 32 --baseline search --search-nodes 2048 \
   --profile online_experimental_v2_260801 \
   --width 11 --height 9 --action-limit 1000
 ```
 
-The current routed bundle contains 38 immutable experts and selects them through
+The current routed bundle contains 41 immutable experts and selects them through
 profile, generator, player-count, seat, and exact-domain routes covering two to
-eight players. Engine v6 re-evaluation of its tensor-identical fixed-duel routes
-scored 310 wins and 26 losses in 336 paired games against native search-2048.
-Online Default is the weak slice at 24–24, entirely from the first seat. The
-separate 5–8-player procedural matrix is much harder: 55 wins in 364 games
-against search-256, with 132 action-limit truncations. Neither result is an
-absolute human Elo or a claim of universal superhuman play. Exact results and
-training provenance live under
+eight players. On a fresh engine-v6 fixed-duel gate it scored 336 wins and no
+losses in 336 paired games against native search-2048, with every rules profile
+tested from both seats and no action-limit adjudications. The tensor-identical
+control bundle scored 312–24 on the same arena; three accepted seat-specific
+search-distilled specialists added +685 relative Elo inside that pool. The
+inherited 5–8-player procedural routes remain much weaker: their latest matrix
+is 55 wins in 364 games against search-256, with 132 action-limit truncations.
+Neither result is an absolute human Elo or a claim of universal superhuman play.
+Exact results and training provenance live under
 [`benchmarks/`](benchmarks/).
 
 Play against the neural beta in a local browser (cyan moves first):
@@ -224,14 +226,14 @@ Export and verify the fixed browser route on a machine with the training extras:
 
 ```bash
 PYTHONPATH=python python python/export_browser_policy.py \
-  models/universal-routed-2to8p-2026-08-30.pt \
+  models/universal-routed-2to8p-engine-v6-2026-08-31.pt \
   web/public/browser-primary.onnx
 PYTHONPATH=python python python/export_browser_policy.py \
-  models/universal-routed-2to8p-2026-08-30.pt \
+  models/universal-routed-2to8p-engine-v6-2026-08-31.pt \
   web/public/browser-experimental-v2.onnx \
   --profile online_experimental_v2_260801
 PYTHONPATH=python python python/verify_browser_policy.py \
-  models/universal-routed-2to8p-2026-08-30.pt \
+  models/universal-routed-2to8p-engine-v6-2026-08-31.pt \
   web/public/browser-primary.onnx
 ```
 

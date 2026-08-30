@@ -2,6 +2,62 @@
   "schema_version": 1,
   "models": [
     {
+      "id": "universal-routed-2to8p-engine-v6-2026-08-31",
+      "asset": "universal-routed-2to8p-engine-v6-2026-08-31.pt",
+      "url": "https://github.com/chelokot/antiyoy/releases/download/model-v0.5.0-beta.1/universal-routed-2to8p-engine-v6-2026-08-31.pt",
+      "sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+      "size_bytes": 151179257,
+      "checkpoint_version": 5,
+      "engine_version": 6,
+      "observation_version": 7,
+      "bundle_version": 4,
+      "experts": 41,
+      "profile_routes": 7,
+      "context_routes": 49,
+      "seat_context_routes": 21,
+      "domain_routes": 10,
+      "status": "beta",
+      "engine_v6_fixed_duel_vs_search_2048": {
+        "protocol": "schema-v3 same-map opposite-seat",
+        "games": 336,
+        "record": "336-0-0",
+        "truncations": 0,
+        "adjudications": 0,
+        "aggregate_relative_elo": 1130.6890080675973,
+        "profile_records": {
+          "classic_generic_2022": "48-0-0",
+          "classic_slay_2022": "48-0-0",
+          "online_default_v1": "48-0-0",
+          "online_classic_v1": "48-0-0",
+          "online_duel_v1": "48-0-0",
+          "online_experimental_v1": "48-0-0",
+          "online_experimental_v2_260801": "48-0-0"
+        },
+        "benchmark": "benchmarks/2026-08-31-engine-v6-amplify-distill-rocm.json"
+      },
+      "amplify_distill_control": {
+        "same_arena_control_record": "312-0-24",
+        "same_arena_control_relative_elo": 445.5773409227348,
+        "relative_elo_gain": 685.1116671448625,
+        "accepted_specialists": 3,
+        "benchmark": "benchmarks/2026-08-31-engine-v6-amplify-distill-rocm.json"
+      },
+      "large_multiplayer_vs_search_256": {
+        "protocol": "inherited-route provenance; not re-evaluated for this release",
+        "source_model": "universal-routed-2to8p-2026-08-30",
+        "games": 364,
+        "record": "55-0-309",
+        "truncations": 132,
+        "baseline_truncations": 139,
+        "relative_elo_by_players": {
+          "5": 29.514485664367456,
+          "6": -31.672498419049965,
+          "7": 14.065766825300413,
+          "8": -30.288285575247343
+        }
+      }
+    },
+    {
       "id": "universal-routed-2to8p-2026-08-30",
       "asset": "universal-routed-2to8p-2026-08-30.pt",
       "url": "https://github.com/chelokot/antiyoy/releases/download/model-v0.4.0-beta.1/universal-routed-2to8p-2026-08-30.pt",
@@ -16,7 +72,7 @@
       "context_routes": 49,
       "seat_context_routes": 18,
       "domain_routes": 10,
-      "status": "beta",
+      "status": "superseded-beta",
       "fixed_duel_vs_search_2048": {
         "protocol": "schema-v2 same-map opposite-seat",
         "engine_version": 5,

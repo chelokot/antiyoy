@@ -19,17 +19,18 @@ def test_registry_defaults_to_the_universal_two_to_eight_player_bundle() -> None
     payload = json.loads(Path("model-registry/models.json").read_text())
     current = payload["models"][0]
 
-    assert current["id"] == "universal-routed-2to8p-2026-08-30"
+    assert current["id"] == "universal-routed-2to8p-engine-v6-2026-08-31"
     assert current["status"] == "beta"
-    assert current["experts"] == 38
+    assert current["experts"] == 41
     assert current["profile_routes"] == 7
     assert current["context_routes"] == 49
-    assert current["seat_context_routes"] == 18
+    assert current["seat_context_routes"] == 21
     assert current["domain_routes"] == 10
     engine_v6_arena = current["engine_v6_fixed_duel_vs_search_2048"]
     assert engine_v6_arena["games"] == 336
-    assert engine_v6_arena["record"] == "310-0-26"
-    assert engine_v6_arena["profile_records"]["online_default_v1"] == "24-0-24"
+    assert engine_v6_arena["record"] == "336-0-0"
+    assert engine_v6_arena["truncations"] == 0
+    assert engine_v6_arena["profile_records"]["online_default_v1"] == "48-0-0"
     assert sum(model["status"] == "beta" for model in payload["models"]) == 1
 
 

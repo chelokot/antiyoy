@@ -62,7 +62,7 @@ def main() -> None:
     parser.add_argument(
         "identifier",
         nargs="?",
-        default="universal-routed-2to8p-2026-08-30",
+        default="universal-routed-2to8p-engine-v6-2026-08-31",
     )
     parser.add_argument("--output", type=Path)
     arguments = parser.parse_args()
