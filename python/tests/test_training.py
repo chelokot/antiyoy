@@ -61,6 +61,7 @@ def training_config() -> TrainingConfig:
         imitation_updates=0,
         imitation_reset_interval=0,
         imitation_teacher="greedy",
+        imitation_search_replan=False,
         imitation_rollin="teacher",
         imitation_symmetry_augmentation=False,
         imitation_reference_weight=0.0,
@@ -549,6 +550,8 @@ def test_training_rejects_invalid_search_teacher_configuration() -> None:
         validate_config(replace(training_config(), imitation_teacher="unknown"))
     with pytest.raises(ValueError, match="imitation_rollin"):
         validate_config(replace(training_config(), imitation_rollin="unknown"))
+    with pytest.raises(ValueError, match="requires the search teacher"):
+        validate_config(replace(training_config(), imitation_search_replan=True))
     with pytest.raises(ValueError, match="search_nodes"):
         validate_config(replace(training_config(), search_nodes=1))
 

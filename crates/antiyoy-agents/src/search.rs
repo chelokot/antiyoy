@@ -105,6 +105,10 @@ impl SearchAgent {
         self.search_count
     }
 
+    pub fn clear_plan(&mut self) {
+        self.plan.clear();
+    }
+
     fn create_plan(&mut self, game: &Game) {
         self.search_count += 1;
         let player = game.active_player();

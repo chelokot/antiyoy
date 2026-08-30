@@ -90,6 +90,29 @@ def test_search_teacher_is_deterministic_and_returns_legal_local_indices() -> No
         environment.step(actions)
 
 
+def test_search_teacher_can_replan_each_observed_state() -> None:
+    environment = VectorEnv(1, width=7, height=5, seed=29)
+    first = np.asarray(environment.search_actions(node_budget=256), dtype=np.uint64)
+    observation = environment.observe()
+    selected_kind = observation["action_kinds"][int(first[0])]
+    assert selected_kind != 0
+    assert environment.search_counts().tolist() == [1]
+
+    environment.step(first)
+    environment.search_actions(node_budget=256)
+    assert environment.search_counts().tolist() == [1]
+
+    replanned = np.asarray(
+        environment.search_actions_replanned(node_budget=256), dtype=np.uint64
+    )
+    assert environment.search_counts().tolist() == [2]
+
+    fresh = VectorEnv(1, width=7, height=5, seed=29)
+    fresh.step(first)
+    fresh_action = np.asarray(fresh.search_actions(node_budget=256), dtype=np.uint64)
+    np.testing.assert_array_equal(replanned, fresh_action)
+
+
 def test_search_teacher_rejects_invalid_configuration() -> None:
     environment = VectorEnv(1, width=7, height=5, seed=31)
     with pytest.raises(ValueError, match="node budget"):

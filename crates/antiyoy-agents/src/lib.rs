@@ -191,12 +191,15 @@ mod tests {
         search.select_action(&game, &legal);
         assert_eq!(search.last_stats(), stats);
         assert_eq!(search.search_count(), searches);
+        search.clear_plan();
+        search.select_action(&game, &legal);
+        assert_eq!(search.search_count(), searches + 1);
 
         let reset = Scenario::symmetric_duel(7, 5, 103).expect("valid duel");
         let reset = antiyoy_core::Game::new(Rules::classic_generic(), reset).expect("game");
         reset.legal_actions(&mut legal);
         search.select_action(&reset, &legal);
-        assert_eq!(search.search_count(), searches + 1);
+        assert_eq!(search.search_count(), searches + 2);
     }
 
     #[test]

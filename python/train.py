@@ -77,6 +77,7 @@ class TrainingConfig:
     imitation_updates: int
     imitation_reset_interval: int
     imitation_teacher: str
+    imitation_search_replan: bool
     imitation_rollin: str
     imitation_symmetry_augmentation: bool
     imitation_reference_weight: float
@@ -498,6 +499,8 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("fixed-opponent training requires at least one update")
     if config.imitation_teacher not in {"greedy", "search"}:
         raise ValueError("imitation_teacher must be greedy or search")
+    if config.imitation_search_replan and config.imitation_teacher != "search":
+        raise ValueError("imitation_search_replan requires the search teacher")
     if config.imitation_rollin not in {"teacher", "policy"}:
         raise ValueError("imitation_rollin must be teacher or policy")
     if config.search_nodes < 2:
@@ -905,16 +908,22 @@ def pretrain_teacher(
     accuracy_average = 0.0
     for update in range(1, config.imitation_updates + 1):
         observation = environment.observe()
-        selected = (
-            environment.greedy_actions()
-            if config.imitation_teacher == "greedy"
-            else environment.search_actions(
+        if config.imitation_teacher == "greedy":
+            selected = environment.greedy_actions()
+        elif config.imitation_search_replan:
+            selected = environment.search_actions_replanned(
                 node_budget=config.search_nodes,
                 beam_width=config.search_beam_width,
                 branch_width=config.search_branch_width,
                 maximum_actions_per_turn=config.search_maximum_actions_per_turn,
             )
-        )
+        else:
+            selected = environment.search_actions(
+                node_budget=config.search_nodes,
+                beam_width=config.search_beam_width,
+                branch_width=config.search_branch_width,
+                maximum_actions_per_turn=config.search_maximum_actions_per_turn,
+            )
         targets = torch.as_tensor(selected, dtype=torch.long, device=device)
         model_observation = observation
         if config.imitation_symmetry_augmentation:
@@ -1369,6 +1378,8 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         )
         if config.imitation_symmetry_augmentation:
             algorithm += "_rot180_augmented"
+        if config.imitation_search_replan:
+            algorithm += "_replanned_labels"
         if config.imitation_reset_interval > 0:
             algorithm += "_periodic_map_resets"
         if config.imitation_reference_weight > 0:
@@ -1418,6 +1429,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "imitation_reset_interval": config.imitation_reset_interval,
         "imitation_environment_resets": imitation_environment_resets,
         "imitation_teacher": config.imitation_teacher,
+        "imitation_search_replan": config.imitation_search_replan,
         "imitation_rollin": config.imitation_rollin,
         "imitation_symmetry_augmentation": config.imitation_symmetry_augmentation,
         "imitation_reference_weight": config.imitation_reference_weight,
@@ -1507,6 +1519,7 @@ def parse_args() -> TrainingConfig:
     parser.add_argument(
         "--imitation-teacher", choices=("greedy", "search"), default="greedy"
     )
+    parser.add_argument("--imitation-search-replan", action="store_true")
     parser.add_argument(
         "--imitation-rollin", choices=("teacher", "policy"), default="teacher"
     )

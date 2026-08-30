@@ -425,13 +425,6 @@ impl VectorEnv {
             branch_width,
             maximum_actions_per_turn,
         };
-        if self.search_config != Some(config) {
-            self.search_agents = (0..self.batch.len())
-                .map(|index| SearchAgent::with_config(format!("search-{index}"), config))
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|error| PyValueError::new_err(error.to_string()))?;
-            self.search_config = Some(config);
-        }
         let active = active_mask
             .map(|mask| {
                 let values = mask
@@ -447,6 +440,57 @@ impl VectorEnv {
                 Ok(values.iter().map(|value| *value != 0).collect::<Vec<_>>())
             })
             .transpose()?;
+        self.select_search_actions(py, config, active.as_deref(), true)
+    }
+
+    #[pyo3(signature = (node_budget=2048, beam_width=32, branch_width=48, maximum_actions_per_turn=24))]
+    fn search_actions_replanned<'py>(
+        &mut self,
+        py: Python<'py>,
+        node_budget: usize,
+        beam_width: usize,
+        branch_width: usize,
+        maximum_actions_per_turn: usize,
+    ) -> PyResult<Bound<'py, PyArray1<u64>>> {
+        self.select_search_actions(
+            py,
+            SearchConfig {
+                node_budget,
+                beam_width,
+                branch_width,
+                maximum_actions_per_turn,
+            },
+            None,
+            false,
+        )
+    }
+
+    fn search_counts<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<u64>> {
+        PyArray1::from_vec(
+            py,
+            self.search_agents
+                .iter()
+                .map(SearchAgent::search_count)
+                .collect(),
+        )
+    }
+}
+
+impl VectorEnv {
+    fn select_search_actions<'py>(
+        &mut self,
+        py: Python<'py>,
+        config: SearchConfig,
+        active: Option<&[bool]>,
+        reuse_plan: bool,
+    ) -> PyResult<Bound<'py, PyArray1<u64>>> {
+        if self.search_config != Some(config) {
+            self.search_agents = (0..self.batch.len())
+                .map(|index| SearchAgent::with_config(format!("search-{index}"), config))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| PyValueError::new_err(error.to_string()))?;
+            self.search_config = Some(config);
+        }
         let batch = &self.batch;
         let indices = py.detach(|| {
             self.search_agents
@@ -467,6 +511,9 @@ impl VectorEnv {
                             "environment {index} is done and must be reset"
                         )));
                     }
+                    if !reuse_plan {
+                        agent.clear_plan();
+                    }
                     let selected = agent.select_action(game, actions);
                     let position = actions
                         .iter()
@@ -479,9 +526,7 @@ impl VectorEnv {
         })?;
         Ok(PyArray1::from_vec(py, indices))
     }
-}
 
-impl VectorEnv {
     fn from_batch(batch: BatchEnv) -> Self {
         Self {
             batch,
