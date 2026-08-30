@@ -1,3 +1,4 @@
+import argparse
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -13,6 +14,7 @@ from python.train import (
     imitation_weights,
     initialization_state,
     make_environment,
+    parse_map_size,
     parsed_action_weights,
     parsed_slice_weights,
     policy_rollin_mask,
@@ -31,6 +33,7 @@ def training_config() -> TrainingConfig:
         height=5,
         players=2,
         players_schedule=None,
+        map_size_schedule=None,
         seed=1,
         land_density_per_million=650_000,
         land_density_schedule_per_million=None,
@@ -145,7 +148,7 @@ def test_training_environment_cycles_land_density_schedule() -> None:
     assert [value["seed"] for value in generators] == [1, 2, 3, 4]
 
 
-def test_training_environment_cycles_players_and_density_schedules() -> None:
+def test_training_environment_cycles_domain_schedules() -> None:
     config = replace(
         training_config(),
         environments=8,
@@ -154,6 +157,7 @@ def test_training_environment_cycles_players_and_density_schedules() -> None:
         height=17,
         players=5,
         players_schedule=[5, 6, 7, 8],
+        map_size_schedule=[(19, 15), (21, 15), (23, 17), (25, 17)],
         profiles=["classic_generic_2022", "online_default_v1"],
         profile=None,
         land_density_schedule_per_million=[600_000, 700_000],
@@ -165,6 +169,16 @@ def test_training_environment_cycles_players_and_density_schedules() -> None:
 
     assert observation["player_counts"].tolist() == [5, 6, 7, 8, 5, 6, 7, 8]
     assert [value["players"] for value in generators] == [5, 6, 7, 8, 5, 6, 7, 8]
+    assert [(value["width"], value["height"]) for value in generators] == [
+        (19, 15),
+        (21, 15),
+        (23, 17),
+        (25, 17),
+        (19, 15),
+        (21, 15),
+        (23, 17),
+        (25, 17),
+    ]
     assert [value["land_density_per_million"] for value in generators] == [
         600_000,
         700_000,
@@ -180,6 +194,22 @@ def test_training_environment_cycles_players_and_density_schedules() -> None:
 def test_training_rejects_players_schedule_without_procedural_maps() -> None:
     with pytest.raises(ValueError, match="requires procedural"):
         validate_config(replace(training_config(), players_schedule=[5, 6, 7, 8]))
+
+
+def test_training_rejects_map_size_schedule_without_procedural_maps() -> None:
+    with pytest.raises(ValueError, match="requires procedural"):
+        validate_config(replace(training_config(), map_size_schedule=[(19, 15)]))
+
+
+@pytest.mark.parametrize("map_size", ("19x15", "19X15"))
+def test_parse_map_size(map_size: str) -> None:
+    assert parse_map_size(map_size) == (19, 15)
+
+
+@pytest.mark.parametrize("map_size", ("19", "19x", "x15", "19x15x2", "0x15"))
+def test_parse_map_size_rejects_invalid_values(map_size: str) -> None:
+    with pytest.raises(argparse.ArgumentTypeError, match="map size"):
+        parse_map_size(map_size)
 
 
 @pytest.mark.parametrize("players", ([1, 5], [5, 9]))

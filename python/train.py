@@ -42,6 +42,7 @@ class TrainingConfig:
     height: int
     players: int
     players_schedule: list[int] | None
+    map_size_schedule: list[tuple[int, int]] | None
     seed: int
     land_density_per_million: int
     land_density_schedule_per_million: list[int] | None
@@ -121,11 +122,13 @@ def procedural_config(
     config: TrainingConfig,
     seed: int,
     players: int,
+    width: int,
+    height: int,
     land_density_per_million: int,
 ) -> ProceduralConfig:
     return ProceduralConfig(
-        width=config.width,
-        height=config.height,
+        width=width,
+        height=height,
         players=players,
         seed=seed,
         land_density_per_million=land_density_per_million,
@@ -140,7 +143,12 @@ def procedural_config(
 
 def make_environment(config: TrainingConfig) -> VectorEnv:
     generator = procedural_config(
-        config, config.seed, config.players, config.land_density_per_million
+        config,
+        config.seed,
+        config.players,
+        config.width,
+        config.height,
+        config.land_density_per_million,
     )
     objective = (
         None
@@ -150,6 +158,7 @@ def make_environment(config: TrainingConfig) -> VectorEnv:
     schedule = profile_schedule(config)
     scheduled_domains = (
         config.players_schedule is not None
+        or config.map_size_schedule is not None
         or config.land_density_schedule_per_million is not None
     )
     if config.procedural and scheduled_domains:
@@ -163,11 +172,17 @@ def make_environment(config: TrainingConfig) -> VectorEnv:
             if config.land_density_schedule_per_million is None
             else config.land_density_schedule_per_million
         )
+        map_sizes = (
+            [(config.width, config.height)]
+            if config.map_size_schedule is None
+            else config.map_size_schedule
+        )
         generators = [
             procedural_config(
                 config,
                 config.seed + index,
                 players[index % len(players)],
+                *map_sizes[index % len(map_sizes)],
                 densities[index % len(densities)],
             )
             for index in range(config.environments)
@@ -388,6 +403,13 @@ def validate_config(config: TrainingConfig) -> None:
             raise ValueError("players schedule must not be empty")
         if any(players < 2 or players > 8 for players in config.players_schedule):
             raise ValueError("players schedule values must be between two and eight")
+    if config.map_size_schedule is not None:
+        if not config.procedural:
+            raise ValueError("map size schedule requires procedural maps")
+        if not config.map_size_schedule:
+            raise ValueError("map size schedule must not be empty")
+        if any(width < 1 or height < 1 for width, height in config.map_size_schedule):
+            raise ValueError("map size schedule dimensions must be positive")
     parsed_slice_weights(config)
     parsed_action_weights(config)
     policy_slices = parsed_policy_rollin_slices(config)
@@ -899,6 +921,10 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "players_schedule": ",".join(
             str(players) for players in config.players_schedule or []
         ),
+        "map_size_schedule": ",".join(
+            f"{width}x{height}"
+            for width, height in config.map_size_schedule or []
+        ),
         "land_density_schedule_per_million": ",".join(
             str(density)
             for density in config.land_density_schedule_per_million or []
@@ -949,6 +975,18 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     return summary
 
 
+def parse_map_size(value: str) -> tuple[int, int]:
+    try:
+        width_text, height_text = value.lower().split("x")
+        width = int(width_text)
+        height = int(height_text)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("map sizes use WIDTHxHEIGHT") from error
+    if width < 1 or height < 1:
+        raise argparse.ArgumentTypeError("map size dimensions must be positive")
+    return width, height
+
+
 def parse_args() -> TrainingConfig:
     parser = argparse.ArgumentParser()
     parser.add_argument("--environments", type=int, default=64)
@@ -958,6 +996,7 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--height", type=int, default=9)
     parser.add_argument("--players", type=int, default=2)
     parser.add_argument("--players-schedule", type=int, nargs="+")
+    parser.add_argument("--map-size-schedule", type=parse_map_size, nargs="+")
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--land-density-per-million", type=int, default=650_000)
     parser.add_argument(

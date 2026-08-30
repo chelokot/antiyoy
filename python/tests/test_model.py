@@ -3,7 +3,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from antiyoy_rl import VectorEnv
+from antiyoy_rl import ProceduralConfig, VectorEnv
 from antiyoy_rl.model import (
     UniversalPolicy,
     action_distribution,
@@ -67,6 +67,35 @@ def test_policy_conditions_each_environment_on_its_own_rules() -> None:
     assert logits.shape == (int(observation["action_offsets"][-1]),)
     assert values.shape == (4,)
     assert rules.shape == (4, 45)
+
+
+def test_policy_batches_heterogeneous_map_dimensions() -> None:
+    profiles = [
+        "classic_generic_2022",
+        "online_default_v1",
+        "classic_slay_2022",
+        "online_duel_v1",
+    ]
+    generators = [
+        ProceduralConfig(width=19, height=15, players=5, seed=101),
+        ProceduralConfig(width=21, height=15, players=6, seed=102),
+        ProceduralConfig(width=19, height=15, players=5, seed=103),
+        ProceduralConfig(width=23, height=17, players=7, seed=104),
+    ]
+    environment = VectorEnv.procedural_domains(profiles, generators)
+    observation = environment.observe()
+    rules = encode_rules_batch(environment.rules_jsons(), torch.device("cpu"))
+    policy = UniversalPolicy(hidden=16, layers=1)
+
+    logits, values = policy(observation, rules)
+    (logits.square().mean() + values.square().mean()).backward()
+    distribution = action_distribution(logits.detach(), observation["action_offsets"])
+    result = environment.step(distribution.sample().numpy().astype(np.uint64))
+
+    assert logits.shape == (int(observation["action_offsets"][-1]),)
+    assert values.shape == (4,)
+    assert policy.action_head[-1].weight.grad is not None
+    assert result["actors"].shape == (4,)
 
 
 def test_policy_loads_the_published_observation_v6_weights() -> None:

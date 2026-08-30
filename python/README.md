@@ -67,7 +67,11 @@ map and starting position; the exact generator configs are stored in the
 checkpoint. Use `--land-density-schedule-per-million 600000 650000 700000` to
 cycle heterogeneous map densities across workers while keeping their assignments
 stable through deterministic resets. `--players-schedule 5 6 7 8` applies the
-same contract to player counts, and both schedules can be combined in one batch.
+same contract to player counts. `--map-size-schedule 19x15 21x15 23x17 25x17`
+cycles board dimensions. Schedules advance by worker index, so equally sized
+player and map schedules preserve intentional pairs such as five players on
+19×15 through every deterministic reset. All domain schedules can be combined
+in one batch.
 Add `--fog` to train from the active player's exact
 visibility projection; full-state mode is the faster default for centralized
 self-play. Add `--diplomacy --initial-relation neutral` to expose bilateral

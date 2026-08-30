@@ -231,11 +231,43 @@ class UniversalPolicy(nn.Module):
         observation: Mapping[str, np.ndarray],
         rule_features: Tensor,
     ) -> tuple[Tensor, Tensor]:
+        widths = np.asarray(observation["widths"], dtype=np.int64)
+        heights = np.asarray(observation["heights"], dtype=np.int64)
+        dimensions: dict[tuple[int, int], list[int]] = {}
+        for environment, size in enumerate(zip(widths, heights, strict=True)):
+            dimensions.setdefault((int(size[0]), int(size[1])), []).append(environment)
+        if len(dimensions) == 1:
+            return self._forward_uniform(observation, rule_features)
+        if rule_features.ndim != 1 and rule_features.shape[0] != widths.size:
+            raise ValueError("rule feature rows must match the environment count")
+        action_logits: dict[int, Tensor] = {}
+        values: dict[int, Tensor] = {}
+        for environments in dimensions.values():
+            selected = _select_environments(observation, environments)
+            selected_rules = (
+                rule_features
+                if rule_features.ndim == 1
+                else rule_features[environments]
+            )
+            group_logits, group_values = self._forward_uniform(selected, selected_rules)
+            group_offsets = np.asarray(selected["action_offsets"], dtype=np.int64)
+            for group_index, environment in enumerate(environments):
+                start, end = group_offsets[group_index : group_index + 2]
+                action_logits[environment] = group_logits[start:end]
+                values[environment] = group_values[group_index]
+        return (
+            torch.cat([action_logits[index] for index in range(widths.size)]),
+            torch.stack([values[index] for index in range(widths.size)]),
+        )
+
+    def _forward_uniform(
+        self,
+        observation: Mapping[str, np.ndarray],
+        rule_features: Tensor,
+    ) -> tuple[Tensor, Tensor]:
         device = self.missing_source.device
         widths = torch.as_tensor(observation["widths"], dtype=torch.long, device=device)
         heights = torch.as_tensor(observation["heights"], dtype=torch.long, device=device)
-        if not torch.all(widths == widths[0]) or not torch.all(heights == heights[0]):
-            raise ValueError("one policy forward pass requires uniform map dimensions")
         environments = widths.numel()
         width = int(widths[0].item())
         height = int(heights[0].item())
@@ -490,6 +522,61 @@ def load_policy_state(model: UniversalPolicy, state: Mapping[str, Tensor]) -> No
         if key not in migrated:
             migrated[key] = current[key]
     model.load_state_dict(migrated)
+
+
+def _select_environments(
+    observation: Mapping[str, np.ndarray],
+    environments: list[int],
+) -> dict[str, np.ndarray]:
+    selected: dict[str, np.ndarray] = {}
+    offset_groups = (
+        (
+            "cell_offsets",
+            (
+                "playable",
+                "visible",
+                "owners",
+                "objects",
+                "unit_strengths",
+                "ready",
+                "defenses",
+                "province_ids",
+            ),
+        ),
+        (
+            "province_offsets",
+            (
+                "province_owners",
+                "province_money",
+                "province_profit",
+                "province_capitals",
+                "province_sizes",
+            ),
+        ),
+        (
+            "action_offsets",
+            (
+                "action_kinds",
+                "action_sources",
+                "action_targets",
+                "action_parameters",
+            ),
+        ),
+        ("relation_offsets", ("relations", "proposals")),
+    )
+    for offsets_key, value_keys in offset_groups:
+        offsets = np.asarray(observation[offsets_key], dtype=np.int64)
+        slices = [slice(offsets[index], offsets[index + 1]) for index in environments]
+        counts = [value.stop - value.start for value in slices]
+        selected[offsets_key] = np.concatenate(
+            (np.zeros(1, dtype=np.int64), np.cumsum(counts, dtype=np.int64))
+        )
+        for key in value_keys:
+            values = np.asarray(observation[key])
+            selected[key] = np.concatenate([values[value] for value in slices])
+    for key in ("widths", "heights", "active_players", "player_counts", "rounds"):
+        selected[key] = np.asarray(observation[key])[environments]
+    return selected
 
 
 def action_distribution(logits: Tensor, offsets: np.ndarray) -> torch.distributions.Categorical:
