@@ -198,8 +198,11 @@ impl Rules {
     }
 
     pub fn online_classic_v1() -> Self {
-        let mut rules = Self::classic_slay();
+        let classic = Self::classic_slay();
+        let mut rules = Self::online_default_v1();
         rules.profile = RulesProfile::OnlineClassicV1;
+        rules.economy = classic.economy;
+        rules.combat = classic.combat;
         rules
     }
 
@@ -291,6 +294,13 @@ mod tests {
         assert_eq!(experimental.economy.clear_hex_income, 0);
         assert_eq!(experimental.economy.farm_hex_income, 7);
         assert_eq!(experimental.economy.farm_base_price, 8);
+
+        let online_classic = Rules::online_classic_v1();
+        let online_default = Rules::online_default_v1();
+        assert_eq!(online_classic.economy, slay.economy);
+        assert_eq!(online_classic.combat, slay.combat);
+        assert_eq!(online_classic.vegetation, online_default.vegetation);
+        assert_eq!(online_classic.lifecycle, online_default.lifecycle);
     }
 
     #[test]

@@ -1802,7 +1802,7 @@ mod tests {
     }
 
     #[test]
-    fn online_turn_income_precedes_grave_conversion_after_the_empty_first_round() {
+    fn every_online_ruleset_uses_income_before_graves_after_the_empty_first_round() {
         let topology = Topology::rectangle(4, 1).expect("valid topology");
         let mut scenario = Scenario::empty(topology, 2, 29);
         for hex in [0, 1] {
@@ -1815,17 +1815,42 @@ mod tests {
         scenario.cells[1].object = Object::Grave;
         scenario.cells[3].object = Object::Capital;
 
-        let mut online = Game::new(Rules::online_default_v1(), scenario).expect("online game");
-        assert_eq!(online.province_at(HexId(0)).expect("province").money, 10);
-        online
-            .step(Action::EndTurn)
-            .expect("player zero first turn");
-        assert_eq!(online.province_at(HexId(2)).expect("province").money, 10);
-        online.step(Action::EndTurn).expect("player one first turn");
+        for rules in [
+            Rules::online_default_v1(),
+            Rules::online_classic_v1(),
+            Rules::online_duel_v1(),
+            Rules::online_experimental_v1(),
+            Rules::online_experimental_v2_260801(),
+        ] {
+            let profile = rules.profile;
+            let expected_profit = 2 * rules.economy.clear_hex_income;
+            let mut online = Game::new(rules, scenario.clone()).expect("online game");
+            assert_eq!(
+                online.province_at(HexId(0)).expect("province").money,
+                10,
+                "{profile:?}"
+            );
+            online
+                .step(Action::EndTurn)
+                .expect("player zero first turn");
+            assert_eq!(
+                online.province_at(HexId(2)).expect("province").money,
+                10,
+                "{profile:?}"
+            );
+            online.step(Action::EndTurn).expect("player one first turn");
 
-        assert_eq!(online.round(), 2);
-        assert_eq!(online.province_at(HexId(0)).expect("province").money, 12);
-        assert!(online.cell(HexId(1)).expect("grave hex").object().is_tree());
+            assert_eq!(online.round(), 2, "{profile:?}");
+            assert_eq!(
+                online.province_at(HexId(0)).expect("province").money,
+                10 + expected_profit,
+                "{profile:?}"
+            );
+            assert!(
+                online.cell(HexId(1)).expect("grave hex").object().is_tree(),
+                "{profile:?}"
+            );
+        }
     }
 
     #[test]
