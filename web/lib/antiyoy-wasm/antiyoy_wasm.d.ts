@@ -11,6 +11,7 @@ export class WasmGame {
     state_json(): string;
     step(action_index: number): string;
     step_bot(): string;
+    step_search(): string;
 }
 
 export class WasmReplay {
@@ -36,6 +37,7 @@ export interface InitOutput {
     readonly wasmgame_legal_actions_json: (a: number, b: number) => void;
     readonly wasmgame_step: (a: number, b: number, c: number) => void;
     readonly wasmgame_step_bot: (a: number, b: number) => void;
+    readonly wasmgame_step_search: (a: number, b: number) => void;
     readonly __wbg_wasmreplay_free: (a: number, b: number) => void;
     readonly wasmreplay_new: (a: number, b: number, c: number) => void;
     readonly wasmreplay_frame_count: (a: number) => number;

@@ -19,18 +19,20 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /<title>Antiyoy Arena Lab<\/title>/i);
-  assert.match(html, /Deterministic policy evaluation/);
-  assert.match(html, /RUST WASM/);
+  assert.match(html, /RUST STRATEGY/);
+  assert.match(html, /PLAYABLE WASM/);
   assert.match(html, /classic_generic_2022/);
   assert.match(html, /BETA POLICY/);
   assert.match(html, /vs search-2048/);
   assert.match(html, /vs search-2048 · 336–0/);
   assert.match(html, /every profile finished 48–0/);
   assert.match(html, /Download verified bundle/);
-  assert.match(html, /Load replay/);
+  assert.match(html, /Replay/);
   assert.match(html, /MAP GENERATOR/);
   assert.match(html, /Generate deterministic map/);
-  assert.match(html, /Human: off/);
+  assert.match(html, /Watch bots/);
+  assert.match(html, /YOUR MOVE/);
+  assert.match(html, /Select a glowing hex to move, recruit, or build/);
   assert.match(html, /YOUR PLACEMENT/);
   assert.match(html, /Start rated match/);
   assert.match(html, /Fixed 11×9 Classic arena/);
@@ -48,6 +50,7 @@ test("ships the generated engine and social card", async () => {
   ]);
   assert.match(bindings, /class WasmGame/);
   assert.match(bindings, /class WasmReplay/);
+  assert.match(bindings, /step_search\(\)/);
   assert.match(packageJson, /"name": "antiyoy-arena-lab"/);
   assert.match(packageJson, /"build:wasm"/);
   assert.match(packageJson, /"stage:wasm"/);
@@ -79,6 +82,9 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(styles, /\.arena-sidebar \{[^}]*position: absolute;[^}]*overflow-x: hidden;[^}]*overflow-y: auto;[^}]*overscroll-behavior: contain;/);
   assert.match(styles, /\.arena-sidebar\.panel-open \{[^}]*transform: translateX\(0\);[^}]*visibility: visible;/);
   assert.match(styles, /\.board-scroll \{[^}]*overflow: hidden;/);
+  assert.match(styles, /\.board-scroll-human \{[^}]*bottom: 10\.25rem;/);
+  assert.match(styles, /\.action-dock \{[^}]*position: absolute;/);
+  assert.match(styles, /\.action-dock-buttons \{[^}]*overflow-x: auto;[^}]*overscroll-behavior-inline: contain;/);
   assert.match(styles, /clip-path: polygon\(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%\)/);
   assert.match(styles, /\.hex \{[^}]*width: 4\.1rem;[^}]*height: 4\.6rem;[^}]*flex: 0 0 4\.1rem;/);
   assert.doesNotMatch(styles, /margin-right: -/);
@@ -86,8 +92,9 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, /new ResizeObserver\(fit\)/);
   assert.match(arena, /event\.key === "Escape"/);
   assert.match(arena, /translate\(-50%, -50%\) scale\(\$\{boardScale\}\)/);
-  assert.match(arena, />Overview<\/button>/);
-  assert.match(arena, />Inspect<\/button>/);
+  assert.match(arena, />Game<\/button>/);
+  assert.match(arena, />Details<\/button>/);
+  assert.match(arena, /actionable=\{humanCanAct && actionableTargets\.has\(cell\.id\)\}/);
   assert.match(arena, /<summary>MAP GENERATOR<\/summary>/);
   assert.match(arena, /<summary>PROVINCE ECONOMY<\/summary>/);
 });
@@ -111,6 +118,12 @@ test("executes greedy and whole-turn search in the compiled WebAssembly engine",
   assert.notDeepEqual(next, initial);
   const searchReply = JSON.parse(game.step_bot());
   assert.notDeepEqual(searchReply, next);
+  const searchFirst = new bindings.WasmGame(11, 9, 49n);
+  const beforeSearch = JSON.parse(searchFirst.state_json());
+  const afterSearch = JSON.parse(searchFirst.step_search());
+  assert.equal(beforeSearch.active_player, 0);
+  assert.notDeepEqual(afterSearch, beforeSearch);
+  searchFirst.free();
   game.free();
 });
 

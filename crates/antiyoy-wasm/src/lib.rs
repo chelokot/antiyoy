@@ -86,23 +86,30 @@ impl WasmGame {
     }
 
     pub fn step_bot(&mut self) -> Result<String, JsError> {
+        self.step_with_policy(self.game.active_player() != PlayerId(0))
+    }
+
+    pub fn step_search(&mut self) -> Result<String, JsError> {
+        self.step_with_policy(true)
+    }
+}
+
+impl WasmGame {
+    fn step_with_policy(&mut self, use_search: bool) -> Result<String, JsError> {
         if self.game.is_terminal() {
             return self.state_json();
         }
         self.game.legal_actions(&mut self.legal_actions);
-        let action = if self.game.active_player() == PlayerId(0) {
-            self.greedy.select_action(&self.game, &self.legal_actions)
-        } else {
+        let action = if use_search {
             self.search.select_action(&self.game, &self.legal_actions)
+        } else {
+            self.greedy.select_action(&self.game, &self.legal_actions)
         };
         self.game
             .step(action)
             .map_err(|error| JsError::new(&error.to_string()))?;
         self.state_json()
     }
-}
-
-impl WasmGame {
     fn from_scenario(rules: Rules, scenario: Scenario) -> Result<Self, JsError> {
         let game = Game::new(rules.clone(), scenario.clone())
             .map_err(|error| JsError::new(&error.to_string()))?;

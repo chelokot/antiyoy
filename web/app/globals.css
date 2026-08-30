@@ -55,6 +55,7 @@ button { font: inherit; }
 .panel-backdrop { position: absolute; z-index: 7; inset: 0; display: block; border: 0; background: rgb(0 0 0 / 58%); opacity: 0; pointer-events: none; transition: opacity 180ms ease; }
 .panel-backdrop-open { opacity: 1; pointer-events: auto; }
 .board-scroll { position: absolute; inset: 4.1rem 0.75rem 3.9rem; min-height: 0; overflow: hidden; }
+.board-scroll-human { bottom: 10.25rem; }
 .board-transform { position: absolute; top: 50%; left: 50%; width: max-content; transform-origin: center; }
 .hex-board { width: max-content; filter: drop-shadow(0 1rem 2rem rgb(0 0 0 / 42%)); }
 .hex-row { display: flex; width: max-content; margin-top: -1.15rem; }
@@ -65,6 +66,8 @@ button { font: inherit; }
 .hex::after { position: absolute; inset: 0.1rem; clip-path: inherit; border: 0.0625rem solid rgb(255 255 255 / 14%); content: ""; }
 .hex:hover { z-index: 2; filter: brightness(1.2); }
 .hex:focus-visible { z-index: 4; outline: 0.2rem solid #d8ff3e; outline-offset: 0.15rem; }
+.hex-actionable:not(.hex-selected) { z-index: 1; filter: brightness(1.12) drop-shadow(0 0 0.3rem rgb(216 255 62 / 45%)); }
+.hex-actionable::after { inset: 0.16rem; border: 0.12rem solid rgb(235 255 158 / 78%); }
 .hex-player-0 { background: #129ca4; }
 .hex-player-1 { background: #c7771f; }
 .hex-player-2 { background: #7d62c5; }
@@ -81,9 +84,17 @@ button { font: inherit; }
 .action-button:hover:not(:disabled) { border-color: #d8ff3e; color: #d8ff3e; }
 .action-button:disabled { opacity: 0.4; }
 .action-button-global { border-color: rgb(216 255 62 / 35%); color: #d8ff3e; }
+.action-dock { position: absolute; z-index: 3; right: 0.875rem; bottom: 4.2rem; left: 0.875rem; min-width: 0; border: 0.0625rem solid rgb(216 255 62 / 25%); background: rgb(6 11 12 / 92%); padding: 0.7rem 0.75rem; box-shadow: 0 1rem 3rem rgb(0 0 0 / 35%); backdrop-filter: blur(0.75rem); }
+.action-dock-heading { display: flex; min-width: 0; align-items: flex-end; justify-content: space-between; gap: 1rem; }
+.action-dock-title { margin-top: 0.2rem; overflow: hidden; color: #e9eee9; font-family: var(--font-geist-mono), monospace; font-size: 0.72rem; text-overflow: ellipsis; white-space: nowrap; }
+.action-dock-status { flex: none; color: #8d9690; font-family: var(--font-geist-mono), monospace; font-size: 0.6rem; letter-spacing: 0.08em; }
+.action-dock-buttons { display: flex; min-width: 0; gap: 0.45rem; margin-top: 0.6rem; overflow-x: auto; overscroll-behavior-inline: contain; padding-bottom: 0.15rem; scrollbar-color: rgb(216 255 62 / 30%) transparent; }
+.action-button-inline { width: auto; min-width: max-content; flex: 0 0 auto; padding: 0.5rem 0.7rem; }
+.action-dock-empty { color: #77817b; font-size: 0.72rem; line-height: 2rem; }
 .unit { display: grid; width: 1.75rem; height: 1.75rem; z-index: 1; place-items: center; border: 0.1rem solid rgb(255 255 255 / 80%); border-radius: 50%; background: rgb(6 10 11 / 70%); font-family: var(--font-geist-mono), monospace; font-size: 0.7rem; font-weight: 800; }
 .piece { z-index: 1; font-size: 1.35rem; text-shadow: 0 0.15rem 0 rgb(0 0 0 / 30%); }
 .timeline { position: absolute; right: 0.875rem; bottom: 0.875rem; left: 0.875rem; border: 0.0625rem solid var(--line); background: rgb(5 9 11 / 82%); padding: 0.65rem 0.75rem; backdrop-filter: blur(0.75rem); }
+.timeline-human { bottom: 0.75rem; }
 .replay-scrubber { width: 100%; margin-top: 0.75rem; accent-color: #d8ff3e; }
 .territory-player-0 { background: #17a5ac; }
 .territory-player-1 { background: #d78330; }
@@ -106,10 +117,15 @@ button { font: inherit; }
   .arena-sidebar-left { left: 0.5rem; }
   .arena-sidebar-right { right: 0.5rem; }
   .board-scroll { inset: 4.75rem 0.25rem 4.1rem; }
+  .board-scroll-human { bottom: 10.65rem; }
+  .action-dock { right: 0.75rem; bottom: 4.15rem; left: 0.75rem; }
+  .action-dock-status { display: none; }
   .timeline { right: 0.75rem; bottom: 0.75rem; left: 0.75rem; }
 }
 @media (max-height: 38rem) {
   .arena-header { height: 3rem; min-height: 3rem; flex-basis: 3rem; }
   .board-scroll { inset-block: 3.85rem 3.6rem; }
+  .board-scroll-human { bottom: 9.6rem; }
+  .action-dock { bottom: 3.7rem; padding-block: 0.55rem; }
   .timeline { bottom: 0.5rem; }
 }

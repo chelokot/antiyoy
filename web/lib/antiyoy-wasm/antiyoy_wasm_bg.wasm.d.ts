@@ -9,6 +9,7 @@ export const wasmgame_state_json: (a: number, b: number) => void;
 export const wasmgame_legal_actions_json: (a: number, b: number) => void;
 export const wasmgame_step: (a: number, b: number, c: number) => void;
 export const wasmgame_step_bot: (a: number, b: number) => void;
+export const wasmgame_step_search: (a: number, b: number) => void;
 export const __wbg_wasmreplay_free: (a: number, b: number) => void;
 export const wasmreplay_new: (a: number, b: number, c: number) => void;
 export const wasmreplay_frame_count: (a: number) => number;
