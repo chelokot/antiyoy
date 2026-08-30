@@ -26,6 +26,7 @@ INPUT_NAMES = (
     "ready",
     "defenses",
     "province_features",
+    "rule_features",
     "active_player",
     "player_count",
     "round_number",
@@ -53,7 +54,9 @@ def province_features(observation: dict[str, np.ndarray]) -> np.ndarray:
     return values
 
 
-def browser_inputs(observation: dict[str, np.ndarray]) -> tuple[torch.Tensor, ...]:
+def browser_inputs(
+    observation: dict[str, np.ndarray], rule_features: torch.Tensor
+) -> tuple[torch.Tensor, ...]:
     long_names = (
         "visible",
         "owners",
@@ -69,6 +72,7 @@ def browser_inputs(observation: dict[str, np.ndarray]) -> tuple[torch.Tensor, ..
         torch.as_tensor(observation[name], dtype=torch.long) for name in long_names
     )
     inputs.append(torch.from_numpy(province_features(observation)))
+    inputs.append(rule_features)
     inputs.extend(
         (
             torch.as_tensor(observation["active_players"], dtype=torch.long),
@@ -119,15 +123,15 @@ def export_policy(
         raise ValueError("browser policy export does not support diplomacy")
     wrapped = BrowserPolicy(
         policy,
-        encode_rules(environment.rules_json(), device),
         width,
         height,
     ).eval()
-    inputs = browser_inputs(observation)
+    rule_features = encode_rules(environment.rules_json(), device)
+    inputs = browser_inputs(observation, rule_features)
     with torch.inference_mode():
         expected_logits, expected_value = policy(
             observation,
-            encode_rules(environment.rules_json(), device),
+            rule_features,
         )
         actual_logits, actual_value = wrapped(*inputs)
     torch.testing.assert_close(actual_logits, expected_logits, rtol=1e-5, atol=1e-5)

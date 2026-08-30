@@ -5,6 +5,7 @@ from ._native import (
     ProceduralConfig,
     ScenarioObjective,
     VectorEnv,
+    encode_rule_features,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "ProceduralConfig",
     "ScenarioObjective",
     "VectorEnv",
+    "encode_rule_features",
 ]

@@ -1,9 +1,9 @@
 #![forbid(unsafe_code)]
 
 use antiyoy_agents::{Agent, GreedyAgent, SearchAgent, SearchConfig};
-use antiyoy_core::{Action, Game, GeneratorConfig, PlayerId, Rules, Scenario};
+use antiyoy_core::{Action, Game, GeneratorConfig, PlayerId, Relation, Rules, Scenario};
 use antiyoy_protocol::{GameView, Replay};
-use antiyoy_rl::BatchObservation;
+use antiyoy_rl::{BatchObservation, encoded_rule_features};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
@@ -14,6 +14,13 @@ struct ReplayMetadata {
     engine_version: u16,
     format_version: u16,
     rules_profile: &'static str,
+}
+
+#[derive(Serialize)]
+struct PolicyObservationView<'a> {
+    #[serde(flatten)]
+    observation: &'a BatchObservation,
+    rule_features: &'a [f32],
 }
 
 #[wasm_bindgen]
@@ -108,7 +115,12 @@ impl WasmGame {
         self.game.legal_actions(&mut self.legal_actions);
         self.observation
             .observe_game(&self.game, &self.legal_actions, false);
-        serde_json::to_string(&self.observation).map_err(|error| JsError::new(&error.to_string()))
+        let rule_features = encoded_rule_features(self.game.rules());
+        serde_json::to_string(&PolicyObservationView {
+            observation: &self.observation,
+            rule_features: &rule_features,
+        })
+        .map_err(|error| JsError::new(&error.to_string()))
     }
 
     pub fn step(&mut self, action_index: usize) -> Result<String, JsError> {
@@ -268,16 +280,18 @@ fn profile_name(profile: antiyoy_core::RulesProfile) -> &'static str {
 }
 
 fn rules_for_profile(profile: &str) -> Result<Rules, JsError> {
-    match profile {
-        "classic_generic_2022" => Ok(Rules::classic_generic()),
-        "classic_slay_2022" => Ok(Rules::classic_slay()),
-        "online_default_v1" => Ok(Rules::online_default_v1()),
-        "online_classic_v1" => Ok(Rules::online_classic_v1()),
-        "online_duel_v1" => Ok(Rules::online_duel_v1()),
-        "online_experimental_v1" => Ok(Rules::online_experimental_v1()),
-        "online_experimental_v2_260801" => Ok(Rules::online_experimental_v2_260801()),
-        _ => Err(JsError::new("unknown rules profile")),
-    }
+    let mut rules = match profile {
+        "classic_generic_2022" => Rules::classic_generic(),
+        "classic_slay_2022" => Rules::classic_slay(),
+        "online_default_v1" => Rules::online_default_v1(),
+        "online_classic_v1" => Rules::online_classic_v1(),
+        "online_duel_v1" => Rules::online_duel_v1(),
+        "online_experimental_v1" => Rules::online_experimental_v1(),
+        "online_experimental_v2_260801" => Rules::online_experimental_v2_260801(),
+        _ => return Err(JsError::new("unknown rules profile")),
+    };
+    rules.diplomacy.initial_relation = Relation::Neutral;
+    Ok(rules)
 }
 
 #[wasm_bindgen]

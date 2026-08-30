@@ -59,7 +59,7 @@ def verify_policy(
     largest_action_count = 0
     while compared < maximum_actions:
         observation = environment.observe()
-        inputs = browser_inputs(observation)
+        inputs = browser_inputs(observation, rules)
         feeds = {
             name: tensor.detach().cpu().numpy()
             for name, tensor in zip(INPUT_NAMES, inputs, strict=True)

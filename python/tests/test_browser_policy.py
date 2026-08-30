@@ -21,10 +21,10 @@ def test_browser_policy_matches_universal_policy() -> None:
     )
     policy = UniversalPolicy(hidden=16, layers=2).eval()
     rules = encode_rules(environment.rules_json(), torch.device("cpu"))
-    browser = BrowserPolicy(policy, rules, 11, 9).eval()
+    browser = BrowserPolicy(policy, 11, 9).eval()
     for _ in range(4):
         observation = environment.observe()
-        inputs = browser_inputs(observation)
+        inputs = browser_inputs(observation, rules)
         with torch.inference_mode():
             expected_logits, expected_value = policy(observation, rules)
             actual_logits, actual_value = browser(*inputs)

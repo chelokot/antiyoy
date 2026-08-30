@@ -33,6 +33,65 @@ def test_domain_key_is_order_independent_and_excludes_seeds() -> None:
         domain_key("procedural_v1", {"seed": 1})
 
 
+def test_native_rule_encoder_preserves_the_complete_feature_order() -> None:
+    environment = VectorEnv(1, width=7, height=5, seed=47)
+    raw = torch.tensor(
+        [
+            2,
+            10,
+            1,
+            5,
+            10,
+            0,
+            2,
+            6,
+            18,
+            36,
+            12,
+            2,
+            15,
+            35,
+            1,
+            6,
+            10,
+            3,
+            4,
+            4,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            0,
+            1,
+            2,
+            0.2,
+            0.3,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+        ],
+        dtype=torch.float32,
+    )
+    expected = torch.sign(raw) * torch.log1p(torch.abs(raw))
+
+    actual = encode_rules(environment.rules_json(), torch.device("cpu"))
+
+    torch.testing.assert_close(actual, expected, rtol=0, atol=1e-7)
+
+
 def test_policy_scores_exactly_the_legal_actions() -> None:
     environment = VectorEnv(4, width=7, height=5, seed=47)
     observation = environment.observe()

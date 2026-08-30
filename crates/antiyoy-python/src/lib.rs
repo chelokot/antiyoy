@@ -4,12 +4,22 @@ use antiyoy_agents::{Agent, GreedyAgent, SearchAgent, SearchConfig};
 use antiyoy_core::{
     EconomyMetric, GeneratorConfig, Objective, PlayerId, Relation, Rules, VictoryCondition,
 };
-use antiyoy_rl::{BatchEnv, BatchObservation, StepResult};
+use antiyoy_rl::{BatchEnv, BatchObservation, StepResult, encoded_rule_features};
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 use rayon::prelude::*;
+
+#[pyfunction]
+fn encode_rule_features<'py>(
+    py: Python<'py>,
+    serialized: &str,
+) -> PyResult<Bound<'py, PyArray1<f32>>> {
+    let rules: Rules = serde_json::from_str(serialized)
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    Ok(PyArray1::from_slice(py, &encoded_rule_features(&rules)))
+}
 
 #[pyclass(module = "antiyoy_rl._native", frozen)]
 struct ProceduralConfig {
@@ -827,6 +837,7 @@ fn runtime_error(error: impl std::fmt::Display) -> PyErr {
 
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(encode_rule_features, module)?)?;
     module.add_class::<ProceduralConfig>()?;
     module.add_class::<ScenarioObjective>()?;
     module.add_class::<VectorEnv>()?;

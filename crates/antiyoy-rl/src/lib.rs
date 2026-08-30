@@ -9,6 +9,68 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub const OBSERVATION_VERSION: u16 = 7;
+pub const RULE_FEATURES: usize = 45;
+
+fn rule_flag(value: bool) -> f32 {
+    f32::from(u8::from(value))
+}
+
+#[expect(clippy::cast_precision_loss)]
+pub fn encoded_rule_features(rules: &Rules) -> [f32; RULE_FEATURES] {
+    let economy = &rules.economy;
+    let combat = &rules.combat;
+    let vegetation = &rules.vegetation;
+    let lifecycle = &rules.lifecycle;
+    let diplomacy = &rules.diplomacy;
+    let raw = [
+        f32::from(rules.minimum_province_size),
+        economy.starting_money as f32,
+        economy.clear_hex_income as f32,
+        economy.farm_hex_income as f32,
+        economy.unit_price_per_level as f32,
+        economy.unit_upkeep[0] as f32,
+        economy.unit_upkeep[1] as f32,
+        economy.unit_upkeep[2] as f32,
+        economy.unit_upkeep[3] as f32,
+        economy.unit_upkeep[4] as f32,
+        economy.farm_base_price as f32,
+        economy.farm_price_increment as f32,
+        economy.tower_price as f32,
+        economy.strong_tower_price as f32,
+        economy.tower_upkeep as f32,
+        economy.strong_tower_upkeep as f32,
+        economy.planted_tree_price as f32,
+        economy.tree_cut_reward as f32,
+        f32::from(combat.maximum_unit_strength),
+        f32::from(combat.movement_range),
+        rule_flag(combat.strongest_unit_ignores_defense),
+        rule_flag(combat.farms_enabled),
+        rule_flag(combat.towers_enabled),
+        rule_flag(combat.strong_towers_enabled),
+        rule_flag(combat.tree_planting_enabled),
+        rule_flag(combat.recruited_units_ready_on_owned_empty),
+        rule_flag(combat.recruited_merge_preserves_readiness),
+        rule_flag(combat.foreign_recruit_requires_economic_neighbour),
+        rule_flag(vegetation.enabled),
+        f32::from(vegetation.pine_minimum_neighbours),
+        vegetation.pine_spread_per_million as f32 / 1_000_000.0,
+        vegetation.palm_spread_per_million as f32 / 1_000_000.0,
+        rule_flag(vegetation.target_based_spread),
+        vegetation.target_spread_per_million as f32 / 1_000_000.0,
+        rule_flag(vegetation.charge_player_zero_per_spawn),
+        rule_flag(vegetation.grave_tree_skips_next_cycle),
+        rule_flag(lifecycle.split_money_follows_capital_then_farms),
+        rule_flag(lifecycle.merge_capital_prefers_farm_support),
+        rule_flag(lifecycle.singleton_buildings_persist),
+        rule_flag(lifecycle.eliminate_singleton_units_after_capture),
+        rule_flag(lifecycle.skip_first_round_income),
+        rule_flag(lifecycle.income_before_grave_conversion),
+        rule_flag(diplomacy.enabled),
+        f32::from(diplomacy.initial_relation as u8),
+        rule_flag(diplomacy.alliances_share_wars),
+    ];
+    raw.map(|value| value.signum() * value.abs().ln_1p())
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[repr(u8)]
@@ -756,7 +818,30 @@ mod tests {
         Rules, Scenario, VictoryCondition,
     };
 
-    use super::{ActionFeatures, ActionKind, BatchEnv, BatchError, BatchObservation};
+    use super::{
+        ActionFeatures, ActionKind, BatchEnv, BatchError, BatchObservation, encoded_rule_features,
+    };
+
+    #[test]
+    fn encoded_rules_preserve_economy_and_profile_flags() {
+        let assert_exact = |actual: f32, expected: f32| {
+            assert_eq!(actual.to_bits(), expected.to_bits());
+        };
+        let classic = encoded_rule_features(&Rules::classic_generic());
+        assert_exact(classic[0], 2.0_f32.ln_1p());
+        assert_exact(classic[1], 10.0_f32.ln_1p());
+        assert_exact(classic[3], 5.0_f32.ln_1p());
+        assert_exact(classic[20], 1.0_f32.ln_1p());
+        assert_exact(classic[42], 0.0);
+        assert_exact(classic[43], 0.0);
+
+        let experimental = encoded_rule_features(&Rules::online_experimental_v2_260801());
+        assert_exact(experimental[2], 0.0);
+        assert_exact(experimental[3], 7.0_f32.ln_1p());
+        assert_exact(experimental[10], 8.0_f32.ln_1p());
+        assert_exact(experimental[27], 1.0_f32.ln_1p());
+        assert_eq!(experimental.len(), super::RULE_FEATURES);
+    }
 
     #[test]
     fn observation_offsets_partition_cells_and_legal_actions() {

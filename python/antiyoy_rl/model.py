@@ -9,6 +9,8 @@ import torch
 from torch import Tensor, nn
 from torch.nn import functional as functional
 
+from ._native import encode_rule_features
+
 
 RULE_FEATURES = 45
 ACTION_KIND_NAMES = (
@@ -106,67 +108,12 @@ def encode_rules(serialized: str, device: torch.device) -> Tensor:
 
 
 def encode_rules_batch(serialized: list[str], device: torch.device) -> Tensor:
-    values = [_rule_values(value) for value in serialized]
-    tensor = torch.tensor(values, dtype=torch.float32, device=device)
-    return torch.sign(tensor) * torch.log1p(torch.abs(tensor))
-
-
-def _rule_values(serialized: str) -> list[float]:
-    rules = json.loads(serialized)
-    economy = rules["economy"]
-    combat = rules["combat"]
-    vegetation = rules["vegetation"]
-    lifecycle = rules["lifecycle"]
-    diplomacy = rules["diplomacy"]
-    relation_codes = {"War": 0, "Neutral": 1, "Friend": 2, "Alliance": 3}
-    values = [
-        rules["minimum_province_size"],
-        economy["starting_money"],
-        economy["clear_hex_income"],
-        economy["farm_hex_income"],
-        economy["unit_price_per_level"],
-        *economy["unit_upkeep"],
-        economy["farm_base_price"],
-        economy["farm_price_increment"],
-        economy["tower_price"],
-        economy["strong_tower_price"],
-        economy["tower_upkeep"],
-        economy["strong_tower_upkeep"],
-        economy["planted_tree_price"],
-        economy["tree_cut_reward"],
-        combat["maximum_unit_strength"],
-        combat["movement_range"],
-        int(combat["strongest_unit_ignores_defense"]),
-        int(combat["farms_enabled"]),
-        int(combat["towers_enabled"]),
-        int(combat["strong_towers_enabled"]),
-        int(combat["tree_planting_enabled"]),
-        int(combat["recruited_units_ready_on_owned_empty"]),
-        int(combat["recruited_merge_preserves_readiness"]),
-        int(combat["foreign_recruit_requires_economic_neighbour"]),
-        int(vegetation["enabled"]),
-        vegetation["pine_minimum_neighbours"],
-        vegetation["pine_spread_per_million"] / 1_000_000,
-        vegetation["palm_spread_per_million"] / 1_000_000,
-        int(vegetation["target_based_spread"]),
-        vegetation["target_spread_per_million"] / 1_000_000,
-        int(vegetation["charge_player_zero_per_spawn"]),
-        int(vegetation["grave_tree_skips_next_cycle"]),
-        int(lifecycle["split_money_follows_capital_then_farms"]),
-        int(lifecycle["merge_capital_prefers_farm_support"]),
-        int(lifecycle["singleton_buildings_persist"]),
-        int(lifecycle["eliminate_singleton_units_after_capture"]),
-        int(lifecycle["skip_first_round_income"]),
-        int(lifecycle["income_before_grave_conversion"]),
-        int(diplomacy["enabled"]),
-        relation_codes[diplomacy["initial_relation"]],
-        int(diplomacy["alliances_share_wars"]),
-    ]
-    if len(values) != RULE_FEATURES:
+    values = np.stack([encode_rule_features(value) for value in serialized])
+    if values.shape[1] != RULE_FEATURES:
         raise ValueError(
-            f"expected {RULE_FEATURES} rule features, received {len(values)}"
+            f"expected {RULE_FEATURES} rule features, received {values.shape[1]}"
         )
-    return values
+    return torch.as_tensor(values, dtype=torch.float32, device=device)
 
 
 class HexBlock(nn.Module):

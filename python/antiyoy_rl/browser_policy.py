@@ -10,7 +10,6 @@ class BrowserPolicy(nn.Module):
     def __init__(
         self,
         policy: UniversalPolicy,
-        rule_features: Tensor,
         width: int,
         height: int,
     ) -> None:
@@ -18,7 +17,6 @@ class BrowserPolicy(nn.Module):
         self.policy = policy
         self.width = width
         self.height = height
-        self.register_buffer("rule_features", rule_features)
 
     def forward(
         self,
@@ -30,6 +28,7 @@ class BrowserPolicy(nn.Module):
         ready: Tensor,
         defenses: Tensor,
         province_features: Tensor,
+        rule_features: Tensor,
         active_player: Tensor,
         player_count: Tensor,
         round_number: Tensor,
@@ -68,7 +67,7 @@ class BrowserPolicy(nn.Module):
             grid = block(grid, grid_mask)
         denominator = grid_mask.sum().clamp_min(1)
         pooled = (grid * grid_mask).sum(dim=(2, 3)) / denominator
-        rules = self.policy.rule_projection(self.rule_features).reshape(
+        rules = self.policy.rule_projection(rule_features).reshape(
             1, self.policy.hidden
         )
         rounds = torch.log1p(round_number.to(dtype=torch.float32)).reshape(1, 1)
