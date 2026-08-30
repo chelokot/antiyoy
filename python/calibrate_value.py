@@ -12,6 +12,7 @@ from torch import Tensor
 from antiyoy_rl import VectorEnv
 from antiyoy_rl.model import (
     UniversalPolicy,
+    action_distribution,
     concatenate_observations,
     domain_key,
     encode_rules,
@@ -176,9 +177,13 @@ def collect_self_play_samples(
     rule_features: Tensor,
     seed: int,
     sample_stride: int,
+    exploration_probability: float,
+    exploration_top_k: int,
 ) -> tuple[list[list[ValueSample]], dict[str, object]]:
     if sample_stride < 1:
         raise ValueError("sample stride must be positive")
+    if not 0 <= exploration_probability <= 1 or exploration_top_k < 2:
+        raise ValueError("exploration requires a probability and at least two actions")
     games = environment.environments
     for environment_index in range(games):
         environment.reset(environment_index, seed + environment_index)
@@ -190,6 +195,8 @@ def collect_self_play_samples(
     winners = np.full(games, 255, dtype=np.uint8)
     truncations = 0
     transitions = 0
+    exploratory_actions = 0
+    random = np.random.default_rng(seed ^ 0xC0FFEE)
     reset_seed = seed + games
     while not bool(finished.all()):
         observation = environment.observe()
@@ -203,7 +210,34 @@ def collect_self_play_samples(
                     )
                 )
             decisions[environment_index] += 1
-        actions = policy.actions(observation, rule_features)
+        with torch.no_grad():
+            logits, _ = policy(observation, rule_features)
+            distribution = action_distribution(logits, observation["action_offsets"])
+        probabilities = distribution.probs.cpu().numpy()
+        actions = distribution.logits.argmax(dim=1).cpu().numpy().astype(np.uint64)
+        explore = np.logical_and(
+            ~finished,
+            random.random(games) < exploration_probability,
+        )
+        counts = np.diff(observation["action_offsets"])
+        for environment_index in np.flatnonzero(explore):
+            legal_actions = int(counts[environment_index])
+            candidate_count = min(exploration_top_k, legal_actions)
+            if candidate_count < 2:
+                continue
+            ranked = np.argsort(
+                -probabilities[environment_index, :legal_actions], kind="stable"
+            )
+            candidates = ranked[1:candidate_count]
+            candidate_probabilities = probabilities[environment_index, candidates]
+            mass = float(candidate_probabilities.sum())
+            weights = (
+                candidate_probabilities / mass
+                if mass > 0
+                else np.full(len(candidates), 1 / len(candidates))
+            )
+            actions[environment_index] = random.choice(candidates, p=weights)
+            exploratory_actions += 1
         result = environment.step(actions)
         transitions += games
         done = np.logical_or(result["terminal"], result["truncated"])
@@ -232,6 +266,9 @@ def collect_self_play_samples(
         "games": games,
         "samples": sum(len(trajectory) for trajectory in samples),
         "transitions": transitions,
+        "exploratory_actions": exploratory_actions,
+        "exploration_probability": exploration_probability,
+        "exploration_top_k": exploration_top_k,
         "truncations": truncations,
         "draws": int(np.count_nonzero(winners == 255)),
         "wins_by_seat": winner_counts.tolist(),
@@ -253,6 +290,8 @@ def calibrate_value(
     epochs: int,
     batch_size: int,
     learning_rate: float,
+    exploration_probability: float = 0.15,
+    exploration_top_k: int = 4,
 ) -> dict[str, object]:
     if games < 2 or validation_games < 1 or validation_games >= games:
         raise ValueError("validation games must be a non-empty strict subset")
@@ -307,6 +346,8 @@ def calibrate_value(
         rules,
         seed,
         sample_stride,
+        exploration_probability,
+        exploration_top_k,
     )
     training_games = games - validation_games
     training = [
@@ -350,6 +391,8 @@ def calibrate_value(
         "epochs": epochs,
         "batch_size": batch_size,
         "learning_rate": learning_rate,
+        "exploration_probability": exploration_probability,
+        "exploration_top_k": exploration_top_k,
         "collection": collection,
         "calibration": calibration,
         "policy_parameters_frozen": True,
@@ -394,6 +437,8 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=12)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
+    parser.add_argument("--exploration-probability", type=float, default=0.15)
+    parser.add_argument("--exploration-top-k", type=int, default=4)
     arguments = parser.parse_args()
     report = calibrate_value(
         arguments.checkpoint,
@@ -410,6 +455,8 @@ def main() -> None:
         arguments.epochs,
         arguments.batch_size,
         arguments.learning_rate,
+        arguments.exploration_probability,
+        arguments.exploration_top_k,
     )
     print(json.dumps(report, sort_keys=True))
 

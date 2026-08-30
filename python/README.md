@@ -257,13 +257,16 @@ player's perspective and freezes every policy and trunk parameter:
 ```bash
 python calibrate_value.py ../models/universal-routed.pt \
   ../models/classic-generic-duel-value.pt --profile classic_generic_2022 \
-  --games 64 --validation-games 16 --seed 600000 --device cuda
+  --games 256 --validation-games 64 --seed 600000 --device cuda \
+  --exploration-probability 0.15 --exploration-top-k 4
 ```
 
 The emitted specialist checkpoint includes before/after train and held-out
 MAE, RMSE, sign accuracy, and correlation, plus source and output SHA-256
-digests. Overlay it only on the calibrated context, preserving every inherited
-route:
+digests. Controlled exploration replaces 15% of actions with a sampled rank
+2–4 policy action, so the value head sees plausible off-policy successors that
+PUCT will actually visit. Overlay it only on the calibrated context, preserving
+every inherited route:
 
 ```bash
 python build_bundle.py ../models/universal-routed.pt \

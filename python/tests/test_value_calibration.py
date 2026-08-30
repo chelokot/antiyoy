@@ -84,12 +84,15 @@ def test_calibration_writes_an_overlay_compatible_checkpoint(tmp_path: Path) -> 
         epochs=1,
         batch_size=4,
         learning_rate=1e-3,
+        exploration_probability=1.0,
+        exploration_top_k=3,
     )
     calibrated = torch.load(output, map_location="cpu", weights_only=False)
     original = torch.load(source, map_location="cpu", weights_only=False)
 
     assert output.is_file()
     assert report["policy_parameters_frozen"] is True
+    assert report["collection"]["exploratory_actions"] > 0
     assert calibrated["checkpoint_version"] == original["checkpoint_version"]
     assert all(
         torch.equal(value, calibrated["model"][key])
