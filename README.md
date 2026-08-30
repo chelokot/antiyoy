@@ -70,8 +70,8 @@ cargo run --release -p antiyoy-cli -- compare \
 
 The held-out mirrored evaluation under [`benchmarks/`](benchmarks/) covers all
 seven compatibility profiles and reports paired relative Elo rather than an
-unsubstantiated absolute rating. The browser uses the same search agent at 2048
-nodes for human games and live self-play.
+unsubstantiated absolute rating. Browser search remains selectable at 64, 256,
+or 2048 nodes, and rated placement always uses the fixed 2048-node agent.
 
 ## Auditable leagues
 
@@ -93,8 +93,10 @@ play/pause, single-step, backward seek, and clickable per-hex state inspection.
 Its live map panel also creates reproducible two-to-eight-player
 `procedural_v1` scenarios entirely in WASM, with editable dimensions, seed, and
 land density. Human mode derives every destination action from the core's legal
-mask and advances search-controlled opponents until control returns to the
-player. Rated placement uses a fixed 11×9 Classic arena, alternates the human
+mask and offers both measured search opponents and the exported neural beta.
+The neural route consumes the authoritative Rust observation and legal-action
+list in ONNX Runtime Web; the initial browser export targets the fixed 11×9
+Classic Generic duel. Rated placement uses that same arena, alternates the human
 between both seats, assigns a fresh deterministic seed to every attempt, and
 stores a device-local Elo relative to the fixed 2048-node search opponent.
 This local calibration is explicitly separate from the verified multiplayer
@@ -206,6 +208,21 @@ Policy bundles remain one verified artifact while routing immutable rules
 profiles to compatible experts. The evaluator and browser arena expose the
 selected route; legal actions, state transitions, and observations still come
 from the single authoritative Rust engine.
+
+Export and verify the fixed browser route on a machine with the training extras:
+
+```bash
+PYTHONPATH=python python python/export_browser_policy.py \
+  models/universal-routed-2to8p-2026-08-30.pt \
+  web/public/classic-generic-browser.onnx
+PYTHONPATH=python python python/verify_browser_policy.py \
+  models/universal-routed-2to8p-2026-08-30.pt \
+  web/public/classic-generic-browser.onnx
+```
+
+The verifier runs an entire policy-driven game through both PyTorch and ONNX,
+requires the same argmax action at every state, and reports the maximum numeric
+error and observed legal-action-set range.
 
 ## Status
 

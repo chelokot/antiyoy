@@ -5,6 +5,7 @@ import type {
   WasmGame as WasmGameType,
   WasmReplay as WasmReplayType,
 } from "@/lib/antiyoy-wasm/antiyoy_wasm";
+import { RoutedBrowserPolicy, type PolicyDecision } from "./browser-policy";
 
 type WasmModule = typeof import("@/lib/antiyoy-wasm/antiyoy_wasm");
 
@@ -76,6 +77,7 @@ type LiveConfig = {
 
 type RulesProfileName = typeof RULES_PROFILES[number]["id"];
 type BotStrengthName = typeof BOT_STRENGTH_NAMES[number];
+type BotOpponentName = "neural" | BotStrengthName;
 
 type PlacementRating = {
   version: 1;
@@ -317,7 +319,7 @@ function matchOpponentLabel(
   replayMetadata: ReplayMetadata | null,
   placementMode: boolean,
   humanMode: boolean,
-  botStrength: BotStrengthName,
+  opponent: BotOpponentName,
 ): string {
   if (replayMetadata !== null) {
     return "recorded trace";
@@ -326,15 +328,27 @@ function matchOpponentLabel(
     return "rated search · 2048 nodes";
   }
   if (humanMode) {
-    return `${BOT_STRENGTHS[botStrength].label.toLowerCase()} search`;
+    return opponent === "neural"
+      ? "routed neural · ONNX"
+      : `${BOT_STRENGTHS[opponent].label.toLowerCase()} search`;
   }
   return "greedy vs full-turn search";
+}
+
+function supportsNeuralPolicy(config: LiveConfig): boolean {
+  return config.map === "duel"
+    && config.profile === "classic_generic_2022"
+    && config.width === WIDTH
+    && config.height === HEIGHT
+    && config.players === 2;
 }
 
 export default function Arena() {
   const wasmModule = useRef<WasmModule | null>(null);
   const game = useRef<WasmGameType | null>(null);
   const replay = useRef<WasmReplayType | null>(null);
+  const browserPolicy = useRef<RoutedBrowserPolicy | null>(null);
+  const botResponseInFlight = useRef(false);
   const placementRecorded = useRef(false);
   const boardViewport = useRef<HTMLDivElement | null>(null);
   const boardContent = useRef<HTMLDivElement | null>(null);
@@ -353,7 +367,32 @@ export default function Arena() {
   const [activeConfig, setActiveConfig] = useState<LiveConfig>(DEFAULT_CONFIG);
   const [boardScale, setBoardScale] = useState(1);
   const [openPanel, setOpenPanel] = useState<"left" | "right" | null>(null);
-  const [botStrength, setBotStrength] = useState<BotStrengthName>("brutal");
+  const [botOpponent, setBotOpponent] = useState<BotOpponentName>("neural");
+  const [policyStatus, setPolicyStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [botThinking, setBotThinking] = useState(false);
+  const [policyDecision, setPolicyDecision] = useState<PolicyDecision | null>(null);
+
+  useEffect(() => {
+    let disposed = false;
+    void RoutedBrowserPolicy.load("/classic-generic-browser.onnx").then((policy) => {
+      if (disposed) {
+        policy.release();
+        return;
+      }
+      browserPolicy.current = policy;
+      setPolicyStatus("ready");
+    }).catch(() => {
+      if (!disposed) {
+        setPolicyStatus("error");
+        setBotOpponent((current) => current === "neural" ? "brutal" : current);
+      }
+    });
+    return () => {
+      disposed = true;
+      browserPolicy.current?.release();
+      browserPolicy.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     const closePanel = (event: KeyboardEvent) => {
@@ -436,6 +475,10 @@ export default function Arena() {
       setState(next);
       setSelectedId(centerPlayableCell(next));
       setActions(0);
+      setPolicyDecision(null);
+      if (!supportsNeuralPolicy(draftConfig)) {
+        setBotOpponent("brutal");
+      }
       setPlaying(false);
       setError(null);
     } catch (reason: unknown) {
@@ -484,6 +527,7 @@ export default function Arena() {
       setState(advanced.state);
       setSelectedId(centerPlayableCell(advanced.state));
       setActions(advanced.actions);
+      setPolicyDecision(null);
       setHumanSeat(seat);
       setHumanMode(true);
       setPlacementMode(true);
@@ -551,30 +595,61 @@ export default function Arena() {
     setHumanSeat(0);
     setState(parseState(game.current.reset()));
     setActions(0);
+    setPolicyDecision(null);
     setPlaying(false);
     setError(null);
   }, []);
 
-  const playHumanAction = useCallback((actionIndex: number) => {
+  const playHumanAction = useCallback(async (actionIndex: number) => {
     const instance = game.current;
-    if (instance === null || replay.current !== null) {
+    if (instance === null || replay.current !== null || botResponseInFlight.current) {
       return;
     }
+    botResponseInFlight.current = true;
+    setBotThinking(true);
     try {
       const afterHuman = parseState(instance.step(actionIndex));
-      const searchNodes = placementMode
-        ? RATED_SEARCH_NODES
-        : BOT_STRENGTHS[botStrength].nodes;
-      const response = advanceBotsUntilHuman(instance, afterHuman, humanSeat, searchNodes);
-      setState(response.state);
-      setActions((current) => current + response.actions + 1);
+      setState(afterHuman);
+      let responseState = afterHuman;
+      let responseActions = 0;
+      if (!placementMode && botOpponent === "neural") {
+        const policy = browserPolicy.current;
+        if (policy === null) {
+          throw new Error("Neural policy is still loading");
+        }
+        while (
+          !responseState.terminal
+          && responseState.active_player !== humanSeat
+          && responseActions < 2_000
+        ) {
+          const decision = await policy.decide(instance.policy_observation_json());
+          setPolicyDecision(decision);
+          responseState = parseState(instance.step(decision.actionIndex));
+          responseActions += 1;
+        }
+        if (!responseState.terminal && responseState.active_player !== humanSeat) {
+          throw new Error("Neural response exceeded 2000 actions");
+        }
+      } else {
+        const searchNodes = placementMode
+          ? RATED_SEARCH_NODES
+          : BOT_STRENGTHS[botOpponent as BotStrengthName].nodes;
+        const response = advanceBotsUntilHuman(instance, afterHuman, humanSeat, searchNodes);
+        responseState = response.state;
+        responseActions = response.actions;
+      }
+      setState(responseState);
+      setActions((current) => current + responseActions + 1);
       setPlaying(false);
       setError(null);
     } catch (reason: unknown) {
       setPlaying(false);
       setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      botResponseInFlight.current = false;
+      setBotThinking(false);
     }
-  }, [botStrength, humanSeat, placementMode]);
+  }, [botOpponent, humanSeat, placementMode]);
 
   useEffect(() => {
     if (
@@ -699,12 +774,14 @@ export default function Arena() {
     && replayMetadata === null
     && state !== null
     && state.active_player === humanSeat
-    && !state.terminal;
+    && !state.terminal
+    && !botThinking
+    && (placementMode || botOpponent !== "neural" || policyStatus === "ready");
   const opponentLabel = matchOpponentLabel(
     replayMetadata,
     placementMode,
     humanMode,
-    botStrength,
+    botOpponent,
   );
 
   return (
@@ -722,7 +799,7 @@ export default function Arena() {
           <button className="panel-close" type="button" aria-label="Close overview panel" onClick={() => setOpenPanel(null)}>×</button>
           <details className="panel-section panel-section-hero" open>
             <summary>MATCH</summary>
-            <div className="panel-section-body"><p className="eyebrow">{replayMetadata === null ? placementMode ? "RATED PLACEMENT" : humanMode ? "HUMAN VS SEARCH" : "LIVE SELF-PLAY" : "VERIFIED REPLAY"}</p><h2 className="mt-2 text-xl font-semibold">{replayMetadata === null ? humanMode ? `you are ${playerLabel(humanSeat).toLowerCase()}` : "greedy vs turn-search" : "training trace"}</h2><p className="mt-1 text-sm text-[#8d9690]">{replayMetadata === null ? placementMode ? "local Elo vs fixed search-2048" : humanMode ? "select a glowing hex, then choose an action" : "deterministic whole-turn planning" : `${replayMetadata.frames} deterministic actions`}</p><div className="mt-6 space-y-4"><Metric label="RULESET" value={replayMetadata?.rules_profile ?? activeConfig.profile} /><Metric label="MAP" value={replayMetadata === null ? activeConfig.map === "procedural" ? "procedural_v1" : "symmetric_duel_v1" : "replay scenario"} /><Metric label="OPPONENT" value={opponentLabel} /><Metric label="SEED" value={`${replayMetadata?.seed ?? activeConfig.seed} · reproducible`} /><Metric label="ROUND" value={state === null ? "loading" : `${state.round} · ${playerLabel(state.active_player)} to move`} /><Metric label="LEGAL ACTIONS" value={state?.legal_actions.length.toString() ?? "…"} accent /></div></div>
+            <div className="panel-section-body"><p className="eyebrow">{replayMetadata === null ? placementMode ? "RATED PLACEMENT" : humanMode ? "HUMAN VS AI" : "LIVE SELF-PLAY" : "VERIFIED REPLAY"}</p><h2 className="mt-2 text-xl font-semibold">{replayMetadata === null ? humanMode ? `you are ${playerLabel(humanSeat).toLowerCase()}` : "greedy vs turn-search" : "training trace"}</h2><p className="mt-1 text-sm text-[#8d9690]">{replayMetadata === null ? placementMode ? "local Elo vs fixed search-2048" : humanMode ? "select a glowing hex, then choose an action" : "deterministic whole-turn planning" : `${replayMetadata.frames} deterministic actions`}</p><div className="mt-6 space-y-4"><Metric label="RULESET" value={replayMetadata?.rules_profile ?? activeConfig.profile} /><Metric label="MAP" value={replayMetadata === null ? activeConfig.map === "procedural" ? "procedural_v1" : "symmetric_duel_v1" : "replay scenario"} /><Metric label="OPPONENT" value={opponentLabel} /><Metric label="SEED" value={`${replayMetadata?.seed ?? activeConfig.seed} · reproducible`} /><Metric label="ROUND" value={state === null ? "loading" : `${state.round} · ${playerLabel(state.active_player)} to move`} /><Metric label="LEGAL ACTIONS" value={state?.legal_actions.length.toString() ?? "…"} accent />{!placementMode && botOpponent === "neural" && <Metric label="NEURAL INFERENCE" value={policyDecision === null ? policyStatus : `${policyDecision.milliseconds.toFixed(1)} ms · ${policyDecision.legalActions} actions`} accent />}</div></div>
           </details>
           {replayMetadata === null && <details className="panel-section" open><summary>GAME CONFIG</summary><div className="panel-section-body map-config"><label className="config-field"><span>RULESET</span><select value={draftConfig.profile} onChange={(event) => setDraftConfig((current) => ({ ...current, profile: event.target.value as RulesProfileName }))}>{RULES_PROFILES.map((profile) => <option value={profile.id} key={profile.id}>{profile.label}</option>)}</select></label><div className="config-grid"><label className="config-field"><span>MODE</span><select value={draftConfig.map} onChange={(event) => setDraftConfig((current) => ({ ...current, map: event.target.value as LiveConfig["map"], players: event.target.value === "duel" ? 2 : current.players }))}><option value="duel">Symmetric duel</option><option value="procedural">Procedural v1</option></select></label><label className="config-field"><span>SEED</span><input type="text" inputMode="numeric" pattern="[0-9]+" value={draftConfig.seed} onChange={(event) => setDraftConfig((current) => ({ ...current, seed: event.target.value }))} /></label><label className="config-field"><span>WIDTH</span><input type="number" min="5" max="41" value={draftConfig.width} onChange={(event) => setDraftConfig((current) => ({ ...current, width: Number(event.target.value) }))} /></label><label className="config-field"><span>HEIGHT</span><input type="number" min="2" max="31" value={draftConfig.height} onChange={(event) => setDraftConfig((current) => ({ ...current, height: Number(event.target.value) }))} /></label><label className="config-field"><span>PLAYERS</span><input type="number" min="2" max="8" disabled={draftConfig.map === "duel"} value={draftConfig.map === "duel" ? 2 : draftConfig.players} onChange={(event) => setDraftConfig((current) => ({ ...current, players: Number(event.target.value) }))} /></label><label className="config-field"><span>LAND PPM</span><input type="number" min="200000" max="1000000" step="50000" disabled={draftConfig.map === "duel"} value={draftConfig.map === "duel" ? 650000 : draftConfig.landDensity} onChange={(event) => setDraftConfig((current) => ({ ...current, landDensity: Number(event.target.value) }))} /></label></div><button className="generate-button" type="button" onClick={generate}>Generate deterministic map</button></div></details>}
           <details className="panel-section" open><summary>TERRITORY</summary><div className="panel-section-body space-y-3 text-xs">{territories.map((cells, player) => <Bar label={playerLabel(player)} value={cells} width={`${territoryShares[player]}%`} player={player} key={player} />)}</div></details>
@@ -745,7 +822,7 @@ export default function Arena() {
         </aside>
 
         <section className="board-panel">
-          <div className="board-controls"><button aria-expanded={openPanel === "left"} aria-controls="match-drawer" className="control panel-toggle" type="button" onClick={() => setOpenPanel("left")}>Match</button><div className="turn-chip"><span className={`turn-dot territory-player-${(state?.active_player ?? 0) % PLAYER_NAMES.length}`} /><span className="turn-copy">ROUND {state?.round ?? "…"} · {state === null ? "LOADING" : state.active_player === humanSeat && humanMode ? "YOUR TURN" : `${playerLabel(state.active_player)} TO MOVE`}</span></div>{humanMode && replayMetadata === null && <label className="bot-strength"><span>BOT</span><select aria-label="Bot strength" disabled={placementMode} value={placementMode ? "brutal" : botStrength} onChange={(event) => setBotStrength(event.target.value as BotStrengthName)}>{BOT_STRENGTH_NAMES.map((strength) => <option value={strength} key={strength}>{BOT_STRENGTHS[strength].label}</option>)}</select></label>}{!humanMode && <><button className="control control-primary" type="button" disabled={state === null || state.terminal || (replayMetadata !== null && actions === replayMetadata.frames)} onClick={() => setPlaying((current) => !current)}>{playing ? "Ⅱ Pause" : "▶ Play"}</button><button className="control" type="button" disabled={state === null || state.terminal || playing || (replayMetadata !== null && actions === replayMetadata.frames)} onClick={step}>Step</button></>}<button className="control" type="button" disabled={state === null} onClick={reset}>New game</button>{replayMetadata === null ? <><button className={`control ${humanMode ? "control-active" : ""}`} type="button" onClick={toggleHumanMode}>{humanMode ? "Watch bots" : "Play yourself"}</button><label className="control cursor-pointer">Replay<input className="sr-only" type="file" accept=".antiyoy,application/octet-stream" onChange={(event) => void loadReplay(event.target.files?.[0])} /></label></> : <button className="control" type="button" onClick={restoreLive}>Live game</button>}<button aria-expanded={openPanel === "right"} aria-controls="inspector-drawer" className="control panel-toggle" type="button" onClick={() => setOpenPanel("right")}>Inspect</button></div>
+          <div className="board-controls"><button aria-expanded={openPanel === "left"} aria-controls="match-drawer" className="control panel-toggle" type="button" onClick={() => setOpenPanel("left")}>Match</button><div className="turn-chip"><span className={`turn-dot territory-player-${(state?.active_player ?? 0) % PLAYER_NAMES.length}`} /><span className="turn-copy">ROUND {state?.round ?? "…"} · {state === null ? "LOADING" : state.active_player === humanSeat && humanMode ? "YOUR TURN" : `${playerLabel(state.active_player)} TO MOVE`}</span></div>{humanMode && replayMetadata === null && <label className="bot-strength"><span>BOT</span><select aria-label="Bot opponent" disabled={placementMode || botThinking} value={placementMode ? "brutal" : botOpponent} onChange={(event) => setBotOpponent(event.target.value as BotOpponentName)}><option value="neural" disabled={!supportsNeuralPolicy(activeConfig) || policyStatus === "error"}>Neural beta{policyStatus === "loading" ? " · loading" : ""}</option>{BOT_STRENGTH_NAMES.map((strength) => <option value={strength} key={strength}>{BOT_STRENGTHS[strength].label}</option>)}</select></label>}{!humanMode && <><button className="control control-primary" type="button" disabled={state === null || state.terminal || (replayMetadata !== null && actions === replayMetadata.frames)} onClick={() => setPlaying((current) => !current)}>{playing ? "Ⅱ Pause" : "▶ Play"}</button><button className="control" type="button" disabled={state === null || state.terminal || playing || (replayMetadata !== null && actions === replayMetadata.frames)} onClick={step}>Step</button></>}<button className="control" type="button" disabled={state === null || botThinking} onClick={reset}>New game</button>{replayMetadata === null ? <><button className={`control ${humanMode ? "control-active" : ""}`} type="button" disabled={botThinking} onClick={toggleHumanMode}>{humanMode ? "Watch bots" : "Play yourself"}</button><label className="control cursor-pointer">Replay<input className="sr-only" type="file" accept=".antiyoy,application/octet-stream" onChange={(event) => void loadReplay(event.target.files?.[0])} /></label></> : <button className="control" type="button" onClick={restoreLive}>Live game</button>}<button aria-expanded={openPanel === "right"} aria-controls="inspector-drawer" className="control panel-toggle" type="button" onClick={() => setOpenPanel("right")}>Inspect</button></div>
           <div className={`board-scroll ${humanMode && replayMetadata === null ? "board-scroll-human" : ""}`} ref={boardViewport} aria-label="Interactive hex game board">
             <div className="board-transform" style={{ transform: `translate(-50%, -50%) scale(${boardScale})` }}>
               <div ref={boardContent} className={`hex-board ${state !== null && state.width > 15 ? "hex-board-compact" : ""}`}>
@@ -754,8 +831,8 @@ export default function Arena() {
             </div>
           </div>
           {state?.terminal && <div className="result-banner">{state.winner === null ? "DRAW" : `${playerLabel(state.winner)} WINS`} · {actions} ACTIONS</div>}
-          {error !== null && <div className="error-banner">WASM ERROR · {error}</div>}
-          {humanMode && replayMetadata === null && <div className="action-dock"><div className="action-dock-heading"><div><p className="eyebrow text-[#d8ff3e]">YOUR MOVE</p><p className="action-dock-title">HEX {String(selectedQ).padStart(2, "0")},{String(selectedR).padStart(2, "0")} · {selected === null ? "LOADING" : pieceLabel(selected)}</p></div><span className="action-dock-status">{state?.terminal ? "GAME OVER" : humanCanAct ? `${selectedActions.length + globalActions.length} OPTIONS` : "BOT THINKING"}</span></div><div className="action-dock-buttons">{selectedActions.map(({ action, index }) => <button className="action-button action-button-inline" type="button" disabled={!humanCanAct} onClick={() => playHumanAction(index)} key={index}>{actionLabel(action, state?.width ?? WIDTH)}</button>)}{globalActions.map(({ action, index }) => <button className="action-button action-button-inline action-button-global" type="button" disabled={!humanCanAct} onClick={() => playHumanAction(index)} key={index}>{actionLabel(action, state?.width ?? WIDTH)}</button>)}{selectedActions.length === 0 && globalActions.length === 0 && <p className="action-dock-empty">Select a glowing hex to move, recruit, or build.</p>}</div></div>}
+          {error !== null && <div className="error-banner">ENGINE ERROR · {error}</div>}
+          {humanMode && replayMetadata === null && <div className="action-dock"><div className="action-dock-heading"><div><p className="eyebrow text-[#d8ff3e]">YOUR MOVE</p><p className="action-dock-title">HEX {String(selectedQ).padStart(2, "0")},{String(selectedR).padStart(2, "0")} · {selected === null ? "LOADING" : pieceLabel(selected)}</p></div><span className="action-dock-status">{state?.terminal ? "GAME OVER" : botThinking ? placementMode || botOpponent !== "neural" ? "BOT THINKING" : "NEURAL THINKING" : !placementMode && botOpponent === "neural" && policyStatus === "loading" ? "MODEL LOADING" : humanCanAct ? `${selectedActions.length + globalActions.length} OPTIONS` : "BOT THINKING"}</span></div><div className="action-dock-buttons">{selectedActions.map(({ action, index }) => <button className="action-button action-button-inline" type="button" disabled={!humanCanAct} onClick={() => void playHumanAction(index)} key={index}>{actionLabel(action, state?.width ?? WIDTH)}</button>)}{globalActions.map(({ action, index }) => <button className="action-button action-button-inline action-button-global" type="button" disabled={!humanCanAct} onClick={() => void playHumanAction(index)} key={index}>{actionLabel(action, state?.width ?? WIDTH)}</button>)}{selectedActions.length === 0 && globalActions.length === 0 && <p className="action-dock-empty">Select a glowing hex to move, recruit, or build.</p>}</div></div>}
           <div className={`timeline ${humanMode && replayMetadata === null ? "timeline-human" : ""}`}><div className="flex items-center justify-between font-mono text-[0.65rem] text-[#8d9690]"><span>ACTION {actions}{replayMetadata === null ? "" : ` / ${replayMetadata.frames}`}</span><span>{state?.terminal ? "TERMINAL" : replayMetadata === null ? "DETERMINISTIC TRACE" : "REPLAY VERIFIED"}</span></div>{replayMetadata === null ? <div className="mt-3 flex h-1.5 overflow-hidden bg-white/10">{territoryShares.map((share, player) => <div className={`territory-player-${player % PLAYER_NAMES.length}`} style={{ width: `${share}%` }} key={player} />)}</div> : <input className="replay-scrubber" type="range" min="0" max={replayMetadata.frames} value={actions} aria-label="Replay action" onChange={(event) => seekReplay(Number(event.target.value))} />}</div>
         </section>
 
@@ -763,7 +840,7 @@ export default function Arena() {
           <button className="panel-close" type="button" aria-label="Close inspector panel" onClick={() => setOpenPanel(null)}>×</button>
           <details className="panel-section panel-section-hero" open><summary>SELECTED HEX · {String(selectedQ).padStart(2, "0")},{String(selectedR).padStart(2, "0")}</summary><div className="panel-section-body"><p className="font-mono text-lg">q: {String(selectedQ).padStart(2, "0")} · r: {String(selectedR).padStart(2, "0")}</p><div className="mt-4 grid grid-cols-2 gap-px bg-white/10"><Stat label="OWNER" value={selected?.owner === null || selected === null ? "NEUTRAL" : playerLabel(selected.owner)} /><Stat label="PIECE" value={selected === null ? "…" : pieceLabel(selected)} /><Stat label="DEFENSE" value={selected?.defense.toString() ?? "…"} /><Stat label="READY" value={selected?.strength === 0 ? "—" : selected?.ready ? "YES" : "NO"} /></div></div></details>
           <details className="panel-section" open><summary>PROVINCE ECONOMY</summary><div className="panel-section-body">{province === null ? <p className="text-sm leading-6 text-[#77817b]">This hex is not part of a connected province.</p> : <dl className="space-y-3 font-mono text-xs"><Row label="Treasury" value={`$${province.money}`} /><Row label="Hex income" value={`+${province.income}`} /><Row label="Upkeep" value={`−${province.upkeep}`} /><Row label="Next turn" value={`${province.profit >= 0 ? "+" : "−"}$${Math.abs(province.profit)}`} accent /></dl>}</div></details>
-          {humanMode && replayMetadata === null && <details className="panel-section" open><summary>LEGAL ACTIONS · {selectedActions.length + globalActions.length}</summary><div className="panel-section-body"><p className="text-xs leading-5 text-[#77817b]">Select a destination hex, then choose an action. Other players answer automatically.</p><div className="mt-3 grid gap-2">{selectedActions.map(({ action, index }) => <button className="action-button" type="button" disabled={state?.active_player !== humanSeat || state?.terminal} onClick={() => playHumanAction(index)} key={index}>{actionLabel(action, state?.width ?? WIDTH)}</button>)}{selectedActions.length === 0 && <p className="font-mono text-[0.65rem] text-[#626b66]">No targeted action is legal on this hex.</p>}</div><div className="mt-4 grid gap-2">{globalActions.map(({ action, index }) => <button className="action-button action-button-global" type="button" disabled={state?.active_player !== humanSeat || state?.terminal} onClick={() => playHumanAction(index)} key={index}>{actionLabel(action, state?.width ?? WIDTH)}</button>)}</div></div></details>}
+          {humanMode && replayMetadata === null && <details className="panel-section" open><summary>LEGAL ACTIONS · {selectedActions.length + globalActions.length}</summary><div className="panel-section-body"><p className="text-xs leading-5 text-[#77817b]">Select a destination hex, then choose an action. Other players answer automatically.</p><div className="mt-3 grid gap-2">{selectedActions.map(({ action, index }) => <button className="action-button" type="button" disabled={!humanCanAct} onClick={() => void playHumanAction(index)} key={index}>{actionLabel(action, state?.width ?? WIDTH)}</button>)}{selectedActions.length === 0 && <p className="font-mono text-[0.65rem] text-[#626b66]">No targeted action is legal on this hex.</p>}</div><div className="mt-4 grid gap-2">{globalActions.map(({ action, index }) => <button className="action-button action-button-global" type="button" disabled={!humanCanAct} onClick={() => void playHumanAction(index)} key={index}>{actionLabel(action, state?.width ?? WIDTH)}</button>)}</div></div></details>}
           <details className="panel-section"><summary>STATE CONTRACT</summary><div className="panel-section-body"><dl className="space-y-2 font-mono text-xs"><Row label="Cells" value={state?.cells.length.toString() ?? "…"} /><Row label="Provinces" value={state?.provinces.length.toString() ?? "…"} /><Row label="Relations" value={state?.relations.length.toString() ?? "…"} /><Row label="Terminal" value={state?.terminal ? "YES" : "NO"} /></dl></div></details>
         </aside>
         <button className={`panel-backdrop ${openPanel === null ? "" : "panel-backdrop-open"}`} type="button" aria-label="Close side panel" onClick={() => setOpenPanel(null)} />

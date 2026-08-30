@@ -49,6 +49,9 @@ test("ships the generated engine and social card", async () => {
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     access(new URL("../lib/antiyoy-wasm/antiyoy_wasm_bg.wasm", import.meta.url)),
     access(new URL("../public/og.png", import.meta.url)),
+    access(new URL("../public/classic-generic-browser.onnx", import.meta.url)),
+    access(new URL("../public/ort-wasm-simd-threaded.wasm", import.meta.url)),
+    access(new URL("../public/ort-wasm-simd-threaded.mjs", import.meta.url)),
   ]);
   assert.match(bindings, /class WasmGame/);
   assert.match(bindings, /class WasmReplay/);
@@ -58,10 +61,14 @@ test("ships the generated engine and social card", async () => {
   assert.match(bindings, /search_nodes\(\)/);
   assert.match(bindings, /with_profile\(/);
   assert.match(bindings, /procedural_with_profile\(/);
+  assert.match(bindings, /policy_observation_json\(\)/);
   assert.match(packageJson, /"name": "antiyoy-arena-lab"/);
   assert.match(packageJson, /"build:wasm"/);
   assert.match(packageJson, /"stage:wasm"/);
   await access(new URL("../public/antiyoy_wasm_bg.wasm", import.meta.url));
+  await access(new URL("../dist/client/classic-generic-browser.onnx", import.meta.url));
+  await access(new URL("../dist/client/ort-wasm-simd-threaded.wasm", import.meta.url));
+  await access(new URL("../dist/client/ort-wasm-simd-threaded.mjs", import.meta.url));
 });
 
 test("loads WebAssembly from a deployable same-origin URL", async () => {
@@ -101,11 +108,12 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, /translate\(-50%, -50%\) scale\(\$\{boardScale\}\)/);
   assert.match(arena, /aria-controls="match-drawer"/);
   assert.match(arena, /aria-controls="inspector-drawer"/);
-  assert.match(arena, /aria-label="Bot strength"/);
+  assert.match(arena, /aria-label="Bot opponent"/);
+  assert.match(arena, /Neural beta/);
   assert.match(arena, /Quick · 64/);
   assert.match(arena, /Strong · 256/);
   assert.match(arena, /Brutal · full turn/);
-  assert.match(arena, /useState<BotStrengthName>\("brutal"\)/);
+  assert.match(arena, /useState<BotOpponentName>\("neural"\)/);
   assert.match(arena, /placementMode\s+\? RATED_SEARCH_NODES/);
   assert.match(arena, /step_search_with_budget\(searchNodes\)/);
   assert.match(arena, />Match<\/button>/);
@@ -132,6 +140,10 @@ test("executes greedy and whole-turn search in the compiled WebAssembly engine",
   assert.equal(initial.cells.length, 99);
   assert.equal(initial.round, 1);
   assert.ok(initial.legal_actions.length > 0);
+  const policyObservation = JSON.parse(game.policy_observation_json());
+  assert.equal(policyObservation.widths[0], 11);
+  assert.equal(policyObservation.heights[0], 9);
+  assert.equal(policyObservation.actions.length, initial.legal_actions.length);
   assert.equal(next.active_player, 1);
   assert.notDeepEqual(next, initial);
   const searchReply = JSON.parse(game.step_bot());

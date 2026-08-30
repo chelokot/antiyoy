@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "public/ort-wasm-simd-threaded.mjs",
   ]),
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
