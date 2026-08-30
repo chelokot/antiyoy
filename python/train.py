@@ -60,6 +60,7 @@ class TrainingConfig:
     imitation_symmetry_augmentation: bool
     imitation_reference_weight: float
     imitation_slice_weights: list[str]
+    imitation_policy_rollin_slices: list[str]
     checkpoint_every: int
     search_nodes: int
     search_beam_width: int
@@ -208,6 +209,29 @@ def parsed_slice_weights(config: TrainingConfig) -> dict[tuple[str, int], float]
     return parsed
 
 
+def parsed_policy_rollin_slices(config: TrainingConfig) -> set[tuple[str, int]]:
+    scheduled = set(profile_schedule(config))
+    parsed: set[tuple[str, int]] = set()
+    for specification in config.imitation_policy_rollin_slices:
+        parts = specification.rsplit(":", 1)
+        if len(parts) != 2:
+            raise ValueError("imitation policy rollin slices use PROFILE:SEAT")
+        profile, seat_text = parts
+        try:
+            seat = int(seat_text)
+        except ValueError as error:
+            raise ValueError("imitation policy rollin slices use PROFILE:SEAT") from error
+        if profile not in scheduled:
+            raise ValueError(f"imitation policy rollin profile is not scheduled: {profile}")
+        if seat < 0 or seat >= config.players:
+            raise ValueError(f"imitation policy rollin seat is out of range: {seat}")
+        key = (profile, seat)
+        if key in parsed:
+            raise ValueError(f"duplicate imitation policy rollin slice: {profile}:{seat}")
+        parsed.add(key)
+    return parsed
+
+
 def imitation_weights(
     config: TrainingConfig,
     observation: dict[str, np.ndarray],
@@ -222,6 +246,22 @@ def imitation_weights(
         )
     ]
     return torch.tensor(weights, dtype=torch.float32, device=device)
+
+
+def policy_rollin_mask(
+    config: TrainingConfig,
+    observation: dict[str, np.ndarray],
+    device: torch.device,
+) -> Tensor:
+    configured = parsed_policy_rollin_slices(config)
+    active_players = np.asarray(observation["active_players"], dtype=np.int64)
+    selected = [
+        (profile, int(active_player)) in configured
+        for profile, active_player in zip(
+            profile_schedule(config), active_players, strict=True
+        )
+    ]
+    return torch.tensor(selected, dtype=torch.bool, device=device)
 
 
 def validate_config(config: TrainingConfig) -> None:
@@ -242,6 +282,9 @@ def validate_config(config: TrainingConfig) -> None:
     if config.profiles is not None and not config.profiles:
         raise ValueError("profiles must not be empty")
     parsed_slice_weights(config)
+    policy_slices = parsed_policy_rollin_slices(config)
+    if policy_slices and config.imitation_rollin != "teacher":
+        raise ValueError("asymmetric policy rollin requires teacher rollin as its base")
     if config.checkpoint_every < 0:
         raise ValueError("checkpoint_every must not be negative")
     if config.checkpoint_every > 0 and config.checkpoint is None:
@@ -397,7 +440,13 @@ def pretrain_teacher(
         accuracy = float((policy_actions == targets).float().mean().item())
         loss_average += (float(loss.item()) - loss_average) / update
         accuracy_average += (accuracy - accuracy_average) / update
-        rollin_actions = targets if config.imitation_rollin == "teacher" else policy_actions
+        if config.imitation_policy_rollin_slices:
+            use_policy = policy_rollin_mask(config, observation, device)
+            rollin_actions = torch.where(use_policy, policy_actions, targets)
+        else:
+            rollin_actions = (
+                targets if config.imitation_rollin == "teacher" else policy_actions
+            )
         result = environment.step(rollin_actions.cpu().numpy().astype(np.uint64))
         done = np.logical_or(result["terminal"], result["truncated"])
         for index in np.flatnonzero(done):
@@ -679,6 +728,8 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             algorithm += "_reference_regularized"
         if config.imitation_slice_weights:
             algorithm += "_slice_weighted"
+        if config.imitation_policy_rollin_slices:
+            algorithm += "_asymmetric_dagger"
         if config.updates > 0:
             algorithm += "_perspective_ppo_gae"
     summary: dict[str, float | int | str] = {
@@ -695,6 +746,9 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "imitation_symmetry_augmentation": config.imitation_symmetry_augmentation,
         "imitation_reference_weight": config.imitation_reference_weight,
         "imitation_slice_weights": ",".join(config.imitation_slice_weights),
+        "imitation_policy_rollin_slices": ",".join(
+            config.imitation_policy_rollin_slices
+        ),
         "imitation_transitions": imitation_transitions,
         "imitation_seconds": imitation_seconds,
         "imitation_transitions_per_second": (
@@ -766,6 +820,13 @@ def parse_args() -> TrainingConfig:
         dest="imitation_slice_weights",
         default=[],
         metavar="PROFILE:SEAT:WEIGHT",
+    )
+    parser.add_argument(
+        "--imitation-policy-rollin-slice",
+        action="append",
+        dest="imitation_policy_rollin_slices",
+        default=[],
+        metavar="PROFILE:SEAT",
     )
     parser.add_argument("--checkpoint-every", type=int, default=0)
     parser.add_argument("--search-nodes", type=int, default=2048)

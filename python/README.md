@@ -98,6 +98,10 @@ Repeat `--imitation-slice-weight PROFILE:SEAT:WEIGHT` to emphasize a measured
 worst-case slice in both teacher and retention losses. Unspecified slices keep
 weight one; malformed, duplicate, unscheduled, or out-of-range slices fail
 before the environment or model is allocated.
+Repeat `--imitation-policy-rollin-slice PROFILE:SEAT` for asymmetric DAgger.
+The selected seats advance with the candidate's action while every opponent
+seat advances with the search label. This trains recovery against an exact
+teacher opening without replacing the opponent with another copy of the policy.
 Set `--updates 0` for an imitation-only run without a PPO phase; at least one
 imitation update is then required.
 

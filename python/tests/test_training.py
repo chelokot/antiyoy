@@ -11,6 +11,7 @@ from python.train import (
     imitation_weights,
     make_environment,
     parsed_slice_weights,
+    policy_rollin_mask,
     recovery_checkpoint_path,
     rollout_targets,
     validate_config,
@@ -49,6 +50,7 @@ def training_config() -> TrainingConfig:
         imitation_symmetry_augmentation=False,
         imitation_reference_weight=0.0,
         imitation_slice_weights=[],
+        imitation_policy_rollin_slices=[],
         checkpoint_every=0,
         search_nodes=256,
         search_beam_width=12,
@@ -171,6 +173,39 @@ def test_training_rejects_invalid_slice_weights(specification: str) -> None:
 
     with pytest.raises(ValueError, match="slice"):
         parsed_slice_weights(config)
+
+
+def test_policy_rollin_mask_selects_only_configured_profile_seat() -> None:
+    config = replace(
+        training_config(),
+        environments=4,
+        profiles=["classic_generic_2022", "online_duel_v1"],
+        profile=None,
+        imitation_policy_rollin_slices=["online_duel_v1:1"],
+    )
+    observation = {
+        "active_players": torch.tensor([0, 0, 1, 1], dtype=torch.uint8).numpy()
+    }
+
+    selected = policy_rollin_mask(config, observation, torch.device("cpu"))
+
+    assert selected.tolist() == [False, False, False, True]
+
+
+@pytest.mark.parametrize(
+    "specification",
+    ["online_duel_v1", "online_duel_v1:x", "online_duel_v1:2", "classic_slay_2022:1"],
+)
+def test_training_rejects_invalid_policy_rollin_slices(specification: str) -> None:
+    config = replace(
+        training_config(),
+        profiles=["classic_generic_2022", "online_duel_v1"],
+        profile=None,
+        imitation_policy_rollin_slices=[specification],
+    )
+
+    with pytest.raises(ValueError, match="policy rollin"):
+        validate_config(config)
 
 
 def test_training_rejects_checkpoint_interval_without_destination() -> None:
