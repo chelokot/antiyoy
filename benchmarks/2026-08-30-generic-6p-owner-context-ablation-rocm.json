@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "kind": "generic_six_player_owner_context_ablation",
+  "training_commit": "b54f372",
+  "evaluation_commit": "b54f372",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 8,
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "pytorch": "2.9.1+rocm6.4",
+    "maximum_parallel_jobs": 1
+  },
+  "hypothesis": "Encoding each cell owner's relative turn distance and directed relation, plus player count and round, should remove the policy's multiplayer opponent-identity aliasing and improve the measured Generic six-player seat-2 weakness.",
+  "domain": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v1",
+    "width": 21,
+    "height": 15,
+    "players": 6,
+    "model_seat": 2,
+    "land_density_per_million": 650000,
+    "action_limit": 2800
+  },
+  "training": {
+    "initialized_from": {
+      "asset": "generic-dagger-6p-exact-v1.pt",
+      "sha256": "6ac462bb6af40e9c66f04e8c759e961e0fd3146ddcfabfd0e60ede5d1bec825f"
+    },
+    "candidate": {
+      "asset": "generic-6p-context-seat2-v1.pt",
+      "sha256": "b228f0aba70d4e94adc90df908d8d0b65a776d77bfd7a10dde45818f2bf333bb",
+      "size_bytes": 10871107
+    },
+    "seed": 3500000,
+    "environments": 24,
+    "imitation_updates": 2500,
+    "imitation_transitions": 60000,
+    "teacher": "deterministic_whole_turn_search_2048",
+    "rollin": "teacher",
+    "symmetry_augmentation": "rot180",
+    "map_reset_interval": 250,
+    "learning_rate": 0.000005,
+    "reference_kl_weight": 0.25,
+    "slice_weight": "classic_generic_2022:2:6",
+    "elapsed_seconds": 154.0583288350026,
+    "transitions_per_second": 389.46287716946716,
+    "mean_imitation_accuracy": 0.6823333521604527,
+    "mean_imitation_loss": 0.9525655841109342,
+    "learned_context_l2": {
+      "turn_distance_embedding": 0.010350981,
+      "cell_relation_embedding": 0.003579824,
+      "player_count_embedding": 0.006820333,
+      "round_projection": 0.008703985
+    }
+  },
+  "evaluation": {
+    "baseline": "deterministic_whole_turn_search_256",
+    "scheme": "unique_seed_fixed_seat_v1",
+    "seed": 510000,
+    "unique_seeds": 12,
+    "games_per_candidate": 12,
+    "truncations": 0,
+    "results": [
+      {
+        "name": "release_control",
+        "asset": "universal-2to8p-release-v5g-candidate.pt",
+        "sha256": "d13d009217d262e503f988d61273e8bf56d0c7790f874bd9c29644b142328736",
+        "selected_expert": "context:ea1a83a813d1f57f",
+        "raw_result_sha256": "c45f9790b71d7c42f062316cf92eb80732b393e25724ca63a6c68d19dcbf5a5e",
+        "wins": 0,
+        "draws": 0,
+        "losses": 12,
+        "transitions": 12588
+      },
+      {
+        "name": "owner_context_candidate",
+        "asset": "generic-6p-context-seat2-v1.pt",
+        "sha256": "b228f0aba70d4e94adc90df908d8d0b65a776d77bfd7a10dde45818f2bf333bb",
+        "selected_expert": "single",
+        "raw_result_sha256": "e8edbec29777213cf9ee7f5e4379989d5d3cea3532563a1304b9a00240db326f",
+        "wins": 0,
+        "draws": 0,
+        "losses": 12,
+        "transitions": 16344
+      }
+    ]
+  },
+  "selection": {
+    "promoted_checkpoint": null,
+    "published_bundle_changed": false,
+    "status": "candidate_rejected"
+  },
+  "conclusion": "All four zero-initialized multiplayer context modules learned nonzero weights and the candidate survived more transitions, but it produced no held-out win gain. Survival length is not the promotion metric, so the release expert remains unchanged."
+}
