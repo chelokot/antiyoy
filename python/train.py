@@ -60,6 +60,7 @@ class TrainingConfig:
     epochs: int
     clip_ratio: float
     imitation_updates: int
+    imitation_reset_interval: int
     imitation_teacher: str
     imitation_rollin: str
     imitation_symmetry_augmentation: bool
@@ -320,6 +321,8 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("clip_ratio must be positive")
     if config.imitation_updates < 0:
         raise ValueError("imitation_updates must not be negative")
+    if config.imitation_reset_interval < 0:
+        raise ValueError("imitation_reset_interval must not be negative")
     if config.imitation_reference_weight < 0:
         raise ValueError("imitation_reference_weight must not be negative")
     if config.profiles is not None and not config.profiles:
@@ -497,7 +500,14 @@ def pretrain_teacher(
             )
         result = environment.step(rollin_actions.cpu().numpy().astype(np.uint64))
         done = np.logical_or(result["terminal"], result["truncated"])
-        for index in np.flatnonzero(done):
+        reset_all = (
+            config.imitation_reset_interval > 0
+            and update % config.imitation_reset_interval == 0
+        )
+        reset_indices = (
+            range(config.environments) if reset_all else np.flatnonzero(done)
+        )
+        for index in reset_indices:
             environment.reset(int(index), reset_seed)
             reset_seed += 1
         if checkpoint_callback is not None:
@@ -708,6 +718,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         reference_model.requires_grad_(False)
     rules = encode_rules_batch(environment.rules_jsons(), device)
     reset_seed = config.seed + config.environments
+    imitation_reset_seed = reset_seed
     imitation_loss = 0.0
     imitation_accuracy = 0.0
     imitation_started = time.perf_counter()
@@ -746,6 +757,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             reference_model,
             save_imitation_recovery,
         )
+    imitation_environment_resets = reset_seed - imitation_reset_seed
     imitation_seconds = time.perf_counter() - imitation_started
     imitation_transitions = config.imitation_updates * config.environments
     reward_average = 0.0
@@ -798,6 +810,8 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         algorithm = f"{config.imitation_teacher}_distilled_{config.imitation_rollin}_rollin"
         if config.imitation_symmetry_augmentation:
             algorithm += "_rot180_augmented"
+        if config.imitation_reset_interval > 0:
+            algorithm += "_periodic_map_resets"
         if config.imitation_reference_weight > 0:
             algorithm += "_reference_regularized"
         if config.imitation_slice_weights:
@@ -817,6 +831,8 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "transitions": config.updates * config.rollout_steps * config.environments,
         "optimizer_steps": config.updates * config.rollout_steps * config.epochs,
         "imitation_updates": config.imitation_updates,
+        "imitation_reset_interval": config.imitation_reset_interval,
+        "imitation_environment_resets": imitation_environment_resets,
         "imitation_teacher": config.imitation_teacher,
         "imitation_rollin": config.imitation_rollin,
         "imitation_symmetry_augmentation": config.imitation_symmetry_augmentation,
@@ -884,6 +900,7 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--clip-ratio", type=float, default=0.2)
     parser.add_argument("--imitation-updates", type=int, default=0)
+    parser.add_argument("--imitation-reset-interval", type=int, default=0)
     parser.add_argument(
         "--imitation-teacher", choices=("greedy", "search"), default="greedy"
     )

@@ -109,6 +109,11 @@ seat advances with the search label. This trains recovery against an exact
 teacher opening without replacing the opponent with another copy of the policy.
 Set `--updates 0` for an imitation-only run without a PPO phase; at least one
 imitation update is then required.
+Use `--imitation-reset-interval N` to reset every training environment onto a
+fresh deterministic procedural seed after each `N` teacher updates. This
+increases map diversity without increasing the transition budget; zero keeps
+natural episode boundaries only. The checkpoint summary records the exact
+number of environment resets.
 
 Measure target-generation cost before a large run:
 

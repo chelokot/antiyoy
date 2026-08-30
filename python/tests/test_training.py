@@ -48,6 +48,7 @@ def training_config() -> TrainingConfig:
         epochs=1,
         clip_ratio=0.2,
         imitation_updates=0,
+        imitation_reset_interval=0,
         imitation_teacher="greedy",
         imitation_rollin="teacher",
         imitation_symmetry_augmentation=False,
@@ -126,6 +127,11 @@ def test_training_rejects_invalid_procedural_density() -> None:
 
 def test_training_allows_imitation_without_ppo() -> None:
     validate_config(replace(training_config(), updates=0, imitation_updates=1))
+
+
+def test_training_rejects_negative_imitation_reset_interval() -> None:
+    with pytest.raises(ValueError, match="imitation_reset_interval"):
+        validate_config(replace(training_config(), imitation_reset_interval=-1))
 
 
 def test_training_rejects_empty_curriculum() -> None:
