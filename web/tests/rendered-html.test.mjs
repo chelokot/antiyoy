@@ -49,7 +49,8 @@ test("ships the generated engine and social card", async () => {
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     access(new URL("../lib/antiyoy-wasm/antiyoy_wasm_bg.wasm", import.meta.url)),
     access(new URL("../public/og.png", import.meta.url)),
-    access(new URL("../public/classic-generic-browser.onnx", import.meta.url)),
+    access(new URL("../public/browser-primary.onnx", import.meta.url)),
+    access(new URL("../public/browser-experimental-v2.onnx", import.meta.url)),
     access(new URL("../public/ort-wasm-simd-threaded.wasm", import.meta.url)),
     access(new URL("../public/ort-wasm-simd-threaded.mjs", import.meta.url)),
   ]);
@@ -66,7 +67,8 @@ test("ships the generated engine and social card", async () => {
   assert.match(packageJson, /"build:wasm"/);
   assert.match(packageJson, /"stage:wasm"/);
   await access(new URL("../public/antiyoy_wasm_bg.wasm", import.meta.url));
-  await access(new URL("../dist/client/classic-generic-browser.onnx", import.meta.url));
+  await access(new URL("../dist/client/browser-primary.onnx", import.meta.url));
+  await access(new URL("../dist/client/browser-experimental-v2.onnx", import.meta.url));
   await access(new URL("../dist/client/ort-wasm-simd-threaded.wasm", import.meta.url));
   await access(new URL("../dist/client/ort-wasm-simd-threaded.mjs", import.meta.url));
 });
@@ -143,6 +145,7 @@ test("executes greedy and whole-turn search in the compiled WebAssembly engine",
   const policyObservation = JSON.parse(game.policy_observation_json());
   assert.equal(policyObservation.widths[0], 11);
   assert.equal(policyObservation.heights[0], 9);
+  assert.equal(policyObservation.rule_features.length, 45);
   assert.equal(policyObservation.actions.length, initial.legal_actions.length);
   assert.equal(next.active_player, 1);
   assert.notDeepEqual(next, initial);

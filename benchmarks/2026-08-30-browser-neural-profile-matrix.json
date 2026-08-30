@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "kind": "browser_neural_profile_matrix",
+  "implementation_commit": "3403e70a805cdb5b2e05652311ba49f0267a43fb",
+  "source_policy": {
+    "asset": "universal-2to8p-release-v5g-candidate.pt",
+    "sha256": "d13d009217d262e503f988d61273e8bf56d0c7790f874bd9c29644b142328736"
+  },
+  "domain": {
+    "generator": "symmetric_duel",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "model_seat": 1,
+    "seed": 47
+  },
+  "exports": [
+    {
+      "asset": "browser-primary.onnx",
+      "expert": "primary",
+      "size_bytes": 3751563,
+      "sha256": "30570fe0d961fa408a0b34eac5f41f60f9abd0384202bd43add2d31981d06d4d",
+      "profiles": [
+        "classic_generic_2022",
+        "classic_slay_2022",
+        "online_default_v1",
+        "online_classic_v1",
+        "online_duel_v1",
+        "online_experimental_v1"
+      ]
+    },
+    {
+      "asset": "browser-experimental-v2.onnx",
+      "expert": "specialist:online_experimental_v2_260801",
+      "size_bytes": 3751563,
+      "sha256": "f66d309acbd6e6388c350dd2e335d3ded10ad7cdd67f12d047bf93f501999c13",
+      "profiles": ["online_experimental_v2_260801"]
+    }
+  ],
+  "parity": {
+    "runtime": "onnxruntime 1.29.0 CPUExecutionProvider",
+    "matching_argmax_actions": 1726,
+    "actions_compared": 1726,
+    "maximum_logit_absolute_error": 0.0000171661376953125,
+    "maximum_value_absolute_error": 4.76837158203125e-7,
+    "results": [
+      {
+        "profile": "classic_generic_2022",
+        "actions": 233,
+        "minimum_legal_actions": 1,
+        "maximum_legal_actions": 1001,
+        "maximum_logit_absolute_error": 0.0000133514404296875
+      },
+      {
+        "profile": "classic_slay_2022",
+        "actions": 228,
+        "minimum_legal_actions": 1,
+        "maximum_legal_actions": 477,
+        "maximum_logit_absolute_error": 0.000011444091796875
+      },
+      {
+        "profile": "online_default_v1",
+        "actions": 325,
+        "minimum_legal_actions": 1,
+        "maximum_legal_actions": 593,
+        "maximum_logit_absolute_error": 0.0000171661376953125
+      },
+      {
+        "profile": "online_classic_v1",
+        "actions": 228,
+        "minimum_legal_actions": 1,
+        "maximum_legal_actions": 477,
+        "maximum_logit_absolute_error": 0.000011444091796875
+      },
+      {
+        "profile": "online_duel_v1",
+        "actions": 260,
+        "minimum_legal_actions": 1,
+        "maximum_legal_actions": 647,
+        "maximum_logit_absolute_error": 0.0000133514404296875
+      },
+      {
+        "profile": "online_experimental_v1",
+        "actions": 260,
+        "minimum_legal_actions": 1,
+        "maximum_legal_actions": 647,
+        "maximum_logit_absolute_error": 0.0000133514404296875
+      },
+      {
+        "profile": "online_experimental_v2_260801",
+        "actions": 192,
+        "minimum_legal_actions": 1,
+        "maximum_legal_actions": 248,
+        "maximum_logit_absolute_error": 0.0000133514404296875
+      }
+    ]
+  },
+  "web_runtime_smoke": {
+    "runtime": "onnxruntime-web 1.23.2 wasm",
+    "node": "22.18.0",
+    "cpu": "Intel Core i5-12500H",
+    "primary": {
+      "profile": "classic_generic_2022",
+      "legal_actions": 44,
+      "selected_action": 6,
+      "expected_action": 6,
+      "inference_milliseconds": 38.2,
+      "transition_accepted_by_rust": true
+    },
+    "specialist": {
+      "profile": "online_experimental_v2_260801",
+      "legal_actions": 39,
+      "selected_action": 24,
+      "expected_action": 24,
+      "inference_milliseconds": 8.5,
+      "transition_accepted_by_rust": true
+    }
+  },
+  "scope": "Two dynamic-rule ONNX exports cover every bundled fixed 11x9 duel profile. Other map dimensions and procedural multiplayer domains retain explicit native search opponents."
+}

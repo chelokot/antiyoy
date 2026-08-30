@@ -5,8 +5,9 @@ browser runs the same state transition code as headless evaluation through a
 generated WebAssembly package. Its rated placement mode alternates seats on a
 fixed arena and persists a device-local Elo against the 2048-node Rust search
 agent. The default fixed Classic duel also runs the published neural expert
-locally through ONNX Runtime Web, while three explicit search budgets remain
-available. Live games expose all seven versioned rules profiles and
+locally through ONNX Runtime Web. Two deduplicated neural exports cover all
+seven fixed 11×9 duel profiles, while three explicit search budgets remain
+available for every map. Live games expose all seven versioned rules profiles and
 deterministic duel or two-to-eight-player procedural maps.
 
 [Open the hosted arena](https://antiyoy-arena-lab.chelokot.chatgpt.site)

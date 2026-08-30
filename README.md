@@ -95,8 +95,9 @@ Its live map panel also creates reproducible two-to-eight-player
 land density. Human mode derives every destination action from the core's legal
 mask and offers both measured search opponents and the exported neural beta.
 The neural route consumes the authoritative Rust observation and legal-action
-list in ONNX Runtime Web; the initial browser export targets the fixed 11×9
-Classic Generic duel. Rated placement uses that same arena, alternates the human
+list in ONNX Runtime Web. Two deduplicated experts cover all seven fixed 11×9
+duel profiles: six share the primary weights and Experimental v2 uses its routed
+specialist. Rated placement uses the Classic Generic arena, alternates the human
 between both seats, assigns a fresh deterministic seed to every attempt, and
 stores a device-local Elo relative to the fixed 2048-node search opponent.
 This local calibration is explicitly separate from the verified multiplayer
@@ -214,15 +215,19 @@ Export and verify the fixed browser route on a machine with the training extras:
 ```bash
 PYTHONPATH=python python python/export_browser_policy.py \
   models/universal-routed-2to8p-2026-08-30.pt \
-  web/public/classic-generic-browser.onnx
+  web/public/browser-primary.onnx
+PYTHONPATH=python python python/export_browser_policy.py \
+  models/universal-routed-2to8p-2026-08-30.pt \
+  web/public/browser-experimental-v2.onnx \
+  --profile online_experimental_v2_260801
 PYTHONPATH=python python python/verify_browser_policy.py \
   models/universal-routed-2to8p-2026-08-30.pt \
-  web/public/classic-generic-browser.onnx
+  web/public/browser-primary.onnx
 ```
 
-The verifier runs an entire policy-driven game through both PyTorch and ONNX,
-requires the same argmax action at every state, and reports the maximum numeric
-error and observed legal-action-set range.
+Run the verifier once per routed profile. It drives an entire game through both
+PyTorch and ONNX, requires the same argmax action at every state, and reports
+the maximum numeric error and observed legal-action-set range.
 
 ## Status
 

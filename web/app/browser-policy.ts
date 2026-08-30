@@ -32,6 +32,7 @@ type PolicyObservation = {
   province_money: number[];
   province_profit: number[];
   province_sizes: number[];
+  rule_features: number[];
   actions: PolicyAction[];
 };
 
@@ -104,8 +105,9 @@ export class RoutedBrowserPolicy {
       || observation.heights.length !== 1
       || observation.widths[0] !== 11
       || observation.heights[0] !== 9
+      || observation.rule_features.length !== 45
     ) {
-      throw new Error("Neural policy requires a single 11×9 environment");
+      throw new Error("Neural policy requires one 11×9 environment with 45 rule features");
     }
     const actions = observation.actions;
     const inputs: Record<string, OrtTensor> = {
@@ -124,6 +126,11 @@ export class RoutedBrowserPolicy {
         "float32",
         provinceFeatures(observation),
         [observation.province_ids.length, 3],
+      ),
+      rule_features: new this.Tensor(
+        "float32",
+        Float32Array.from(observation.rule_features),
+        [observation.rule_features.length],
       ),
       active_player: int64Tensor(this.Tensor, observation.active_players),
       player_count: int64Tensor(this.Tensor, observation.player_counts),

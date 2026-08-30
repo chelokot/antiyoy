@@ -78,6 +78,8 @@ type LiveConfig = {
 type RulesProfileName = typeof RULES_PROFILES[number]["id"];
 type BotStrengthName = typeof BOT_STRENGTH_NAMES[number];
 type BotOpponentName = "neural" | BotStrengthName;
+type BrowserPolicyKey = keyof typeof BROWSER_POLICY_MODELS;
+type PolicyStatus = "loading" | "ready" | "error";
 
 type PlacementRating = {
   version: 1;
@@ -130,6 +132,10 @@ const BOT_STRENGTHS = {
   brutal: { label: "Brutal · full turn", nodes: 2_048 },
 } as const;
 const BOT_STRENGTH_NAMES = ["quick", "strong", "brutal"] as const;
+const BROWSER_POLICY_MODELS = {
+  primary: "/browser-primary.onnx",
+  experimentalV2: "/browser-experimental-v2.onnx",
+} as const;
 const PLAYER_NAMES = ["CYAN", "AMBER", "VIOLET", "CORAL", "LIME", "BLUE", "PINK", "SILVER"] as const;
 const MODEL_URL = "https://github.com/chelokot/antiyoy/releases/tag/model-v0.4.0-beta.1";
 const MODEL_RESULTS = [
@@ -337,17 +343,20 @@ function matchOpponentLabel(
 
 function supportsNeuralPolicy(config: LiveConfig): boolean {
   return config.map === "duel"
-    && config.profile === "classic_generic_2022"
     && config.width === WIDTH
     && config.height === HEIGHT
     && config.players === 2;
+}
+
+function policyKeyForProfile(profile: RulesProfileName): BrowserPolicyKey {
+  return profile === "online_experimental_v2_260801" ? "experimentalV2" : "primary";
 }
 
 export default function Arena() {
   const wasmModule = useRef<WasmModule | null>(null);
   const game = useRef<WasmGameType | null>(null);
   const replay = useRef<WasmReplayType | null>(null);
-  const browserPolicy = useRef<RoutedBrowserPolicy | null>(null);
+  const browserPolicies = useRef<Partial<Record<BrowserPolicyKey, RoutedBrowserPolicy>>>({});
   const botResponseInFlight = useRef(false);
   const placementRecorded = useRef(false);
   const boardViewport = useRef<HTMLDivElement | null>(null);
@@ -368,29 +377,41 @@ export default function Arena() {
   const [boardScale, setBoardScale] = useState(1);
   const [openPanel, setOpenPanel] = useState<"left" | "right" | null>(null);
   const [botOpponent, setBotOpponent] = useState<BotOpponentName>("neural");
-  const [policyStatus, setPolicyStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [policyStatuses, setPolicyStatuses] = useState<Record<BrowserPolicyKey, PolicyStatus>>({
+    primary: "loading",
+    experimentalV2: "loading",
+  });
   const [botThinking, setBotThinking] = useState(false);
   const [policyDecision, setPolicyDecision] = useState<PolicyDecision | null>(null);
+  const activePolicyKey = policyKeyForProfile(activeConfig.profile);
+  const policyStatus = policyStatuses[activePolicyKey];
+  const activePolicyKeyRef = useRef(policyKeyForProfile(DEFAULT_CONFIG.profile));
 
   useEffect(() => {
     let disposed = false;
-    void RoutedBrowserPolicy.load("/classic-generic-browser.onnx").then((policy) => {
-      if (disposed) {
-        policy.release();
-        return;
+    const load = async (key: BrowserPolicyKey) => {
+      try {
+        const policy = await RoutedBrowserPolicy.load(BROWSER_POLICY_MODELS[key]);
+        if (disposed) {
+          policy.release();
+          return;
+        }
+        browserPolicies.current[key] = policy;
+        setPolicyStatuses((current) => ({ ...current, [key]: "ready" }));
+      } catch {
+        if (!disposed) {
+          setPolicyStatuses((current) => ({ ...current, [key]: "error" }));
+          if (activePolicyKeyRef.current === key) {
+            setBotOpponent((current) => current === "neural" ? "brutal" : current);
+          }
+        }
       }
-      browserPolicy.current = policy;
-      setPolicyStatus("ready");
-    }).catch(() => {
-      if (!disposed) {
-        setPolicyStatus("error");
-        setBotOpponent((current) => current === "neural" ? "brutal" : current);
-      }
-    });
+    };
+    void load("primary").then(() => load("experimentalV2"));
     return () => {
       disposed = true;
-      browserPolicy.current?.release();
-      browserPolicy.current = null;
+      Object.values(browserPolicies.current).forEach((policy) => policy.release());
+      browserPolicies.current = {};
     };
   }, []);
 
@@ -471,12 +492,16 @@ export default function Arena() {
       setReplayMetadata(null);
       setPlacementMode(false);
       setHumanSeat(0);
+      activePolicyKeyRef.current = policyKeyForProfile(draftConfig.profile);
       setActiveConfig(draftConfig);
       setState(next);
       setSelectedId(centerPlayableCell(next));
       setActions(0);
       setPolicyDecision(null);
-      if (!supportsNeuralPolicy(draftConfig)) {
+      if (
+        !supportsNeuralPolicy(draftConfig)
+        || policyStatuses[policyKeyForProfile(draftConfig.profile)] === "error"
+      ) {
         setBotOpponent("brutal");
       }
       setPlaying(false);
@@ -486,7 +511,7 @@ export default function Arena() {
       setPlaying(false);
       setError(reason instanceof Error ? reason.message : String(reason));
     }
-  }, [draftConfig]);
+  }, [draftConfig, policyStatuses]);
 
   const startPlacement = useCallback(() => {
     const bindings = wasmModule.current;
@@ -523,6 +548,7 @@ export default function Arena() {
       window.localStorage.setItem(PLACEMENT_STORAGE_KEY, JSON.stringify(nextPlacement));
       setPlacement(nextPlacement);
       setReplayMetadata(null);
+      activePolicyKeyRef.current = policyKeyForProfile(placementConfig.profile);
       setActiveConfig(placementConfig);
       setState(advanced.state);
       setSelectedId(centerPlayableCell(advanced.state));
@@ -613,8 +639,8 @@ export default function Arena() {
       let responseState = afterHuman;
       let responseActions = 0;
       if (!placementMode && botOpponent === "neural") {
-        const policy = browserPolicy.current;
-        if (policy === null) {
+        const policy = browserPolicies.current[policyKeyForProfile(activeConfig.profile)];
+        if (policy === undefined) {
           throw new Error("Neural policy is still loading");
         }
         while (
@@ -649,7 +675,7 @@ export default function Arena() {
       botResponseInFlight.current = false;
       setBotThinking(false);
     }
-  }, [botOpponent, humanSeat, placementMode]);
+  }, [activeConfig.profile, botOpponent, humanSeat, placementMode]);
 
   useEffect(() => {
     if (
