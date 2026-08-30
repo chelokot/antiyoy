@@ -67,6 +67,23 @@ test("loads WebAssembly from a deployable same-origin URL", async () => {
   assert.match(bundledArena, /location\.origin/);
 });
 
+test("keeps the arena inside the viewport with independently scrolling panels", async () => {
+  const [arena, styles] = await Promise.all([
+    readFile(new URL("../app/Arena.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(styles, /html, body \{ height: 100%; overflow: hidden; \}/);
+  assert.match(styles, /\.arena-shell \{[^}]*height: 100dvh;[^}]*overflow: hidden;/);
+  assert.match(styles, /\.arena-layout \{[^}]*min-height: 0;[^}]*overflow: hidden;/);
+  assert.match(styles, /\.arena-sidebar \{[^}]*overflow-y: auto;[^}]*overscroll-behavior: contain;/);
+  assert.match(styles, /\.board-scroll \{[^}]*overflow: hidden;/);
+  assert.match(styles, /clip-path: polygon\(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%\)/);
+  assert.match(arena, /new ResizeObserver\(fit\)/);
+  assert.match(arena, /translate\(-50%, -50%\) scale\(\$\{boardScale\}\)/);
+  assert.match(arena, />Overview<\/button>/);
+  assert.match(arena, />Inspect<\/button>/);
+});
+
 test("executes greedy and whole-turn search in the compiled WebAssembly engine", async () => {
   const moduleUrl = new URL("../lib/antiyoy-wasm/antiyoy_wasm.js", import.meta.url);
   moduleUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
