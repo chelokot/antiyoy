@@ -24,6 +24,7 @@ def test_policy_search_is_deterministic_and_respects_active_mask() -> None:
         rules,
         np.array([1, 0, 1], dtype=np.uint8),
         config,
+        include_root_targets=True,
     )
     second_actions, second_metrics = policy_search_actions(
         environment,
@@ -31,12 +32,24 @@ def test_policy_search_is_deterministic_and_respects_active_mask() -> None:
         rules,
         np.array([1, 0, 1], dtype=np.uint8),
         config,
+        include_root_targets=True,
     )
     assert first_actions.tolist() == second_actions.tolist()
     assert first_actions[1] == 0
     assert first_metrics["nodes"].tolist() == [32, 0, 32]
-    assert first_metrics["root_visits"].tolist() == second_metrics["root_visits"].tolist()
+    assert (
+        first_metrics["root_visits"].tolist() == second_metrics["root_visits"].tolist()
+    )
     assert first_metrics["evaluated_leaves"] == 64
+    assert (
+        first_metrics["root_action_offsets"][2]
+        == first_metrics["root_action_offsets"][1]
+    )
+    for environment in (0, 2):
+        start, end = first_metrics["root_action_offsets"][environment : environment + 2]
+        assert first_metrics["root_probabilities"][int(start) : int(end)].sum() == (
+            pytest.approx(1)
+        )
 
 
 def test_policy_search_rejects_malformed_active_mask() -> None:

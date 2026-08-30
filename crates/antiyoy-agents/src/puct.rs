@@ -263,6 +263,37 @@ impl PuctSearch {
             .ok_or(PuctError::NoRootAction)
     }
 
+    pub fn root_target_probabilities(&self) -> Result<Vec<f64>, PuctError> {
+        let NodeState::Expanded(edges) = &self.nodes[0].state else {
+            return Err(PuctError::NoRootAction);
+        };
+        let weights = if let Some(value_weight) = self.config.root_value_weight {
+            let scores = edges
+                .iter()
+                .map(|edge| root_policy_value_score(edge, value_weight))
+                .collect::<Vec<_>>();
+            let maximum = scores
+                .iter()
+                .copied()
+                .max_by(f64::total_cmp)
+                .ok_or(PuctError::NoRootAction)?;
+            scores
+                .into_iter()
+                .map(|score| (score - maximum).exp())
+                .collect::<Vec<_>>()
+        } else {
+            edges
+                .iter()
+                .map(|edge| f64::from(edge.visits))
+                .collect::<Vec<_>>()
+        };
+        let mass = weights.iter().sum::<f64>();
+        if !mass.is_finite() || mass <= 0.0 {
+            return Err(PuctError::NoRootAction);
+        }
+        Ok(weights.into_iter().map(|weight| weight / mass).collect())
+    }
+
     pub fn stats(&self) -> PuctStats {
         let root_visits = match &self.nodes[0].state {
             NodeState::Expanded(edges) => edges.iter().map(|edge| u64::from(edge.visits)).sum(),
@@ -648,6 +679,13 @@ mod tests {
         edges[1].visits = 1;
         edges[1].value_sum = -1.0;
         assert_eq!(search.selected_action_index().expect("root action"), 1);
+        let targets = search
+            .root_target_probabilities()
+            .expect("root target probabilities");
+        assert!((targets[0] - 0.1).abs() < 1e-12);
+        assert!((targets[1] - 0.9).abs() < 1e-12);
+        assert_eq!(targets[2..], vec![0.0; targets.len() - 2]);
+        assert!((targets.iter().sum::<f64>() - 1.0).abs() < 1e-12);
     }
 
     #[test]

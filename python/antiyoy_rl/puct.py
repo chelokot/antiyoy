@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 import numpy as np
 import torch
@@ -19,6 +19,8 @@ class PolicySearchMetrics(TypedDict):
     completed_simulations: np.ndarray
     maximum_depth: np.ndarray
     root_visits: np.ndarray
+    root_action_offsets: NotRequired[np.ndarray]
+    root_probabilities: NotRequired[np.ndarray]
 
 
 @dataclass(frozen=True)
@@ -40,6 +42,7 @@ def policy_search_actions(
     rule_features: Tensor,
     active_mask: np.ndarray,
     config: PolicySearchConfig,
+    include_root_targets: bool = False,
 ) -> tuple[np.ndarray, PolicySearchMetrics]:
     active = np.asarray(active_mask, dtype=np.uint8)
     if active.shape != (environment.environments,):
@@ -80,7 +83,7 @@ def policy_search_actions(
         leaf_batches += 1
         evaluated_leaves += len(search_environments)
     stats = search.stats()
-    return np.asarray(search.action_indices(), dtype=np.uint64), {
+    metrics: PolicySearchMetrics = {
         "leaf_batches": leaf_batches,
         "evaluated_leaves": evaluated_leaves,
         "nodes": np.asarray(stats["nodes"], dtype=np.uint64),
@@ -90,3 +93,12 @@ def policy_search_actions(
         "maximum_depth": np.asarray(stats["maximum_depth"], dtype=np.uint64),
         "root_visits": np.asarray(stats["root_visits"], dtype=np.uint64),
     }
+    if include_root_targets:
+        root_targets = search.root_targets()
+        metrics["root_action_offsets"] = np.asarray(
+            root_targets["offsets"], dtype=np.uint64
+        )
+        metrics["root_probabilities"] = np.asarray(
+            root_targets["probabilities"], dtype=np.float32
+        )
+    return np.asarray(search.action_indices(), dtype=np.uint64), metrics
