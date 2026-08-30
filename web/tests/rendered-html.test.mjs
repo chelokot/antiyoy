@@ -30,7 +30,7 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(html, /fixed-duel routes preserve the verified 48–0 profile results/);
   assert.match(html, /Download verified bundle/);
   assert.match(html, /Replay/);
-  assert.match(html, /MAP GENERATOR/);
+  assert.match(html, /GAME CONFIG/);
   assert.match(html, /Generate deterministic map/);
   assert.match(html, /Watch bots/);
   assert.match(html, /YOUR MOVE/);
@@ -53,6 +53,8 @@ test("ships the generated engine and social card", async () => {
   assert.match(bindings, /class WasmGame/);
   assert.match(bindings, /class WasmReplay/);
   assert.match(bindings, /step_search\(\)/);
+  assert.match(bindings, /with_profile\(/);
+  assert.match(bindings, /procedural_with_profile\(/);
   assert.match(packageJson, /"name": "antiyoy-arena-lab"/);
   assert.match(packageJson, /"build:wasm"/);
   assert.match(packageJson, /"stage:wasm"/);
@@ -97,7 +99,8 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, />Game<\/button>/);
   assert.match(arena, />Details<\/button>/);
   assert.match(arena, /actionable=\{humanCanAct && actionableTargets\.has\(cell\.id\)\}/);
-  assert.match(arena, /<summary>MAP GENERATOR<\/summary>/);
+  assert.match(arena, /<summary>GAME CONFIG<\/summary>/);
+  assert.match(arena, /RULES_PROFILES\.map/);
   assert.match(arena, /<summary>PROVINCE ECONOMY<\/summary>/);
 });
 
@@ -126,6 +129,23 @@ test("executes greedy and whole-turn search in the compiled WebAssembly engine",
   assert.equal(beforeSearch.active_player, 0);
   assert.notDeepEqual(afterSearch, beforeSearch);
   searchFirst.free();
+  const slay = bindings.WasmGame.with_profile(11, 9, 51n, "classic_slay_2022");
+  assert.equal(slay.rules_profile(), "classic_slay_2022");
+  slay.free();
+  assert.throws(
+    () => bindings.WasmGame.with_profile(11, 9, 51n, "unknown"),
+    /unknown rules profile/,
+  );
+  const experimental = bindings.WasmGame.procedural_with_profile(
+    17,
+    13,
+    4,
+    53n,
+    650_000,
+    "online_experimental_v2_260801",
+  );
+  assert.equal(experimental.rules_profile(), "online_experimental_v2_260801");
+  experimental.free();
   game.free();
 });
 

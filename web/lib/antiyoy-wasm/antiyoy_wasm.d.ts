@@ -7,11 +7,14 @@ export class WasmGame {
     legal_actions_json(): string;
     constructor(width: number, height: number, seed: bigint);
     static procedural(width: number, height: number, players: number, seed: bigint, land_density_per_million: number): WasmGame;
+    static procedural_with_profile(width: number, height: number, players: number, seed: bigint, land_density_per_million: number, profile: string): WasmGame;
     reset(): string;
+    rules_profile(): string;
     state_json(): string;
     step(action_index: number): string;
     step_bot(): string;
     step_search(): string;
+    static with_profile(width: number, height: number, seed: bigint, profile: string): WasmGame;
 }
 
 export class WasmReplay {
@@ -31,7 +34,10 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_wasmgame_free: (a: number, b: number) => void;
     readonly wasmgame_new: (a: number, b: number, c: number, d: bigint) => void;
+    readonly wasmgame_with_profile: (a: number, b: number, c: number, d: bigint, e: number, f: number) => void;
     readonly wasmgame_procedural: (a: number, b: number, c: number, d: number, e: bigint, f: number) => void;
+    readonly wasmgame_procedural_with_profile: (a: number, b: number, c: number, d: number, e: bigint, f: number, g: number, h: number) => void;
+    readonly wasmgame_rules_profile: (a: number, b: number) => void;
     readonly wasmgame_reset: (a: number, b: number) => void;
     readonly wasmgame_state_json: (a: number, b: number) => void;
     readonly wasmgame_legal_actions_json: (a: number, b: number) => void;
@@ -47,6 +53,7 @@ export interface InitOutput {
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
     readonly __wbindgen_export: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export2: (a: number, b: number) => number;
+    readonly __wbindgen_export3: (a: number, b: number, c: number, d: number) => number;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;

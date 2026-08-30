@@ -29,10 +29,18 @@ pub struct WasmGame {
 impl WasmGame {
     #[wasm_bindgen(constructor)]
     pub fn new(width: u16, height: u16, seed: u64) -> Result<Self, JsError> {
-        let rules = Rules::classic_generic();
+        Self::with_profile(width, height, seed, "classic_generic_2022")
+    }
+
+    pub fn with_profile(
+        width: u16,
+        height: u16,
+        seed: u64,
+        profile: &str,
+    ) -> Result<Self, JsError> {
         let scenario = Scenario::symmetric_duel(width, height, seed)
             .map_err(|error| JsError::new(&error.to_string()))?;
-        Self::from_scenario(rules, scenario)
+        Self::from_scenario(rules_for_profile(profile)?, scenario)
     }
 
     pub fn procedural(
@@ -41,6 +49,24 @@ impl WasmGame {
         players: u8,
         seed: u64,
         land_density_per_million: u32,
+    ) -> Result<Self, JsError> {
+        Self::procedural_with_profile(
+            width,
+            height,
+            players,
+            seed,
+            land_density_per_million,
+            "classic_generic_2022",
+        )
+    }
+
+    pub fn procedural_with_profile(
+        width: u16,
+        height: u16,
+        players: u8,
+        seed: u64,
+        land_density_per_million: u32,
+        profile: &str,
     ) -> Result<Self, JsError> {
         let config = GeneratorConfig {
             width,
@@ -53,7 +79,11 @@ impl WasmGame {
         let scenario = config
             .generate()
             .map_err(|error| JsError::new(&error.to_string()))?;
-        Self::from_scenario(Rules::classic_generic(), scenario)
+        Self::from_scenario(rules_for_profile(profile)?, scenario)
+    }
+
+    pub fn rules_profile(&self) -> String {
+        profile_name(self.rules.profile).to_owned()
     }
 
     pub fn reset(&mut self) -> Result<String, JsError> {
@@ -200,6 +230,19 @@ fn profile_name(profile: antiyoy_core::RulesProfile) -> &'static str {
         antiyoy_core::RulesProfile::OnlineExperimentalV1 => "online_experimental_v1",
         antiyoy_core::RulesProfile::OnlineExperimentalV2_260801 => "online_experimental_v2_260801",
         antiyoy_core::RulesProfile::Custom => "custom",
+    }
+}
+
+fn rules_for_profile(profile: &str) -> Result<Rules, JsError> {
+    match profile {
+        "classic_generic_2022" => Ok(Rules::classic_generic()),
+        "classic_slay_2022" => Ok(Rules::classic_slay()),
+        "online_default_v1" => Ok(Rules::online_default_v1()),
+        "online_classic_v1" => Ok(Rules::online_classic_v1()),
+        "online_duel_v1" => Ok(Rules::online_duel_v1()),
+        "online_experimental_v1" => Ok(Rules::online_experimental_v1()),
+        "online_experimental_v2_260801" => Ok(Rules::online_experimental_v2_260801()),
+        _ => Err(JsError::new("unknown rules profile")),
     }
 }
 
