@@ -206,6 +206,34 @@ Use `--baseline search --search-nodes 2048` for the stronger deterministic
 teacher. Search beam, branch, and maximum turn depth are independently
 configurable and emitted in the result.
 
+Policy-guided PUCT is a separate model-side amplifier. Rust owns the cloned
+search trees, exact legal transitions, virtual visits, and deterministic
+backup; Python batches pending leaves into a single policy/value inference.
+The active routed expert is selected again at every leaf, so opponent and
+multiplayer turns are not evaluated with the root seat's specialist.
+
+```bash
+python evaluate.py ../models/universal-routed.pt --games 64 \
+  --baseline search --search-nodes 2048 --model-agent puct \
+  --puct-nodes 64 --puct-leaf-batch-size 512 --device cuda
+```
+
+The result records decisions, evaluated leaves, inference batches, exact tree
+nodes, root visits, and maximum reached depth. Compare it with the same seed,
+seat, baseline, and model using `--model-agent policy`; changing only the PUCT
+budget isolates the value of search from the value of the checkpoint.
+
+For the direct amplification match, use the checkpoint itself as the opponent:
+
+```bash
+python evaluate.py ../models/universal-routed.pt --games 64 \
+  --baseline policy --model-agent puct --puct-nodes 64 --device cuda
+```
+
+Every opponent seat then uses the same routed checkpoint without search. The
+paired seat rotation and policy-vs-policy reference run isolate the Elo added by
+PUCT rather than mixing it with a different heuristic opponent.
+
 Use `--model-seat SEAT` for an exact-seat scout. Unlike the all-seat rotation,
 every game then uses a distinct seed with the policy fixed to that seat, and
 the evaluator calibrates the result against baseline self-play on the same

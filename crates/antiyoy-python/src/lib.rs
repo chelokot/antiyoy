@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use antiyoy_agents::{Agent, GreedyAgent, SearchAgent, SearchConfig};
+use antiyoy_agents::{Agent, GreedyAgent, PuctConfig, PuctSearch, SearchAgent, SearchConfig};
 use antiyoy_core::{
     EconomyMetric, GeneratorConfig, Objective, PlayerId, Relation, Rules, VictoryCondition,
 };
@@ -70,6 +70,215 @@ impl ProceduralConfig {
 #[pyclass(module = "antiyoy_rl._native", frozen)]
 struct ScenarioObjective {
     inner: Objective,
+}
+
+#[pyclass(module = "antiyoy_rl._native")]
+struct PolicySearchBatch {
+    searches: Vec<Option<PuctSearch>>,
+    observation: BatchObservation,
+    pending_leaves: Vec<(usize, u64)>,
+    fog: bool,
+}
+
+#[pymethods]
+impl PolicySearchBatch {
+    fn is_complete(&self) -> bool {
+        self.searches.iter().flatten().all(PuctSearch::is_complete)
+    }
+
+    fn select_leaves<'py>(
+        &mut self,
+        py: Python<'py>,
+        maximum_batch_size: usize,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        if maximum_batch_size == 0 {
+            return Err(PyValueError::new_err(
+                "PUCT leaf batch size must be positive",
+            ));
+        }
+        if !self.pending_leaves.is_empty() {
+            return Err(PyRuntimeError::new_err(
+                "complete the pending PUCT leaf batch before selecting another",
+            ));
+        }
+        while self.pending_leaves.len() < maximum_batch_size && !self.is_complete() {
+            let mut progressed = false;
+            for (environment, search) in self.searches.iter_mut().enumerate() {
+                let Some(search) = search else {
+                    continue;
+                };
+                let before = search.stats();
+                if let Some(leaf) = search.select_leaves(1).into_iter().next() {
+                    self.pending_leaves.push((environment, leaf.token));
+                    progressed = true;
+                } else {
+                    progressed |= search.stats() != before;
+                }
+                if self.pending_leaves.len() == maximum_batch_size {
+                    break;
+                }
+            }
+            if !progressed {
+                break;
+            }
+        }
+        if self.pending_leaves.is_empty() && !self.is_complete() {
+            return Err(PyRuntimeError::new_err(
+                "PUCT search stalled without an evaluable leaf",
+            ));
+        }
+        let games = self
+            .pending_leaves
+            .iter()
+            .map(|(environment, token)| {
+                self.searches[*environment]
+                    .as_ref()
+                    .and_then(|search| search.leaf(*token))
+                    .ok_or_else(|| PyRuntimeError::new_err("PUCT leaf disappeared"))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        self.observation.observe_games(&games, self.fog);
+        let dictionary = observation_dict(py, &self.observation)?;
+        dictionary.set_item(
+            "search_environments",
+            PyArray1::from_vec(
+                py,
+                self.pending_leaves
+                    .iter()
+                    .map(|(environment, _)| *environment as u64)
+                    .collect(),
+            ),
+        )?;
+        dictionary.set_item(
+            "search_tokens",
+            PyArray1::from_vec(
+                py,
+                self.pending_leaves
+                    .iter()
+                    .map(|(_, token)| *token)
+                    .collect(),
+            ),
+        )?;
+        Ok(dictionary)
+    }
+
+    #[expect(clippy::needless_pass_by_value)]
+    fn complete_leaves(
+        &mut self,
+        priors: PyReadonlyArray1<'_, f32>,
+        values: PyReadonlyArray1<'_, f32>,
+    ) -> PyResult<()> {
+        let priors = priors
+            .as_slice()
+            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        let values = values
+            .as_slice()
+            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        if priors.len() != self.observation.actions.len() {
+            return Err(PyValueError::new_err(format!(
+                "PUCT prior vector has length {}, expected {}",
+                priors.len(),
+                self.observation.actions.len()
+            )));
+        }
+        if values.len() != self.pending_leaves.len() {
+            return Err(PyValueError::new_err(format!(
+                "PUCT value vector has length {}, expected {}",
+                values.len(),
+                self.pending_leaves.len()
+            )));
+        }
+        for (leaf, boundaries) in self
+            .pending_leaves
+            .iter()
+            .enumerate()
+            .map(|(leaf, _)| (leaf, &self.observation.action_offsets[leaf..=leaf + 1]))
+        {
+            let leaf_priors = &priors[boundaries[0]..boundaries[1]];
+            let mass = leaf_priors.iter().copied().sum::<f32>();
+            if !values[leaf].is_finite()
+                || !mass.is_finite()
+                || mass <= 0.0
+                || leaf_priors
+                    .iter()
+                    .any(|prior| !prior.is_finite() || *prior < 0.0)
+            {
+                return Err(PyValueError::new_err(
+                    "PUCT priors and values must be finite with positive prior mass",
+                ));
+            }
+        }
+        for (leaf, (environment, token)) in self.pending_leaves.iter().copied().enumerate() {
+            let start = self.observation.action_offsets[leaf];
+            let end = self.observation.action_offsets[leaf + 1];
+            let leaf_priors = priors[start..end]
+                .iter()
+                .map(|prior| f64::from(*prior))
+                .collect::<Vec<_>>();
+            self.searches[environment]
+                .as_mut()
+                .expect("pending PUCT leaves belong to active searches")
+                .complete_leaf(token, &leaf_priors, f64::from(values[leaf]))
+                .map_err(runtime_error)?;
+        }
+        self.pending_leaves.clear();
+        Ok(())
+    }
+
+    fn action_indices<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<u64>>> {
+        if !self.is_complete() || !self.pending_leaves.is_empty() {
+            return Err(PyRuntimeError::new_err("PUCT search is not complete"));
+        }
+        let indices = self
+            .searches
+            .iter()
+            .map(|search| {
+                search.as_ref().map_or(Ok(0), |search| {
+                    u64::try_from(search.selected_action_index().map_err(runtime_error)?)
+                        .map_err(|_| PyRuntimeError::new_err("action index does not fit u64"))
+                })
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(PyArray1::from_vec(py, indices))
+    }
+
+    fn stats<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let stats = self
+            .searches
+            .iter()
+            .map(|search| search.as_ref().map(PuctSearch::stats).unwrap_or_default())
+            .collect::<Vec<_>>();
+        let dictionary = PyDict::new(py);
+        dictionary.set_item(
+            "nodes",
+            PyArray1::from_vec(py, stats.iter().map(|stats| stats.nodes as u64).collect()),
+        )?;
+        dictionary.set_item(
+            "completed_simulations",
+            PyArray1::from_vec(
+                py,
+                stats
+                    .iter()
+                    .map(|stats| stats.completed_simulations)
+                    .collect(),
+            ),
+        )?;
+        dictionary.set_item(
+            "maximum_depth",
+            PyArray1::from_vec(
+                py,
+                stats
+                    .iter()
+                    .map(|stats| stats.maximum_depth as u64)
+                    .collect(),
+            ),
+        )?;
+        dictionary.set_item(
+            "root_visits",
+            PyArray1::from_vec(py, stats.iter().map(|stats| stats.root_visits).collect()),
+        )?;
+        Ok(dictionary)
+    }
 }
 
 #[pymethods]
@@ -419,6 +628,48 @@ impl VectorEnv {
         Ok(PyArray1::from_vec(py, indices))
     }
 
+    #[pyo3(signature = (node_budget=256, exploration=1.5, virtual_loss=1.0, maximum_depth=128, active_mask=None))]
+    fn policy_search(
+        &self,
+        node_budget: usize,
+        exploration: f64,
+        virtual_loss: f64,
+        maximum_depth: usize,
+        active_mask: Option<PyReadonlyArray1<'_, u8>>,
+    ) -> PyResult<PolicySearchBatch> {
+        let active = active_mask_values(active_mask, self.batch.len())?;
+        let config = PuctConfig {
+            node_budget,
+            exploration,
+            virtual_loss,
+            maximum_depth,
+        };
+        let searches = (0..self.batch.len())
+            .map(|index| {
+                if !active[index] {
+                    return Ok(None);
+                }
+                let game = self
+                    .batch
+                    .game(index)
+                    .ok_or_else(|| PyRuntimeError::new_err("environment index disappeared"))?;
+                let actions = self
+                    .batch
+                    .legal_actions(index)
+                    .ok_or_else(|| PyRuntimeError::new_err("legal action index disappeared"))?;
+                PuctSearch::new(game, actions, config)
+                    .map(Some)
+                    .map_err(|error| PyValueError::new_err(error.to_string()))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(PolicySearchBatch {
+            searches,
+            observation: BatchObservation::default(),
+            pending_leaves: Vec::new(),
+            fog: self.batch.fog_enabled(),
+        })
+    }
+
     #[pyo3(signature = (node_budget=2048, beam_width=32, branch_width=48, maximum_actions_per_turn=24, active_mask=None))]
     fn search_actions<'py>(
         &mut self,
@@ -435,22 +686,8 @@ impl VectorEnv {
             branch_width,
             maximum_actions_per_turn,
         };
-        let active = active_mask
-            .map(|mask| {
-                let values = mask
-                    .as_slice()
-                    .map_err(|error| PyValueError::new_err(error.to_string()))?;
-                if values.len() != self.batch.len() {
-                    return Err(PyValueError::new_err(format!(
-                        "active mask has length {}, expected {}",
-                        values.len(),
-                        self.batch.len()
-                    )));
-                }
-                Ok(values.iter().map(|value| *value != 0).collect::<Vec<_>>())
-            })
-            .transpose()?;
-        self.select_search_actions(py, config, active.as_deref(), true)
+        let active = active_mask_values(active_mask, self.batch.len())?;
+        self.select_search_actions(py, config, Some(&active), true)
     }
 
     #[pyo3(signature = (node_budget=2048, beam_width=32, branch_width=48, maximum_actions_per_turn=24))]
@@ -831,6 +1068,25 @@ fn offsets(values: &[usize]) -> PyResult<Vec<u64>> {
         .collect()
 }
 
+fn active_mask_values(
+    mask: Option<PyReadonlyArray1<'_, u8>>,
+    environments: usize,
+) -> PyResult<Vec<bool>> {
+    let Some(mask) = mask else {
+        return Ok(vec![true; environments]);
+    };
+    let values = mask
+        .as_slice()
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    if values.len() != environments {
+        return Err(PyValueError::new_err(format!(
+            "active mask has length {}, expected {environments}",
+            values.len()
+        )));
+    }
+    Ok(values.iter().map(|value| *value != 0).collect())
+}
+
 fn runtime_error(error: impl std::fmt::Display) -> PyErr {
     PyRuntimeError::new_err(error.to_string())
 }
@@ -840,6 +1096,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(encode_rule_features, module)?)?;
     module.add_class::<ProceduralConfig>()?;
     module.add_class::<ScenarioObjective>()?;
+    module.add_class::<PolicySearchBatch>()?;
     module.add_class::<VectorEnv>()?;
     module.add("OBSERVATION_VERSION", antiyoy_rl::OBSERVATION_VERSION)?;
     module.add(

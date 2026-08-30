@@ -213,6 +213,16 @@ impl BatchObservation {
         self.push_game(game, actions, fog, &mut Vec::new());
     }
 
+    pub fn observe_games(&mut self, games: &[(&Game, &[Action])], fog: bool) {
+        self.clear();
+        self.prepare(games.len());
+        let mut visibility = Vec::new();
+        for &(game, actions) in games {
+            self.rules.push(game.rules().clone());
+            self.push_game(game, actions, fog, &mut visibility);
+        }
+    }
+
     fn prepare(&mut self, environments: usize) {
         self.cell_offsets.reserve(environments + 1);
         self.province_offsets.reserve(environments + 1);
@@ -539,6 +549,10 @@ impl BatchEnv {
 
     pub fn set_fog(&mut self, enabled: bool) {
         self.fog = enabled;
+    }
+
+    pub const fn fog_enabled(&self) -> bool {
+        self.fog
     }
 
     pub fn game(&self, index: usize) -> Option<&Game> {
@@ -871,6 +885,28 @@ mod tests {
             false,
         );
         assert_eq!(standalone, batch);
+    }
+
+    #[test]
+    fn standalone_game_batch_observation_preserves_order() {
+        let environment = BatchEnv::symmetric_duels(Rules::classic_generic(), 2, 7, 5, 47, 500)
+            .expect("valid batch");
+        let states = [
+            (
+                environment.game(1).expect("second game"),
+                environment.legal_actions(1).expect("second actions"),
+            ),
+            (
+                environment.game(0).expect("first game"),
+                environment.legal_actions(0).expect("first actions"),
+            ),
+        ];
+        let mut observation = BatchObservation::default();
+        observation.observe_games(&states, false);
+        assert_eq!(observation.widths, [7, 7]);
+        assert_eq!(observation.action_offsets.len(), 3);
+        assert_eq!(observation.rules.len(), 2);
+        assert_eq!(observation.rounds, [1, 1]);
     }
 
     #[test]

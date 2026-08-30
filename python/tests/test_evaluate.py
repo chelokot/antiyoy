@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -5,6 +7,7 @@ pytest.importorskip("torch")
 
 from python.evaluate import (
     FIXED_SEAT_SCHEME,
+    evaluate,
     evaluation_schedule,
     named_action_counts,
     outcome_summary,
@@ -15,6 +18,7 @@ from python.evaluate import (
     seat_rotation_seeds,
     selected_action_kinds,
 )
+from python.tests.test_bundle import write_checkpoint
 from python.evaluate_suite import (
     aggregate_results,
     minimum_profile_seat_slice,
@@ -47,6 +51,65 @@ def test_named_action_counts_preserves_zero_categories() -> None:
         "plant_tree": 1,
         "diplomacy": 0,
     }
+
+
+def test_policy_self_match_is_an_exact_zero_delta(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "policy.pt"
+    write_checkpoint(checkpoint, 1.0)
+
+    result = evaluate(
+        checkpoint,
+        games=2,
+        seed=91_000,
+        device_name="cpu",
+        baseline="policy",
+        profile="classic_generic_2022",
+        search_nodes=8,
+        search_beam_width=4,
+        search_branch_width=4,
+        search_maximum_actions_per_turn=4,
+        width=7,
+        height=5,
+        action_limit=12,
+        model_agent="policy",
+    )
+
+    assert result["score_delta"] == pytest.approx(0.0)
+    assert result["elo_delta"] == pytest.approx(0.0)
+    assert result["policy_search"]["decisions"] == 0
+
+
+def test_policy_search_runs_the_native_tree_for_every_model_decision(
+    tmp_path: Path,
+) -> None:
+    checkpoint = tmp_path / "policy.pt"
+    write_checkpoint(checkpoint, 1.0)
+
+    result = evaluate(
+        checkpoint,
+        games=2,
+        seed=91_100,
+        device_name="cpu",
+        baseline="policy",
+        profile="classic_generic_2022",
+        search_nodes=8,
+        search_beam_width=4,
+        search_branch_width=4,
+        search_maximum_actions_per_turn=4,
+        width=7,
+        height=5,
+        action_limit=12,
+        model_agent="puct",
+        puct_nodes=4,
+        puct_leaf_batch_size=8,
+    )
+
+    search = result["policy_search"]
+    assert search["decisions"] > 0
+    assert search["evaluated_leaves"] > 0
+    assert search["leaf_batches"] > 0
+    assert search["total_nodes"] == search["decisions"] * search["node_budget"]
+    assert search["total_root_visits"] > 0
 
 
 def test_paired_seeds_repeat_each_map_for_opposite_seats() -> None:

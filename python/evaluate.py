@@ -18,7 +18,9 @@ from antiyoy_rl.model import (
     domain_key,
     encode_rules_batch,
     load_policy_state,
+    select_environments,
 )
+from antiyoy_rl.puct import PolicySearchConfig, policy_search_actions
 
 try:
     from .build_bundle import BUNDLE_KIND, SUPPORTED_BUNDLE_VERSIONS
@@ -274,7 +276,15 @@ def evaluate(
     neutral_capital_density_per_million: int = 10_000,
     grave_density_per_million: int = 15_000,
     model_seat: int | None = None,
+    model_agent: str = "policy",
+    puct_nodes: int = 256,
+    puct_exploration: float = 1.5,
+    puct_virtual_loss: float = 1.0,
+    puct_maximum_depth: int = 128,
+    puct_leaf_batch_size: int = 512,
 ) -> dict[str, object]:
+    if model_agent not in ("policy", "puct"):
+        raise ValueError(f"unsupported model agent: {model_agent}")
     evaluation_seeds, model_seats = evaluation_schedule(
         games, seed, players, model_seat
     )
@@ -365,6 +375,53 @@ def evaluate(
         )
 
     environment = create_environment(games)
+    for index, evaluation_seed in enumerate(evaluation_seeds):
+        environment.reset(index, int(evaluation_seed))
+    rules = encode_rules_batch(environment.rules_jsons(), device)
+
+    def routed_policy(
+        observation: dict[str, np.ndarray],
+        selected_rules: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        environments_by_expert: dict[str, list[int]] = {}
+        for environment_index, active_player in enumerate(
+            observation["active_players"]
+        ):
+            expert = selected_experts[int(active_player)]
+            environments_by_expert.setdefault(expert, []).append(environment_index)
+        action_logits: dict[int, torch.Tensor] = {}
+        values: dict[int, torch.Tensor] = {}
+        for expert, expert_environments in environments_by_expert.items():
+            expert_observation = select_environments(
+                observation, expert_environments
+            )
+            expert_rules = selected_rules[expert_environments]
+            expert_logits, expert_values = models[expert](
+                expert_observation, expert_rules
+            )
+            expert_offsets = np.asarray(
+                expert_observation["action_offsets"], dtype=np.int64
+            )
+            for expert_index, environment_index in enumerate(expert_environments):
+                start, end = expert_offsets[expert_index : expert_index + 2]
+                action_logits[environment_index] = expert_logits[start:end]
+                values[environment_index] = expert_values[expert_index]
+        environment_count = len(observation["widths"])
+        return (
+            torch.cat(
+                [action_logits[index] for index in range(environment_count)]
+            ),
+            torch.stack([values[index] for index in range(environment_count)]),
+        )
+
+    def direct_policy_actions(
+        observation: dict[str, np.ndarray],
+        selected_rules: torch.Tensor,
+    ) -> np.ndarray:
+        with torch.no_grad():
+            logits, _ = routed_policy(observation, selected_rules)
+            distribution = action_distribution(logits, observation["action_offsets"])
+        return distribution.logits.argmax(dim=1).cpu().numpy().astype(np.uint64)
 
     def evaluate_baseline_reference() -> BaselineSelfPlay:
         reference_games = games // players if model_seat is None else games
@@ -378,18 +435,25 @@ def evaluate(
         reference_truncations = 0
         reference_reset_seed = seed + reference_games
         reference_random = np.random.default_rng(seed ^ 0xA11CE)
+        reference_rules = encode_rules_batch(
+            reference_environment.rules_jsons(), device
+        )
         while not bool(reference_finished.all()):
             reference_observation = reference_environment.observe()
-            reference_actions = choose_baseline_actions(
-                reference_environment,
-                reference_observation,
-                baseline,
-                reference_finished,
-                reference_random,
-                search_nodes,
-                search_beam_width,
-                search_branch_width,
-                search_maximum_actions_per_turn,
+            reference_actions = (
+                direct_policy_actions(reference_observation, reference_rules)
+                if baseline == "policy"
+                else choose_baseline_actions(
+                    reference_environment,
+                    reference_observation,
+                    baseline,
+                    reference_finished,
+                    reference_random,
+                    search_nodes,
+                    search_beam_width,
+                    search_branch_width,
+                    search_maximum_actions_per_turn,
+                )
             )
             reference_result = reference_environment.step(reference_actions)
             reference_done = np.logical_or(
@@ -420,20 +484,6 @@ def evaluate(
         }
 
     baseline_reference = evaluate_baseline_reference()
-    for index, evaluation_seed in enumerate(evaluation_seeds):
-        environment.reset(index, int(evaluation_seed))
-    rules = encode_rules_batch(environment.rules_jsons(), device)
-    model_game_masks = {
-        expert: np.isin(
-            model_seats,
-            [
-                seat
-                for seat, selected_expert in enumerate(selected_experts)
-                if selected_expert == expert
-            ],
-        )
-        for expert in models
-    }
     finished = np.zeros(games, dtype=np.bool_)
     seat_wins = np.zeros(players, dtype=np.int64)
     seat_draws = np.zeros(players, dtype=np.int64)
@@ -446,38 +496,65 @@ def evaluate(
     transitions = 0
     model_action_counts = np.zeros(len(ACTION_KIND_NAMES), dtype=np.int64)
     baseline_action_counts = np.zeros(len(ACTION_KIND_NAMES), dtype=np.int64)
+    puct_decisions = 0
+    puct_evaluated_leaves = 0
+    puct_leaf_batches = 0
+    puct_total_nodes = 0
+    puct_total_root_visits = 0
+    puct_maximum_reached_depth = 0
+    puct_config = PolicySearchConfig(
+        node_budget=puct_nodes,
+        exploration=puct_exploration,
+        virtual_loss=puct_virtual_loss,
+        maximum_depth=puct_maximum_depth,
+        leaf_batch_size=puct_leaf_batch_size,
+    )
     while not bool(finished.all()):
         observation = environment.observe()
-        model_actions = np.empty(games, dtype=np.uint64)
-        with torch.no_grad():
-            for expert, model in models.items():
-                logits, _ = model(observation, rules)
-                distribution = action_distribution(
-                    logits, observation["action_offsets"]
-                )
-                expert_actions = (
-                    distribution.logits.argmax(dim=1).cpu().numpy().astype(np.uint64)
-                )
-                expert_games = model_game_masks[expert]
-                model_actions[expert_games] = expert_actions[expert_games]
-        baseline_actions = choose_baseline_actions(
-            environment,
-            observation,
-            baseline,
-            finished,
-            random,
-            search_nodes,
-            search_beam_width,
-            search_branch_width,
-            search_maximum_actions_per_turn,
-        )
         active_players = observation["active_players"]
+        active = np.logical_not(finished)
+        model_turns = np.logical_and(active, active_players == model_seats)
+        if model_agent == "puct":
+            model_actions, puct_metrics = policy_search_actions(
+                environment,
+                routed_policy,
+                rules,
+                model_turns,
+                puct_config,
+            )
+            puct_decisions += int(model_turns.sum())
+            puct_evaluated_leaves += puct_metrics["evaluated_leaves"]
+            puct_leaf_batches += puct_metrics["leaf_batches"]
+            puct_total_nodes += int(puct_metrics["nodes"].sum())
+            puct_total_root_visits += int(puct_metrics["root_visits"].sum())
+            puct_maximum_reached_depth = max(
+                puct_maximum_reached_depth,
+                int(puct_metrics["maximum_depth"].max(initial=0)),
+            )
+        else:
+            model_actions = direct_policy_actions(observation, rules)
+        if baseline == "policy":
+            baseline_actions = (
+                model_actions
+                if model_agent == "policy"
+                else direct_policy_actions(observation, rules)
+            )
+        else:
+            baseline_actions = choose_baseline_actions(
+                environment,
+                observation,
+                baseline,
+                finished,
+                random,
+                search_nodes,
+                search_beam_width,
+                search_branch_width,
+                search_maximum_actions_per_turn,
+            )
         actions = np.where(
             active_players == model_seats, model_actions, baseline_actions
         )
         action_kinds = selected_action_kinds(observation, actions)
-        active = np.logical_not(finished)
-        model_turns = np.logical_and(active, active_players == model_seats)
         baseline_turns = np.logical_and(active, active_players != model_seats)
         model_action_counts += np.bincount(
             action_kinds[model_turns], minlength=len(ACTION_KIND_NAMES)
@@ -610,6 +687,20 @@ def evaluate(
         ),
         "model_action_counts": named_action_counts(model_action_counts),
         "baseline_action_counts": named_action_counts(baseline_action_counts),
+        "model_agent": model_agent,
+        "policy_search": {
+            "node_budget": puct_nodes if model_agent == "puct" else 0,
+            "exploration": puct_exploration if model_agent == "puct" else 0.0,
+            "virtual_loss": puct_virtual_loss if model_agent == "puct" else 0.0,
+            "maximum_depth": puct_maximum_depth if model_agent == "puct" else 0,
+            "leaf_batch_size": puct_leaf_batch_size if model_agent == "puct" else 0,
+            "decisions": puct_decisions,
+            "evaluated_leaves": puct_evaluated_leaves,
+            "leaf_batches": puct_leaf_batches,
+            "total_nodes": puct_total_nodes,
+            "total_root_visits": puct_total_root_visits,
+            "maximum_reached_depth": puct_maximum_reached_depth,
+        },
         "search_nodes": search_nodes if baseline == "search" else 0,
         "search_beam_width": search_beam_width if baseline == "search" else 0,
         "search_branch_width": search_branch_width if baseline == "search" else 0,
@@ -628,7 +719,9 @@ def main() -> None:
         "--device", default="cuda" if torch.cuda.is_available() else "cpu"
     )
     parser.add_argument(
-        "--baseline", choices=("search", "greedy", "random"), default="greedy"
+        "--baseline",
+        choices=("policy", "search", "greedy", "random"),
+        default="greedy",
     )
     parser.add_argument("--profile")
     parser.add_argument("--search-nodes", type=int, default=2048)
@@ -641,6 +734,12 @@ def main() -> None:
     parser.add_argument("--procedural", action="store_true")
     parser.add_argument("--players", type=int, default=2)
     parser.add_argument("--model-seat", type=int)
+    parser.add_argument("--model-agent", choices=("policy", "puct"), default="policy")
+    parser.add_argument("--puct-nodes", type=int, default=256)
+    parser.add_argument("--puct-exploration", type=float, default=1.5)
+    parser.add_argument("--puct-virtual-loss", type=float, default=1.0)
+    parser.add_argument("--puct-maximum-depth", type=int, default=128)
+    parser.add_argument("--puct-leaf-batch-size", type=int, default=512)
     parser.add_argument("--land-density-per-million", type=int, default=650_000)
     parser.add_argument("--starting-province-size", type=int, default=5)
     parser.add_argument("--starting-money", type=int, default=10)
@@ -691,6 +790,12 @@ def main() -> None:
                 arguments.neutral_capital_density_per_million,
                 arguments.grave_density_per_million,
                 arguments.model_seat,
+                arguments.model_agent,
+                arguments.puct_nodes,
+                arguments.puct_exploration,
+                arguments.puct_virtual_loss,
+                arguments.puct_maximum_depth,
+                arguments.puct_leaf_batch_size,
             ),
             sort_keys=True,
         )

@@ -1,11 +1,13 @@
 #![forbid(unsafe_code)]
 
 mod evaluation;
+mod puct;
 mod search;
 
 use antiyoy_core::{Action, DiplomacyCommand, Game};
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 
+pub use puct::{PuctConfig, PuctError, PuctLeaf, PuctSearch, PuctStats};
 pub use search::{SearchAgent, SearchConfig, SearchConfigError, SearchStats};
 
 pub trait Agent {
