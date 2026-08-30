@@ -121,6 +121,7 @@ export default function ModelsPage() {
       <section className="models-section pools-section">
         <div className="section-heading"><div><p>Pools 02–04</p><h2>Other controlled ladders</h2></div><p>Useful comparisons stay inside their own protocol. This avoids laundering incompatible measurements into one impressive-looking number.</p></div>
         <div className="pool-grid">{ratingPools.map((pool) => <article className="rating-pool" key={pool.name}><header><h3>{pool.name}</h3><p>{pool.arena}</p><EvidenceLink file={pool.evidence} /></header><table><tbody>{pool.rows.map(([agent, method, rating, delta, record]) => <tr key={agent}><th scope="row"><span>{agent}</span><small>{method}</small></th><td><strong>{rating}</strong><small>{delta}</small></td><td>{record}</td></tr>)}</tbody></table></article>)}</div>
+        <p className="method-note"><Link href="/">Play the promoted Soft-PUCT student now: select “Amber · second” and it controls Cyan locally through ONNX.</Link></p>
       </section>
 
       <section className="models-section">

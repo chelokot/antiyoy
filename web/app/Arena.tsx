@@ -55,6 +55,7 @@ type RulesProfileName = RulesProfileId;
 type BotStrengthName = typeof BOT_STRENGTH_NAMES[number];
 type BotOpponentName = "neural" | BotStrengthName;
 type BrowserPolicyKey = keyof typeof BROWSER_POLICY_MODELS;
+type BrowserPolicyPool = Partial<Record<BrowserPolicyKey, RoutedBrowserPolicy>>;
 type PolicyStatus = "loading" | "ready" | "error";
 type LeagueStatus = "idle" | "loading" | "ready" | "error";
 
@@ -126,6 +127,7 @@ const BOT_STRENGTHS = {
 const BOT_STRENGTH_NAMES = ["quick", "strong", "brutal"] as const;
 const BROWSER_POLICY_MODELS = {
   primary: "/browser-primary.onnx",
+  classicGenericPuctSeat0: "/browser-classic-generic-puct-seat0-v1.onnx",
   experimentalV2: "/browser-experimental-v2.onnx",
   onlineDefaultSeat0: "/browser-online-default-seat0-v6.onnx",
   onlineDuelSeat0: "/browser-online-duel-seat0-v6.onnx",
@@ -222,6 +224,31 @@ function advanceBotsUntilHuman(
     throw new Error("Bot response exceeded 2000 actions");
   }
   return { state, actions };
+}
+
+async function advancePoliciesUntilHuman(
+  instance: WasmGameType,
+  initial: StateView,
+  humanSeat: number,
+  profile: RulesProfileName,
+  policies: BrowserPolicyPool,
+): Promise<{ state: StateView; actions: number; decision: PolicyDecision | null }> {
+  let state = initial;
+  let actions = 0;
+  let decision: PolicyDecision | null = null;
+  while (!state.terminal && state.active_player !== humanSeat && actions < 2_000) {
+    const policy = policies[policyKeyForProfile(profile, state.active_player)];
+    if (policy === undefined) {
+      throw new Error("Neural policy is still loading");
+    }
+    decision = await policy.decide(instance.policy_observation_json());
+    state = parseState(instance.step(decision.actionIndex));
+    actions += 1;
+  }
+  if (!state.terminal && state.active_player !== humanSeat) {
+    throw new Error("Neural response exceeded 2000 actions");
+  }
+  return { state, actions, decision };
 }
 
 function loadPlacementRating(): PlacementRating {
@@ -322,6 +349,9 @@ function supportsNeuralPolicy(config: LiveConfig): boolean {
 
 function policyKeyForProfile(profile: RulesProfileName, seat = 1): BrowserPolicyKey {
   if (seat === 0) {
+    if (profile === "classic_generic_2022") {
+      return "classicGenericPuctSeat0";
+    }
     if (profile === "online_default_v1") {
       return "onlineDefaultSeat0";
     }
@@ -333,6 +363,12 @@ function policyKeyForProfile(profile: RulesProfileName, seat = 1): BrowserPolicy
     }
   }
   return profile === "online_experimental_v2_260801" ? "experimentalV2" : "primary";
+}
+
+function neuralPolicyLabel(profile: RulesProfileName, seat: number): string {
+  return profile === "classic_generic_2022" && seat === 0
+    ? "Distilled PUCT · 1034"
+    : "Routed neural · v6";
 }
 
 function rulesProfileLabel(profile: RulesProfileName): string {
@@ -370,6 +406,7 @@ export default function Arena() {
   const [botOpponent, setBotOpponent] = useState<BotOpponentName>("neural");
   const [policyStatuses, setPolicyStatuses] = useState<Record<BrowserPolicyKey, PolicyStatus>>({
     primary: "loading",
+    classicGenericPuctSeat0: "loading",
     experimentalV2: "loading",
     onlineDefaultSeat0: "loading",
     onlineDuelSeat0: "loading",
@@ -393,7 +430,6 @@ export default function Arena() {
   const neuralPolicySeat = humanMode ? (humanSeat + 1) % 2 : state?.active_player ?? 0;
   const activePolicyKey = policyKeyForProfile(activeConfig.profile, neuralPolicySeat);
   const policyStatus = policyStatuses[activePolicyKey];
-  const activePolicyKeyRef = useRef(policyKeyForProfile(DEFAULT_CONFIG.profile));
 
   const refreshLeague = useCallback(async () => {
     const request = leagueRequest.current + 1;
@@ -476,13 +512,12 @@ export default function Arena() {
   }, []);
 
   useEffect(() => {
-    activePolicyKeyRef.current = activePolicyKey;
-  }, [activePolicyKey]);
-
-  useEffect(() => {
     let disposed = false;
     const load = async (key: BrowserPolicyKey) => {
       try {
+        if (browserPolicies.current[key] !== undefined) {
+          return;
+        }
         const policy = await RoutedBrowserPolicy.load(BROWSER_POLICY_MODELS[key]);
         if (disposed) {
           policy.release();
@@ -493,19 +528,24 @@ export default function Arena() {
       } catch {
         if (!disposed) {
           setPolicyStatuses((current) => ({ ...current, [key]: "error" }));
-          if (activePolicyKeyRef.current === key) {
+          if (key === activePolicyKey) {
             setBotOpponent((current) => current === "neural" ? "brutal" : current);
           }
         }
       }
     };
-    void load("primary")
-      .then(() => load("experimentalV2"))
-      .then(() => load("onlineDefaultSeat0"))
-      .then(() => load("onlineDuelSeat0"))
-      .then(() => load("onlineExperimentalV1Seat0"));
+    const alternatePolicyKey = humanMode && supportsNeuralPolicy(activeConfig)
+      ? policyKeyForProfile(activeConfig.profile, humanSeat)
+      : activePolicyKey;
+    const keys = [...new Set<BrowserPolicyKey>([activePolicyKey, alternatePolicyKey])];
+    void keys.reduce((pending, key) => pending.then(() => load(key)), Promise.resolve());
     return () => {
       disposed = true;
+    };
+  }, [activeConfig, activePolicyKey, humanMode, humanSeat]);
+
+  useEffect(() => {
+    return () => {
       Object.values(browserPolicies.current).forEach((policy) => policy.release());
       browserPolicies.current = {};
     };
@@ -696,7 +736,6 @@ export default function Arena() {
       setReplayMetadata(null);
       setPlacementMode(false);
       setHumanSeat(0);
-      activePolicyKeyRef.current = policyKeyForProfile(draftConfig.profile);
       setActiveConfig(draftConfig);
       setEconomyRules(economyRulesForProfile(bindings, draftConfig.profile));
       setState(next);
@@ -756,7 +795,6 @@ export default function Arena() {
       window.localStorage.setItem(PLACEMENT_STORAGE_KEY, JSON.stringify(nextPlacement));
       setPlacement(nextPlacement);
       setReplayMetadata(null);
-      activePolicyKeyRef.current = policyKeyForProfile(placementConfig.profile);
       setActiveConfig(placementConfig);
       setEconomyRules(economyRulesForProfile(bindings, placementConfig.profile));
       setState(advanced.state);
@@ -848,7 +886,64 @@ export default function Arena() {
     return () => window.clearInterval(interval);
   }, [playing, step]);
 
-  const reset = useCallback(() => {
+  const restartLocalMatch = useCallback(async (seat: number) => {
+    const instance = game.current;
+    if (instance === null || botResponseInFlight.current) {
+      return;
+    }
+    botResponseInFlight.current = true;
+    setBotThinking(true);
+    try {
+      const initial = parseState(instance.reset());
+      setHumanSeat(seat);
+      setState(initial);
+      setSelectedId(playerCapitalCell(initial, seat));
+      setActionIntent(null);
+      setActions(0);
+      setPolicyDecision(null);
+      setPlaying(false);
+      let next = initial;
+      let opponentActions = 0;
+      let decision: PolicyDecision | null = null;
+      if (humanMode && !initial.terminal && initial.active_player !== seat) {
+        if (botOpponent === "neural") {
+          const response = await advancePoliciesUntilHuman(
+            instance,
+            initial,
+            seat,
+            activeConfig.profile,
+            browserPolicies.current,
+          );
+          next = response.state;
+          opponentActions = response.actions;
+          decision = response.decision;
+        } else {
+          const response = advanceBotsUntilHuman(
+            instance,
+            initial,
+            seat,
+            BOT_STRENGTHS[botOpponent].nodes,
+          );
+          next = response.state;
+          opponentActions = response.actions;
+        }
+      }
+      setState(next);
+      setSelectedId(playerCapitalCell(next, seat));
+      setActions(opponentActions);
+      setPolicyDecision(decision);
+      setError(null);
+    } catch (reason: unknown) {
+      setState(parseState(instance.state_json()));
+      setPlaying(false);
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      botResponseInFlight.current = false;
+      setBotThinking(false);
+    }
+  }, [activeConfig.profile, botOpponent, humanMode]);
+
+  const reset = useCallback(async () => {
     if (onlineSession !== null) {
       const session = onlineSession;
       const bindings = wasmModule.current;
@@ -886,14 +981,16 @@ export default function Arena() {
       return;
     }
     setPlacementMode(false);
-    setHumanSeat(0);
-    setState(parseState(game.current.reset()));
-    setActionIntent(null);
-    setActions(0);
-    setPolicyDecision(null);
-    setPlaying(false);
-    setError(null);
-  }, [disconnectOnline, onlineSession]);
+    await restartLocalMatch(humanMode ? humanSeat : 0);
+  }, [disconnectOnline, humanMode, humanSeat, onlineSession, restartLocalMatch]);
+
+  const chooseHumanSeat = useCallback(async (seat: number) => {
+    if (seat === humanSeat || seat < 0 || seat >= activeConfig.players) {
+      return;
+    }
+    setPlacementMode(false);
+    await restartLocalMatch(seat);
+  }, [activeConfig.players, humanSeat, restartLocalMatch]);
 
   const playHumanAction = useCallback(async (actionIndex: number) => {
     setActionIntent(null);
@@ -933,25 +1030,16 @@ export default function Arena() {
       let responseState = afterHuman;
       let responseActions = 0;
       if (!placementMode && botOpponent === "neural") {
-        while (
-          !responseState.terminal
-          && responseState.active_player !== humanSeat
-          && responseActions < 2_000
-        ) {
-          const policy = browserPolicies.current[
-            policyKeyForProfile(activeConfig.profile, responseState.active_player)
-          ];
-          if (policy === undefined) {
-            throw new Error("Neural policy is still loading");
-          }
-          const decision = await policy.decide(instance.policy_observation_json());
-          setPolicyDecision(decision);
-          responseState = parseState(instance.step(decision.actionIndex));
-          responseActions += 1;
-        }
-        if (!responseState.terminal && responseState.active_player !== humanSeat) {
-          throw new Error("Neural response exceeded 2000 actions");
-        }
+        const response = await advancePoliciesUntilHuman(
+          instance,
+          afterHuman,
+          humanSeat,
+          activeConfig.profile,
+          browserPolicies.current,
+        );
+        responseState = response.state;
+        responseActions = response.actions;
+        setPolicyDecision(response.decision);
       } else {
         const searchNodes = placementMode
           ? RATED_SEARCH_NODES
@@ -997,8 +1085,8 @@ export default function Arena() {
     setPlacementMode(false);
     setHumanSeat(0);
     setHumanMode((current) => !current);
-    reset();
-  }, [disconnectOnline, reset]);
+    void restartLocalMatch(0);
+  }, [disconnectOnline, restartLocalMatch]);
 
   const seekReplay = useCallback((frame: number) => {
     if (replay.current === null) {
@@ -1093,6 +1181,7 @@ export default function Arena() {
     return target === null ? [] : [target];
   }));
   const globalActions = selectGlobalActions(legalActions);
+  const localOpponentSeat = activeConfig.players === 2 ? (humanSeat + 1) % 2 : 1;
   const humanCanAct = onlineSession === null
     ? humanMode
       && replayMetadata === null
@@ -1108,7 +1197,9 @@ export default function Arena() {
       && !state.terminal
       && !botThinking;
   const opponentLabel = onlineSession === null
-    ? matchOpponentLabel(replayMetadata, placementMode, humanMode, botOpponent)
+    ? humanMode && replayMetadata === null && !placementMode && botOpponent === "neural"
+      ? neuralPolicyLabel(activeConfig.profile, localOpponentSeat)
+      : matchOpponentLabel(replayMetadata, placementMode, humanMode, botOpponent)
     : onlineSession.snapshot.seats
       .filter((_, seat) => seat !== humanSeat)
       .map((seat) => seat.name)
@@ -1227,9 +1318,9 @@ export default function Arena() {
           <div className="board-controls">
             <div className="economy-hud" aria-label={`Player economy: ${economy.money} money, ${economy.profit >= 0 ? "+" : ""}${economy.profit} income`}><span className="coin-mark">$</span><strong>{economy.money}</strong><b>{economy.profit >= 0 ? "+" : ""}{economy.profit}</b></div>
             <div className="turn-chip"><span className={`turn-dot territory-player-${(state?.active_player ?? 0) % PLAYER_NAMES.length}`} /><span className="turn-copy">{onlineSession?.snapshot.status === "Waiting" ? "Waiting for player" : `Turn ${state?.round ?? "…"} · ${state === null ? "Loading" : state.active_player === humanSeat && humanMode ? "your move" : `${playerLabel(state.active_player).toLowerCase()} moves`}`}</span></div>
-            {onlineSession === null && humanMode && replayMetadata === null && <label className="bot-strength"><span>Opponent</span><select aria-label="Bot opponent" disabled={placementMode || botThinking} value={placementMode ? "brutal" : botOpponent} onChange={(event) => setBotOpponent(event.target.value as BotOpponentName)}><option value="neural" disabled={!supportsNeuralPolicy(activeConfig) || policyStatus === "error"}>Neural policy{policyStatus === "loading" ? " · loading" : ""}</option>{BOT_STRENGTH_NAMES.map((strength) => <option value={strength} key={strength}>{BOT_STRENGTHS[strength].label}</option>)}</select></label>}
+            {onlineSession === null && humanMode && replayMetadata === null && <><label className="bot-strength"><span>Opponent</span><select aria-label="Bot opponent" disabled={placementMode || botThinking} value={placementMode ? "brutal" : botOpponent} onChange={(event) => setBotOpponent(event.target.value as BotOpponentName)}><option value="neural" disabled={!supportsNeuralPolicy(activeConfig) || policyStatus === "error"}>{neuralPolicyLabel(activeConfig.profile, localOpponentSeat)}{policyStatus === "loading" ? " · loading" : ""}</option>{BOT_STRENGTH_NAMES.map((strength) => <option value={strength} key={strength}>{BOT_STRENGTHS[strength].label}</option>)}</select></label>{!placementMode && activeConfig.players === 2 && <label className="bot-strength side-choice"><span>Play as</span><select aria-label="Human side" disabled={botThinking || (botOpponent === "neural" && policyStatus !== "ready")} value={humanSeat} onChange={(event) => void chooseHumanSeat(Number(event.target.value))}><option value={0} disabled={botOpponent === "neural" && policyStatuses[policyKeyForProfile(activeConfig.profile, 1)] !== "ready"}>Cyan · first</option><option value={1} disabled={botOpponent === "neural" && policyStatuses[policyKeyForProfile(activeConfig.profile, 0)] !== "ready"}>Amber · second</option></select></label>}</>}
             {!humanMode && <><button className="control control-primary" type="button" disabled={state === null || state.terminal || (botOpponent === "neural" && policyStatus !== "ready") || (replayMetadata !== null && actions === replayMetadata.frames)} onClick={() => setPlaying((current) => !current)} aria-label={playing ? "Pause" : "Play"}>{playing ? "Ⅱ" : "▶"}</button><button className="control" type="button" disabled={state === null || state.terminal || playing || (botOpponent === "neural" && policyStatus !== "ready") || (replayMetadata !== null && actions === replayMetadata.frames)} onClick={() => void step()}>Step</button></>}
-            <button className="control control-icon" type="button" disabled={state === null || botThinking} onClick={reset} aria-label={onlineSession === null ? "New game" : "Leave room"}>↻</button>
+            <button className="control control-icon" type="button" disabled={state === null || botThinking} onClick={() => void reset()} aria-label={onlineSession === null ? "New game" : "Leave room"}>↻</button>
             {onlineSession === null && (replayMetadata === null ? <><button className={`control ${humanMode ? "control-active" : ""}`} type="button" disabled={botThinking} onClick={toggleHumanMode}>{humanMode ? "Auto" : "Play"}</button><label className="control cursor-pointer">Replay<input className="sr-only" type="file" accept=".antiyoy,application/octet-stream" onChange={(event) => void loadReplay(event.target.files?.[0])} /></label></> : <button className="control" type="button" onClick={restoreLive}>Live</button>)}
             <Link className="control research-link" href="/models">Models</Link>
             <button aria-expanded={openPanel === "right"} aria-controls="inspector-drawer" className="control control-icon" type="button" onClick={() => setOpenPanel("right")} aria-label="Inspect selected hex">i</button>

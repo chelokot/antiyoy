@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { access, readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
@@ -36,6 +37,9 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(html, />Auto</);
   assert.match(html, /YOUR MOVE/);
   assert.match(html, /choose a unit or shop item/);
+  assert.match(html, /Routed neural · v6/);
+  assert.match(html, /Play as/);
+  assert.match(html, /Amber · second/);
   assert.match(html, /YOUR PLACEMENT/);
   assert.match(html, /Start rated match/);
   assert.match(html, /Fixed 11×9 Classic arena/);
@@ -53,10 +57,11 @@ test("server-renders the arena shell and metadata", async () => {
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton/);
 });
 
-test("ships the generated engine and social card", async () => {
-  const [bindings, packageJson] = await Promise.all([
+test("ships the generated engine, browser policies, and social card", async () => {
+  const [bindings, packageJson, distilledPolicy] = await Promise.all([
     readFile(new URL("../lib/antiyoy-wasm/antiyoy_wasm.js", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
+    readFile(new URL("../public/browser-classic-generic-puct-seat0-v1.onnx", import.meta.url)),
     access(new URL("../lib/antiyoy-wasm/antiyoy_wasm_bg.wasm", import.meta.url)),
     access(new URL("../public/og.png", import.meta.url)),
     access(new URL("../public/browser-primary.onnx", import.meta.url)),
@@ -82,8 +87,13 @@ test("ships the generated engine and social card", async () => {
   assert.match(packageJson, /"name": "antiyoy-arena-lab"/);
   assert.match(packageJson, /"build:wasm"/);
   assert.match(packageJson, /"stage:wasm"/);
+  assert.equal(
+    createHash("sha256").update(distilledPolicy).digest("hex"),
+    "0b4a87d568434dc446d18988b5e025c90bf17d87a276d4445f30d89e980415c0",
+  );
   await access(new URL("../public/antiyoy_wasm_bg.wasm", import.meta.url));
   await access(new URL("../dist/client/browser-primary.onnx", import.meta.url));
+  await access(new URL("../dist/client/browser-classic-generic-puct-seat0-v1.onnx", import.meta.url));
   await access(new URL("../dist/client/browser-experimental-v2.onnx", import.meta.url));
   await access(new URL("../dist/client/browser-online-default-seat0-v6.onnx", import.meta.url));
   await access(new URL("../dist/client/browser-online-duel-seat0-v6.onnx", import.meta.url));
@@ -104,6 +114,7 @@ test("renders the benchmark-backed model arena", async () => {
   assert.match(html, /Value-calibrated PUCT-8/);
   assert.match(html, /Soft-PUCT distilled/);
   assert.match(html, /281–231 over its frozen source/);
+  assert.match(html, /Play the promoted Soft-PUCT student now/);
   assert.match(html, /280–0–232/);
   assert.match(html, /\+32\.67 relative Elo/);
   assert.match(html, /Ratings from different pools are deliberately not merged/);
@@ -152,6 +163,10 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, /aria-controls="match-drawer"/);
   assert.match(arena, /aria-controls="inspector-drawer"/);
   assert.match(arena, /aria-label="Bot opponent"/);
+  assert.match(arena, /aria-label="Human side"/);
+  assert.match(arena, /Distilled PUCT · 1034/);
+  assert.match(arena, /advancePoliciesUntilHuman/);
+  assert.match(arena, /classicGenericPuctSeat0/);
   assert.match(arena, /resolveHexClick\(intentActions, movementSources, cellId\)/);
   assert.match(arena, /setActionIntent\(resolution\.intent\)/);
   assert.match(arena, /const shopProvince = province\?\.owner === economyPlayer \? province : null;/);
