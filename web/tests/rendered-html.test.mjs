@@ -31,6 +31,10 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(html, /MAP GENERATOR/);
   assert.match(html, /Generate deterministic map/);
   assert.match(html, /Human: off/);
+  assert.match(html, /YOUR PLACEMENT/);
+  assert.match(html, /Start rated match/);
+  assert.match(html, /Fixed 11×9 Classic arena/);
+  assert.match(html, /Stored only in this browser/);
   assert.match(html, /\/og\.png/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton/);
 });

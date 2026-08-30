@@ -94,7 +94,11 @@ Its live map panel also creates reproducible two-to-eight-player
 `procedural_v1` scenarios entirely in WASM, with editable dimensions, seed, and
 land density. Human mode derives every destination action from the core's legal
 mask and advances search-controlled opponents until control returns to the
-player.
+player. Rated placement uses a fixed 11×9 Classic arena, alternates the human
+between both seats, assigns a fresh deterministic seed to every attempt, and
+stores a device-local Elo relative to the fixed 2048-node search opponent.
+This local calibration is explicitly separate from the verified multiplayer
+league.
 
 ## Multiplayer rooms
 

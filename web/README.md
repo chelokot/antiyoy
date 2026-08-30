@@ -2,7 +2,9 @@
 
 Interactive inspection surface for the deterministic Antiyoy Rust engine. The
 browser runs the same state transition code as headless evaluation through a
-generated WebAssembly package.
+generated WebAssembly package. Its rated placement mode alternates seats on a
+fixed arena and persists a device-local Elo against the 2048-node Rust search
+agent.
 
 [Open the hosted arena](https://antiyoy-arena-lab.chelokot.chatgpt.site)
 
