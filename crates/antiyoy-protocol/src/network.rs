@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Digest, ReplayError};
 
-pub const NETWORK_SCHEMA_VERSION: u16 = 4;
+pub const NETWORK_SCHEMA_VERSION: u16 = 5;
 pub const MINIMUM_MATCH_PLAYERS: usize = 2;
 pub const MAXIMUM_MATCH_PLAYERS: usize = 8;
 
@@ -13,6 +13,7 @@ pub enum SeatKind {
     Greedy,
     Random,
     Search,
+    Open,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -79,6 +80,18 @@ pub struct CreateMatchResponse {
     pub credentials: Vec<SeatCredential>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ClaimSeatRequest {
+    pub schema_version: u16,
+    pub name: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ClaimSeatResponse {
+    pub snapshot: MatchSnapshot,
+    pub credential: SeatCredential,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SubmitAction {
     pub schema_version: u16,
@@ -105,6 +118,7 @@ pub enum ServerMessage {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum MatchStatus {
+    Waiting,
     Running,
     Victory,
     ActionLimit,
@@ -261,6 +275,10 @@ impl MatchSnapshot {
         request: &CreateMatchRequest,
         game: &Game,
     ) -> Result<Self, ReplayError> {
+        let mut game_view = GameView::from_game(game);
+        if status == MatchStatus::Waiting {
+            game_view.legal_actions.clear();
+        }
         Ok(Self {
             schema_version: NETWORK_SCHEMA_VERSION,
             match_id,
@@ -271,7 +289,7 @@ impl MatchSnapshot {
             digest: Digest::of_game(game)?,
             scenario: request.scenario.clone(),
             seats: request.seats.clone(),
-            game: GameView::from_game(game),
+            game: game_view,
         })
     }
 }

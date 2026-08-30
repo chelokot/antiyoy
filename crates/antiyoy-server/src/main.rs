@@ -5,8 +5,8 @@ use std::path::PathBuf;
 
 use antiyoy_eval::League;
 use antiyoy_protocol::{
-    ClientMessage, CreateMatchRequest, CreateMatchResponse, MatchSnapshot, NETWORK_SCHEMA_VERSION,
-    ServerMessage,
+    ClaimSeatRequest, ClaimSeatResponse, ClientMessage, CreateMatchRequest, CreateMatchResponse,
+    MatchSnapshot, NETWORK_SCHEMA_VERSION, ServerMessage,
 };
 use antiyoy_server::{MatchService, ServiceError, ServiceLimits};
 use anyhow::Result;
@@ -91,6 +91,10 @@ fn router(service: MatchService) -> Router {
             get(match_state).delete(delete_match),
         )
         .route("/v1/matches/{match_id}/replay", get(match_replay))
+        .route(
+            "/v1/matches/{match_id}/seats/{seat}/claim",
+            post(claim_seat),
+        )
         .route("/v1/matches/{match_id}/watch", get(watch_match))
         .with_state(service)
 }
@@ -131,6 +135,16 @@ async fn match_replay(
         Body::from(replay),
     )
         .into_response())
+}
+
+async fn claim_seat(
+    State(service): State<MatchService>,
+    Path((match_id, seat)): Path<(String, u8)>,
+    Json(request): Json<ClaimSeatRequest>,
+) -> Result<Json<ClaimSeatResponse>, ApiError> {
+    Ok(Json(
+        blocking_match(move || service.claim_seat(&match_id, seat, request)).await?,
+    ))
 }
 
 async fn delete_match(
@@ -280,6 +294,7 @@ impl IntoResponse for ApiError {
             ServiceError::Unauthorized => StatusCode::UNAUTHORIZED,
             ServiceError::StaleRevision { .. }
             | ServiceError::WrongTurn { .. }
+            | ServiceError::SeatUnavailable { .. }
             | ServiceError::Finished => StatusCode::CONFLICT,
             ServiceError::Closed => StatusCode::GONE,
             ServiceError::Capacity { .. } => StatusCode::TOO_MANY_REQUESTS,
@@ -306,6 +321,7 @@ fn error_code(error: &ServiceError) -> &'static str {
         ServiceError::Unauthorized => "unauthorized",
         ServiceError::StaleRevision { .. } => "stale_revision",
         ServiceError::WrongTurn { .. } => "wrong_turn",
+        ServiceError::SeatUnavailable { .. } => "seat_unavailable",
         ServiceError::Finished => "finished",
         ServiceError::Closed => "closed",
         ServiceError::Capacity { .. } => "capacity",

@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub(crate) const ROOM_STORAGE_SCHEMA_VERSION: u16 = 2;
+const PREVIOUS_NETWORK_SCHEMA_VERSION: u16 = 4;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) struct StoredRoom {
@@ -123,11 +124,14 @@ impl Storage {
                 .ok_or_else(|| StorageError::InvalidFilename(path.display().to_string()))?;
             let bytes = fs::read(&path)?;
             let (schema_version, _) = postcard::take_from_bytes::<u16>(&bytes)?;
-            let room = if schema_version == 1 {
+            let mut room = if schema_version == 1 {
                 postcard::from_bytes::<LegacyStoredRoom>(&bytes)?.into()
             } else {
                 postcard::from_bytes::<StoredRoom>(&bytes)?
             };
+            if room.request.schema_version == PREVIOUS_NETWORK_SCHEMA_VERSION {
+                room.request.schema_version = NETWORK_SCHEMA_VERSION;
+            }
             if room.id != filename {
                 return Err(StorageError::IdentityMismatch {
                     filename: filename.into(),
