@@ -62,6 +62,19 @@ def aggregate_results(results: list[dict[str, object]]) -> dict[str, object]:
     }
 
 
+def minimum_seat_slice(results: list[dict[str, object]]) -> dict[str, object]:
+    slices = [
+        {
+            "profile": result["profile"],
+            "seed": result["seed"],
+            **seat_result,
+        }
+        for result in results
+        for seat_result in result["seats"]
+    ]
+    return min(slices, key=lambda result: float(result["score"]))
+
+
 def checkpoint_digest(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as checkpoint:
@@ -95,6 +108,7 @@ def main() -> None:
     parser.add_argument("--height", type=int, default=9)
     parser.add_argument("--action-limit", type=int, default=1000)
     parser.add_argument("--minimum-aggregate-score", type=float)
+    parser.add_argument("--minimum-seat-score", type=float)
     parser.add_argument("--output", type=Path)
     arguments = parser.parse_args()
     if arguments.games < 2 or arguments.games % 2 != 0:
@@ -103,6 +117,10 @@ def main() -> None:
         0 <= arguments.minimum_aggregate_score <= 1
     ):
         parser.error("minimum aggregate score must be between zero and one")
+    if arguments.minimum_seat_score is not None and not (
+        0 <= arguments.minimum_seat_score <= 1
+    ):
+        parser.error("minimum seat score must be between zero and one")
 
     started = time.perf_counter()
     results: list[dict[str, object]] = []
@@ -127,6 +145,7 @@ def main() -> None:
                 )
             )
     aggregate = aggregate_results(results)
+    weakest_seat = minimum_seat_slice(results)
     result: dict[str, object] = {
         "schema_version": 2,
         "kind": "universal_policy_seed_sweep",
@@ -166,6 +185,7 @@ def main() -> None:
         "elapsed_seconds": time.perf_counter() - started,
         "results": results,
         "aggregate": aggregate,
+        "weakest_seat": weakest_seat,
     }
     serialized = json.dumps(result, sort_keys=True)
     print(serialized)
@@ -175,6 +195,12 @@ def main() -> None:
     if minimum_score is not None and float(aggregate["score"]) < minimum_score:
         raise SystemExit(
             f"aggregate score {aggregate['score']:.6f} is below required {minimum_score:.6f}"
+        )
+    minimum_seat_score = arguments.minimum_seat_score
+    if minimum_seat_score is not None and float(weakest_seat["score"]) < minimum_seat_score:
+        raise SystemExit(
+            f"weakest seat score {weakest_seat['score']:.6f} is below required "
+            f"{minimum_seat_score:.6f}"
         )
 
 

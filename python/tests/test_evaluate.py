@@ -10,7 +10,7 @@ from python.evaluate import (
     paired_seeds,
     selected_action_kinds,
 )
-from python.evaluate_suite import aggregate_results
+from python.evaluate_suite import aggregate_results, minimum_seat_slice
 
 
 def test_selected_action_kinds_resolves_local_ragged_indices() -> None:
@@ -149,3 +149,31 @@ def test_suite_aggregate_counts_draws_and_truncations() -> None:
             "relative_elo": paired_elo(0.375, 4),
         },
     ]
+
+
+def test_minimum_seat_slice_preserves_profile_and_seed() -> None:
+    results = [
+        {
+            "profile": "classic_generic_2022",
+            "seed": 100,
+            "seats": [
+                {"seat": 0, "score": 0.75},
+                {"seat": 1, "score": 0.5},
+            ],
+        },
+        {
+            "profile": "online_duel_v1",
+            "seed": 200,
+            "seats": [
+                {"seat": 0, "score": 0.625},
+                {"seat": 1, "score": 0.125},
+            ],
+        },
+    ]
+
+    assert minimum_seat_slice(results) == {
+        "profile": "online_duel_v1",
+        "seed": 200,
+        "seat": 1,
+        "score": 0.125,
+    }

@@ -136,6 +136,10 @@ Arena dimensions and action limits otherwise inherit the training checkpoint.
 Cross-checkpoint comparisons must pass the same explicit `--width`, `--height`,
 and `--action-limit`; all three values are emitted in every result.
 
+`evaluate_suite.py` writes the weakest `profile × seed window × seat` slice.
+Use `--minimum-seat-score` together with `--minimum-aggregate-score` as a
+release gate so a one-sided specialization cannot pass on its average alone.
+
 Evaluation alternates model seats, uses held-out seeds, and reports the raw
 win/draw/loss score plus an Elo difference against the named baseline. Terminal
 draws and action-limit truncations are reported separately, along with action
