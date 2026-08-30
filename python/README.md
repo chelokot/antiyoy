@@ -279,6 +279,34 @@ Then repeat the direct `--baseline policy` arena on fresh seeds. Accept the
 overlay only when held-out value metrics improve and PUCT beats the unchanged
 direct checkpoint; otherwise the result remains a recorded rejected attempt.
 
+Distill an accepted PUCT teacher into a zero-search policy with the calibrated
+checkpoint frozen as both evaluator and retention reference:
+
+```bash
+python distill_puct.py ../models/classic-generic-duel-value.pt \
+  ../models/classic-generic-duel-puct-distilled.pt \
+  --environments 64 --updates 1000 --seed 800000 --device cuda \
+  --puct-nodes 8 --puct-root-value-weight 1 --retention-weight 1
+```
+
+Only the student's action head is trainable. The board encoder, rules context,
+and calibrated value path must remain bit-identical to the teacher or the run
+fails. The checkpoint records search cost, direct-policy disagreement,
+imitation accuracy, KL retention, completed games, and all deterministic seeds.
+Compare the cheap student against the exact frozen source on disjoint seeds:
+
+```bash
+python evaluate.py ../models/classic-generic-duel-puct-distilled.pt \
+  --baseline policy \
+  --baseline-checkpoint ../models/classic-generic-duel-value.pt \
+  --games 256 --seed 900000 --device cuda \
+  --profile classic_generic_2022 --width 11 --height 9 --action-limit 1000
+```
+
+This separates a genuine distilled-policy gain from the online search gain and
+from checkpoint drift. A candidate is promoted only after a disjoint paired
+arena; imitation accuracy is diagnostic rather than a release criterion.
+
 Use `--model-seat SEAT` for an exact-seat scout. Unlike the all-seat rotation,
 every game then uses a distinct seed with the policy fixed to that seat, and
 the evaluator calibrates the result against baseline self-play on the same
