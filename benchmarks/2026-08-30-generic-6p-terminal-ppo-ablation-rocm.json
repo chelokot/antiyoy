@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "kind": "generic_six_player_fixed_opponent_terminal_ppo_ablation",
+  "training_commit": "d9d1580478cc0f9c7c8283f6355087ff676265fa",
+  "evaluation_commit": "d9d1580478cc0f9c7c8283f6355087ff676265fa",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 8,
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "pytorch": "2.9.1+rocm6.4",
+    "maximum_parallel_jobs": 1
+  },
+  "hypothesis": "Whole-game terminal credit against immutable opponents may improve the weak Generic six-player seat 2 where search imitation and policy roll-in both regressed held-out play.",
+  "domain": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v1",
+    "domain_key": "a84f743db1f620e6a9136cf4e328d4b8ffbec47f8a1d055ce084e1be4f0a8748",
+    "width": 21,
+    "height": 15,
+    "players": 6,
+    "learner_seat": 2,
+    "land_density_per_million": 650000,
+    "action_limit": 2800
+  },
+  "training": {
+    "initialized_from": {
+      "asset": "generic-dagger-6p-exact-v1.pt",
+      "sha256": "6ac462bb6af40e9c66f04e8c759e961e0fd3146ddcfabfd0e60ede5d1bec825f",
+      "size_bytes": 10828511
+    },
+    "candidate": {
+      "asset": "generic-6p-seat2-terminal-ppo-v1.pt",
+      "sha256": "9ba03ebb993322ebf16f4851edfa329e71f508a51098c8c210aafca6391b65df",
+      "size_bytes": 11097915
+    },
+    "seed": 3200000,
+    "environments": 24,
+    "updates": 4,
+    "episodes": 96,
+    "transitions": 115848,
+    "optimizer_steps": 112,
+    "opponent": "deterministic_whole_turn_search_256",
+    "search": {
+      "beam_width": 32,
+      "branch_width": 48,
+      "maximum_actions_per_turn": 24
+    },
+    "learning_rate": 0.000001,
+    "epochs": 2,
+    "minibatch": 256,
+    "entropy_weight": 0.001,
+    "reference_kl_weight": 0.25,
+    "mean_outcome": -0.5625,
+    "wins": 21,
+    "draws": 0,
+    "losses": 75,
+    "mean_loss": 0.1798317604454323,
+    "updates_detail": [
+      {
+        "update": 1,
+        "decisions": 2855,
+        "wins": 3,
+        "draws": 0,
+        "losses": 21,
+        "mean_outcome": -0.75,
+        "retention_kl": 0.000005631598071431654
+      },
+      {
+        "update": 2,
+        "decisions": 3762,
+        "wins": 6,
+        "draws": 0,
+        "losses": 18,
+        "mean_outcome": -0.5,
+        "retention_kl": 0.000027264012229958703
+      },
+      {
+        "update": 3,
+        "decisions": 3623,
+        "wins": 6,
+        "draws": 0,
+        "losses": 18,
+        "mean_outcome": -0.5,
+        "retention_kl": 0.00006389991637358131
+      },
+      {
+        "update": 4,
+        "decisions": 3577,
+        "wins": 6,
+        "draws": 0,
+        "losses": 18,
+        "mean_outcome": -0.5,
+        "retention_kl": 0.00013435217832531116
+      }
+    ]
+  },
+  "evaluation": {
+    "baseline": "deterministic_whole_turn_search_256",
+    "seed": 490000,
+    "unique_seeds": 6,
+    "games_per_candidate": 36,
+    "games_per_seat": 6,
+    "truncations": 0,
+    "base_bundle": {
+      "asset": "universal-2to8p-release-v5g-candidate.pt",
+      "sha256": "d13d009217d262e503f988d61273e8bf56d0c7790f874bd9c29644b142328736"
+    },
+    "candidate_overlay": {
+      "asset": "universal-2to8p-release-v5g-terminal-seat2-scout.pt",
+      "sha256": "1105e27d50697ed5dd71281c48abc8905f2841b041eac300452483d417427c44",
+      "route": "classic_generic_2022:procedural_v1:6:2:a84f743db1f620e6a9136cf4e328d4b8ffbec47f8a1d055ce084e1be4f0a8748"
+    },
+    "results": [
+      {
+        "name": "control",
+        "raw_result_sha256": "b96b97f5c913673467b132fad66fbd19d87a5bd7e648d52e0c37a0c935d771b8",
+        "elapsed_seconds": 45.43,
+        "wins": 6,
+        "draws": 0,
+        "losses": 30,
+        "elo_delta": 0.0,
+        "target_seat_wins": 2,
+        "target_seat_draws": 0,
+        "target_seat_losses": 4,
+        "target_seat_elo_delta": 159.17600346881503
+      },
+      {
+        "name": "terminal_ppo",
+        "raw_result_sha256": "58f1908b282a79fa43cc9287953118bb329eb2272dec24678323dea071e0e2d6",
+        "elapsed_seconds": 51.91,
+        "wins": 5,
+        "draws": 0,
+        "losses": 31,
+        "elo_delta": -37.368674064894044,
+        "target_seat_wins": 1,
+        "target_seat_draws": 0,
+        "target_seat_losses": 5,
+        "target_seat_elo_delta": 0.0
+      }
+    ]
+  },
+  "selection": {
+    "promoted_checkpoint": null,
+    "published_bundle_changed": false,
+    "confirmation_run_started": false,
+    "status": "candidate_rejected_at_scout"
+  },
+  "conclusion": "The terminal-PPO learner won 21 of 96 sampled training episodes and held its KL distance close to the initialized policy, but the exact-domain routed candidate regressed the only changed seat from 2/6 to 1/6 wins on fresh deterministic seeds. Every unchanged seat produced identical outcomes and neither evaluation truncated. Sparse terminal credit alone is therefore not a reliable promotion operator for this domain; a larger confirmation run would spend compute on a candidate that already failed the matched scout gate."
+}

@@ -71,6 +71,12 @@ the candidate must preserve the gain across fresh seeds and every seat. Records
 retain higher-accuracy checkpoints that fail this outcome test so imitation
 metrics cannot be mistaken for strategic strength.
 
+Fixed-opponent terminal-credit ablations route the candidate only into the
+trained profile, generator, player count, seat, and exact domain digest. The
+control and overlay must use identical seeds; outcomes for every unchanged seat
+must match exactly. A candidate that loses the target-seat scout is rejected
+without a confirmation run, regardless of its on-policy training win rate.
+
 The 5–8 player matrix gives every seat one game on each of two held-out seeds
 for every compatibility profile. Its increasing board sizes and action limits
 are part of the domain identity. Use a search-node override only for explicitly
