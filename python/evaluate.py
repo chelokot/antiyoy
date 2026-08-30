@@ -17,9 +17,9 @@ from antiyoy_rl.model import (
     load_policy_state,
 )
 try:
-    from .build_bundle import BUNDLE_KIND, BUNDLE_VERSION
+    from .build_bundle import BUNDLE_KIND, SUPPORTED_BUNDLE_VERSIONS
 except ImportError:
-    from build_bundle import BUNDLE_KIND, BUNDLE_VERSION
+    from build_bundle import BUNDLE_KIND, SUPPORTED_BUNDLE_VERSIONS
 try:
     from .train import CHECKPOINT_VERSION
 except ImportError:
@@ -92,7 +92,11 @@ def named_action_counts(counts: np.ndarray) -> dict[str, int]:
 
 
 def load_policy(
-    checkpoint_path: Path, device: torch.device, profile: str | None = None
+    checkpoint_path: Path,
+    device: torch.device,
+    profile: str | None = None,
+    generator: str | None = None,
+    players: int | None = None,
 ) -> tuple[UniversalPolicy, dict[str, object]]:
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     if checkpoint["checkpoint_version"] not in (4, CHECKPOINT_VERSION):
@@ -105,12 +109,23 @@ def load_policy(
     state = checkpoint.get("model")
     selected_expert = "single"
     if checkpoint.get("kind") == BUNDLE_KIND:
-        if checkpoint.get("bundle_version") != BUNDLE_VERSION:
+        if checkpoint.get("bundle_version") not in SUPPORTED_BUNDLE_VERSIONS:
             raise ValueError("policy bundle version does not match this evaluator")
         selected_profile = profile or config["profile"] or config["profiles"][0]
         selected_expert = checkpoint["routes"].get(selected_profile)
         if selected_expert is None:
             raise ValueError(f"policy bundle has no route for profile: {selected_profile}")
+        context_matches = [
+            route
+            for route in checkpoint.get("context_routes", [])
+            if route["profile"] == selected_profile
+            and route["generator"] == generator
+            and route["players"] == players
+        ]
+        if len(context_matches) > 1:
+            raise ValueError("policy bundle contains duplicate context routes")
+        if context_matches:
+            selected_expert = context_matches[0]["expert"]
         state = checkpoint["experts"][selected_expert]
     if state is None:
         raise ValueError("checkpoint has no policy weights")
@@ -148,7 +163,13 @@ def evaluate(
 ) -> dict[str, object]:
     evaluation_seeds = seat_rotation_seeds(games, seed, players)
     device = torch.device(device_name)
-    model, config = load_policy(checkpoint_path, device, profile)
+    model, config = load_policy(
+        checkpoint_path,
+        device,
+        profile,
+        "procedural_v1" if procedural else "symmetric_duel_v1",
+        players,
+    )
     evaluation_profile = profile or config["profile"] or config["profiles"][0]
     evaluation_width = config["width"] if width is None else width
     evaluation_height = config["height"] if height is None else height

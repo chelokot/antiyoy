@@ -32,7 +32,13 @@ class PolicyArena:
         self.height = height
         self.action_limit = action_limit
         self.device = torch.device(device_name)
-        self.model, self.policy_config = load_policy(checkpoint, self.device, profile)
+        self.model, self.policy_config = load_policy(
+            checkpoint,
+            self.device,
+            profile,
+            "symmetric_duel_v1",
+            2,
+        )
         self.environment = VectorEnv(
             1,
             width=width,

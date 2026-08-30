@@ -24,9 +24,9 @@ from antiyoy_rl.model import (
     rotate_observation_180,
 )
 try:
-    from .build_bundle import BUNDLE_KIND, BUNDLE_VERSION
+    from .build_bundle import BUNDLE_KIND, SUPPORTED_BUNDLE_VERSIONS
 except ImportError:
-    from build_bundle import BUNDLE_KIND, BUNDLE_VERSION
+    from build_bundle import BUNDLE_KIND, SUPPORTED_BUNDLE_VERSIONS
 
 
 CHECKPOINT_VERSION = 5
@@ -579,7 +579,7 @@ def initialization_state(
         return state, "single"
     if checkpoint.get("kind") != BUNDLE_KIND:
         raise ValueError("initialization checkpoint has no policy weights")
-    if checkpoint.get("bundle_version") != BUNDLE_VERSION:
+    if checkpoint.get("bundle_version") not in SUPPORTED_BUNDLE_VERSIONS:
         raise ValueError("initialization policy bundle version does not match")
     if profile is None:
         raise ValueError("policy bundle initialization requires initialize_profile")
