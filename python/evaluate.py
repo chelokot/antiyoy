@@ -14,13 +14,12 @@ from antiyoy_rl.model import (
     ACTION_KIND_NAMES,
     RULE_FEATURES,
     UniversalPolicy,
-    action_distribution,
     domain_key,
     encode_rules_batch,
     load_policy_state,
-    select_environments,
 )
 from antiyoy_rl.puct import PolicySearchConfig, policy_search_actions
+from antiyoy_rl.routed import RoutedPolicy
 
 try:
     from .build_bundle import BUNDLE_KIND, SUPPORTED_BUNDLE_VERSIONS
@@ -379,49 +378,7 @@ def evaluate(
         environment.reset(index, int(evaluation_seed))
     rules = encode_rules_batch(environment.rules_jsons(), device)
 
-    def routed_policy(
-        observation: dict[str, np.ndarray],
-        selected_rules: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        environments_by_expert: dict[str, list[int]] = {}
-        for environment_index, active_player in enumerate(
-            observation["active_players"]
-        ):
-            expert = selected_experts[int(active_player)]
-            environments_by_expert.setdefault(expert, []).append(environment_index)
-        action_logits: dict[int, torch.Tensor] = {}
-        values: dict[int, torch.Tensor] = {}
-        for expert, expert_environments in environments_by_expert.items():
-            expert_observation = select_environments(
-                observation, expert_environments
-            )
-            expert_rules = selected_rules[expert_environments]
-            expert_logits, expert_values = models[expert](
-                expert_observation, expert_rules
-            )
-            expert_offsets = np.asarray(
-                expert_observation["action_offsets"], dtype=np.int64
-            )
-            for expert_index, environment_index in enumerate(expert_environments):
-                start, end = expert_offsets[expert_index : expert_index + 2]
-                action_logits[environment_index] = expert_logits[start:end]
-                values[environment_index] = expert_values[expert_index]
-        environment_count = len(observation["widths"])
-        return (
-            torch.cat(
-                [action_logits[index] for index in range(environment_count)]
-            ),
-            torch.stack([values[index] for index in range(environment_count)]),
-        )
-
-    def direct_policy_actions(
-        observation: dict[str, np.ndarray],
-        selected_rules: torch.Tensor,
-    ) -> np.ndarray:
-        with torch.no_grad():
-            logits, _ = routed_policy(observation, selected_rules)
-            distribution = action_distribution(logits, observation["action_offsets"])
-        return distribution.logits.argmax(dim=1).cpu().numpy().astype(np.uint64)
+    routed_policy = RoutedPolicy(models, selected_experts)
 
     def evaluate_baseline_reference() -> BaselineSelfPlay:
         reference_games = games // players if model_seat is None else games
@@ -441,7 +398,7 @@ def evaluate(
         while not bool(reference_finished.all()):
             reference_observation = reference_environment.observe()
             reference_actions = (
-                direct_policy_actions(reference_observation, reference_rules)
+                routed_policy.actions(reference_observation, reference_rules)
                 if baseline == "policy"
                 else choose_baseline_actions(
                     reference_environment,
@@ -532,12 +489,12 @@ def evaluate(
                 int(puct_metrics["maximum_depth"].max(initial=0)),
             )
         else:
-            model_actions = direct_policy_actions(observation, rules)
+            model_actions = routed_policy.actions(observation, rules)
         if baseline == "policy":
             baseline_actions = (
                 model_actions
                 if model_agent == "policy"
-                else direct_policy_actions(observation, rules)
+                else routed_policy.actions(observation, rules)
             )
         else:
             baseline_actions = choose_baseline_actions(

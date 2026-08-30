@@ -234,6 +234,34 @@ Every opponent seat then uses the same routed checkpoint without search. The
 paired seat rotation and policy-vs-policy reference run isolate the Elo added by
 PUCT rather than mixing it with a different heuristic opponent.
 
+PUCT depends on a calibrated value head. Search-teacher imitation updates policy
+logits but deliberately do not train values, so a newly distilled expert must
+pass value calibration before its PUCT result is treated as amplification. The
+calibrator labels held-out direct-policy self-play states from the active
+player's perspective and freezes every policy and trunk parameter:
+
+```bash
+python calibrate_value.py ../models/universal-routed.pt \
+  ../models/classic-generic-duel-value.pt --profile classic_generic_2022 \
+  --games 64 --validation-games 16 --seed 600000 --device cuda
+```
+
+The emitted specialist checkpoint includes before/after train and held-out
+MAE, RMSE, sign accuracy, and correlation, plus source and output SHA-256
+digests. Overlay it only on the calibrated context, preserving every inherited
+route:
+
+```bash
+python build_bundle.py ../models/universal-routed.pt \
+  ../models/universal-routed-value.pt --overlay \
+  --context-route classic_generic_2022:symmetric_duel_v1:2=\
+../models/classic-generic-duel-value.pt
+```
+
+Then repeat the direct `--baseline policy` arena on fresh seeds. Accept the
+overlay only when held-out value metrics improve and PUCT beats the unchanged
+direct checkpoint; otherwise the result remains a recorded rejected attempt.
+
 Use `--model-seat SEAT` for an exact-seat scout. Unlike the all-seat rotation,
 every game then uses a distinct seed with the policy fixed to that seat, and
 the evaluator calibrates the result against baseline self-play on the same
