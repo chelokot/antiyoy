@@ -33,11 +33,14 @@ export class WasmReplay {
 
 export function engine_version(): number;
 
+export function rules_json_for_profile(profile: string): string;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_wasmgame_free: (a: number, b: number) => void;
+    readonly rules_json_for_profile: (a: number, b: number, c: number) => void;
     readonly wasmgame_new: (a: number, b: number, c: number, d: bigint) => void;
     readonly wasmgame_with_profile: (a: number, b: number, c: number, d: bigint, e: number, f: number) => void;
     readonly wasmgame_procedural: (a: number, b: number, c: number, d: number, e: bigint, f: number) => void;
@@ -61,9 +64,9 @@ export interface InitOutput {
     readonly wasmreplay_seek: (a: number, b: number, c: number) => void;
     readonly engine_version: () => number;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
-    readonly __wbindgen_export: (a: number, b: number, c: number) => void;
-    readonly __wbindgen_export2: (a: number, b: number) => number;
-    readonly __wbindgen_export3: (a: number, b: number, c: number, d: number) => number;
+    readonly __wbindgen_export: (a: number, b: number) => number;
+    readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
+    readonly __wbindgen_export3: (a: number, b: number, c: number) => void;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;

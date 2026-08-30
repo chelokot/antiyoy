@@ -20,6 +20,15 @@ export type ProvinceView = {
   size: number;
 };
 
+export type EconomyRulesView = {
+  unit_price_per_level: number;
+  farm_base_price: number;
+  farm_price_increment: number;
+  tower_price: number;
+  strong_tower_price: number;
+  planted_tree_price: number;
+};
+
 export type CoreAction =
   | "EndTurn"
   | { Move: { source: number; target: number } }

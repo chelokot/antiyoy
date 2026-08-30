@@ -35,6 +35,12 @@ pub struct WasmGame {
 }
 
 #[wasm_bindgen]
+pub fn rules_json_for_profile(profile: &str) -> Result<String, JsError> {
+    serde_json::to_string(&rules_for_profile(profile)?)
+        .map_err(|error| JsError::new(&error.to_string()))
+}
+
+#[wasm_bindgen]
 impl WasmGame {
     #[wasm_bindgen(constructor)]
     pub fn new(width: u16, height: u16, seed: u64) -> Result<Self, JsError> {

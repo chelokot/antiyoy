@@ -1,13 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import type {
   WasmGame as WasmGameType,
   WasmReplay as WasmReplayType,
 } from "@/lib/antiyoy-wasm/antiyoy_wasm";
 import { RoutedBrowserPolicy, type PolicyDecision } from "./browser-policy";
-import type { CellView, CoreAction, StateView } from "./game-types";
+import type { CellView, CoreAction, EconomyRulesView, StateView } from "./game-types";
+import { GamePiece, ShopPiece } from "./GamePiece";
+import {
+  actionAtTarget,
+  actionTarget,
+  actionsForIntent,
+  globalActions as selectGlobalActions,
+  indexedActions,
+  movableSources,
+  type ActionIntent,
+} from "./game-interaction";
 import {
   DEFAULT_MULTIPLAYER_ENDPOINT,
   MultiplayerConnection,
@@ -47,6 +58,10 @@ type BrowserPolicyKey = keyof typeof BROWSER_POLICY_MODELS;
 type PolicyStatus = "loading" | "ready" | "error";
 type LeagueStatus = "idle" | "loading" | "ready" | "error";
 
+type RulesView = {
+  economy: EconomyRulesView;
+};
+
 type PlacementRating = {
   version: 1;
   elo: number;
@@ -76,6 +91,14 @@ const INITIAL_PLACEMENT: PlacementRating = {
   draws: 0,
   losses: 0,
   attempts: 0,
+};
+const DEFAULT_ECONOMY_RULES: EconomyRulesView = {
+  unit_price_per_level: 10,
+  farm_base_price: 12,
+  farm_price_increment: 2,
+  tower_price: 15,
+  strong_tower_price: 35,
+  planted_tree_price: 10,
 };
 const DEFAULT_CONFIG: LiveConfig = {
   map: "duel",
@@ -173,6 +196,11 @@ function createGame(bindings: WasmModule, config: LiveConfig): WasmGameType {
   );
 }
 
+function economyRulesForProfile(bindings: WasmModule, profile: RulesProfileName): EconomyRulesView {
+  const rules = JSON.parse(bindings.rules_json_for_profile(profile)) as RulesView;
+  return rules.economy;
+}
+
 function advanceBotsUntilHuman(
   instance: WasmGameType,
   initial: StateView,
@@ -237,50 +265,12 @@ function pieceLabel(cell: CellView): string {
   return cell.object.toUpperCase();
 }
 
-function pieceGlyph(cell: CellView): string {
-  if (cell.strength > 0) {
-    return ["", "Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ"][cell.strength];
-  }
-  return {
-    Capital: "♛",
-    Farm: "⌂",
-    Tower: "♜",
-    StrongTower: "⬟",
-    Pine: "♠",
-    Palm: "♣",
-    Grave: "†",
-  }[cell.object] ?? "";
-}
-
-function actionTarget(action: CoreAction): number | null {
-  if (typeof action === "string") {
-    return null;
-  }
-  if ("Move" in action) {
-    return action.Move.target;
-  }
-  if ("Recruit" in action) {
-    return action.Recruit.target;
-  }
-  if ("Build" in action) {
-    return action.Build.target;
-  }
-  if ("PlantTree" in action) {
-    return action.PlantTree.target;
-  }
-  return null;
-}
-
-function hexCoordinates(hex: number, width: number): string {
-  return `${hex % width},${Math.floor(hex / width)}`;
-}
-
-function actionLabel(action: CoreAction, width: number): string {
+function actionLabel(action: CoreAction): string {
   if (action === "EndTurn") {
     return "End turn";
   }
   if ("Move" in action) {
-    return `Move ${hexCoordinates(action.Move.source, width)} → here`;
+    return "Move unit";
   }
   if ("Recruit" in action) {
     return `Recruit unit ${action.Recruit.strength}`;
@@ -353,9 +343,11 @@ export default function Arena() {
   const boardContent = useRef<HTMLDivElement | null>(null);
   const [state, setState] = useState<StateView | null>(null);
   const [selectedId, setSelectedId] = useState(Math.floor((WIDTH * HEIGHT) / 2));
+  const [actionIntent, setActionIntent] = useState<ActionIntent | null>(null);
   const [playing, setPlaying] = useState(false);
   const [actions, setActions] = useState(0);
   const [engineVersion, setEngineVersion] = useState<number | null>(null);
+  const [economyRules, setEconomyRules] = useState(DEFAULT_ECONOMY_RULES);
   const [replayMetadata, setReplayMetadata] = useState<ReplayMetadata | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [humanMode, setHumanMode] = useState(true);
@@ -427,11 +419,16 @@ export default function Arena() {
     setHumanSeat(session.credential.seat);
     setPlaying(false);
     setBotThinking(false);
+    setActionIntent(null);
     setOnlineSession(session);
     setState(session.snapshot.game);
     setActions(session.snapshot.actions_played);
     setSelectedId(centerPlayableCell(session.snapshot.game));
-    setActiveConfig(roomConfigFromSnapshot(session.snapshot));
+    const roomConfig = roomConfigFromSnapshot(session.snapshot);
+    setActiveConfig(roomConfig);
+    if (wasmModule.current !== null) {
+      setEconomyRules(economyRulesForProfile(wasmModule.current, roomConfig.profile));
+    }
     const connection = new MultiplayerConnection(
       session.endpoint,
       session.credential,
@@ -508,6 +505,7 @@ export default function Arena() {
   useEffect(() => {
     const closePanel = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        setActionIntent(null);
         setOpenPanel(null);
       }
     };
@@ -558,6 +556,7 @@ export default function Arena() {
       const instance = createGame(module, DEFAULT_CONFIG);
       game.current = instance;
       setEngineVersion(module.engine_version());
+      setEconomyRules(economyRulesForProfile(module, DEFAULT_CONFIG.profile));
       const initialState = parseState(instance.state_json());
       setState(initialState);
       setSelectedId(centerPlayableCell(initialState));
@@ -690,8 +689,10 @@ export default function Arena() {
       setHumanSeat(0);
       activePolicyKeyRef.current = policyKeyForProfile(draftConfig.profile);
       setActiveConfig(draftConfig);
+      setEconomyRules(economyRulesForProfile(bindings, draftConfig.profile));
       setState(next);
       setSelectedId(centerPlayableCell(next));
+      setActionIntent(null);
       setActions(0);
       setPolicyDecision(null);
       if (
@@ -748,8 +749,10 @@ export default function Arena() {
       setReplayMetadata(null);
       activePolicyKeyRef.current = policyKeyForProfile(placementConfig.profile);
       setActiveConfig(placementConfig);
+      setEconomyRules(economyRulesForProfile(bindings, placementConfig.profile));
       setState(advanced.state);
       setSelectedId(centerPlayableCell(advanced.state));
+      setActionIntent(null);
       setActions(advanced.actions);
       setPolicyDecision(null);
       setHumanSeat(seat);
@@ -853,15 +856,18 @@ export default function Arena() {
       game.current = instance;
       const initialState = parseState(instance.state_json());
       setActiveConfig(DEFAULT_CONFIG);
+      setEconomyRules(economyRulesForProfile(bindings, DEFAULT_CONFIG.profile));
       setDraftConfig(DEFAULT_CONFIG);
       setState(initialState);
       setSelectedId(centerPlayableCell(initialState));
+      setActionIntent(null);
       setActions(0);
       setPlaying(false);
       return;
     }
     if (replay.current !== null) {
       setState(parseState(replay.current.seek(0)));
+      setActionIntent(null);
       setActions(0);
       setPlaying(false);
       setError(null);
@@ -873,6 +879,7 @@ export default function Arena() {
     setPlacementMode(false);
     setHumanSeat(0);
     setState(parseState(game.current.reset()));
+    setActionIntent(null);
     setActions(0);
     setPolicyDecision(null);
     setPlaying(false);
@@ -880,6 +887,7 @@ export default function Arena() {
   }, [disconnectOnline, onlineSession]);
 
   const playHumanAction = useCallback(async (actionIndex: number) => {
+    setActionIntent(null);
     if (onlineSession !== null) {
       const action = onlineSession.snapshot.game.legal_actions[actionIndex];
       if (
@@ -1018,6 +1026,7 @@ export default function Arena() {
       setHumanSeat(0);
       setState(initialState);
       setSelectedId(Math.floor(initialState.cells.length / 2));
+      setActionIntent(null);
       setActions(0);
       setPlaying(false);
       setError(null);
@@ -1038,6 +1047,7 @@ export default function Arena() {
       const liveState = parseState(game.current.reset());
       setState(liveState);
       setSelectedId(centerPlayableCell(liveState));
+      setActionIntent(null);
     }
     setActions(0);
     setPlaying(false);
@@ -1066,18 +1076,14 @@ export default function Arena() {
   );
   const controlledCells = territories.reduce((total, cells) => total + cells, 0);
   const territoryShares = territories.map((cells) => controlledCells === 0 ? 0 : (cells / controlledCells) * 100);
-  const selectedActions = (state?.legal_actions ?? [])
-    .map((action, index) => ({ action, index }))
-    .filter(({ action }) => actionTarget(action) === selectedId);
-  const globalActions = (state?.legal_actions ?? [])
-    .map((action, index) => ({ action, index }))
-    .filter(({ action }) => actionTarget(action) === null);
-  const actionableTargets = new Set(
-    (state?.legal_actions ?? []).flatMap((action) => {
-      const target = actionTarget(action);
-      return target === null ? [] : [target];
-    }),
-  );
+  const legalActions = indexedActions(state?.legal_actions ?? []);
+  const movementSources = movableSources(legalActions);
+  const intentActions = actionsForIntent(legalActions, actionIntent, state?.cells ?? []);
+  const actionableTargets = new Set(intentActions.flatMap(({ action }) => {
+    const target = actionTarget(action);
+    return target === null ? [] : [target];
+  }));
+  const globalActions = selectGlobalActions(legalActions);
   const humanCanAct = onlineSession === null
     ? humanMode
       && replayMetadata === null
@@ -1113,10 +1119,68 @@ export default function Arena() {
   );
   const roomConfigSummary = `${rulesProfileLabel(draftConfig.profile)} · ${draftConfig.map === "duel" ? "duel" : `${draftConfig.width}×${draftConfig.height} procedural`} · ${draftConfig.map === "duel" ? 2 : draftConfig.players} players`;
   const economyPlayer = humanMode ? humanSeat : state?.active_player ?? 0;
-  const economyProvince = province?.owner === economyPlayer
+  const shopProvince = province?.owner === economyPlayer
     ? province
     : state?.provinces.find((candidate) => candidate.owner === economyPlayer) ?? null;
+  const economyProvince = shopProvince;
   const economy = economyProvince ?? { money: 0, profit: 0 };
+  const recruitStrengths = shopProvince === null
+    ? []
+    : [...new Set(legalActions.flatMap(({ action }) =>
+      typeof action !== "string"
+        && "Recruit" in action
+        && action.Recruit.province === shopProvince.capital
+        ? [action.Recruit.strength]
+        : [],
+    ))].sort((first, second) => first - second);
+  const structures = shopProvince === null
+    ? []
+    : [...new Set(legalActions.flatMap(({ action }) =>
+      typeof action !== "string"
+        && "Build" in action
+        && state?.cells[action.Build.target].province === shopProvince.id
+        ? [action.Build.structure]
+        : [],
+    ))];
+  const canPlantTree = shopProvince !== null && legalActions.some(({ action }) =>
+    typeof action !== "string"
+      && "PlantTree" in action
+      && state?.cells[action.PlantTree.target].province === shopProvince.id,
+  );
+  const farms = shopProvince === null || state === null
+    ? 0
+    : state.cells.filter((cell) => cell.province === shopProvince.id && cell.object === "Farm").length;
+  const itemPrice = (kind: "unit" | "Farm" | "Tower" | "StrongTower" | "tree", strength = 0) => {
+    if (kind === "unit") {
+      return strength * economyRules.unit_price_per_level;
+    }
+    if (kind === "Farm") {
+      return economyRules.farm_base_price + farms * economyRules.farm_price_increment;
+    }
+    if (kind === "Tower") {
+      return economyRules.tower_price;
+    }
+    return kind === "StrongTower" ? economyRules.strong_tower_price : economyRules.planted_tree_price;
+  };
+  const activeIntentLabel = actionIntent === null
+    ? movementSources.size > 0 ? "Choose a unit or buy an item" : "Choose an item"
+    : actionIntent.kind === "move"
+      ? `Unit ${state?.cells[actionIntent.source].strength ?? ""} selected · choose a highlighted hex`
+      : "Item selected · choose a highlighted hex";
+  const handleHexSelect = (cellId: number) => {
+    setSelectedId(cellId);
+    if (!humanCanAct) {
+      return;
+    }
+    const targetedAction = actionAtTarget(intentActions, cellId);
+    if (targetedAction !== null) {
+      void playHumanAction(targetedAction.index);
+      return;
+    }
+    if (movementSources.has(cellId)) {
+      setActionIntent({ kind: "move", source: cellId });
+    }
+  };
 
   return (
     <main className="arena-shell">
@@ -1126,7 +1190,7 @@ export default function Arena() {
           <div className="panel-scroll">
           <details className="panel-section panel-section-hero" open>
             <summary>MATCH</summary>
-            <div className="panel-section-body"><p className="eyebrow">{onlineSession !== null ? "AUTHORITATIVE MULTIPLAYER" : replayMetadata === null ? placementMode ? "RATED PLACEMENT" : humanMode ? "HUMAN VS AI" : "SELF-PLAY" : "VERIFIED REPLAY"}</p><h2 className="mt-2 text-xl font-semibold">{replayMetadata === null ? humanMode ? `you are ${playerLabel(humanSeat).toLowerCase()}` : botOpponent === "neural" ? "neural policy mirror" : "greedy vs turn-search" : "training trace"}</h2><p className="mt-1 text-sm text-[#686a65]">{onlineSession !== null ? onlineSession.snapshot.status === "Waiting" ? "waiting for the invited player" : "every move is validated by the Rust server" : replayMetadata === null ? placementMode ? "local Elo vs fixed search-2048" : humanMode ? "select a highlighted hex, then choose an action" : botOpponent === "neural" ? "the routed model plays every seat" : "deterministic whole-turn planning" : `${replayMetadata.frames} deterministic actions`}</p><div className="mt-6 space-y-4"><Metric label="RULESET" value={replayMetadata?.rules_profile ?? activeConfig.profile} /><Metric label="MAP" value={replayMetadata === null ? activeConfig.map === "procedural" ? "procedural_v1" : "symmetric_duel_v1" : "replay scenario"} /><Metric label="OPPONENT" value={opponentLabel || "open seat"} /><Metric label="SEED" value={onlineSession === null ? `${replayMetadata?.seed ?? activeConfig.seed} · reproducible` : "server-authoritative"} /><Metric label="ROUND" value={state === null ? "loading" : `${state.round} · ${playerLabel(state.active_player)} to move`} /><Metric label="LEGAL ACTIONS" value={state?.legal_actions.length.toString() ?? "…"} accent />{onlineSession === null && !placementMode && botOpponent === "neural" && <Metric label="NEURAL INFERENCE" value={policyDecision === null ? policyStatus : `${policyDecision.milliseconds.toFixed(1)} ms · ${policyDecision.legalActions} actions`} accent />}</div></div>
+            <div className="panel-section-body"><p className="eyebrow">{onlineSession !== null ? "AUTHORITATIVE MULTIPLAYER" : replayMetadata === null ? placementMode ? "RATED PLACEMENT" : humanMode ? "HUMAN VS AI" : "SELF-PLAY" : "VERIFIED REPLAY"}</p><h2 className="mt-2 text-xl font-semibold">{replayMetadata === null ? humanMode ? `you are ${playerLabel(humanSeat).toLowerCase()}` : botOpponent === "neural" ? "neural policy mirror" : "greedy vs turn-search" : "training trace"}</h2><p className="mt-1 text-sm text-[#686a65]">{onlineSession !== null ? onlineSession.snapshot.status === "Waiting" ? "waiting for the invited player" : "every move is validated by the Rust server" : replayMetadata === null ? placementMode ? "local Elo vs fixed search-2048" : humanMode ? "choose a unit or shop item, then click a highlighted hex" : botOpponent === "neural" ? "the routed model plays every seat" : "deterministic whole-turn planning" : `${replayMetadata.frames} deterministic actions`}</p><div className="mt-6 space-y-4"><Metric label="RULESET" value={replayMetadata?.rules_profile ?? activeConfig.profile} /><Metric label="MAP" value={replayMetadata === null ? activeConfig.map === "procedural" ? "procedural_v1" : "symmetric_duel_v1" : "replay scenario"} /><Metric label="OPPONENT" value={opponentLabel || "open seat"} /><Metric label="SEED" value={onlineSession === null ? `${replayMetadata?.seed ?? activeConfig.seed} · reproducible` : "server-authoritative"} /><Metric label="ROUND" value={state === null ? "loading" : `${state.round} · ${playerLabel(state.active_player)} to move`} /><Metric label="LEGAL ACTIONS" value={state?.legal_actions.length.toString() ?? "…"} accent />{onlineSession === null && !placementMode && botOpponent === "neural" && <Metric label="NEURAL INFERENCE" value={policyDecision === null ? policyStatus : `${policyDecision.milliseconds.toFixed(1)} ms · ${policyDecision.legalActions} actions`} accent />}</div></div>
           </details>
           {replayMetadata === null && <details className="panel-section panel-section-online"><summary>ONLINE MULTIPLAYER · {onlineSession?.snapshot.status ?? "READY"}</summary><div className="panel-section-body map-config"><label className="config-field"><span>PLAYER NAME</span><input type="text" maxLength={64} value={onlineName} onChange={(event) => setOnlineName(event.target.value)} /></label>{onlineSession === null ? <><div className="online-config-summary"><p className="eyebrow">ROOM SETTINGS</p><p>{roomConfigSummary}</p><span>Change them in Game Config before creating the room.</span></div><button className="generate-button" type="button" disabled={onlineBusy || onlineName.length === 0} onClick={() => void createOnlineRoom()}>{onlineBusy ? "Connecting…" : `Create ${draftConfig.map === "duel" ? 2 : draftConfig.players}-player room`}</button><button className="generate-button rated-challenge-button" type="button" disabled={onlineBusy || onlineName.length === 0} onClick={() => void startRatedChallenge()}>{onlineBusy ? "Starting…" : `Play rated vs ${draftConfig.players - 1} server search ${draftConfig.players === 2 ? "bot" : "bots"}`}</button><p className="rated-challenge-note">Your seat rotates after every successful challenge. The replay-verified result enters Server League Elo.</p><div className="online-divider"><span>OR JOIN</span></div><div className="config-grid online-join-grid"><label className="config-field"><span>ROOM CODE</span><input type="text" spellCheck={false} value={joinCode} onChange={(event) => setJoinCode(event.target.value.trim())} /></label><label className="config-field"><span>SEAT</span><input type="number" min="2" max="8" value={joinSeat + 1} onChange={(event) => setJoinSeat(Number(event.target.value) - 1)} /></label></div><button className="generate-button" type="button" disabled={onlineBusy || onlineName.length === 0 || joinCode.length !== 32 || joinSeat < 1 || joinSeat > 7} onClick={() => void joinOnlineRoom()}>{onlineBusy ? "Claiming seat…" : `Join as seat ${joinSeat + 1}`}</button></> : <div className="online-session"><div className="online-status-row"><span className={`online-status-dot online-status-${connectionStatus}`} /><span>{connectionStatus}</span><span>seat {onlineSession.credential.seat + 1}/{onlineSession.snapshot.seats.length}</span></div><p className="online-room-code">{onlineSession.snapshot.match_id}</p><p className={`online-rating-status online-rating-${onlineSession.snapshot.rating_status.toLowerCase()}`}>ELO · {onlineSession.snapshot.rating_status}</p>{openSeatInvites.length > 0 && <div className="online-invites"><p className="eyebrow">PRIVATE SEAT LINKS · {openSeatInvites.length} OPEN</p>{openSeatInvites.map((invite) => <button className="generate-button" type="button" onClick={() => void copyInvite(invite.seat, invite.url)} key={invite.seat}>{copiedInviteSeat === invite.seat ? `Seat ${invite.seat + 1} invite copied` : `Copy invite for seat ${invite.seat + 1}`}</button>)}<p>Match starts automatically after every open seat is claimed.</p></div>}<button className="online-leave" type="button" onClick={reset}>Leave room</button></div>}<label className="config-field online-endpoint"><span>AUTHORITATIVE SERVER</span><input type="url" spellCheck={false} disabled={onlineSession !== null} value={onlineEndpoint} onChange={(event) => setOnlineEndpoint(event.target.value)} /></label></div></details>}
           <details className="panel-section panel-section-league" onToggle={(event) => { if (event.currentTarget.open && displayedLeagueStatus === "idle") void refreshLeague(); }}><summary>SERVER LEAGUE · {displayedLeague === null ? "—" : `${displayedLeague.matches.length} RATED`}</summary><div className="panel-section-body"><LeaguePanel league={displayedLeague} standings={standings} status={displayedLeagueStatus} error={displayedLeagueError} currentName={onlineSession?.credential.name ?? onlineName} onRefresh={refreshLeague} /></div></details>
@@ -1167,13 +1231,23 @@ export default function Arena() {
           <div className={`board-scroll ${humanMode && replayMetadata === null ? "board-scroll-human" : ""}`} ref={boardViewport} aria-label="Interactive hex game board">
             <div className="board-transform" style={{ transform: `translate(-50%, -50%) scale(${boardScale})` }}>
               <div ref={boardContent} className={`hex-board ${state !== null && state.width > 15 ? "hex-board-compact" : ""}`}>
-                {rows.map((row, rowIndex) => <div className="hex-row" key={rowIndex}>{row.map((cell) => <Hex cell={cell} selected={cell.id === selectedId} actionable={humanCanAct && actionableTargets.has(cell.id)} onSelect={setSelectedId} key={cell.id} />)}</div>)}
+                {rows.map((row, rowIndex) => <div className="hex-row" key={rowIndex}>{row.map((cell) => <Hex cell={cell} inspected={cell.id === selectedId} selected={actionIntent?.kind === "move" && actionIntent.source === cell.id} selectable={humanCanAct && movementSources.has(cell.id)} actionable={humanCanAct && actionableTargets.has(cell.id)} onSelect={handleHexSelect} key={cell.id} />)}</div>)}
               </div>
             </div>
           </div>
           {state?.terminal && <div className="result-banner">{state.winner === null ? "DRAW" : `${playerLabel(state.winner)} WINS`} · {actions} ACTIONS</div>}
           {error !== null && <div className="error-banner">ENGINE ERROR · {error}</div>}
-          {humanMode && replayMetadata === null && <div className="action-dock"><div className="action-dock-heading"><div><p className="eyebrow action-dock-eyebrow">YOUR MOVE</p><p className="action-dock-title">HEX {String(selectedQ).padStart(2, "0")},{String(selectedR).padStart(2, "0")} · {selected === null ? "LOADING" : pieceLabel(selected)}</p></div><span className="action-dock-status">{onlineSession?.snapshot.status === "Waiting" ? "WAITING FOR PLAYER" : connectionStatus !== "authenticated" && onlineSession !== null ? "CONNECTING" : state?.terminal ? "GAME OVER" : botThinking ? onlineSession !== null ? "SYNCING MOVE" : placementMode || botOpponent !== "neural" ? "BOT THINKING" : "NEURAL THINKING" : onlineSession === null && !placementMode && botOpponent === "neural" && policyStatus === "loading" ? "MODEL LOADING" : humanCanAct ? `${selectedActions.length + globalActions.length} OPTIONS` : "OPPONENT TURN"}</span></div><div className="action-dock-buttons">{selectedActions.map(({ action, index }) => <button className="action-button action-button-inline" type="button" disabled={!humanCanAct} onClick={() => void playHumanAction(index)} key={index}>{actionLabel(action, state?.width ?? WIDTH)}</button>)}{globalActions.map(({ action, index }) => <button className="action-button action-button-inline action-button-global" type="button" disabled={!humanCanAct} onClick={() => void playHumanAction(index)} key={index}>{actionLabel(action, state?.width ?? WIDTH)}</button>)}{selectedActions.length === 0 && globalActions.length === 0 && <p className="action-dock-empty">{onlineSession?.snapshot.status === "Waiting" ? "Share the private invite link to unlock the match." : "Select a glowing hex to move, recruit, or build."}</p>}</div></div>}
+          {humanMode && replayMetadata === null && <div className="action-dock">
+            <div className="action-dock-heading"><div><p className="eyebrow action-dock-eyebrow">YOUR MOVE</p><p className="action-dock-title">{activeIntentLabel}</p></div><span className="action-dock-status">{onlineSession?.snapshot.status === "Waiting" ? "WAITING FOR PLAYER" : connectionStatus !== "authenticated" && onlineSession !== null ? "CONNECTING" : state?.terminal ? "GAME OVER" : botThinking ? onlineSession !== null ? "SYNCING MOVE" : placementMode || botOpponent !== "neural" ? "BOT THINKING" : "NEURAL THINKING" : onlineSession === null && !placementMode && botOpponent === "neural" && policyStatus === "loading" ? "MODEL LOADING" : humanCanAct && actionIntent !== null ? `${intentActions.length} LEGAL TARGETS` : humanCanAct ? `${movementSources.size} READY UNITS` : "OPPONENT TURN"}</span></div>
+            <div className="action-dock-buttons">
+              {recruitStrengths.map((strength) => <ShopButton label={`Unit ${strength}`} price={itemPrice("unit", strength)} selected={actionIntent?.kind === "recruit" && actionIntent.strength === strength && actionIntent.provinceCapital === shopProvince?.capital} disabled={!humanCanAct} onClick={() => { if (shopProvince !== null) setActionIntent({ kind: "recruit", provinceCapital: shopProvince.capital, strength }); }} key={`unit-${strength}`}><ShopPiece kind="unit" strength={strength} /></ShopButton>)}
+              {structures.map((structure) => <ShopButton label={structure === "StrongTower" ? "Strong tower" : structure} price={itemPrice(structure as "Farm" | "Tower" | "StrongTower")} selected={actionIntent?.kind === "build" && actionIntent.structure === structure && actionIntent.province === shopProvince?.id} disabled={!humanCanAct} onClick={() => { if (shopProvince !== null) setActionIntent({ kind: "build", province: shopProvince.id, structure }); }} key={structure}><ShopPiece kind={structure === "Farm" ? "farm" : structure === "Tower" ? "tower" : "strong-tower"} /></ShopButton>)}
+              {canPlantTree && <ShopButton label="Tree" price={itemPrice("tree")} selected={actionIntent?.kind === "plant-tree" && actionIntent.province === shopProvince?.id} disabled={!humanCanAct} onClick={() => { if (shopProvince !== null) setActionIntent({ kind: "plant-tree", province: shopProvince.id }); }}><ShopPiece kind="tree" /></ShopButton>}
+              {actionIntent !== null && <button className="shop-cancel" type="button" onClick={() => setActionIntent(null)}>Cancel</button>}
+              {globalActions.map(({ action, index }) => <button className={`turn-button ${action === "EndTurn" ? "turn-button-primary" : ""}`} type="button" disabled={!humanCanAct} onClick={() => void playHumanAction(index)} key={index}>{actionLabel(action)}</button>)}
+              {recruitStrengths.length === 0 && structures.length === 0 && !canPlantTree && globalActions.length === 0 && <p className="action-dock-empty">{onlineSession?.snapshot.status === "Waiting" ? "Share the private invite link to unlock the match." : "No legal actions in this province."}</p>}
+            </div>
+          </div>}
           <div className={`timeline ${humanMode && replayMetadata === null ? "timeline-human" : ""}`}><div className="flex items-center justify-between font-mono text-[0.65rem] text-[#8d9690]"><span>ACTION {actions}{replayMetadata === null ? "" : ` / ${replayMetadata.frames}`}</span><span>{state?.terminal ? "TERMINAL" : replayMetadata === null ? "DETERMINISTIC TRACE" : "REPLAY VERIFIED"}</span></div>{replayMetadata === null ? <div className="mt-3 flex h-1.5 overflow-hidden bg-white/10">{territoryShares.map((share, player) => <div className={`territory-player-${player % PLAYER_NAMES.length}`} style={{ width: `${share}%` }} key={player} />)}</div> : <input className="replay-scrubber" type="range" min="0" max={replayMetadata.frames} value={actions} aria-label="Replay action" onChange={(event) => seekReplay(Number(event.target.value))} />}</div>
         </section>
 
@@ -1182,7 +1256,7 @@ export default function Arena() {
           <div className="panel-scroll">
           <details className="panel-section panel-section-hero" open><summary>SELECTED HEX · {String(selectedQ).padStart(2, "0")},{String(selectedR).padStart(2, "0")}</summary><div className="panel-section-body"><p className="font-mono text-lg">q: {String(selectedQ).padStart(2, "0")} · r: {String(selectedR).padStart(2, "0")}</p><div className="mt-4 grid grid-cols-2 gap-px bg-white/10"><Stat label="OWNER" value={selected?.owner === null || selected === null ? "NEUTRAL" : playerLabel(selected.owner)} /><Stat label="PIECE" value={selected === null ? "…" : pieceLabel(selected)} /><Stat label="DEFENSE" value={selected?.defense.toString() ?? "…"} /><Stat label="READY" value={selected?.strength === 0 ? "—" : selected?.ready ? "YES" : "NO"} /></div></div></details>
           <details className="panel-section" open><summary>PROVINCE ECONOMY</summary><div className="panel-section-body">{province === null ? <p className="text-sm leading-6 text-[#77817b]">This hex is not part of a connected province.</p> : <dl className="space-y-3 font-mono text-xs"><Row label="Treasury" value={`$${province.money}`} /><Row label="Hex income" value={`+${province.income}`} /><Row label="Upkeep" value={`−${province.upkeep}`} /><Row label="Next turn" value={`${province.profit >= 0 ? "+" : "−"}$${Math.abs(province.profit)}`} accent /></dl>}</div></details>
-          {humanMode && replayMetadata === null && <details className="panel-section"><summary>LEGAL ACTIONS · {selectedActions.length + globalActions.length}</summary><div className="panel-section-body"><p className="text-xs leading-5 text-[#77817b]">Select a destination hex, then choose an action. Other players answer automatically.</p><div className="mt-3 grid gap-2">{selectedActions.map(({ action, index }) => <button className="action-button" type="button" disabled={!humanCanAct} onClick={() => void playHumanAction(index)} key={index}>{actionLabel(action, state?.width ?? WIDTH)}</button>)}{selectedActions.length === 0 && <p className="font-mono text-[0.65rem] text-[#626b66]">No targeted action is legal on this hex.</p>}</div><div className="mt-4 grid gap-2">{globalActions.map(({ action, index }) => <button className="action-button action-button-global" type="button" disabled={!humanCanAct} onClick={() => void playHumanAction(index)} key={index}>{actionLabel(action, state?.width ?? WIDTH)}</button>)}</div></div></details>}
+          {humanMode && replayMetadata === null && <details className="panel-section"><summary>MOVE CONTROL · {intentActions.length} TARGETS</summary><div className="panel-section-body"><p className="text-xs leading-5 text-[#77817b]">Choose a ready unit on the board or an item in the bottom shop. Only destinations legal for that exact source are highlighted; clicking one performs the move immediately.</p></div></details>}
           <details className="panel-section"><summary>STATE CONTRACT</summary><div className="panel-section-body"><dl className="space-y-2 font-mono text-xs"><Row label="Cells" value={state?.cells.length.toString() ?? "…"} /><Row label="Provinces" value={state?.provinces.length.toString() ?? "…"} /><Row label="Relations" value={state?.relations.length.toString() ?? "…"} /><Row label="Terminal" value={state?.terminal ? "YES" : "NO"} /></dl></div></details>
           </div>
         </aside>
@@ -1227,10 +1301,41 @@ function LeagueMatchRow({ match }: { match: LeagueMatch }) {
   return <div className="league-match"><div><strong title={match.agents.join(" · ")}>{match.agents.join(" vs ")}</strong><span>{winner} · {match.outcome.actions} actions</span></div><div><b>{match.player_count}P · {match.outcome.termination === "Victory" ? "VICTORY" : "ADJUDICATED"}</b><span title={`seed ${match.seed} · digest ${digest}`}>{digest.slice(0, 10)}…</span></div></div>;
 }
 
-function Hex({ cell, selected, actionable, onSelect }: { cell: CellView; selected: boolean; actionable: boolean; onSelect: (id: number) => void }) {
+function Hex({
+  cell,
+  inspected,
+  selected,
+  selectable,
+  actionable,
+  onSelect,
+}: {
+  cell: CellView;
+  inspected: boolean;
+  selected: boolean;
+  selectable: boolean;
+  actionable: boolean;
+  onSelect: (id: number) => void;
+}) {
   const owner = cell.owner === null ? "neutral" : `player-${cell.owner % PLAYER_NAMES.length}`;
-  const pieceClass = cell.strength > 0 ? "unit" : `piece piece-${cell.object.toLowerCase()}`;
-  return <button className={`hex hex-${owner} ${cell.playable ? "" : "hex-void"} ${selected ? "hex-selected" : ""} ${actionable ? "hex-actionable" : ""}`} type="button" disabled={!cell.playable} aria-label={cell.playable ? `Hex ${cell.id}, ${pieceLabel(cell)}${actionable ? ", legal target" : ""}` : `Inactive hex ${cell.id}`} onClick={() => onSelect(cell.id)}><span className={pieceClass}>{pieceGlyph(cell)}</span></button>;
+  return <button className={`hex hex-${owner} ${cell.playable ? "" : "hex-void"} ${inspected ? "hex-inspected" : ""} ${selected ? "hex-selected" : ""} ${selectable ? "hex-selectable" : ""} ${actionable ? "hex-actionable" : ""}`} type="button" disabled={!cell.playable} aria-label={cell.playable ? `Hex ${cell.id}, ${pieceLabel(cell)}${selected ? ", selected unit" : actionable ? ", legal destination" : selectable ? ", ready unit" : ""}` : `Inactive hex ${cell.id}`} onClick={() => onSelect(cell.id)}><GamePiece cell={cell} /></button>;
+}
+
+function ShopButton({
+  label,
+  price,
+  selected,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  price: number;
+  selected: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return <button className={`shop-button ${selected ? "shop-button-selected" : ""}`} type="button" disabled={disabled} aria-pressed={selected} onClick={onClick}><span className="shop-button-icon">{children}</span><span className="shop-button-copy"><strong>{label}</strong><small>${price}</small></span></button>;
 }
 
 function Metric({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {

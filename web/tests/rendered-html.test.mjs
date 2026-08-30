@@ -35,7 +35,7 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(html, /Generate deterministic map/);
   assert.match(html, />Auto</);
   assert.match(html, /YOUR MOVE/);
-  assert.match(html, /Select a glowing hex to move, recruit, or build/);
+  assert.match(html, /choose a unit or shop item/);
   assert.match(html, /YOUR PLACEMENT/);
   assert.match(html, /Start rated match/);
   assert.match(html, /Fixed 11×9 Classic arena/);
@@ -129,7 +129,7 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(styles, /\.arena-sidebar\.panel-open \{[^}]*transform: translateX\(0\);[^}]*visibility: visible;/);
   assert.doesNotMatch(styles, /@media \(min-width: 90rem\)/);
   assert.match(styles, /\.board-scroll \{[^}]*overflow: hidden;/);
-  assert.match(styles, /\.board-scroll-human \{[^}]*bottom: 6\.35rem;/);
+  assert.match(styles, /\.board-scroll-human \{[^}]*bottom: 7\.25rem;/);
   assert.match(styles, /\.action-dock \{[^}]*position: absolute;/);
   assert.match(styles, /\.action-dock-buttons \{[^}]*overflow-x: auto;[^}]*overscroll-behavior-inline: contain;/);
   assert.match(styles, /clip-path: polygon\(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%\)/);
@@ -144,6 +144,11 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, /aria-controls="match-drawer"/);
   assert.match(arena, /aria-controls="inspector-drawer"/);
   assert.match(arena, /aria-label="Bot opponent"/);
+  assert.match(arena, /actionAtTarget\(intentActions, cellId\)/);
+  assert.match(arena, /setActionIntent\(\{ kind: "move", source: cellId \}\)/);
+  assert.match(arena, /LEGAL TARGETS/);
+  assert.doesNotMatch(arena, /pieceGlyph/);
+  assert.doesNotMatch(arena, /Select a destination hex, then choose an action/);
   assert.match(arena, /Neural policy/);
   assert.match(arena, /Quick · 64/);
   assert.match(arena, /Strong · 256/);
@@ -153,7 +158,7 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, /step_search_with_budget\(searchNodes\)/);
   assert.match(arena, /aria-label="Open game menu"/);
   assert.match(arena, /aria-label="Inspect selected hex"/);
-  assert.match(arena, /piece-\$\{cell\.object\.toLowerCase\(\)\}/);
+  assert.match(arena, /<GamePiece cell=\{cell\} \/>/);
   assert.match(arena, /actionable=\{humanCanAct && actionableTargets\.has\(cell\.id\)\}/);
   assert.match(arena, /<summary>GAME CONFIG<\/summary>/);
   assert.match(arena, /RULES_PROFILES\.map/);
@@ -185,6 +190,11 @@ test("executes greedy and whole-turn search in the compiled WebAssembly engine",
   const bytes = await readFile(new URL("../lib/antiyoy-wasm/antiyoy_wasm_bg.wasm", import.meta.url));
   await bindings.default({ module_or_path: bytes });
   const game = new bindings.WasmGame(11, 9, 47n);
+  const classicRules = JSON.parse(bindings.rules_json_for_profile("classic_generic_2022"));
+  const experimentalRules = JSON.parse(bindings.rules_json_for_profile("online_experimental_v2_260801"));
+  assert.equal(classicRules.economy.unit_price_per_level, 10);
+  assert.equal(classicRules.economy.farm_base_price, 12);
+  assert.equal(experimentalRules.economy.farm_base_price, 8);
   const initial = JSON.parse(game.state_json());
   let next = initial;
   for (let action = 0; next.active_player === 0 && action < 100; action += 1) {
