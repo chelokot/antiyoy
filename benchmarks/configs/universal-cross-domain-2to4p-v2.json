@@ -1,0 +1,100 @@
+{
+  "schema_version": 2,
+  "profiles": [
+    "classic_generic_2022",
+    "classic_slay_2022",
+    "online_default_v1",
+    "online_classic_v1",
+    "online_duel_v1",
+    "online_experimental_v1",
+    "online_experimental_v2_260801"
+  ],
+  "baseline": "search",
+  "search": {
+    "nodes": 2048,
+    "beam_width": 32,
+    "branch_width": 48,
+    "maximum_actions_per_turn": 24
+  },
+  "gates": {
+    "minimum_domain_relative_elo": 0.0,
+    "minimum_slice_score_delta": 0.0,
+    "maximum_truncation_rate_delta": 0.02
+  },
+  "domains": [
+    {
+      "id": "symmetric-11x9-2p",
+      "generator": "symmetric_duel_v1",
+      "width": 11,
+      "height": 9,
+      "players": 2,
+      "games_per_seed": 8,
+      "seeds": [250000, 260000],
+      "action_limit": 1000
+    },
+    {
+      "id": "procedural-11x9-2p-sparse",
+      "generator": "procedural_v1",
+      "width": 11,
+      "height": 9,
+      "players": 2,
+      "games_per_seed": 8,
+      "seeds": [250000, 260000],
+      "action_limit": 1000,
+      "land_density_per_million": 500000,
+      "tree_density_per_million": 100000
+    },
+    {
+      "id": "procedural-17x13-2p-dense",
+      "generator": "procedural_v1",
+      "width": 17,
+      "height": 13,
+      "players": 2,
+      "games_per_seed": 8,
+      "seeds": [250000, 260000],
+      "action_limit": 1600,
+      "land_density_per_million": 800000,
+      "tree_density_per_million": 220000,
+      "neutral_tower_density_per_million": 30000,
+      "neutral_capital_density_per_million": 15000,
+      "grave_density_per_million": 25000
+    },
+    {
+      "id": "procedural-15x11-3p",
+      "generator": "procedural_v1",
+      "width": 15,
+      "height": 11,
+      "players": 3,
+      "games_per_seed": 18,
+      "seeds": [250000, 260000],
+      "action_limit": 1600,
+      "land_density_per_million": 650000
+    },
+    {
+      "id": "procedural-17x13-4p-density700",
+      "generator": "procedural_v1",
+      "width": 17,
+      "height": 13,
+      "players": 4,
+      "games_per_seed": 16,
+      "seeds": [250000, 260000],
+      "action_limit": 2000,
+      "land_density_per_million": 700000,
+      "starting_province_size": 5,
+      "starting_money": 10
+    },
+    {
+      "id": "procedural-17x13-4p-density650",
+      "generator": "procedural_v1",
+      "width": 17,
+      "height": 13,
+      "players": 4,
+      "games_per_seed": 8,
+      "seeds": [690000, 695000],
+      "action_limit": 2000,
+      "land_density_per_million": 650000,
+      "starting_province_size": 5,
+      "starting_money": 10
+    }
+  ]
+}
