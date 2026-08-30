@@ -23,6 +23,10 @@ from antiyoy_rl.model import (
     load_policy_state,
     rotate_observation_180,
 )
+try:
+    from .build_bundle import BUNDLE_KIND, BUNDLE_VERSION
+except ImportError:
+    from build_bundle import BUNDLE_KIND, BUNDLE_VERSION
 
 
 CHECKPOINT_VERSION = 5
@@ -78,6 +82,7 @@ class TrainingConfig:
     initial_relation: str
     device: str
     initialize: Path | None
+    initialize_profile: str | None
     resume: Path | None
     checkpoint: Path | None
 
@@ -307,6 +312,8 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("search_maximum_actions_per_turn must be positive")
     if config.initialize is not None and config.resume is not None:
         raise ValueError("initialize and resume are mutually exclusive")
+    if config.initialize_profile is not None and config.initialize is None:
+        raise ValueError("initialize_profile requires an initialization checkpoint")
     if config.procedural and config.players < 2:
         raise ValueError("procedural maps require at least two players")
     densities = [
@@ -554,9 +561,32 @@ def initialize_checkpoint(
     path: Path,
     model: UniversalPolicy,
     device: torch.device,
-) -> None:
+    profile: str | None,
+) -> str:
     checkpoint = load_training_checkpoint(path, device, compatible=True)
-    load_policy_state(model, checkpoint["model"])
+    state, selected_expert = initialization_state(checkpoint, profile)
+    load_policy_state(model, state)
+    return selected_expert
+
+
+def initialization_state(
+    checkpoint: dict[str, object], profile: str | None
+) -> tuple[dict[str, Tensor], str]:
+    state = checkpoint.get("model")
+    if state is not None:
+        if profile is not None:
+            raise ValueError("initialize_profile is only valid for a policy bundle")
+        return state, "single"
+    if checkpoint.get("kind") != BUNDLE_KIND:
+        raise ValueError("initialization checkpoint has no policy weights")
+    if checkpoint.get("bundle_version") != BUNDLE_VERSION:
+        raise ValueError("initialization policy bundle version does not match")
+    if profile is None:
+        raise ValueError("policy bundle initialization requires initialize_profile")
+    selected_expert = checkpoint["routes"].get(profile)
+    if selected_expert is None:
+        raise ValueError(f"policy bundle has no route for profile: {profile}")
+    return checkpoint["experts"][selected_expert], selected_expert
 
 
 def load_training_checkpoint(
@@ -624,8 +654,11 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     environment = make_environment(config)
     model = UniversalPolicy(config.hidden, config.layers).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+    initialized_expert = ""
     if config.initialize is not None:
-        initialize_checkpoint(config.initialize, model, device)
+        initialized_expert = initialize_checkpoint(
+            config.initialize, model, device, config.initialize_profile
+        )
     elif config.resume is not None:
         restore_checkpoint(config.resume, model, optimizer, device)
     reference_model = None
@@ -762,6 +795,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "mean_loss": loss_average,
         "device": str(device),
         "initialized_from": str(config.initialize) if config.initialize is not None else "",
+        "initialized_expert": initialized_expert,
         "resumed_from": str(config.resume) if config.resume is not None else "",
     }
     if config.checkpoint is not None:
@@ -852,6 +886,7 @@ def parse_args() -> TrainingConfig:
     continuation = parser.add_mutually_exclusive_group()
     continuation.add_argument("--initialize", type=Path)
     continuation.add_argument("--resume", type=Path)
+    parser.add_argument("--initialize-profile")
     parser.add_argument("--checkpoint", type=Path)
     arguments = vars(parser.parse_args())
     if arguments["profile"] is None and arguments["profiles"] is None:

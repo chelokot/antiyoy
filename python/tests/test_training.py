@@ -9,6 +9,7 @@ from python.train import (
     Rollout,
     TrainingConfig,
     imitation_weights,
+    initialization_state,
     make_environment,
     parsed_slice_weights,
     policy_rollin_mask,
@@ -68,6 +69,7 @@ def training_config() -> TrainingConfig:
         initial_relation="neutral",
         device="cpu",
         initialize=None,
+        initialize_profile=None,
         resume=None,
         checkpoint=Path("unused.pt"),
     )
@@ -238,4 +240,44 @@ def test_training_rejects_initialize_with_resume() -> None:
                 initialize=Path("initial.pt"),
                 resume=Path("resume.pt"),
             )
+        )
+
+
+def test_bundle_initialization_selects_profile_route() -> None:
+    primary = {"weight": torch.tensor([1.0])}
+    specialist = {"weight": torch.tensor([2.0])}
+    checkpoint = {
+        "kind": "routed_policy_bundle",
+        "bundle_version": 1,
+        "routes": {
+            "classic_generic_2022": "primary",
+            "online_experimental_v2_260801": "specialist:v2",
+        },
+        "experts": {"primary": primary, "specialist:v2": specialist},
+    }
+
+    state, expert = initialization_state(
+        checkpoint, "online_experimental_v2_260801"
+    )
+
+    assert state is specialist
+    assert expert == "specialist:v2"
+
+
+def test_bundle_initialization_requires_a_profile() -> None:
+    checkpoint = {
+        "kind": "routed_policy_bundle",
+        "bundle_version": 1,
+        "routes": {},
+        "experts": {},
+    }
+
+    with pytest.raises(ValueError, match="requires initialize_profile"):
+        initialization_state(checkpoint, None)
+
+
+def test_training_rejects_initialize_profile_without_checkpoint() -> None:
+    with pytest.raises(ValueError, match="requires an initialization checkpoint"):
+        validate_config(
+            replace(training_config(), initialize_profile="classic_generic_2022")
         )
