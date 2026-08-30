@@ -7,11 +7,28 @@ from antiyoy_rl import VectorEnv
 from antiyoy_rl.model import (
     UniversalPolicy,
     action_distribution,
+    domain_key,
     encode_rules,
     encode_rules_batch,
     load_policy_state,
     rotate_observation_180,
 )
+
+
+def test_domain_key_is_order_independent_and_excludes_seeds() -> None:
+    first = domain_key(
+        "procedural_v1",
+        {"width": 17, "land_density_per_million": 700_000},
+    )
+    second = domain_key(
+        "procedural_v1",
+        {"land_density_per_million": 700_000, "width": 17},
+    )
+
+    assert first == second
+    assert len(first) == 64
+    with pytest.raises(ValueError, match="seed"):
+        domain_key("procedural_v1", {"seed": 1})
 
 
 def test_policy_scores_exactly_the_legal_actions() -> None:

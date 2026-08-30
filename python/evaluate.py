@@ -15,6 +15,7 @@ from antiyoy_rl.model import (
     RULE_FEATURES,
     UniversalPolicy,
     action_distribution,
+    domain_key,
     encode_rules_batch,
     load_policy_state,
 )
@@ -156,21 +157,30 @@ def choose_baseline_actions(
     return np.array([random.integers(0, count) for count in counts], dtype=np.uint64)
 
 
-def load_policy(
+def load_policy_checkpoint(
     checkpoint_path: Path,
     device: torch.device,
-    profile: str | None = None,
-    generator: str | None = None,
-    players: int | None = None,
-    seat: int | None = None,
-) -> tuple[UniversalPolicy, dict[str, object]]:
+) -> dict[str, object]:
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     if checkpoint["checkpoint_version"] not in (4, CHECKPOINT_VERSION):
         raise ValueError("checkpoint format version does not match this evaluator")
     if checkpoint["observation_version"] not in (6, OBSERVATION_VERSION):
-        raise ValueError("checkpoint observation version does not match the native environment")
+        raise ValueError(
+            "checkpoint observation version does not match the native environment"
+        )
     if checkpoint["rule_features"] not in (42, RULE_FEATURES):
         raise ValueError("checkpoint rule feature width does not match the policy")
+    return checkpoint
+
+
+def select_policy_state(
+    checkpoint: dict[str, object],
+    profile: str | None = None,
+    generator: str | None = None,
+    players: int | None = None,
+    seat: int | None = None,
+    domain: str | None = None,
+) -> tuple[dict[str, torch.Tensor], dict[str, object]]:
     config = dict(checkpoint["config"])
     state = checkpoint.get("model")
     selected_expert = "single"
@@ -204,14 +214,52 @@ def load_policy(
             raise ValueError("policy bundle contains duplicate seat context routes")
         if seat_context_matches:
             selected_expert = seat_context_matches[0]["expert"]
+        domain_matches = [
+            route
+            for route in checkpoint.get("domain_routes", [])
+            if route["profile"] == selected_profile
+            and route["generator"] == generator
+            and route["players"] == players
+            and route["seat"] == seat
+            and route["domain"] == domain
+        ]
+        if len(domain_matches) > 1:
+            raise ValueError("policy bundle contains duplicate domain routes")
+        if domain_matches:
+            selected_expert = domain_matches[0]["expert"]
         state = checkpoint["experts"][selected_expert]
     if state is None:
         raise ValueError("checkpoint has no policy weights")
+    config["policy_kind"] = checkpoint.get("kind", "single_policy")
+    config["selected_expert"] = selected_expert
+    return state, config
+
+
+def instantiate_policy(
+    state: dict[str, torch.Tensor],
+    config: dict[str, object],
+    device: torch.device,
+) -> UniversalPolicy:
     model = UniversalPolicy(config["hidden"], config["layers"]).to(device)
     load_policy_state(model, state)
     model.eval()
-    config["policy_kind"] = checkpoint.get("kind", "single_policy")
-    config["selected_expert"] = selected_expert
+    return model
+
+
+def load_policy(
+    checkpoint_path: Path,
+    device: torch.device,
+    profile: str | None = None,
+    generator: str | None = None,
+    players: int | None = None,
+    seat: int | None = None,
+    domain: str | None = None,
+) -> tuple[UniversalPolicy, dict[str, object]]:
+    checkpoint = load_policy_checkpoint(checkpoint_path, device)
+    state, config = select_policy_state(
+        checkpoint, profile, generator, players, seat, domain
+    )
+    model = instantiate_policy(state, config, device)
     return model, config
 
 
@@ -242,29 +290,56 @@ def evaluate(
     evaluation_seeds = seat_rotation_seeds(games, seed, players)
     device = torch.device(device_name)
     generator_name = "procedural_v1" if procedural else "symmetric_duel_v1"
+    checkpoint = load_policy_checkpoint(checkpoint_path, device)
+    base_config = dict(checkpoint["config"])
+    evaluation_profile = (
+        profile or base_config["profile"] or base_config["profiles"][0]
+    )
+    evaluation_width = base_config["width"] if width is None else width
+    evaluation_height = base_config["height"] if height is None else height
+    evaluation_action_limit = (
+        base_config["action_limit"] if action_limit is None else action_limit
+    )
+    domain_descriptor: dict[str, object] = {
+        "width": evaluation_width,
+        "height": evaluation_height,
+        "players": players,
+        "action_limit": evaluation_action_limit,
+        "fog": base_config["fog"],
+        "diplomacy": base_config.get("diplomacy", False),
+        "initial_relation": base_config.get("initial_relation", "neutral"),
+    }
+    if procedural:
+        domain_descriptor.update(
+            {
+                "land_density_per_million": land_density_per_million,
+                "starting_province_size": starting_province_size,
+                "starting_money": starting_money,
+                "tree_density_per_million": tree_density_per_million,
+                "neutral_tower_density_per_million": neutral_tower_density_per_million,
+                "neutral_capital_density_per_million": neutral_capital_density_per_million,
+                "grave_density_per_million": grave_density_per_million,
+            }
+        )
+    evaluation_domain = domain_key(generator_name, domain_descriptor)
     models: dict[str, UniversalPolicy] = {}
     selected_experts: list[str] = []
     configs: list[dict[str, object]] = []
     for seat in range(players):
-        model, seat_config = load_policy(
-            checkpoint_path,
-            device,
+        state, seat_config = select_policy_state(
+            checkpoint,
             profile,
             generator_name,
             players,
             seat,
+            evaluation_domain,
         )
         selected_expert = str(seat_config["selected_expert"])
-        models.setdefault(selected_expert, model)
+        if selected_expert not in models:
+            models[selected_expert] = instantiate_policy(state, seat_config, device)
         selected_experts.append(selected_expert)
         configs.append(seat_config)
     config = configs[0]
-    evaluation_profile = profile or config["profile"] or config["profiles"][0]
-    evaluation_width = config["width"] if width is None else width
-    evaluation_height = config["height"] if height is None else height
-    evaluation_action_limit = (
-        config["action_limit"] if action_limit is None else action_limit
-    )
     environment_arguments = {
         "action_limit": evaluation_action_limit,
         "profile": evaluation_profile,
@@ -506,6 +581,8 @@ def evaluate(
         "baseline_self_play": baseline_reference,
         "seed": seed,
         "generator": generator_name,
+        "domain": evaluation_domain,
+        "domain_descriptor": domain_descriptor,
         "players": players,
         "arena_width": evaluation_width,
         "arena_height": evaluation_height,

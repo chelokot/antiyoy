@@ -12,6 +12,7 @@ from python.build_bundle import (
     digest,
     overlay_bundle,
     parse_context_routes,
+    parse_domain_routes,
     parse_routes,
     parse_seat_context_routes,
 )
@@ -272,3 +273,49 @@ def test_bundle_overlay_replaces_route_and_prunes_old_expert(
     assert digest(previous) not in {
         source["sha256"] for source in overlay["sources"].values()
     }
+
+
+def test_bundle_routes_an_exact_arena_domain(tmp_path: Path) -> None:
+    primary = tmp_path / "primary.pt"
+    specialist = tmp_path / "domain.pt"
+    bundle_path = tmp_path / "bundle.pt"
+    profile = "classic_generic_2022"
+    domain = "ab" * 32
+    write_checkpoint(primary, 1.0, profiles=[profile])
+    write_checkpoint(specialist, 9.0, profiles=[profile])
+    bundle = build_bundle(
+        primary,
+        {},
+        bundle_path,
+        domain_route_paths={
+            (profile, "procedural_v1", 4, 2, domain): specialist
+        },
+    )
+
+    fallback, _ = load_policy(
+        bundle_path,
+        torch.device("cpu"),
+        profile,
+        "procedural_v1",
+        4,
+        2,
+    )
+    selected, config = load_policy(
+        bundle_path,
+        torch.device("cpu"),
+        profile,
+        "procedural_v1",
+        4,
+        2,
+        domain,
+    )
+
+    assert torch.all(fallback.missing_source == 1.0)
+    assert torch.all(selected.missing_source == 9.0)
+    assert config["selected_expert"] == bundle["domain_routes"][0]["expert"]
+
+
+def test_domain_route_parser_requires_a_sha256_key() -> None:
+    route = "classic_generic_2022:procedural_v1:4:2"
+    with pytest.raises(ValueError, match="SHA-256"):
+        parse_domain_routes([f"{route}:short=expert.pt"])

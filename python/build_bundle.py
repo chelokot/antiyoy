@@ -8,8 +8,8 @@ from pathlib import Path
 import torch
 
 
-BUNDLE_VERSION = 3
-SUPPORTED_BUNDLE_VERSIONS = (1, 2, BUNDLE_VERSION)
+BUNDLE_VERSION = 4
+SUPPORTED_BUNDLE_VERSIONS = (1, 2, 3, BUNDLE_VERSION)
 BUNDLE_KIND = "routed_policy_bundle"
 
 
@@ -100,6 +100,7 @@ def build_bundle(
     output_path: Path,
     context_route_paths: dict[tuple[str, str, int], Path] | None = None,
     seat_context_route_paths: dict[tuple[str, str, int, int], Path] | None = None,
+    domain_route_paths: dict[tuple[str, str, int, int, str], Path] | None = None,
 ) -> dict[str, object]:
     primary = load_source(primary_path)
     profiles = source_profiles(primary)
@@ -112,7 +113,9 @@ def build_bundle(
         specialist = load_source(path)
         compatible(primary, specialist)
         if profile not in source_profiles(specialist):
-            raise ValueError(f"specialist curriculum does not contain routed profile: {profile}")
+            raise ValueError(
+                f"specialist curriculum does not contain routed profile: {profile}"
+            )
         if profile not in routes:
             profiles.append(profile)
         expert = f"specialist:{profile}"
@@ -126,7 +129,9 @@ def build_bundle(
         specialist = load_source(path)
         compatible(primary, specialist)
         if profile not in source_profiles(specialist):
-            raise ValueError(f"specialist curriculum does not contain routed profile: {profile}")
+            raise ValueError(
+                f"specialist curriculum does not contain routed profile: {profile}"
+            )
         if profile not in routes:
             profiles.append(profile)
         expert = register_context_expert(
@@ -166,6 +171,31 @@ def build_bundle(
                 "expert": expert,
             }
         )
+    domain_routes = []
+    for (profile, generator, players, seat, domain), path in (
+        domain_route_paths or {}
+    ).items():
+        specialist = load_source(path)
+        compatible(primary, specialist)
+        if profile not in source_profiles(specialist):
+            raise ValueError(f"specialist curriculum does not contain routed profile: {profile}")
+        if profile not in routes:
+            profiles.append(profile)
+        expert = register_context_expert(
+            experts, sources, source_experts, path, specialist
+        )
+        if profile not in routes:
+            routes[profile] = expert
+        domain_routes.append(
+            {
+                "profile": profile,
+                "generator": generator,
+                "players": players,
+                "seat": seat,
+                "domain": domain,
+                "expert": expert,
+            }
+        )
     config = dict(primary["config"])
     config["profile"] = None
     config["profiles"] = profiles
@@ -180,6 +210,7 @@ def build_bundle(
         "routes": routes,
         "context_routes": context_routes,
         "seat_context_routes": seat_context_routes,
+        "domain_routes": domain_routes,
         "sources": sources,
         "summary": {
             "algorithm": "deterministic_profile_routed_experts",
@@ -187,6 +218,7 @@ def build_bundle(
             "profiles": len(routes),
             "context_routes": len(context_routes),
             "seat_context_routes": len(seat_context_routes),
+            "domain_routes": len(domain_routes),
         },
     }
     save_bundle(bundle, output_path)
@@ -199,6 +231,7 @@ def overlay_bundle(
     output_path: Path,
     context_route_paths: dict[tuple[str, str, int], Path] | None = None,
     seat_context_route_paths: dict[tuple[str, str, int, int], Path] | None = None,
+    domain_route_paths: dict[tuple[str, str, int, int, str], Path] | None = None,
 ) -> dict[str, object]:
     loaded = torch.load(base_path, map_location="cpu", weights_only=False)
     if loaded.get("kind") != BUNDLE_KIND:
@@ -227,6 +260,7 @@ def overlay_bundle(
     seat_context_routes = [
         dict(route) for route in bundle.get("seat_context_routes", [])
     ]
+    domain_routes = [dict(route) for route in bundle.get("domain_routes", [])]
     config = dict(bundle["config"])
     profiles = list(config["profiles"])
     source_experts = {
@@ -294,10 +328,38 @@ def overlay_bundle(
             }
         )
         routes.setdefault(profile, expert)
+    for (profile, generator, players, seat, domain), path in (
+        domain_route_paths or {}
+    ).items():
+        expert = register(profile, path)
+        domain_routes = [
+            route
+            for route in domain_routes
+            if (
+                route["profile"],
+                route["generator"],
+                route["players"],
+                route["seat"],
+                route["domain"],
+            )
+            != (profile, generator, players, seat, domain)
+        ]
+        domain_routes.append(
+            {
+                "profile": profile,
+                "generator": generator,
+                "players": players,
+                "seat": seat,
+                "domain": domain,
+                "expert": expert,
+            }
+        )
+        routes.setdefault(profile, expert)
 
     referenced = set(routes.values())
     referenced.update(str(route["expert"]) for route in context_routes)
     referenced.update(str(route["expert"]) for route in seat_context_routes)
+    referenced.update(str(route["expert"]) for route in domain_routes)
     missing_experts = referenced.difference(experts)
     if missing_experts:
         raise ValueError(
@@ -314,6 +376,7 @@ def overlay_bundle(
             "routes": routes,
             "context_routes": context_routes,
             "seat_context_routes": seat_context_routes,
+            "domain_routes": domain_routes,
             "sources": {
                 expert: source for expert, source in sources.items() if expert in referenced
             },
@@ -323,6 +386,7 @@ def overlay_bundle(
                 "profiles": len(routes),
                 "context_routes": len(context_routes),
                 "seat_context_routes": len(seat_context_routes),
+                "domain_routes": len(domain_routes),
                 "overlay_base": {
                     "path": str(base_path),
                     "sha256": digest(base_path),
@@ -408,6 +472,44 @@ def parse_seat_context_routes(
     return routes
 
 
+def parse_domain_routes(
+    specifications: list[str],
+) -> dict[tuple[str, str, int, int, str], Path]:
+    routes: dict[tuple[str, str, int, int, str], Path] = {}
+    for specification in specifications:
+        context, separator, path = specification.partition("=")
+        parts = context.rsplit(":", 4)
+        if not separator or len(parts) != 5 or not path:
+            raise ValueError(
+                "domain routes use PROFILE:GENERATOR:PLAYERS:SEAT:DOMAIN=CHECKPOINT"
+            )
+        profile, generator, players_text, seat_text, domain = parts
+        if generator not in ("symmetric_duel_v1", "procedural_v1"):
+            raise ValueError(f"unsupported domain route generator: {generator}")
+        try:
+            players = int(players_text)
+            seat = int(seat_text)
+        except ValueError as error:
+            raise ValueError(
+                "domain routes use PROFILE:GENERATOR:PLAYERS:SEAT:DOMAIN=CHECKPOINT"
+            ) from error
+        if players < 2 or players > 8:
+            raise ValueError("domain route players must be between two and eight")
+        if seat < 0 or seat >= players:
+            raise ValueError("domain route seat must belong to the player range")
+        if len(domain) != 64:
+            raise ValueError("domain route key must be a SHA-256 digest")
+        try:
+            int(domain, 16)
+        except ValueError as error:
+            raise ValueError("domain route key must be a SHA-256 digest") from error
+        key = (profile, generator, players, seat, domain)
+        if key in routes:
+            raise ValueError(f"duplicate domain route: {context}")
+        routes[key] = Path(path)
+    return routes
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("primary", type=Path)
@@ -426,6 +528,12 @@ def main() -> None:
         default=[],
         metavar="PROFILE:GENERATOR:PLAYERS:SEAT=CHECKPOINT",
     )
+    parser.add_argument(
+        "--domain-route",
+        action="append",
+        default=[],
+        metavar="PROFILE:GENERATOR:PLAYERS:SEAT:DOMAIN=CHECKPOINT",
+    )
     arguments = parser.parse_args()
     builder = overlay_bundle if arguments.overlay else build_bundle
     bundle = builder(
@@ -434,6 +542,7 @@ def main() -> None:
         arguments.output,
         parse_context_routes(arguments.context_route),
         parse_seat_context_routes(arguments.seat_context_route),
+        parse_domain_routes(arguments.domain_route),
     )
     print(
         f"wrote {arguments.output} with {len(bundle['experts'])} experts and "

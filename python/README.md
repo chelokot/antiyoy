@@ -183,7 +183,15 @@ More specific `--context-route PROFILE:GENERATOR:PLAYERS=CHECKPOINT` and
 `--seat-context-route PROFILE:GENERATOR:PLAYERS:SEAT=CHECKPOINT` selectors
 override the profile route. Exact seat routes make multiplayer specialists
 possible while the original two-player expert remains immutable. Bundle
-versions 1 and 2 remain loadable.
+versions 1 through 3 remain loadable.
+
+`--domain-route PROFILE:GENERATOR:PLAYERS:SEAT:DOMAIN=CHECKPOINT` is the most
+specific selector. `DOMAIN` is the SHA-256 key emitted beside the complete
+seed-free `domain_descriptor` by every evaluation result. The descriptor binds
+dimensions, player count, action limit, visibility/diplomacy mode, and every
+procedural generator parameter, so an expert verified on density 700 cannot be
+silently selected on density 650 or a different object distribution. Seeds are
+deliberately excluded: held-out maps in one exact domain share a route.
 
 Pass `--overlay` when `PRIMARY` is an existing routed bundle. The builder
 replaces only the supplied selectors, verifies every new checkpoint against the
@@ -191,6 +199,10 @@ base architecture, deduplicates identical source hashes, and removes experts
 that no route references. The output records the exact base bundle hash, making
 iterative specialist acceptance reproducible without repeating a long route
 manifest or retaining superseded weights.
+
+Multiplayer evaluation deserializes a checkpoint once per profile/seed window
+and instantiates each distinct routed expert once. Seat and domain selection no
+longer reread the complete bundle for every player.
 
 Evaluation alternates model seats, uses held-out seeds, and reports the raw
 win/draw/loss score plus an Elo difference against the named baseline. Terminal

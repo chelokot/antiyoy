@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from collections.abc import Mapping
 
 import numpy as np
@@ -28,6 +29,17 @@ CELL_FEATURES = (
     "defenses",
     "province_ids",
 )
+
+
+def domain_key(generator: str, descriptor: Mapping[str, object]) -> str:
+    if "seed" in descriptor:
+        raise ValueError("domain descriptors must not contain a seed")
+    payload = json.dumps(
+        {"generator": generator, "descriptor": descriptor},
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    return hashlib.sha256(payload).hexdigest()
 
 
 def rotate_observation_180(
