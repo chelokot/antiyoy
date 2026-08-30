@@ -10,9 +10,19 @@ from pathlib import Path
 import torch
 
 try:
-    from .evaluate import PAIRING_SCHEME, evaluate, paired_elo
+    from .evaluate import (
+        PAIRING_SCHEME,
+        SEAT_ROTATION_SCHEME,
+        evaluate,
+        relative_skill_delta,
+    )
 except ImportError:
-    from evaluate import PAIRING_SCHEME, evaluate, paired_elo
+    from evaluate import (
+        PAIRING_SCHEME,
+        SEAT_ROTATION_SCHEME,
+        evaluate,
+        relative_skill_delta,
+    )
 
 
 ALL_PROFILES = (
@@ -41,6 +51,9 @@ def aggregate_outcomes(
     truncations = sum(int(result["truncations"]) for result in outcomes)
     terminal_draws = sum(int(result["terminal_draws"]) for result in outcomes)
     score = (wins + 0.5 * draws) / games
+    players = int(results[0].get("players", 2))
+    if any(int(result.get("players", 2)) != players for result in results):
+        raise ValueError("cannot aggregate evaluations with different player counts")
     return {
         "games": games,
         "wins": wins,
@@ -49,15 +62,18 @@ def aggregate_outcomes(
         "truncations": truncations,
         "terminal_draws": terminal_draws,
         "score": score,
-        "relative_elo": paired_elo(score, games),
+        "relative_elo": relative_skill_delta(score, games, players),
     }
 
 
 def aggregate_results(results: list[dict[str, object]]) -> dict[str, object]:
+    seats = len(results[0]["seats"])
+    if any(len(result["seats"]) != seats for result in results):
+        raise ValueError("cannot aggregate evaluations with different seat counts")
     return {
         **aggregate_outcomes(results),
         "seats": [
-            {"seat": seat, **aggregate_outcomes(results, seat)} for seat in range(2)
+            {"seat": seat, **aggregate_outcomes(results, seat)} for seat in range(seats)
         ],
     }
 
@@ -107,12 +123,25 @@ def main() -> None:
     parser.add_argument("--width", type=int, default=11)
     parser.add_argument("--height", type=int, default=9)
     parser.add_argument("--action-limit", type=int, default=1000)
+    parser.add_argument("--procedural", action="store_true")
+    parser.add_argument("--players", type=int, default=2)
+    parser.add_argument("--land-density-per-million", type=int, default=650_000)
+    parser.add_argument("--starting-province-size", type=int, default=5)
+    parser.add_argument("--starting-money", type=int, default=10)
+    parser.add_argument("--tree-density-per-million", type=int, default=150_000)
+    parser.add_argument("--neutral-tower-density-per-million", type=int, default=20_000)
+    parser.add_argument("--neutral-capital-density-per-million", type=int, default=10_000)
+    parser.add_argument("--grave-density-per-million", type=int, default=15_000)
     parser.add_argument("--minimum-aggregate-score", type=float)
     parser.add_argument("--minimum-seat-score", type=float)
     parser.add_argument("--output", type=Path)
     arguments = parser.parse_args()
-    if arguments.games < 2 or arguments.games % 2 != 0:
-        parser.error("games must be a positive even number for paired evaluation")
+    if arguments.players < 2:
+        parser.error("players must be at least two")
+    if arguments.games < arguments.players or arguments.games % arguments.players != 0:
+        parser.error("games must be a positive multiple of players")
+    if not arguments.procedural and arguments.players != 2:
+        parser.error("symmetric duel evaluation requires exactly two players")
     if arguments.minimum_aggregate_score is not None and not (
         0 <= arguments.minimum_aggregate_score <= 1
     ):
@@ -142,6 +171,15 @@ def main() -> None:
                     arguments.width,
                     arguments.height,
                     arguments.action_limit,
+                    arguments.procedural,
+                    arguments.players,
+                    arguments.land_density_per_million,
+                    arguments.starting_province_size,
+                    arguments.starting_money,
+                    arguments.tree_density_per_million,
+                    arguments.neutral_tower_density_per_million,
+                    arguments.neutral_capital_density_per_million,
+                    arguments.grave_density_per_million,
                 )
             )
     aggregate = aggregate_results(results)
@@ -170,16 +208,33 @@ def main() -> None:
             ),
         },
         "arena": {
-            "generator": "symmetric_duel_v1",
+            "generator": (
+                "procedural_v1" if arguments.procedural else "symmetric_duel_v1"
+            ),
             "width": arguments.width,
             "height": arguments.height,
-            "players": 2,
+            "players": arguments.players,
             "action_limit": arguments.action_limit,
             "games_per_profile_seed": arguments.games,
-            "unique_maps_per_profile_seed": arguments.games // 2,
-            "pairing": PAIRING_SCHEME,
+            "unique_maps_per_profile_seed": arguments.games // arguments.players,
+            "pairing": (
+                PAIRING_SCHEME if arguments.players == 2 else SEAT_ROTATION_SCHEME
+            ),
             "profiles": arguments.profiles,
             "seeds": arguments.seeds,
+            "generator_config": (
+                {
+                    "land_density_per_million": arguments.land_density_per_million,
+                    "starting_province_size": arguments.starting_province_size,
+                    "starting_money": arguments.starting_money,
+                    "tree_density_per_million": arguments.tree_density_per_million,
+                    "neutral_tower_density_per_million": arguments.neutral_tower_density_per_million,
+                    "neutral_capital_density_per_million": arguments.neutral_capital_density_per_million,
+                    "grave_density_per_million": arguments.grave_density_per_million,
+                }
+                if arguments.procedural
+                else None
+            ),
         },
         "device": arguments.device,
         "elapsed_seconds": time.perf_counter() - started,

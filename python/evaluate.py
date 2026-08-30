@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from antiyoy_rl import OBSERVATION_VERSION, VectorEnv
+from antiyoy_rl import OBSERVATION_VERSION, ProceduralConfig, VectorEnv
 from antiyoy_rl.model import (
     RULE_FEATURES,
     UniversalPolicy,
@@ -28,17 +28,30 @@ except ImportError:
 
 ACTION_KIND_NAMES = ("end_turn", "move", "recruit", "build", "plant_tree", "diplomacy")
 PAIRING_SCHEME = "adjacent_same_seed_opposite_seat_v1"
+SEAT_ROTATION_SCHEME = "adjacent_same_seed_all_seats_v1"
 
 
 def paired_elo(score: float, games: int) -> float:
+    return relative_skill_delta(score, games, 2)
+
+
+def relative_skill_delta(score: float, games: int, players: int) -> float:
     clipped_score = min(max(score, 0.5 / games), 1 - 0.5 / games)
-    return 400 * math.log10(clipped_score / (1 - clipped_score))
+    return 400 * math.log10(clipped_score * (players - 1) / (1 - clipped_score))
 
 
 def paired_seeds(games: int, seed: int) -> np.ndarray:
     if games < 2 or games % 2 != 0:
         raise ValueError("paired evaluation requires a positive even number of games")
     return seed + np.arange(games, dtype=np.uint64) // 2
+
+
+def seat_rotation_seeds(games: int, seed: int, players: int) -> np.ndarray:
+    if players < 2:
+        raise ValueError("seat rotation requires at least two players")
+    if games < players or games % players != 0:
+        raise ValueError("games must be a positive multiple of players")
+    return seed + np.arange(games, dtype=np.uint64) // players
 
 
 def outcome_summary(
@@ -48,6 +61,7 @@ def outcome_summary(
     losses: int,
     terminal_draws: int,
     truncations: int,
+    players: int = 2,
 ) -> dict[str, float | int]:
     score = (wins + 0.5 * draws) / games
     return {
@@ -58,7 +72,7 @@ def outcome_summary(
         "truncations": truncations,
         "losses": losses,
         "score": score,
-        "elo_delta": paired_elo(score, games),
+        "elo_delta": relative_skill_delta(score, games, players),
     }
 
 
@@ -122,8 +136,17 @@ def evaluate(
     width: int | None,
     height: int | None,
     action_limit: int | None,
+    procedural: bool = False,
+    players: int = 2,
+    land_density_per_million: int = 650_000,
+    starting_province_size: int = 5,
+    starting_money: int = 10,
+    tree_density_per_million: int = 150_000,
+    neutral_tower_density_per_million: int = 20_000,
+    neutral_capital_density_per_million: int = 10_000,
+    grave_density_per_million: int = 15_000,
 ) -> dict[str, object]:
-    evaluation_seeds = paired_seeds(games, seed)
+    evaluation_seeds = seat_rotation_seeds(games, seed, players)
     device = torch.device(device_name)
     model, config = load_policy(checkpoint_path, device, profile)
     evaluation_profile = profile or config["profile"] or config["profiles"][0]
@@ -132,28 +155,49 @@ def evaluate(
     evaluation_action_limit = (
         config["action_limit"] if action_limit is None else action_limit
     )
-    environment = VectorEnv(
-        games,
-        width=evaluation_width,
-        height=evaluation_height,
-        seed=seed,
-        action_limit=evaluation_action_limit,
-        profile=evaluation_profile,
-        fog=config["fog"],
-        diplomacy=config.get("diplomacy", False),
-        initial_relation=config.get("initial_relation", "neutral"),
-    )
+    environment_arguments = {
+        "action_limit": evaluation_action_limit,
+        "profile": evaluation_profile,
+        "fog": config["fog"],
+        "diplomacy": config.get("diplomacy", False),
+        "initial_relation": config.get("initial_relation", "neutral"),
+    }
+    if procedural:
+        generator = ProceduralConfig(
+            width=evaluation_width,
+            height=evaluation_height,
+            players=players,
+            seed=seed,
+            land_density_per_million=land_density_per_million,
+            starting_province_size=starting_province_size,
+            starting_money=starting_money,
+            tree_density_per_million=tree_density_per_million,
+            neutral_tower_density_per_million=neutral_tower_density_per_million,
+            neutral_capital_density_per_million=neutral_capital_density_per_million,
+            grave_density_per_million=grave_density_per_million,
+        )
+        environment = VectorEnv.procedural(games, generator, **environment_arguments)
+    else:
+        if players != 2:
+            raise ValueError("symmetric duel evaluation requires exactly two players")
+        environment = VectorEnv(
+            games,
+            width=evaluation_width,
+            height=evaluation_height,
+            seed=seed,
+            **environment_arguments,
+        )
     for index, evaluation_seed in enumerate(evaluation_seeds):
         environment.reset(index, int(evaluation_seed))
     rules = encode_rules_batch(environment.rules_jsons(), device)
-    model_seats = np.arange(games, dtype=np.uint8) % 2
+    model_seats = np.arange(games, dtype=np.uint8) % players
     finished = np.zeros(games, dtype=np.bool_)
-    seat_wins = np.zeros(2, dtype=np.int64)
-    seat_draws = np.zeros(2, dtype=np.int64)
-    seat_terminal_draws = np.zeros(2, dtype=np.int64)
-    seat_truncations = np.zeros(2, dtype=np.int64)
-    seat_losses = np.zeros(2, dtype=np.int64)
-    reset_seed = seed + games // 2
+    seat_wins = np.zeros(players, dtype=np.int64)
+    seat_draws = np.zeros(players, dtype=np.int64)
+    seat_terminal_draws = np.zeros(players, dtype=np.int64)
+    seat_truncations = np.zeros(players, dtype=np.int64)
+    seat_losses = np.zeros(players, dtype=np.int64)
+    reset_seed = seed + games // players
     random = np.random.default_rng(seed)
     transitions = 0
     model_action_counts = np.zeros(len(ACTION_KIND_NAMES), dtype=np.int64)
@@ -222,30 +266,32 @@ def evaluate(
         int(seat_losses.sum()),
         int(seat_terminal_draws.sum()),
         int(seat_truncations.sum()),
+        players,
     )
     seats = [
         {
             "seat": seat,
             **outcome_summary(
-                games // 2,
+                games // players,
                 int(seat_wins[seat]),
                 int(seat_draws[seat]),
                 int(seat_losses[seat]),
                 int(seat_terminal_draws[seat]),
                 int(seat_truncations[seat]),
+                players,
             ),
         }
-        for seat in range(2)
+        for seat in range(players)
     ]
     return {
         "checkpoint": str(checkpoint_path),
         "baseline": baseline,
         **summary,
         "pairing": {
-            "scheme": PAIRING_SCHEME,
-            "unique_seeds": games // 2,
+            "scheme": PAIRING_SCHEME if players == 2 else SEAT_ROTATION_SCHEME,
+            "unique_seeds": games // players,
             "first_seed": seed,
-            "last_seed": seed + games // 2 - 1,
+            "last_seed": seed + games // players - 1,
         },
         "seats": seats,
         "transitions": transitions,
@@ -254,9 +300,24 @@ def evaluate(
         "policy_kind": config["policy_kind"],
         "selected_expert": config["selected_expert"],
         "seed": seed,
+        "generator": "procedural_v1" if procedural else "symmetric_duel_v1",
+        "players": players,
         "arena_width": evaluation_width,
         "arena_height": evaluation_height,
         "action_limit": evaluation_action_limit,
+        "generator_config": (
+            {
+                "land_density_per_million": land_density_per_million,
+                "starting_province_size": starting_province_size,
+                "starting_money": starting_money,
+                "tree_density_per_million": tree_density_per_million,
+                "neutral_tower_density_per_million": neutral_tower_density_per_million,
+                "neutral_capital_density_per_million": neutral_capital_density_per_million,
+                "grave_density_per_million": grave_density_per_million,
+            }
+            if procedural
+            else None
+        ),
         "model_action_counts": named_action_counts(model_action_counts),
         "baseline_action_counts": named_action_counts(baseline_action_counts),
         "search_nodes": search_nodes if baseline == "search" else 0,
@@ -285,9 +346,22 @@ def main() -> None:
     parser.add_argument("--width", type=int)
     parser.add_argument("--height", type=int)
     parser.add_argument("--action-limit", type=int)
+    parser.add_argument("--procedural", action="store_true")
+    parser.add_argument("--players", type=int, default=2)
+    parser.add_argument("--land-density-per-million", type=int, default=650_000)
+    parser.add_argument("--starting-province-size", type=int, default=5)
+    parser.add_argument("--starting-money", type=int, default=10)
+    parser.add_argument("--tree-density-per-million", type=int, default=150_000)
+    parser.add_argument("--neutral-tower-density-per-million", type=int, default=20_000)
+    parser.add_argument("--neutral-capital-density-per-million", type=int, default=10_000)
+    parser.add_argument("--grave-density-per-million", type=int, default=15_000)
     arguments = parser.parse_args()
-    if arguments.games < 2 or arguments.games % 2 != 0:
-        parser.error("games must be a positive even number for paired evaluation")
+    if arguments.players < 2:
+        parser.error("players must be at least two")
+    if arguments.games < arguments.players or arguments.games % arguments.players != 0:
+        parser.error("games must be a positive multiple of players")
+    if not arguments.procedural and arguments.players != 2:
+        parser.error("symmetric duel evaluation requires exactly two players")
     print(
         json.dumps(
             evaluate(
@@ -304,6 +378,15 @@ def main() -> None:
                 arguments.width,
                 arguments.height,
                 arguments.action_limit,
+                arguments.procedural,
+                arguments.players,
+                arguments.land_density_per_million,
+                arguments.starting_province_size,
+                arguments.starting_money,
+                arguments.tree_density_per_million,
+                arguments.neutral_tower_density_per_million,
+                arguments.neutral_capital_density_per_million,
+                arguments.grave_density_per_million,
             ),
             sort_keys=True,
         )

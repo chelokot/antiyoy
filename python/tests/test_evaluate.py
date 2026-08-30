@@ -8,6 +8,8 @@ from python.evaluate import (
     outcome_summary,
     paired_elo,
     paired_seeds,
+    relative_skill_delta,
+    seat_rotation_seeds,
     selected_action_kinds,
 )
 from python.evaluate_suite import aggregate_results, minimum_seat_slice
@@ -42,6 +44,31 @@ def test_named_action_counts_preserves_zero_categories() -> None:
 
 def test_paired_seeds_repeat_each_map_for_opposite_seats() -> None:
     assert paired_seeds(6, 100).tolist() == [100, 100, 101, 101, 102, 102]
+
+
+def test_seat_rotation_seeds_repeat_each_map_for_every_player() -> None:
+    assert seat_rotation_seeds(8, 100, 4).tolist() == [
+        100,
+        100,
+        100,
+        100,
+        101,
+        101,
+        101,
+        101,
+    ]
+
+
+@pytest.mark.parametrize(("games", "players"), [(3, 4), (5, 4), (8, 1)])
+def test_seat_rotation_seeds_reject_incomplete_rotations(
+    games: int, players: int
+) -> None:
+    with pytest.raises(ValueError):
+        seat_rotation_seeds(games, 100, players)
+
+
+def test_multiplayer_skill_delta_is_zero_at_equal_opponent_win_rate() -> None:
+    assert relative_skill_delta(0.25, 40, 4) == pytest.approx(0.0)
 
 
 @pytest.mark.parametrize("games", [0, 1, 3])
@@ -149,6 +176,35 @@ def test_suite_aggregate_counts_draws_and_truncations() -> None:
             "relative_elo": paired_elo(0.375, 4),
         },
     ]
+
+
+def test_suite_aggregate_supports_every_multiplayer_seat() -> None:
+    result = {
+        "players": 4,
+        "games": 8,
+        "wins": 2,
+        "draws": 0,
+        "losses": 6,
+        "truncations": 0,
+        "terminal_draws": 0,
+        "seats": [
+            {
+                "games": 2,
+                "wins": 1 if seat < 2 else 0,
+                "draws": 0,
+                "losses": 1 if seat < 2 else 2,
+                "truncations": 0,
+                "terminal_draws": 0,
+            }
+            for seat in range(4)
+        ],
+    }
+
+    aggregate = aggregate_results([result])
+
+    assert aggregate["score"] == 0.25
+    assert aggregate["relative_elo"] == pytest.approx(0.0)
+    assert [seat["seat"] for seat in aggregate["seats"]] == [0, 1, 2, 3]
 
 
 def test_minimum_seat_slice_preserves_profile_and_seed() -> None:
