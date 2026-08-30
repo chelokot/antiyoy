@@ -58,6 +58,49 @@
       }
     },
     {
+      "id": "classic-generic-duel-puct-distilled-v1-2026-08-31",
+      "asset": "classic-generic-duel-puct-distilled-v1-2026-08-31.pt",
+      "url": "https://github.com/chelokot/antiyoy/releases/download/model-v0.5.0-beta.1/classic-generic-duel-puct-distilled-v1-2026-08-31.pt",
+      "sha256": "976f3bed3aef0fcbb23ba77ae4de1a5bbd9cb2e0786a2d8ed404d74456b53b55",
+      "size_bytes": 7398195,
+      "checkpoint_version": 5,
+      "engine_version": 6,
+      "observation_version": 7,
+      "bundle_version": 4,
+      "experts": 2,
+      "profile_routes": 7,
+      "seat_context_routes": 1,
+      "status": "experimental-policy-specialist",
+      "source_model": "classic-generic-duel-value-v3-2026-08-31",
+      "route": {
+        "profile": "classic_generic_2022",
+        "generator": "symmetric_duel_v1",
+        "players": 2,
+        "seat": 0
+      },
+      "distillation": {
+        "teacher": "policy-guided PUCT-8",
+        "target": "complete soft root distribution",
+        "examples": 48000,
+        "trainable_parameters": "action_head_only",
+        "frozen_parameters_preserved": true
+      },
+      "vs_frozen_source_policy": {
+        "protocol": "schema-v3 same-map opposite-seat",
+        "games": 512,
+        "record": "281-0-231",
+        "truncations": 0,
+        "relative_elo": 34.03773600517424,
+        "wilson_95_score_interval": [
+          0.5055212711004755,
+          0.5914077351765867
+        ],
+        "seat_0_win_delta": 25,
+        "seat_1_win_delta": 0,
+        "benchmark": "benchmarks/2026-08-31-puct-soft-distillation-rocm.json"
+      }
+    },
+    {
       "id": "classic-generic-duel-value-v3-2026-08-31",
       "asset": "classic-generic-duel-value-v3-2026-08-31.pt",
       "url": "https://github.com/chelokot/antiyoy/releases/download/model-v0.5.0-beta.1/classic-generic-duel-value-v3-2026-08-31.pt",

@@ -216,6 +216,17 @@ Canonical PUCT with the original uncalibrated value head lost its 16-game scout
 0–16 and was rejected. Full accepted and rejected evidence is in
 [`benchmarks/2026-08-31-policy-guided-puct-amplification-rocm.json`](benchmarks/2026-08-31-policy-guided-puct-amplification-rocm.json).
 
+The first completed PUCT amplify→distill loop exports the tree's full soft root
+distribution instead of copying only its argmax. An action-head-only student
+keeps the encoder, rules context, and calibrated value path bit-identical. The
+accepted bundle routes that student only to seat 0 and preserves the frozen
+source policy for seat 1. It scored 281–231 against the source on 512 additional
+fresh paired games: +34.04 observed relative Elo, a 50.55–59.14% Wilson score
+interval, and zero truncations. Seat 0 added 25 wins while the unchanged seat 1
+reproduced its source result exactly. Four hard-target variants were rejected;
+the complete record is in
+[`benchmarks/2026-08-31-puct-soft-distillation-rocm.json`](benchmarks/2026-08-31-puct-soft-distillation-rocm.json).
+
 Reproduce the accepted direct-policy comparison with the small specialist:
 
 ```bash
@@ -224,6 +235,18 @@ PYTHONPATH=python python python/evaluate.py \
   models/classic-generic-duel-value-v3-2026-08-31.pt \
   --games 64 --seed 700000 --device cuda --baseline policy \
   --model-agent puct --puct-nodes 8 --puct-root-value-weight 1 \
+  --profile classic_generic_2022 --width 11 --height 9 --action-limit 1000
+```
+
+Reproduce the zero-search distilled-policy comparison:
+
+```bash
+python python/fetch_model.py classic-generic-duel-value-v3-2026-08-31
+python python/fetch_model.py classic-generic-duel-puct-distilled-v1-2026-08-31
+PYTHONPATH=python python python/evaluate.py \
+  models/classic-generic-duel-puct-distilled-v1-2026-08-31.pt \
+  --games 64 --seed 920000 --device cuda --baseline policy \
+  --baseline-checkpoint models/classic-generic-duel-value-v3-2026-08-31.pt \
   --profile classic_generic_2022 --width 11 --height 9 --action-limit 1000
 ```
 

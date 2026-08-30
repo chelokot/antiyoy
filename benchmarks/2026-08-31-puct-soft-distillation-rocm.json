@@ -1,0 +1,176 @@
+{
+  "schema_version": 3,
+  "kind": "policy_guided_puct_soft_distillation",
+  "engine_version": 6,
+  "training_commit": "02cce91",
+  "evaluation_commit": "02cce91",
+  "system": {
+    "allocated_cpu_threads": 8,
+    "cpu": "Intel Core i9-11900K",
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "process_priority": "nice 10",
+    "pytorch": "2.9.1+rocm6.4"
+  },
+  "source": {
+    "artifact": "classic-generic-duel-value-v3-2026-08-31.pt",
+    "sha256": "04bca34ac15301908e3c65db33730e99355247df72ff044dcd4745553c07251c",
+    "size_bytes": 3702092,
+    "policy_parameters_frozen_during_value_calibration": true,
+    "profile": "classic_generic_2022",
+    "generator": "symmetric_duel_v1",
+    "players": 2,
+    "width": 11,
+    "height": 9,
+    "action_limit": 1000
+  },
+  "teacher": {
+    "algorithm": "native asynchronous policy-guided PUCT",
+    "node_budget": 8,
+    "exploration": 1.5,
+    "virtual_loss": 1.0,
+    "maximum_depth": 128,
+    "root_value_weight": 1.0,
+    "leaf_batch_size": 512,
+    "root_target": "normalize(prior * exp(searched_mean_value))"
+  },
+  "source_online_amplification": {
+    "games": 512,
+    "record": "280-0-232",
+    "relative_elo": 32.668018580527814,
+    "truncations": 0,
+    "benchmark": "benchmarks/2026-08-31-policy-guided-puct-amplification-rocm.json"
+  },
+  "training": {
+    "seed": 800000,
+    "environments": 64,
+    "updates": 750,
+    "examples": 48000,
+    "completed_teacher_games": 256,
+    "target_mode": "root_distribution",
+    "rollin": "teacher",
+    "symmetry_augmentation": true,
+    "trainable_parameters": "action_head_only",
+    "frozen_encoder_rules_and_value_parameters_preserved_bitwise": true,
+    "learning_rate": 0.0001,
+    "retention_kl_weight": 1.0,
+    "mean_retention_kl": 0.08697668107742598,
+    "mean_root_target_kl_from_direct_policy": 0.017285667073951728,
+    "mean_teacher_direct_argmax_disagreement": 0.019999999999999983,
+    "seconds": 58.167685284046456,
+    "search_decisions": 48000,
+    "evaluated_leaves": 380594,
+    "total_nodes": 381294,
+    "training_log_sha256": "b42588302247cf028b5e05324fb499b44d24f6bef8867d06529420a3d8a945c8"
+  },
+  "student": {
+    "specialist_sha256": "50f9b366d1c2e949c8972f08cacc6e0d5a8129ee3acbdaee721647a77544aff7",
+    "specialist_size_bytes": 3701184,
+    "bundle_artifact": "classic-generic-duel-puct-distilled-v1-2026-08-31.pt",
+    "bundle_sha256": "976f3bed3aef0fcbb23ba77ae4de1a5bbd9cb2e0786a2d8ed404d74456b53b55",
+    "bundle_size_bytes": 7398195,
+    "routing": {
+      "seat_0": "soft-PUCT-distilled specialist",
+      "seat_1": "bit-identical source policy"
+    }
+  },
+  "selection_scout": {
+    "seed_first": 900000,
+    "seed_last": 900063,
+    "unique_maps": 64,
+    "games": 128,
+    "record": "69-0-59",
+    "wins": 69,
+    "draws": 0,
+    "losses": 59,
+    "score": 0.5390625,
+    "relative_elo": 27.198831638044446,
+    "truncations": 0,
+    "seat_0": {
+      "candidate_wins": 64,
+      "source_self_play_wins": 59,
+      "score_delta": 0.078125
+    },
+    "seat_1": {
+      "candidate_wins": 5,
+      "source_self_play_wins": 5,
+      "score_delta": 0.0
+    },
+    "raw_result_sha256": "c4dd07856e75b14899b44c9a00a0f2729370ea9cac13bfe271dadf17d1e48c2e"
+  },
+  "heldout_confirmation": {
+    "disjoint_from_training_and_selection": true,
+    "seed_first": 920000,
+    "seed_last": 920255,
+    "unique_maps": 256,
+    "games": 512,
+    "record": "281-0-231",
+    "wins": 281,
+    "draws": 0,
+    "losses": 231,
+    "score": 0.548828125,
+    "relative_elo": 34.03773600517424,
+    "wilson_95_score_interval": [
+      0.5055212711004755,
+      0.5914077351765867
+    ],
+    "truncations": 0,
+    "adjudications": 0,
+    "seat_0": {
+      "candidate_wins": 256,
+      "source_self_play_wins": 231,
+      "score_delta": 0.09765625
+    },
+    "seat_1": {
+      "candidate_wins": 25,
+      "source_self_play_wins": 25,
+      "score_delta": 0.0
+    },
+    "raw_result_sha256": "8afaa68cf6ef8529ed79762b0210a676669c2f6f9724165593df99a1782c41ed"
+  },
+  "rejected_attempts": [
+    {
+      "target": "selected action on every state",
+      "retention_kl_weight": 0.25,
+      "updates": 750,
+      "scout_record": "64-0-64",
+      "seat_0_score_delta": 0.078125,
+      "seat_1_score_delta": -0.078125,
+      "decision": "rejected for seat-1 regression"
+    },
+    {
+      "target": "selected action on every state",
+      "retention_kl_weight": 1.0,
+      "updates": 750,
+      "scout_record": "64-0-64",
+      "seat_0_score_delta": 0.078125,
+      "seat_1_score_delta": -0.078125,
+      "decision": "rejected for seat-1 regression"
+    },
+    {
+      "target": "selected action only on PUCT disagreements",
+      "retention_kl_weight": 1.0,
+      "updates": 750,
+      "scout_record": "52-0-76",
+      "relative_elo": -65.92409945839687,
+      "decision": "rejected"
+    },
+    {
+      "target": "selected action only on PUCT disagreements",
+      "retention_kl_weight": 1.0,
+      "updates": 100,
+      "scout_record": "7-0-121",
+      "relative_elo": -495.07493212087724,
+      "decision": "rejected"
+    },
+    {
+      "target": "complete soft root distribution with shared seat policy",
+      "retention_kl_weight": 1.0,
+      "updates": 750,
+      "scout_record": "64-0-64",
+      "seat_0_score_delta": 0.078125,
+      "seat_1_score_delta": -0.078125,
+      "decision": "shared expert rejected; exact seat-0 route advanced"
+    }
+  ],
+  "conclusion": "Soft root-target distillation compressed part of the eight-node PUCT gain into a zero-search seat-0 specialist. Exact routing preserved the source policy for seat 1. The routed bundle scored 281-231 against its frozen source on 512 fresh paired games, +34.04 observed relative Elo with a Wilson interval above 0.5 and no truncations. The result is specific to classic Generic 11x9 symmetric duels and is not a universal-strength claim."
+}

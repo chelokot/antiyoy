@@ -100,3 +100,11 @@ policy/value blend must reproduce direct policy exactly before any non-zero
 weight is measured. Calibration games, tuning scouts, and accepted holdouts use
 disjoint seed windows; failed value datasets and search budgets remain in the
 record instead of being discarded after a successful run.
+
+PUCT distillation records must compare a student checkpoint against the exact
+frozen source checkpoint rather than using policy self-play as a proxy. Soft
+root targets, trainable parameter scope, retention KL, routing, selection seeds,
+and final held-out seeds are part of the protocol. A routed specialist passes
+only when every unchanged seat reproduces its source result and the aggregate
+gain survives a disjoint confirmation; rejected hard-target variants remain in
+the same report.

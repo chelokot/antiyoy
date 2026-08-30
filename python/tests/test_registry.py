@@ -51,6 +51,26 @@ def test_registry_records_the_frozen_policy_puct_specialist() -> None:
     assert puct["relative_elo"] > 32
 
 
+def test_registry_records_the_heldout_puct_distillation_gain() -> None:
+    payload = json.loads(Path("model-registry/models.json").read_text())
+    specialist = next(
+        model
+        for model in payload["models"]
+        if model["id"] == "classic-generic-duel-puct-distilled-v1-2026-08-31"
+    )
+
+    assert specialist["route"]["seat"] == 0
+    assert specialist["distillation"]["target"] == (
+        "complete soft root distribution"
+    )
+    result = specialist["vs_frozen_source_policy"]
+    assert result["games"] == 512
+    assert result["record"] == "281-0-231"
+    assert result["relative_elo"] > 34
+    assert result["seat_0_win_delta"] == 25
+    assert result["seat_1_win_delta"] == 0
+
+
 def test_neural_arena_page_has_board_and_legal_action_controls() -> None:
     page = Path("python/policy_arena.html").read_text()
 
