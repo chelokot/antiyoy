@@ -90,6 +90,10 @@ errors and loops that are absent from clean teacher trajectories.
 `--imitation-symmetry-augmentation` rotates alternating batch observations by
 180 degrees while preserving each legal action index. It prevents the hex CNN
 from specializing its spatial filters to one side of a symmetric arena.
+`--imitation-reference-weight W` keeps a frozen copy of the initialized policy
+and adds `W × KL(reference || candidate)` to the teacher loss. This provides an
+explicit stability objective when fine-tuning weak profiles would otherwise
+erase strong behavior from the published checkpoint.
 Set `--updates 0` for an imitation-only run without a PPO phase; at least one
 imitation update is then required.
 

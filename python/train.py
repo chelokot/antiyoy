@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import time
 from collections.abc import Callable
@@ -56,6 +57,7 @@ class TrainingConfig:
     imitation_teacher: str
     imitation_rollin: str
     imitation_symmetry_augmentation: bool
+    imitation_reference_weight: float
     checkpoint_every: int
     search_nodes: int
     search_beam_width: int
@@ -185,6 +187,8 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("clip_ratio must be positive")
     if config.imitation_updates < 0:
         raise ValueError("imitation_updates must not be negative")
+    if config.imitation_reference_weight < 0:
+        raise ValueError("imitation_reference_weight must not be negative")
     if config.checkpoint_every < 0:
         raise ValueError("checkpoint_every must not be negative")
     if config.checkpoint_every > 0 and config.checkpoint is None:
@@ -289,6 +293,7 @@ def pretrain_teacher(
     config: TrainingConfig,
     reset_seed: int,
     device: torch.device,
+    reference_model: UniversalPolicy | None = None,
     checkpoint_callback: Callable[[int, float, float], None] | None = None,
 ) -> tuple[int, float, float]:
     loss_average = 0.0
@@ -317,6 +322,18 @@ def pretrain_teacher(
         logits, _ = model(model_observation, rules)
         distribution = action_distribution(logits, model_observation["action_offsets"])
         loss = -distribution.log_prob(targets).mean()
+        retention_kl = 0.0
+        if reference_model is not None:
+            with torch.no_grad():
+                reference_logits, _ = reference_model(model_observation, rules)
+                reference_distribution = action_distribution(
+                    reference_logits, model_observation["action_offsets"]
+                )
+            retention = torch.distributions.kl_divergence(
+                reference_distribution, distribution
+            ).mean()
+            loss = loss + config.imitation_reference_weight * retention
+            retention_kl = float(retention.item())
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -341,6 +358,7 @@ def pretrain_teacher(
                         "update": update,
                         "loss": float(loss.item()),
                         "accuracy": accuracy,
+                        "retention_kl": retention_kl,
                     },
                     sort_keys=True,
                 ),
@@ -506,6 +524,10 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         initialize_checkpoint(config.initialize, model, device)
     elif config.resume is not None:
         restore_checkpoint(config.resume, model, optimizer, device)
+    reference_model = None
+    if config.imitation_reference_weight > 0:
+        reference_model = copy.deepcopy(model).eval()
+        reference_model.requires_grad_(False)
     rules = encode_rules_batch(environment.rules_jsons(), device)
     reset_seed = config.seed + config.environments
     imitation_loss = 0.0
@@ -543,6 +565,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             config,
             reset_seed,
             device,
+            reference_model,
             save_imitation_recovery,
         )
     imitation_seconds = time.perf_counter() - imitation_started
@@ -597,6 +620,8 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         algorithm = f"{config.imitation_teacher}_distilled_{config.imitation_rollin}_rollin"
         if config.imitation_symmetry_augmentation:
             algorithm += "_rot180_augmented"
+        if config.imitation_reference_weight > 0:
+            algorithm += "_reference_regularized"
         if config.updates > 0:
             algorithm += "_perspective_ppo_gae"
     summary: dict[str, float | int | str] = {
@@ -611,6 +636,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "imitation_teacher": config.imitation_teacher,
         "imitation_rollin": config.imitation_rollin,
         "imitation_symmetry_augmentation": config.imitation_symmetry_augmentation,
+        "imitation_reference_weight": config.imitation_reference_weight,
         "imitation_transitions": imitation_transitions,
         "imitation_seconds": imitation_seconds,
         "imitation_transitions_per_second": (
@@ -675,6 +701,7 @@ def parse_args() -> TrainingConfig:
         "--imitation-rollin", choices=("teacher", "policy"), default="teacher"
     )
     parser.add_argument("--imitation-symmetry-augmentation", action="store_true")
+    parser.add_argument("--imitation-reference-weight", type=float, default=0.0)
     parser.add_argument("--checkpoint-every", type=int, default=0)
     parser.add_argument("--search-nodes", type=int, default=2048)
     parser.add_argument("--search-beam-width", type=int, default=32)

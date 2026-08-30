@@ -45,6 +45,7 @@ def training_config() -> TrainingConfig:
         imitation_teacher="greedy",
         imitation_rollin="teacher",
         imitation_symmetry_augmentation=False,
+        imitation_reference_weight=0.0,
         checkpoint_every=0,
         search_nodes=256,
         search_beam_width=12,
@@ -120,6 +121,11 @@ def test_training_allows_imitation_without_ppo() -> None:
 def test_training_rejects_empty_curriculum() -> None:
     with pytest.raises(ValueError, match="at least one"):
         validate_config(replace(training_config(), updates=0, imitation_updates=0))
+
+
+def test_training_rejects_negative_reference_weight() -> None:
+    with pytest.raises(ValueError, match="reference_weight"):
+        validate_config(replace(training_config(), imitation_reference_weight=-0.1))
 
 
 def test_training_rejects_checkpoint_interval_without_destination() -> None:
