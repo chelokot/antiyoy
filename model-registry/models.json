@@ -19,10 +19,28 @@
       "status": "beta",
       "fixed_duel_vs_search_2048": {
         "protocol": "schema-v2 same-map opposite-seat",
+        "engine_version": 5,
         "games": 336,
         "record": "336-0-0",
         "aggregate_relative_elo": 1130.6890080675973,
         "provenance": "The seven fixed-duel profile routes are tensor-identical to model-v0.3.0-beta.1"
+      },
+      "engine_v6_fixed_duel_vs_search_2048": {
+        "protocol": "schema-v3 same-map opposite-seat",
+        "games": 336,
+        "record": "310-0-26",
+        "truncations": 2,
+        "aggregate_relative_elo": 430.55533834538204,
+        "profile_records": {
+          "classic_generic_2022": "48-0-0",
+          "classic_slay_2022": "48-0-0",
+          "online_default_v1": "24-0-24",
+          "online_classic_v1": "48-0-0",
+          "online_duel_v1": "47-0-1",
+          "online_experimental_v1": "47-0-1",
+          "online_experimental_v2_260801": "48-0-0"
+        },
+        "benchmark": "benchmarks/2026-08-30-browser-neural-engine-v6-rocm.json"
       },
       "large_multiplayer_vs_search_256": {
         "protocol": "held-out procedural 5-8 player matrix",
@@ -52,6 +70,7 @@
       "status": "superseded-beta",
       "relative_elo_vs_search_2048": {
         "protocol": "schema-v2 same-map opposite-seat",
+        "engine_version": 5,
         "games": 336,
         "record": "336-0-0",
         "aggregate": 1130.6890080675973,
@@ -62,6 +81,14 @@
         "online_duel_v1": 791.0894421155398,
         "online_experimental_v1": 791.0894421155398,
         "online_experimental_v2_260801": 791.0894421155398
+      },
+      "engine_v6_relative_elo_vs_search_2048": {
+        "protocol": "schema-v3 same-map opposite-seat",
+        "games": 336,
+        "record": "310-0-26",
+        "truncations": 2,
+        "aggregate": 430.55533834538204,
+        "benchmark": "benchmarks/2026-08-30-browser-neural-engine-v6-rocm.json"
       }
     },
     {

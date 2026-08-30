@@ -107,9 +107,10 @@ const BROWSER_POLICY_MODELS = {
 const PLAYER_NAMES = ["CYAN", "AMBER", "VIOLET", "CORAL", "LIME", "BLUE", "PINK", "SILVER"] as const;
 const MODEL_URL = "https://github.com/chelokot/antiyoy/releases/tag/model-v0.4.0-beta.1";
 const MODEL_RESULTS = [
-  ["Classic Generic", "48–0"],
-  ["Online Default", "48–0"],
-  ["Online Duel", "48–0"],
+  ["Classic · Generic + Slay", "96–0"],
+  ["Online Default", "24–24"],
+  ["Online Classic", "48–0"],
+  ["Duel + Experimental v1", "94–2"],
   ["Experimental v2", "48–0"],
 ] as const;
 
@@ -1075,13 +1076,13 @@ export default function Arena() {
           {replayMetadata === null && onlineSession === null && <details className="panel-section"><summary>GAME CONFIG</summary><div className="panel-section-body map-config"><label className="config-field"><span>RULESET</span><select value={draftConfig.profile} onChange={(event) => setDraftConfig((current) => ({ ...current, profile: event.target.value as RulesProfileName }))}>{RULES_PROFILES.map((profile) => <option value={profile.id} key={profile.id}>{profile.label}</option>)}</select></label><div className="config-grid"><label className="config-field"><span>MODE</span><select value={draftConfig.map} onChange={(event) => setDraftConfig((current) => ({ ...current, map: event.target.value as LiveConfig["map"], players: event.target.value === "duel" ? 2 : current.players }))}><option value="duel">Symmetric duel</option><option value="procedural">Procedural v1</option></select></label><label className="config-field"><span>SEED</span><input type="text" inputMode="numeric" pattern="[0-9]+" value={draftConfig.seed} onChange={(event) => setDraftConfig((current) => ({ ...current, seed: event.target.value }))} /></label><label className="config-field"><span>WIDTH</span><input type="number" min="5" max="41" value={draftConfig.width} onChange={(event) => setDraftConfig((current) => ({ ...current, width: Number(event.target.value) }))} /></label><label className="config-field"><span>HEIGHT</span><input type="number" min="2" max="31" value={draftConfig.height} onChange={(event) => setDraftConfig((current) => ({ ...current, height: Number(event.target.value) }))} /></label><label className="config-field"><span>PLAYERS</span><input type="number" min="2" max="8" disabled={draftConfig.map === "duel"} value={draftConfig.map === "duel" ? 2 : draftConfig.players} onChange={(event) => setDraftConfig((current) => ({ ...current, players: Number(event.target.value) }))} /></label><label className="config-field"><span>LAND PPM</span><input type="number" min="200000" max="1000000" step="50000" disabled={draftConfig.map === "duel"} value={draftConfig.map === "duel" ? 650000 : draftConfig.landDensity} onChange={(event) => setDraftConfig((current) => ({ ...current, landDensity: Number(event.target.value) }))} /></label></div><button className="generate-button" type="button" onClick={generate}>Generate deterministic map</button></div></details>}
           <details className="panel-section"><summary>TERRITORY</summary><div className="panel-section-body space-y-3 text-xs">{territories.map((cells, player) => <Bar label={playerLabel(player)} value={cells} width={`${territoryShares[player]}%`} player={player} key={player} />)}</div></details>
           <details className="panel-section"><summary>ENGINE</summary><div className="panel-section-body"><div className="engine-note mt-0"><p className="eyebrow text-[#d8ff3e]">SAME CORE</p><p className="mt-2 text-sm leading-6 text-[#b8c0ba]">Every displayed transition is executed by the headless Rust environment compiled to WebAssembly.</p></div></div></details>
-          <details className="panel-section"><summary>BETA POLICY · 336–0</summary><div className="panel-section-body model-card">
+          <details className="panel-section"><summary>BETA POLICY · 310–26</summary><div className="panel-section-body model-card">
             <div className="flex items-center justify-between gap-3"><p className="eyebrow text-[#d8ff3e]">BETA POLICY</p><span className="font-mono text-[0.65rem] text-[#8d9690]">38 experts</span></div>
             <p className="mt-2 text-sm font-semibold">universal routed · 2–8 players</p>
-            <p className="mt-3 font-mono text-[0.65rem] uppercase tracking-[0.12em] text-[#8d9690]">vs search-2048 · 336–0</p>
+            <p className="mt-3 font-mono text-[0.65rem] uppercase tracking-[0.12em] text-[#8d9690]">core v6 · vs search-2048 · 310–26</p>
             <dl className="mt-4 space-y-2 font-mono text-xs">{MODEL_RESULTS.map(([profile, score]) => <Row label={profile} value={score} accent key={profile} />)}</dl>
             <a className="model-download" href={MODEL_URL} target="_blank" rel="noreferrer">Download verified bundle ↗</a>
-            <p className="mt-3 text-[0.65rem] leading-5 text-[#77817b]">The seven fixed-duel routes preserve the verified 48–0 profile results. Multiplayer routes are separate beta experts; this is not an absolute human rating.</p>
+            <p className="mt-3 text-[0.65rem] leading-5 text-[#77817b]">Fresh engine-v6 evaluation: 336 paired games, every profile and both seats. Online Default exposes a first-seat weakness. This is not an absolute human rating.</p>
           </div></details>
           <details className="panel-section"><summary>YOUR ELO · {Math.round(placement.elo)}</summary><div className="panel-section-body model-card">
             <div className="flex items-center justify-between gap-3"><p className="eyebrow text-[#d8ff3e]">YOUR PLACEMENT</p><span className="font-mono text-[0.65rem] text-[#8d9690]">LOCAL</span></div>

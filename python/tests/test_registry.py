@@ -26,6 +26,10 @@ def test_registry_defaults_to_the_universal_two_to_eight_player_bundle() -> None
     assert current["context_routes"] == 49
     assert current["seat_context_routes"] == 18
     assert current["domain_routes"] == 10
+    engine_v6_arena = current["engine_v6_fixed_duel_vs_search_2048"]
+    assert engine_v6_arena["games"] == 336
+    assert engine_v6_arena["record"] == "310-0-26"
+    assert engine_v6_arena["profile_records"]["online_default_v1"] == "24-0-24"
     assert sum(model["status"] == "beta" for model in payload["models"]) == 1
 
 

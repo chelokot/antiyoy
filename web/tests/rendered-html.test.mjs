@@ -24,10 +24,11 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(html, /classic_generic_2022/);
   assert.match(html, /BETA POLICY/);
   assert.match(html, /vs search-2048/);
-  assert.match(html, /vs search-2048 · 336–0/);
+  assert.match(html, /core v6 · vs search-2048 · 310–26/);
   assert.match(html, /38 experts/);
   assert.match(html, /universal routed · 2–8 players/);
-  assert.match(html, /fixed-duel routes preserve the verified 48–0 profile results/);
+  assert.match(html, /Fresh engine-v6 evaluation: 336 paired games/);
+  assert.match(html, /Online Default exposes a first-seat weakness/);
   assert.match(html, /Download verified bundle/);
   assert.match(html, /Replay/);
   assert.match(html, /GAME CONFIG/);

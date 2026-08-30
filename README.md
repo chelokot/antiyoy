@@ -195,12 +195,13 @@ PYTHONPATH=python python python/evaluate.py \
 
 The current routed bundle contains 38 immutable experts and selects them through
 profile, generator, player-count, seat, and exact-domain routes covering two to
-eight players. Its seven fixed 11×9 duel routes are tensor-identical to the
-previous two-expert beta and therefore preserve that release's 336–0 held-out
-record against native search-2048. The separate 5–8-player procedural matrix is
-much harder: 55 wins in 364 games against search-256, with 132 action-limit
-truncations. Neither result is an absolute human Elo or a claim of universal
-superhuman play. Exact results and training provenance live under
+eight players. Engine v6 re-evaluation of its tensor-identical fixed-duel routes
+scored 310 wins and 26 losses in 336 paired games against native search-2048.
+Online Default is the weak slice at 24–24, entirely from the first seat. The
+separate 5–8-player procedural matrix is much harder: 55 wins in 364 games
+against search-256, with 132 action-limit truncations. Neither result is an
+absolute human Elo or a claim of universal superhuman play. Exact results and
+training provenance live under
 [`benchmarks/`](benchmarks/).
 
 Play against the neural beta in a local browser (cyan moves first):
