@@ -80,6 +80,10 @@ def training_config() -> TrainingConfig:
         device="cpu",
         initialize=None,
         initialize_profile=None,
+        initialize_generator=None,
+        initialize_players=None,
+        initialize_seat=None,
+        initialize_domain=None,
         resume=None,
         checkpoint=Path("unused.pt"),
     )
@@ -449,6 +453,48 @@ def test_bundle_initialization_selects_profile_route() -> None:
     assert expert == "specialist:v2"
 
 
+def test_bundle_initialization_selects_context_and_seat_routes() -> None:
+    checkpoint = {
+        "kind": "routed_policy_bundle",
+        "bundle_version": 4,
+        "routes": {"classic_generic_2022": "default"},
+        "context_routes": [
+            {
+                "profile": "classic_generic_2022",
+                "generator": "procedural_v1",
+                "players": 6,
+                "expert": "six-player",
+            }
+        ],
+        "seat_context_routes": [
+            {
+                "profile": "classic_generic_2022",
+                "generator": "procedural_v1",
+                "players": 6,
+                "seat": 2,
+                "expert": "seat-two",
+            }
+        ],
+        "experts": {
+            "default": {"weight": torch.tensor([1.0])},
+            "six-player": {"weight": torch.tensor([2.0])},
+            "seat-two": {"weight": torch.tensor([3.0])},
+        },
+    }
+
+    context_state, context_expert = initialization_state(
+        checkpoint, "classic_generic_2022", "procedural_v1", 6
+    )
+    seat_state, seat_expert = initialization_state(
+        checkpoint, "classic_generic_2022", "procedural_v1", 6, 2
+    )
+
+    assert context_state is checkpoint["experts"]["six-player"]
+    assert context_expert == "six-player"
+    assert seat_state is checkpoint["experts"]["seat-two"]
+    assert seat_expert == "seat-two"
+
+
 def test_bundle_initialization_requires_a_profile() -> None:
     checkpoint = {
         "kind": "routed_policy_bundle",
@@ -466,3 +512,25 @@ def test_training_rejects_initialize_profile_without_checkpoint() -> None:
         validate_config(
             replace(training_config(), initialize_profile="classic_generic_2022")
         )
+
+
+def test_training_validates_bundle_initialization_route_selectors() -> None:
+    initialized = replace(
+        training_config(),
+        initialize=Path("bundle.pt"),
+        initialize_profile="classic_generic_2022",
+    )
+    validate_config(
+        replace(
+            initialized,
+            initialize_generator="procedural_v1",
+            initialize_players=6,
+            initialize_seat=2,
+        )
+    )
+    with pytest.raises(ValueError, match="must be used together"):
+        validate_config(replace(initialized, initialize_generator="procedural_v1"))
+    with pytest.raises(ValueError, match="requires generator"):
+        validate_config(replace(initialized, initialize_seat=2))
+    with pytest.raises(ValueError, match="requires initialize_seat"):
+        validate_config(replace(initialized, initialize_domain="domain"))

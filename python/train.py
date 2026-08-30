@@ -28,6 +28,10 @@ try:
     from .build_bundle import BUNDLE_KIND, SUPPORTED_BUNDLE_VERSIONS
 except ImportError:
     from build_bundle import BUNDLE_KIND, SUPPORTED_BUNDLE_VERSIONS
+try:
+    from .routes import select_bundle_expert
+except ImportError:
+    from routes import select_bundle_expert
 
 
 CHECKPOINT_VERSION = 5
@@ -89,6 +93,10 @@ class TrainingConfig:
     device: str
     initialize: Path | None
     initialize_profile: str | None
+    initialize_generator: str | None
+    initialize_players: int | None
+    initialize_seat: int | None
+    initialize_domain: str | None
     resume: Path | None
     checkpoint: Path | None
 
@@ -439,6 +447,29 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("initialize and resume are mutually exclusive")
     if config.initialize_profile is not None and config.initialize is None:
         raise ValueError("initialize_profile requires an initialization checkpoint")
+    initialization_context = (
+        config.initialize_generator,
+        config.initialize_players,
+        config.initialize_seat,
+        config.initialize_domain,
+    )
+    if any(value is not None for value in initialization_context):
+        if config.initialize is None:
+            raise ValueError("initialize route selectors require an initialization checkpoint")
+        if config.initialize_profile is None:
+            raise ValueError("initialize route selectors require initialize_profile")
+    if (config.initialize_generator is None) != (config.initialize_players is None):
+        raise ValueError("initialize_generator and initialize_players must be used together")
+    if config.initialize_seat is not None and config.initialize_players is None:
+        raise ValueError("initialize_seat requires generator and player selectors")
+    if config.initialize_domain is not None and config.initialize_seat is None:
+        raise ValueError("initialize_domain requires initialize_seat")
+    if config.initialize_players is not None and not 2 <= config.initialize_players <= 8:
+        raise ValueError("initialize_players must be between two and eight")
+    if config.initialize_seat is not None:
+        selected_players = cast(int, config.initialize_players)
+        if config.initialize_seat < 0 or config.initialize_seat >= selected_players:
+            raise ValueError("initialize_seat must be in the selected player range")
     if config.land_density_schedule_per_million is not None:
         if not config.procedural:
             raise ValueError("land density schedule requires procedural maps")
@@ -704,20 +735,32 @@ def initialize_checkpoint(
     model: UniversalPolicy,
     device: torch.device,
     profile: str | None,
+    generator: str | None,
+    players: int | None,
+    seat: int | None,
+    domain: str | None,
 ) -> str:
     checkpoint = load_training_checkpoint(path, device, compatible=True)
-    state, selected_expert = initialization_state(checkpoint, profile)
+    state, selected_expert = initialization_state(
+        checkpoint, profile, generator, players, seat, domain
+    )
     load_policy_state(model, state)
     return selected_expert
 
 
 def initialization_state(
-    checkpoint: dict[str, object], profile: str | None
+    checkpoint: dict[str, object],
+    profile: str | None,
+    generator: str | None = None,
+    players: int | None = None,
+    seat: int | None = None,
+    domain: str | None = None,
 ) -> tuple[dict[str, Tensor], str]:
     state = checkpoint.get("model")
     if state is not None:
-        if profile is not None:
-            raise ValueError("initialize_profile is only valid for a policy bundle")
+        selectors = (profile, generator, players, seat, domain)
+        if any(value is not None for value in selectors):
+            raise ValueError("initialize route selectors are only valid for a policy bundle")
         return state, "single"
     if checkpoint.get("kind") != BUNDLE_KIND:
         raise ValueError("initialization checkpoint has no policy weights")
@@ -725,9 +768,9 @@ def initialization_state(
         raise ValueError("initialization policy bundle version does not match")
     if profile is None:
         raise ValueError("policy bundle initialization requires initialize_profile")
-    selected_expert = checkpoint["routes"].get(profile)
-    if selected_expert is None:
-        raise ValueError(f"policy bundle has no route for profile: {profile}")
+    selected_expert = select_bundle_expert(
+        checkpoint, profile, generator, players, seat, domain
+    )
     return checkpoint["experts"][selected_expert], selected_expert
 
 
@@ -799,7 +842,14 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     initialized_expert = ""
     if config.initialize is not None:
         initialized_expert = initialize_checkpoint(
-            config.initialize, model, device, config.initialize_profile
+            config.initialize,
+            model,
+            device,
+            config.initialize_profile,
+            config.initialize_generator,
+            config.initialize_players,
+            config.initialize_seat,
+            config.initialize_domain,
         )
     elif config.resume is not None:
         restore_checkpoint(config.resume, model, optimizer, device)
@@ -1074,6 +1124,10 @@ def parse_args() -> TrainingConfig:
     continuation.add_argument("--initialize", type=Path)
     continuation.add_argument("--resume", type=Path)
     parser.add_argument("--initialize-profile")
+    parser.add_argument("--initialize-generator")
+    parser.add_argument("--initialize-players", type=int)
+    parser.add_argument("--initialize-seat", type=int)
+    parser.add_argument("--initialize-domain")
     parser.add_argument("--checkpoint", type=Path)
     arguments = vars(parser.parse_args())
     if arguments["profile"] is None and arguments["profiles"] is None:

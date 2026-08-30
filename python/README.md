@@ -210,6 +210,12 @@ Multiplayer evaluation deserializes a checkpoint once per profile/seed window
 and instantiates each distinct routed expert once. Seat and domain selection no
 longer reread the complete bundle for every player.
 
+When refining an accepted expert, `train.py --initialize BUNDLE
+--initialize-profile PROFILE --initialize-generator procedural_v1
+--initialize-players 6` starts from the exact context route instead of the
+bundle's profile fallback. Add `--initialize-seat` and `--initialize-domain`
+for the more specific route levels.
+
 Evaluation alternates model seats, uses held-out seeds, and reports the raw
 win/draw/loss score plus an Elo difference against the named baseline. Terminal
 draws and action-limit truncations are reported separately, along with action

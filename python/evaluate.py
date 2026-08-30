@@ -24,6 +24,10 @@ try:
 except ImportError:
     from build_bundle import BUNDLE_KIND, SUPPORTED_BUNDLE_VERSIONS
 try:
+    from .routes import select_bundle_expert
+except ImportError:
+    from routes import select_bundle_expert
+try:
     from .train import CHECKPOINT_VERSION
 except ImportError:
     from train import CHECKPOINT_VERSION
@@ -188,45 +192,9 @@ def select_policy_state(
         if checkpoint.get("bundle_version") not in SUPPORTED_BUNDLE_VERSIONS:
             raise ValueError("policy bundle version does not match this evaluator")
         selected_profile = profile or config["profile"] or config["profiles"][0]
-        selected_expert = checkpoint["routes"].get(selected_profile)
-        if selected_expert is None:
-            raise ValueError(f"policy bundle has no route for profile: {selected_profile}")
-        context_matches = [
-            route
-            for route in checkpoint.get("context_routes", [])
-            if route["profile"] == selected_profile
-            and route["generator"] == generator
-            and route["players"] == players
-        ]
-        if len(context_matches) > 1:
-            raise ValueError("policy bundle contains duplicate context routes")
-        if context_matches:
-            selected_expert = context_matches[0]["expert"]
-        seat_context_matches = [
-            route
-            for route in checkpoint.get("seat_context_routes", [])
-            if route["profile"] == selected_profile
-            and route["generator"] == generator
-            and route["players"] == players
-            and route["seat"] == seat
-        ]
-        if len(seat_context_matches) > 1:
-            raise ValueError("policy bundle contains duplicate seat context routes")
-        if seat_context_matches:
-            selected_expert = seat_context_matches[0]["expert"]
-        domain_matches = [
-            route
-            for route in checkpoint.get("domain_routes", [])
-            if route["profile"] == selected_profile
-            and route["generator"] == generator
-            and route["players"] == players
-            and route["seat"] == seat
-            and route["domain"] == domain
-        ]
-        if len(domain_matches) > 1:
-            raise ValueError("policy bundle contains duplicate domain routes")
-        if domain_matches:
-            selected_expert = domain_matches[0]["expert"]
+        selected_expert = select_bundle_expert(
+            checkpoint, selected_profile, generator, players, seat, domain
+        )
         state = checkpoint["experts"][selected_expert]
     if state is None:
         raise ValueError("checkpoint has no policy weights")
