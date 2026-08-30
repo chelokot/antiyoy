@@ -73,10 +73,12 @@ def build_bundle(
         }
     }
     for profile, path in route_paths.items():
-        if profile not in routes:
-            raise ValueError(f"routed profile is not in the primary curriculum: {profile}")
         specialist = load_source(path)
         compatible(primary, specialist)
+        if profile not in source_profiles(specialist):
+            raise ValueError(f"specialist curriculum does not contain routed profile: {profile}")
+        if profile not in routes:
+            profiles.append(profile)
         expert = f"specialist:{profile}"
         routes[profile] = expert
         experts[expert] = specialist["model"]
