@@ -64,3 +64,8 @@ rejected per profile and seat before the complete matrix is rerun. The record
 keeps unsuccessful candidates as ablation evidence, reports unchanged domains,
 and preserves failed release gates instead of presenting an aggregate gain as
 a universal policy improvement.
+
+The 5–8 player matrix gives every seat one game on each of two held-out seeds
+for every compatibility profile. Its increasing board sizes and action limits
+are part of the domain identity. Use a search-node override only for explicitly
+labelled scouting runs; release records retain the configured 2048-node budget.

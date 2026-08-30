@@ -19,6 +19,16 @@ def test_release_matrix_is_valid_and_covers_multiplayer() -> None:
     }
 
 
+def test_large_multiplayer_matrix_rotates_every_seat() -> None:
+    matrix = parse_matrix(
+        Path("benchmarks/configs/universal-cross-domain-5to8p-v1.json")
+    )
+
+    assert [domain.players for domain in matrix.domains] == [5, 6, 7, 8]
+    assert all(domain.games_per_seed == domain.players for domain in matrix.domains)
+    assert all(len(domain.seeds) == 2 for domain in matrix.domains)
+
+
 def test_matrix_rejects_incomplete_seat_rotation(tmp_path) -> None:
     payload = json.loads(
         Path("benchmarks/configs/universal-cross-domain-v1.json").read_text()

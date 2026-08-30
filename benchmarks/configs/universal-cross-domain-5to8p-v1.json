@@ -1,0 +1,70 @@
+{
+  "schema_version": 2,
+  "profiles": [
+    "classic_generic_2022",
+    "classic_slay_2022",
+    "online_default_v1",
+    "online_classic_v1",
+    "online_duel_v1",
+    "online_experimental_v1",
+    "online_experimental_v2_260801"
+  ],
+  "baseline": "search",
+  "search": {
+    "nodes": 2048,
+    "beam_width": 32,
+    "branch_width": 48,
+    "maximum_actions_per_turn": 24
+  },
+  "gates": {
+    "minimum_domain_relative_elo": 0.0,
+    "minimum_slice_score_delta": 0.0,
+    "maximum_truncation_rate_delta": 0.02
+  },
+  "domains": [
+    {
+      "id": "procedural-19x15-5p",
+      "generator": "procedural_v1",
+      "width": 19,
+      "height": 15,
+      "players": 5,
+      "games_per_seed": 5,
+      "seeds": [350000, 360000],
+      "action_limit": 2400,
+      "land_density_per_million": 650000
+    },
+    {
+      "id": "procedural-21x15-6p",
+      "generator": "procedural_v1",
+      "width": 21,
+      "height": 15,
+      "players": 6,
+      "games_per_seed": 6,
+      "seeds": [350000, 360000],
+      "action_limit": 2800,
+      "land_density_per_million": 650000
+    },
+    {
+      "id": "procedural-23x17-7p",
+      "generator": "procedural_v1",
+      "width": 23,
+      "height": 17,
+      "players": 7,
+      "games_per_seed": 7,
+      "seeds": [350000, 360000],
+      "action_limit": 3200,
+      "land_density_per_million": 650000
+    },
+    {
+      "id": "procedural-25x17-8p",
+      "generator": "procedural_v1",
+      "width": 25,
+      "height": 17,
+      "players": 8,
+      "games_per_seed": 8,
+      "seeds": [350000, 360000],
+      "action_limit": 3600,
+      "land_density_per_million": 650000
+    }
+  ]
+}
