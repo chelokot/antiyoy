@@ -2,6 +2,7 @@
 
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
+use std::time::Duration;
 
 use antiyoy_eval::League;
 use antiyoy_protocol::{
@@ -13,15 +14,18 @@ use anyhow::Result;
 use axum::body::Body;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, Query, State};
-use axum::http::{HeaderMap, StatusCode, header};
+use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use axum_server::Handle;
+use axum_server::tls_rustls::RustlsConfig;
 use clap::Parser;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
 use tokio::sync::broadcast;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 
 #[derive(Debug, Parser)]
 #[command(name = "antiyoy-server", version, about)]
@@ -42,6 +46,12 @@ struct Cli {
     search_nodes: usize,
     #[arg(long, default_value = "server-data")]
     data_directory: PathBuf,
+    #[arg(long, requires = "tls_key")]
+    tls_certificate: Option<PathBuf>,
+    #[arg(long, requires = "tls_certificate")]
+    tls_key: Option<PathBuf>,
+    #[arg(long)]
+    allowed_origin: Vec<HeaderValue>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -64,7 +74,6 @@ struct ErrorBody {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     let address = SocketAddr::new(cli.host, cli.port);
-    let listener = TcpListener::bind(address).await?;
     let service = MatchService::persistent(
         ServiceLimits {
             maximum_rooms: cli.maximum_rooms,
@@ -75,14 +84,26 @@ async fn main() -> Result<()> {
         },
         cli.data_directory,
     )?;
-    axum::serve(listener, router(service))
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    let app = router(service, cli.allowed_origin);
+    if let (Some(certificate), Some(key)) = (cli.tls_certificate, cli.tls_key) {
+        let config = RustlsConfig::from_pem_file(certificate, key).await?;
+        let handle = Handle::new();
+        tokio::spawn(tls_shutdown_signal(handle.clone()));
+        axum_server::bind_rustls(address, config)
+            .handle(handle)
+            .serve(app.into_make_service())
+            .await?;
+    } else {
+        let listener = TcpListener::bind(address).await?;
+        axum::serve(listener, app)
+            .with_graceful_shutdown(shutdown_signal())
+            .await?;
+    }
     Ok(())
 }
 
-fn router(service: MatchService) -> Router {
-    Router::new()
+fn router(service: MatchService, allowed_origins: Vec<HeaderValue>) -> Router {
+    let app = Router::new()
         .route("/health", get(health))
         .route("/v1/matches", post(create_match))
         .route("/v1/league", get(league_state))
@@ -96,7 +117,17 @@ fn router(service: MatchService) -> Router {
             post(claim_seat),
         )
         .route("/v1/matches/{match_id}/watch", get(watch_match))
-        .with_state(service)
+        .with_state(service);
+    if allowed_origins.is_empty() {
+        app
+    } else {
+        app.layer(
+            CorsLayer::new()
+                .allow_origin(AllowOrigin::list(allowed_origins))
+                .allow_methods([Method::GET, Method::POST, Method::DELETE])
+                .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]),
+        )
+    }
 }
 
 async fn health() -> Json<Health> {
@@ -354,4 +385,9 @@ where
 
 async fn shutdown_signal() {
     let _ = tokio::signal::ctrl_c().await;
+}
+
+async fn tls_shutdown_signal(handle: Handle<SocketAddr>) {
+    let _ = tokio::signal::ctrl_c().await;
+    handle.graceful_shutdown(Some(Duration::from_secs(10)));
 }
