@@ -93,6 +93,14 @@ both the bootstrapped value and recursive advantage sign. Its checkpoint
 contract records the observation version, rule feature width, training rules,
 optimizer, and every hyperparameter needed to reproduce the run.
 
+Fixed-opponent training uses a different credit boundary. One configured seat
+is sampled from the policy while every other seat is controlled by an immutable
+greedy or bounded-search agent. The trainer stores only learner decisions and
+applies clipped PPO after each complete game from the terminal or deterministic
+adjudicated winner. This gives every decision in a turn sequence outcome credit
+without inventing opponent-perspective reward signs in games with more than two
+players. A frozen reference-policy KL term bounds specialization drift.
+
 ## Determinism
 
 Parallel stepping is deterministic because games share no mutable state, output

@@ -14,16 +14,24 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from antiyoy_rl import OBSERVATION_VERSION, ProceduralConfig, ScenarioObjective, VectorEnv
+from antiyoy_rl import (
+    OBSERVATION_VERSION,
+    ProceduralConfig,
+    ScenarioObjective,
+    VectorEnv,
+)
 from antiyoy_rl.model import (
     ACTION_KIND_NAMES,
     RULE_FEATURES,
     UniversalPolicy,
     action_distribution,
+    concatenate_observations,
     encode_rules_batch,
     load_policy_state,
     rotate_observation_180,
+    select_environments,
 )
+
 try:
     from .build_bundle import BUNDLE_KIND, SUPPORTED_BUNDLE_VERSIONS
 except ImportError:
@@ -85,6 +93,10 @@ class TrainingConfig:
     territory_weight: float
     treasury_weight: float
     unit_weight: float
+    fixed_opponent: str | None
+    learner_seat: int
+    opponent_minibatch: int
+    opponent_reference_weight: float
     profile: str | None
     profiles: list[str] | None
     fog: bool
@@ -113,11 +125,34 @@ class Rollout:
     bootstrap: Tensor
 
 
-def reward_tensor(result: dict[str, np.ndarray], config: TrainingConfig, device: torch.device) -> Tensor:
+@dataclass(frozen=True)
+class EpisodeDecision:
+    observation: dict[str, np.ndarray]
+    action: int
+    environment: int
+    log_probability: float
+    value: float
+
+
+@dataclass(frozen=True)
+class EpisodeTrajectory:
+    decisions: tuple[EpisodeDecision, ...]
+    outcome: float
+
+
+def reward_tensor(
+    result: dict[str, np.ndarray], config: TrainingConfig, device: torch.device
+) -> Tensor:
     outcome = torch.as_tensor(result["outcomes"], dtype=torch.float32, device=device)
-    territory = torch.as_tensor(result["territory_delta"], dtype=torch.float32, device=device)
-    treasury = torch.as_tensor(result["treasury_delta"], dtype=torch.float32, device=device)
-    units = torch.as_tensor(result["unit_strength_delta"], dtype=torch.float32, device=device)
+    territory = torch.as_tensor(
+        result["territory_delta"], dtype=torch.float32, device=device
+    )
+    treasury = torch.as_tensor(
+        result["treasury_delta"], dtype=torch.float32, device=device
+    )
+    units = torch.as_tensor(
+        result["unit_strength_delta"], dtype=torch.float32, device=device
+    )
     return (
         outcome
         + config.territory_weight * territory
@@ -278,7 +313,9 @@ def parsed_slice_weights(config: TrainingConfig) -> dict[tuple[str, int], float]
             seat = int(seat_text)
             weight = float(weight_text)
         except ValueError as error:
-            raise ValueError("imitation slice weights use PROFILE:SEAT:WEIGHT") from error
+            raise ValueError(
+                "imitation slice weights use PROFILE:SEAT:WEIGHT"
+            ) from error
         if profile not in scheduled:
             raise ValueError(f"imitation slice profile is not scheduled: {profile}")
         if seat < 0 or seat >= maximum_players(config):
@@ -325,14 +362,20 @@ def parsed_policy_rollin_slices(config: TrainingConfig) -> set[tuple[str, int]]:
         try:
             seat = int(seat_text)
         except ValueError as error:
-            raise ValueError("imitation policy rollin slices use PROFILE:SEAT") from error
+            raise ValueError(
+                "imitation policy rollin slices use PROFILE:SEAT"
+            ) from error
         if profile not in scheduled:
-            raise ValueError(f"imitation policy rollin profile is not scheduled: {profile}")
+            raise ValueError(
+                f"imitation policy rollin profile is not scheduled: {profile}"
+            )
         if seat < 0 or seat >= maximum_players(config):
             raise ValueError(f"imitation policy rollin seat is out of range: {seat}")
         key = (profile, seat)
         if key in parsed:
-            raise ValueError(f"duplicate imitation policy rollin slice: {profile}:{seat}")
+            raise ValueError(
+                f"duplicate imitation policy rollin slice: {profile}:{seat}"
+            )
         parsed.add(key)
     return parsed
 
@@ -388,6 +431,7 @@ def validate_config(config: TrainingConfig) -> None:
         "environments": config.environments,
         "rollout_steps": config.rollout_steps,
         "epochs": config.epochs,
+        "opponent_minibatch": config.opponent_minibatch,
     }
     invalid = [name for name, value in positive.items() if value < 1]
     if invalid:
@@ -400,6 +444,10 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("imitation_reset_interval must not be negative")
     if config.imitation_reference_weight < 0:
         raise ValueError("imitation_reference_weight must not be negative")
+    if config.opponent_reference_weight < 0:
+        raise ValueError("opponent_reference_weight must not be negative")
+    if config.fixed_opponent not in {None, "greedy", "search"}:
+        raise ValueError("fixed_opponent must be greedy, search, or omitted")
     if config.profiles is not None and not config.profiles:
         raise ValueError("profiles must not be empty")
     if config.procedural and (config.players < 2 or config.players > 8):
@@ -411,6 +459,9 @@ def validate_config(config: TrainingConfig) -> None:
             raise ValueError("players schedule must not be empty")
         if any(players < 2 or players > 8 for players in config.players_schedule):
             raise ValueError("players schedule values must be between two and eight")
+    player_counts = config.players_schedule or [config.players]
+    if config.learner_seat < 0 or config.learner_seat >= min(player_counts):
+        raise ValueError("learner_seat must exist in every scheduled domain")
     if config.map_size_schedule is not None:
         if not config.procedural:
             raise ValueError("map size schedule requires procedural maps")
@@ -431,6 +482,8 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("updates must not be negative")
     if config.updates == 0 and config.imitation_updates == 0:
         raise ValueError("at least one PPO or imitation update is required")
+    if config.fixed_opponent is not None and config.updates == 0:
+        raise ValueError("fixed-opponent training requires at least one update")
     if config.imitation_teacher not in {"greedy", "search"}:
         raise ValueError("imitation_teacher must be greedy or search")
     if config.imitation_rollin not in {"teacher", "policy"}:
@@ -455,16 +508,23 @@ def validate_config(config: TrainingConfig) -> None:
     )
     if any(value is not None for value in initialization_context):
         if config.initialize is None:
-            raise ValueError("initialize route selectors require an initialization checkpoint")
+            raise ValueError(
+                "initialize route selectors require an initialization checkpoint"
+            )
         if config.initialize_profile is None:
             raise ValueError("initialize route selectors require initialize_profile")
     if (config.initialize_generator is None) != (config.initialize_players is None):
-        raise ValueError("initialize_generator and initialize_players must be used together")
+        raise ValueError(
+            "initialize_generator and initialize_players must be used together"
+        )
     if config.initialize_seat is not None and config.initialize_players is None:
         raise ValueError("initialize_seat requires generator and player selectors")
     if config.initialize_domain is not None and config.initialize_seat is None:
         raise ValueError("initialize_domain requires initialize_seat")
-    if config.initialize_players is not None and not 2 <= config.initialize_players <= 8:
+    if (
+        config.initialize_players is not None
+        and not 2 <= config.initialize_players <= 8
+    ):
         raise ValueError("initialize_players must be between two and eight")
     if config.initialize_seat is not None:
         selected_players = cast(int, config.initialize_players)
@@ -487,9 +547,11 @@ def validate_config(config: TrainingConfig) -> None:
         config.neutral_capital_density_per_million,
         config.grave_density_per_million,
     ]
-    if config.procedural and any(density < 0 or density > 1_000_000 for density in densities):
+    if config.procedural and any(
+        density < 0 or density > 1_000_000 for density in densities
+    ):
         raise ValueError("procedural densities must be between zero and one million")
-    if config.procedural and sum(densities[len(land_densities):]) > 1_000_000:
+    if config.procedural and sum(densities[len(land_densities) :]) > 1_000_000:
         raise ValueError("procedural neutral object densities exceed one million")
 
 
@@ -550,6 +612,190 @@ def collect_rollout(
     )
 
 
+def collect_fixed_opponent_episodes(
+    environment: VectorEnv,
+    model: UniversalPolicy,
+    rules: Tensor,
+    config: TrainingConfig,
+    device: torch.device,
+    reset_seed: int,
+) -> tuple[list[EpisodeTrajectory], int, int]:
+    for environment_index in range(config.environments):
+        environment.reset(environment_index, reset_seed)
+        reset_seed += 1
+    finished = np.zeros(config.environments, dtype=np.bool_)
+    decisions: list[list[EpisodeDecision]] = [[] for _ in range(config.environments)]
+    outcomes = np.zeros(config.environments, dtype=np.float32)
+    environment_steps = 0
+    while not bool(np.all(finished)):
+        observation = environment.observe()
+        active_players = np.asarray(observation["active_players"], dtype=np.int64)
+        learner_active = active_players == config.learner_seat
+        with torch.no_grad():
+            logits, values = model(observation, rules)
+            distribution = action_distribution(logits, observation["action_offsets"])
+            selected_actions = distribution.sample()
+            log_probabilities = distribution.log_prob(selected_actions)
+            policy_actions = selected_actions.cpu().numpy().astype(np.uint64)
+        if config.fixed_opponent == "search":
+            opponent_actions = np.asarray(
+                environment.search_actions(
+                    node_budget=config.search_nodes,
+                    beam_width=config.search_beam_width,
+                    branch_width=config.search_branch_width,
+                    maximum_actions_per_turn=config.search_maximum_actions_per_turn,
+                    active_mask=np.asarray(~learner_active, dtype=np.uint8),
+                ),
+                dtype=np.uint64,
+            )
+        else:
+            opponent_actions = np.asarray(environment.greedy_actions(), dtype=np.uint64)
+        actions = np.where(learner_active, policy_actions, opponent_actions)
+        for environment_index in np.flatnonzero(
+            np.logical_and(learner_active, ~finished)
+        ):
+            decisions[environment_index].append(
+                EpisodeDecision(
+                    observation=select_environments(
+                        observation, [int(environment_index)]
+                    ),
+                    action=int(policy_actions[environment_index]),
+                    environment=int(environment_index),
+                    log_probability=float(log_probabilities[environment_index].item()),
+                    value=float(values[environment_index].item()),
+                )
+            )
+        result = environment.step(actions)
+        environment_steps += config.environments
+        done = np.logical_or(result["terminal"], result["truncated"])
+        for environment_index in np.flatnonzero(done):
+            if not finished[environment_index]:
+                winner = int(result["winners"][environment_index])
+                if winner == 255:
+                    winner = int(result["adjudicated_winners"][environment_index])
+                if winner == 255:
+                    outcomes[environment_index] = 0.0
+                elif winner == config.learner_seat:
+                    outcomes[environment_index] = 1.0
+                else:
+                    outcomes[environment_index] = -1.0
+                finished[environment_index] = True
+            environment.reset(int(environment_index), reset_seed)
+            reset_seed += 1
+    episodes = [
+        EpisodeTrajectory(tuple(trajectory), float(outcome))
+        for trajectory, outcome in zip(decisions, outcomes, strict=True)
+    ]
+    return episodes, reset_seed, environment_steps
+
+
+def optimize_fixed_opponent_episodes(
+    model: UniversalPolicy,
+    reference_model: UniversalPolicy | None,
+    optimizer: torch.optim.Optimizer,
+    rules: Tensor,
+    episodes: list[EpisodeTrajectory],
+    config: TrainingConfig,
+    device: torch.device,
+) -> dict[str, float | int]:
+    samples: list[tuple[EpisodeDecision, float]] = []
+    for episode in episodes:
+        decision_count = len(episode.decisions)
+        for decision_index, decision in enumerate(episode.decisions):
+            remaining = decision_count - decision_index - 1
+            samples.append((decision, episode.outcome * config.gamma**remaining))
+    if not samples:
+        raise ValueError("fixed-opponent episodes contain no learner decisions")
+    returns = torch.tensor(
+        [sample_return for _, sample_return in samples],
+        dtype=torch.float32,
+        device=device,
+    )
+    advantages = returns - torch.tensor(
+        [decision.value for decision, _ in samples],
+        dtype=torch.float32,
+        device=device,
+    )
+    advantages -= advantages.mean()
+    advantages /= advantages.std(correction=0).clamp_min(1e-6)
+    loss_sum = 0.0
+    entropy_sum = 0.0
+    retention_sum = 0.0
+    optimizer_steps = 0
+    for _ in range(config.epochs):
+        ordering = torch.randperm(len(samples)).tolist()
+        for start in range(0, len(ordering), config.opponent_minibatch):
+            indices = ordering[start : start + config.opponent_minibatch]
+            batch = [samples[index][0] for index in indices]
+            observation = concatenate_observations(
+                [decision.observation for decision in batch]
+            )
+            batch_rules = torch.stack(
+                [rules[decision.environment] for decision in batch]
+            )
+            logits, values = model(observation, batch_rules)
+            distribution = action_distribution(logits, observation["action_offsets"])
+            actions = torch.tensor(
+                [decision.action for decision in batch],
+                dtype=torch.long,
+                device=device,
+            )
+            log_probabilities = distribution.log_prob(actions)
+            previous_log_probabilities = torch.tensor(
+                [decision.log_probability for decision in batch],
+                dtype=torch.float32,
+                device=device,
+            )
+            ratio = torch.exp(log_probabilities - previous_log_probabilities)
+            unclipped = ratio * advantages[indices]
+            clipped = (
+                torch.clamp(ratio, 1 - config.clip_ratio, 1 + config.clip_ratio)
+                * advantages[indices]
+            )
+            policy_loss = -torch.minimum(unclipped, clipped).mean()
+            value_loss = (values - returns[indices]).square().mean()
+            entropy = distribution.entropy().mean()
+            retention = torch.zeros((), device=device)
+            if reference_model is not None and config.opponent_reference_weight > 0:
+                with torch.no_grad():
+                    reference_logits, _ = reference_model(observation, batch_rules)
+                    reference_distribution = action_distribution(
+                        reference_logits, observation["action_offsets"]
+                    )
+                retention = torch.distributions.kl_divergence(
+                    reference_distribution, distribution
+                ).mean()
+            loss = (
+                policy_loss
+                + config.value_weight * value_loss
+                - config.entropy_weight * entropy
+                + config.opponent_reference_weight * retention
+            )
+            optimizer.zero_grad(set_to_none=True)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            optimizer_steps += 1
+            loss_sum += float(loss.item())
+            entropy_sum += float(entropy.item())
+            retention_sum += float(retention.item())
+    episode_outcomes = np.asarray(
+        [episode.outcome for episode in episodes], dtype=np.float32
+    )
+    return {
+        "episodes": len(episodes),
+        "decisions": len(samples),
+        "wins": int(np.count_nonzero(episode_outcomes == 1)),
+        "draws": int(np.count_nonzero(episode_outcomes == 0)),
+        "losses": int(np.count_nonzero(episode_outcomes == -1)),
+        "mean_outcome": float(episode_outcomes.mean()),
+        "loss": loss_sum / optimizer_steps,
+        "entropy": entropy_sum / optimizer_steps,
+        "retention_kl": retention_sum / optimizer_steps,
+        "optimizer_steps": optimizer_steps,
+    }
+
+
 def pretrain_teacher(
     environment: VectorEnv,
     model: UniversalPolicy,
@@ -575,9 +821,7 @@ def pretrain_teacher(
                 maximum_actions_per_turn=config.search_maximum_actions_per_turn,
             )
         )
-        targets = torch.as_tensor(
-            selected, dtype=torch.long, device=device
-        )
+        targets = torch.as_tensor(selected, dtype=torch.long, device=device)
         model_observation = observation
         if config.imitation_symmetry_augmentation:
             rotation_mask = (
@@ -586,9 +830,9 @@ def pretrain_teacher(
             model_observation = rotate_observation_180(observation, rotation_mask)
         logits, _ = model(model_observation, rules)
         distribution = action_distribution(logits, model_observation["action_offsets"])
-        weights = imitation_weights(config, observation, device) * imitation_action_weights(
-            config, observation, selected, device
-        )
+        weights = imitation_weights(
+            config, observation, device
+        ) * imitation_action_weights(config, observation, selected, device)
         weight_sum = weights.sum()
         teacher_losses = -distribution.log_prob(targets)
         loss = (teacher_losses * weights).sum() / weight_sum
@@ -674,7 +918,9 @@ def rollout_targets(rollout: Rollout, config: TrainingConfig) -> tuple[Tensor, T
         advantages[step] = next_advantage
         next_value = rollout.values[step]
     returns = advantages + rollout.values
-    advantages = (advantages - advantages.mean()) / advantages.std(correction=0).clamp_min(1e-6)
+    advantages = (advantages - advantages.mean()) / advantages.std(
+        correction=0
+    ).clamp_min(1e-6)
     return advantages, returns
 
 
@@ -698,9 +944,10 @@ def optimize_rollout(
             log_probability = distribution.log_prob(rollout.actions[step])
             ratio = torch.exp(log_probability - rollout.log_probabilities[step])
             unclipped = ratio * advantages[step]
-            clipped = torch.clamp(
-                ratio, 1 - config.clip_ratio, 1 + config.clip_ratio
-            ) * advantages[step]
+            clipped = (
+                torch.clamp(ratio, 1 - config.clip_ratio, 1 + config.clip_ratio)
+                * advantages[step]
+            )
             policy_loss = -torch.minimum(unclipped, clipped).mean()
             value_loss = (returns[step] - values).square().mean()
             entropy = distribution.entropy().mean()
@@ -760,7 +1007,9 @@ def initialization_state(
     if state is not None:
         selectors = (profile, generator, players, seat, domain)
         if any(value is not None for value in selectors):
-            raise ValueError("initialize route selectors are only valid for a policy bundle")
+            raise ValueError(
+                "initialize route selectors are only valid for a policy bundle"
+            )
         return state, "single"
     if checkpoint.get("kind") != BUNDLE_KIND:
         raise ValueError("initialization checkpoint has no policy weights")
@@ -854,7 +1103,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     elif config.resume is not None:
         restore_checkpoint(config.resume, model, optimizer, device)
     reference_model = None
-    if config.imitation_reference_weight > 0:
+    if config.imitation_reference_weight > 0 or config.opponent_reference_weight > 0:
         reference_model = copy.deepcopy(model).eval()
         reference_model.requires_grad_(False)
     rules = encode_rules_batch(environment.rules_jsons(), device)
@@ -903,29 +1152,74 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     imitation_transitions = config.imitation_updates * config.environments
     reward_average = 0.0
     loss_average = 0.0
+    training_transitions = 0
+    training_optimizer_steps = 0
+    opponent_episodes = 0
+    opponent_wins = 0
+    opponent_draws = 0
+    opponent_losses = 0
     for update in range(1, config.updates + 1):
-        rollout, reset_seed = collect_rollout(
-            environment, model, rules, config, device, reset_seed
-        )
-        advantages, returns = rollout_targets(rollout, config)
-        loss, entropy = optimize_rollout(
-            model, optimizer, rules, rollout, advantages, returns, config
-        )
-        reward = float(rollout.rewards.mean().item())
+        if config.fixed_opponent is None:
+            rollout, reset_seed = collect_rollout(
+                environment, model, rules, config, device, reset_seed
+            )
+            advantages, returns = rollout_targets(rollout, config)
+            loss, entropy = optimize_rollout(
+                model, optimizer, rules, rollout, advantages, returns, config
+            )
+            reward = float(rollout.rewards.mean().item())
+            training_transitions += config.rollout_steps * config.environments
+            training_optimizer_steps += config.rollout_steps * config.epochs
+            progress = {
+                "mean_value": float(rollout.values.mean().item()),
+                "entropy": entropy,
+            }
+        else:
+            episodes, reset_seed, environment_steps = collect_fixed_opponent_episodes(
+                environment, model, rules, config, device, reset_seed
+            )
+            metrics = optimize_fixed_opponent_episodes(
+                model,
+                reference_model,
+                optimizer,
+                rules,
+                episodes,
+                config,
+                device,
+            )
+            loss = float(metrics["loss"])
+            reward = float(metrics["mean_outcome"])
+            training_transitions += environment_steps
+            training_optimizer_steps += int(metrics["optimizer_steps"])
+            opponent_episodes += int(metrics["episodes"])
+            opponent_wins += int(metrics["wins"])
+            opponent_draws += int(metrics["draws"])
+            opponent_losses += int(metrics["losses"])
+            progress = {
+                "episodes": metrics["episodes"],
+                "decisions": metrics["decisions"],
+                "wins": metrics["wins"],
+                "draws": metrics["draws"],
+                "losses": metrics["losses"],
+                "entropy": metrics["entropy"],
+                "retention_kl": metrics["retention_kl"],
+            }
         reward_average += (reward - reward_average) / update
         loss_average += (loss - loss_average) / update
-        if update == 1 or update % 10 == 0 or update == config.updates:
+        if (
+            config.fixed_opponent is not None
+            or update == 1
+            or update % 10 == 0
+            or update == config.updates
+        ):
             print(
                 json.dumps(
                     {
                         "update": update,
-                        "transitions": update
-                        * config.rollout_steps
-                        * config.environments,
+                        "transitions": training_transitions,
                         "mean_reward": reward,
-                        "mean_value": float(rollout.values.mean().item()),
-                        "entropy": entropy,
                         "loss": loss,
+                        **progress,
                     },
                     sort_keys=True,
                 ),
@@ -939,16 +1233,24 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
                 environment,
                 config,
                 {
-                    "stage": "ppo",
+                    "stage": (
+                        "fixed_opponent" if config.fixed_opponent is not None else "ppo"
+                    ),
                     "ppo_update": update,
                     "mean_reward": reward_average,
                     "mean_loss": loss_average,
                 },
             )
     parameters = sum(parameter.numel() for parameter in model.parameters())
-    algorithm = "perspective_ppo_gae"
+    algorithm = (
+        f"fixed_{config.fixed_opponent}_opponent_terminal_ppo"
+        if config.fixed_opponent is not None
+        else "perspective_ppo_gae"
+    )
     if config.imitation_updates > 0:
-        algorithm = f"{config.imitation_teacher}_distilled_{config.imitation_rollin}_rollin"
+        algorithm = (
+            f"{config.imitation_teacher}_distilled_{config.imitation_rollin}_rollin"
+        )
         if config.imitation_symmetry_augmentation:
             algorithm += "_rot180_augmented"
         if config.imitation_reset_interval > 0:
@@ -961,7 +1263,9 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             algorithm += "_action_weighted"
         if config.imitation_policy_rollin_slices:
             algorithm += "_asymmetric_dagger"
-        if config.updates > 0:
+        if config.fixed_opponent is not None:
+            algorithm += f"_fixed_{config.fixed_opponent}_opponent_terminal_ppo"
+        elif config.updates > 0:
             algorithm += "_perspective_ppo_gae"
     summary: dict[str, float | int | str] = {
         "algorithm": algorithm,
@@ -972,16 +1276,21 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             str(players) for players in config.players_schedule or []
         ),
         "map_size_schedule": ",".join(
-            f"{width}x{height}"
-            for width, height in config.map_size_schedule or []
+            f"{width}x{height}" for width, height in config.map_size_schedule or []
         ),
         "land_density_schedule_per_million": ",".join(
-            str(density)
-            for density in config.land_density_schedule_per_million or []
+            str(density) for density in config.land_density_schedule_per_million or []
         ),
         "parameters": parameters,
-        "transitions": config.updates * config.rollout_steps * config.environments,
-        "optimizer_steps": config.updates * config.rollout_steps * config.epochs,
+        "transitions": training_transitions,
+        "optimizer_steps": training_optimizer_steps,
+        "fixed_opponent": config.fixed_opponent or "",
+        "learner_seat": config.learner_seat,
+        "opponent_reference_weight": config.opponent_reference_weight,
+        "opponent_episodes": opponent_episodes,
+        "opponent_wins": opponent_wins,
+        "opponent_draws": opponent_draws,
+        "opponent_losses": opponent_losses,
         "imitation_updates": config.imitation_updates,
         "imitation_reset_interval": config.imitation_reset_interval,
         "imitation_environment_resets": imitation_environment_resets,
@@ -1006,7 +1315,9 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "mean_reward": reward_average,
         "mean_loss": loss_average,
         "device": str(device),
-        "initialized_from": str(config.initialize) if config.initialize is not None else "",
+        "initialized_from": str(config.initialize)
+        if config.initialize is not None
+        else "",
         "initialized_expert": initialized_expert,
         "resumed_from": str(config.resume) if config.resume is not None else "",
     }
@@ -1049,14 +1360,14 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--map-size-schedule", type=parse_map_size, nargs="+")
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--land-density-per-million", type=int, default=650_000)
-    parser.add_argument(
-        "--land-density-schedule-per-million", type=int, nargs="+"
-    )
+    parser.add_argument("--land-density-schedule-per-million", type=int, nargs="+")
     parser.add_argument("--starting-province-size", type=int, default=5)
     parser.add_argument("--starting-money", type=int, default=10)
     parser.add_argument("--tree-density-per-million", type=int, default=150_000)
     parser.add_argument("--neutral-tower-density-per-million", type=int, default=20_000)
-    parser.add_argument("--neutral-capital-density-per-million", type=int, default=10_000)
+    parser.add_argument(
+        "--neutral-capital-density-per-million", type=int, default=10_000
+    )
     parser.add_argument("--grave-density-per-million", type=int, default=15_000)
     parser.add_argument("--objective-json")
     parser.add_argument("--action-limit", type=int, default=1000)
@@ -1109,6 +1420,10 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--territory-weight", type=float, default=0.03)
     parser.add_argument("--treasury-weight", type=float, default=0.002)
     parser.add_argument("--unit-weight", type=float, default=0.01)
+    parser.add_argument("--fixed-opponent", choices=("greedy", "search"))
+    parser.add_argument("--learner-seat", type=int, default=0)
+    parser.add_argument("--opponent-minibatch", type=int, default=256)
+    parser.add_argument("--opponent-reference-weight", type=float, default=0.0)
     profiles = parser.add_mutually_exclusive_group()
     profiles.add_argument("--profile")
     profiles.add_argument("--profiles", nargs="+")
@@ -1119,7 +1434,9 @@ def parse_args() -> TrainingConfig:
         choices=("war", "neutral", "friend", "alliance"),
         default="neutral",
     )
-    parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--device", default="cuda" if torch.cuda.is_available() else "cpu"
+    )
     continuation = parser.add_mutually_exclusive_group()
     continuation.add_argument("--initialize", type=Path)
     continuation.add_argument("--resume", type=Path)

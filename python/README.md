@@ -123,6 +123,27 @@ increases map diversity without increasing the transition budget; zero keeps
 natural episode boundaries only. The checkpoint summary records the exact
 number of environment resets.
 
+For long-horizon best-response training, set `--fixed-opponent greedy` or
+`--fixed-opponent search` with `--learner-seat SEAT`. Every batch worker runs a
+complete game in which the policy controls only that seat and the named frozen
+agent controls every opponent. The trainer retains the behavior log-probability
+and value for each learner decision, then applies clipped PPO from the terminal
+win, loss, or adjudicated result. This avoids treating action-level imitation
+accuracy as strategic strength. `--opponent-minibatch` bounds replay memory per
+optimizer step, and `--opponent-reference-weight W` adds a frozen-policy KL
+anchor while fine-tuning. Each update consumes one complete episode per worker;
+the checkpoint reports games, outcomes, environment transitions, and optimizer
+steps separately. Held-out all-seat evaluation remains the promotion gate.
+
+```bash
+python train.py --environments 24 --updates 8 --device cuda \
+  --procedural --width 21 --height 15 --players 6 --action-limit 2800 \
+  --fixed-opponent search --learner-seat 2 --search-nodes 256 \
+  --opponent-minibatch 256 --opponent-reference-weight 0.25 \
+  --initialize ../models/generic-6p.pt \
+  --checkpoint ../models/generic-6p-seat2-best-response.pt
+```
+
 Measure target-generation cost before a large run:
 
 ```bash

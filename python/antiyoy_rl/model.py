@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 
 import numpy as np
 import torch
@@ -79,18 +79,14 @@ def rotate_observation_180(
         source_values = sources[action_slice]
         valid_sources = source_values != 65535
         source_indices = action_start + np.flatnonzero(valid_sources)
-        rotated_sources[source_indices] = (
-            cell_count - 1 - source_values[valid_sources]
-        )
+        rotated_sources[source_indices] = cell_count - 1 - source_values[valid_sources]
         target_values = targets[action_slice]
         valid_targets = np.logical_and(
             target_values != 65535,
             kinds[action_slice] != 5,
         )
         target_indices = action_start + np.flatnonzero(valid_targets)
-        rotated_targets[target_indices] = (
-            cell_count - 1 - target_values[valid_targets]
-        )
+        rotated_targets[target_indices] = cell_count - 1 - target_values[valid_targets]
         province_start, province_end = province_offsets[environment : environment + 2]
         province_slice = slice(province_start, province_end)
         capital_values = capitals[province_slice]
@@ -167,7 +163,9 @@ def _rule_values(serialized: str) -> list[float]:
         int(diplomacy["alliances_share_wars"]),
     ]
     if len(values) != RULE_FEATURES:
-        raise ValueError(f"expected {RULE_FEATURES} rule features, received {len(values)}")
+        raise ValueError(
+            f"expected {RULE_FEATURES} rule features, received {len(values)}"
+        )
     return values
 
 
@@ -243,7 +241,7 @@ class UniversalPolicy(nn.Module):
         action_logits: dict[int, Tensor] = {}
         values: dict[int, Tensor] = {}
         for environments in dimensions.values():
-            selected = _select_environments(observation, environments)
+            selected = select_environments(observation, environments)
             selected_rules = (
                 rule_features
                 if rule_features.ndim == 1
@@ -267,7 +265,9 @@ class UniversalPolicy(nn.Module):
     ) -> tuple[Tensor, Tensor]:
         device = self.missing_source.device
         widths = torch.as_tensor(observation["widths"], dtype=torch.long, device=device)
-        heights = torch.as_tensor(observation["heights"], dtype=torch.long, device=device)
+        heights = torch.as_tensor(
+            observation["heights"], dtype=torch.long, device=device
+        )
         environments = widths.numel()
         width = int(widths[0].item())
         height = int(heights[0].item())
@@ -276,14 +276,22 @@ class UniversalPolicy(nn.Module):
             observation["active_players"], dtype=torch.long, device=device
         ).repeat_interleave(cell_count)
         owners = torch.as_tensor(observation["owners"], dtype=torch.long, device=device)
-        owner_relation = torch.where(owners == 255, 0, torch.where(owners == active, 1, 2))
-        objects = torch.as_tensor(observation["objects"], dtype=torch.long, device=device)
+        owner_relation = torch.where(
+            owners == 255, 0, torch.where(owners == active, 1, 2)
+        )
+        objects = torch.as_tensor(
+            observation["objects"], dtype=torch.long, device=device
+        )
         units = torch.as_tensor(
             observation["unit_strengths"], dtype=torch.long, device=device
         )
         ready = torch.as_tensor(observation["ready"], dtype=torch.long, device=device)
-        defenses = torch.as_tensor(observation["defenses"], dtype=torch.long, device=device)
-        visible = torch.as_tensor(observation["visible"], dtype=torch.long, device=device)
+        defenses = torch.as_tensor(
+            observation["defenses"], dtype=torch.long, device=device
+        )
+        visible = torch.as_tensor(
+            observation["visible"], dtype=torch.long, device=device
+        )
         playable = torch.as_tensor(
             observation["playable"], dtype=torch.float32, device=device
         )
@@ -295,9 +303,13 @@ class UniversalPolicy(nn.Module):
             + self.defense_embedding(defenses)
             + self.visibility_embedding(visible)
         )
-        cells = cells + self._province_features(observation, environments, cell_count, device)
+        cells = cells + self._province_features(
+            observation, environments, cell_count, device
+        )
         grid_mask = playable.reshape(environments, 1, height, width)
-        grid = cells.reshape(environments, height, width, self.hidden).permute(0, 3, 1, 2)
+        grid = cells.reshape(environments, height, width, self.hidden).permute(
+            0, 3, 1, 2
+        )
         for block in self.blocks:
             grid = block(grid, grid_mask)
         denominator = grid_mask.sum(dim=(2, 3)).clamp_min(1)
@@ -310,8 +322,12 @@ class UniversalPolicy(nn.Module):
         diplomacy = self._diplomacy_context(observation, rule_features, device)
         context = rules + diplomacy
         global_features = pooled + context
-        flat_cells = grid.permute(0, 2, 3, 1).reshape(environments * cell_count, self.hidden)
-        logits = self._action_logits(observation, flat_cells, global_features, cell_count, device)
+        flat_cells = grid.permute(0, 2, 3, 1).reshape(
+            environments * cell_count, self.hidden
+        )
+        logits = self._action_logits(
+            observation, flat_cells, global_features, cell_count, device
+        )
         values = self.value_head(torch.cat((pooled, context), dim=1)).squeeze(1)
         return logits, values
 
@@ -332,8 +348,12 @@ class UniversalPolicy(nn.Module):
         enabled = enabled_features > 0
         if not bool(torch.any(enabled).item()):
             return torch.zeros((player_counts.size, self.hidden), device=device)
-        relations = torch.as_tensor(observation["relations"], dtype=torch.long, device=device)
-        proposals = torch.as_tensor(observation["proposals"], dtype=torch.long, device=device)
+        relations = torch.as_tensor(
+            observation["relations"], dtype=torch.long, device=device
+        )
+        proposals = torch.as_tensor(
+            observation["proposals"], dtype=torch.long, device=device
+        )
         present = np.flatnonzero(np.diff(relation_offsets) > 0)
         environment_indices_numpy = np.repeat(
             present.astype(np.int64), player_counts[present]
@@ -370,8 +390,12 @@ class UniversalPolicy(nn.Module):
         present_indices = torch.as_tensor(present, dtype=torch.long, device=device)
         outgoing = torch.as_tensor(outgoing_numpy, dtype=torch.long, device=device)
         incoming = torch.as_tensor(incoming_numpy, dtype=torch.long, device=device)
-        outgoing_proposals = torch.where(proposals[outgoing] == 255, 4, proposals[outgoing])
-        incoming_proposals = torch.where(proposals[incoming] == 255, 4, proposals[incoming])
+        outgoing_proposals = torch.where(
+            proposals[outgoing] == 255, 4, proposals[outgoing]
+        )
+        incoming_proposals = torch.where(
+            proposals[incoming] == 255, 4, proposals[incoming]
+        )
         vectors = (
             self.relation_embedding(relations[outgoing])
             + self.proposal_embedding(outgoing_proposals)
@@ -419,7 +443,9 @@ class UniversalPolicy(nn.Module):
         )
         numeric = torch.zeros((environments * cell_count, 3), device=device)
         selected = global_ids[valid]
-        values = torch.stack((money[selected], profit[selected], sizes[selected]), dim=1)
+        values = torch.stack(
+            (money[selected], profit[selected], sizes[selected]), dim=1
+        )
         numeric[valid] = torch.sign(values) * torch.log1p(torch.abs(values))
         return self.province_projection(numeric)
 
@@ -442,16 +468,28 @@ class UniversalPolicy(nn.Module):
         sources = torch.as_tensor(
             observation["action_sources"], dtype=torch.long, device=device
         )
-        targets = torch.as_tensor(observation["action_targets"], dtype=torch.long, device=device)
-        kinds = torch.as_tensor(observation["action_kinds"], dtype=torch.long, device=device)
-        source_features = self.missing_source.reshape(1, -1).expand(sources.numel(), -1).clone()
+        targets = torch.as_tensor(
+            observation["action_targets"], dtype=torch.long, device=device
+        )
+        kinds = torch.as_tensor(
+            observation["action_kinds"], dtype=torch.long, device=device
+        )
+        source_features = (
+            self.missing_source.reshape(1, -1).expand(sources.numel(), -1).clone()
+        )
         valid_sources = sources != 65535
-        source_indices = action_environments[valid_sources] * cell_count + sources[valid_sources]
+        source_indices = (
+            action_environments[valid_sources] * cell_count + sources[valid_sources]
+        )
         source_features[valid_sources] = cells[source_indices]
-        target_features = self.missing_source.reshape(1, -1).expand(targets.numel(), -1).clone()
+        target_features = (
+            self.missing_source.reshape(1, -1).expand(targets.numel(), -1).clone()
+        )
         diplomacy_actions = kinds == 5
         valid_targets = torch.logical_and(targets != 65535, ~diplomacy_actions)
-        target_indices = action_environments[valid_targets] * cell_count + targets[valid_targets]
+        target_indices = (
+            action_environments[valid_targets] * cell_count + targets[valid_targets]
+        )
         target_features[valid_targets] = cells[target_indices]
         if torch.any(diplomacy_actions):
             target_features[diplomacy_actions] = self._diplomacy_action_targets(
@@ -482,8 +520,12 @@ class UniversalPolicy(nn.Module):
         targets: Tensor,
         device: torch.device,
     ) -> Tensor:
-        relations = torch.as_tensor(observation["relations"], dtype=torch.long, device=device)
-        proposals = torch.as_tensor(observation["proposals"], dtype=torch.long, device=device)
+        relations = torch.as_tensor(
+            observation["relations"], dtype=torch.long, device=device
+        )
+        proposals = torch.as_tensor(
+            observation["proposals"], dtype=torch.long, device=device
+        )
         offsets = torch.as_tensor(
             observation["relation_offsets"], dtype=torch.long, device=device
         )
@@ -496,8 +538,12 @@ class UniversalPolicy(nn.Module):
         bases = offsets[environments]
         outgoing = bases + active * player_counts + targets
         incoming = bases + targets * player_counts + active
-        outgoing_proposals = torch.where(proposals[outgoing] == 255, 4, proposals[outgoing])
-        incoming_proposals = torch.where(proposals[incoming] == 255, 4, proposals[incoming])
+        outgoing_proposals = torch.where(
+            proposals[outgoing] == 255, 4, proposals[outgoing]
+        )
+        incoming_proposals = torch.where(
+            proposals[incoming] == 255, 4, proposals[incoming]
+        )
         return (
             self.relation_embedding(relations[outgoing])
             + self.proposal_embedding(outgoing_proposals)
@@ -524,7 +570,7 @@ def load_policy_state(model: UniversalPolicy, state: Mapping[str, Tensor]) -> No
     model.load_state_dict(migrated)
 
 
-def _select_environments(
+def select_environments(
     observation: Mapping[str, np.ndarray],
     environments: list[int],
 ) -> dict[str, np.ndarray]:
@@ -579,7 +625,71 @@ def _select_environments(
     return selected
 
 
-def action_distribution(logits: Tensor, offsets: np.ndarray) -> torch.distributions.Categorical:
+def concatenate_observations(
+    observations: Sequence[Mapping[str, np.ndarray]],
+) -> dict[str, np.ndarray]:
+    if not observations:
+        raise ValueError("at least one observation is required")
+    concatenated: dict[str, np.ndarray] = {}
+    offset_groups = (
+        (
+            "cell_offsets",
+            (
+                "playable",
+                "visible",
+                "owners",
+                "objects",
+                "unit_strengths",
+                "ready",
+                "defenses",
+                "province_ids",
+            ),
+        ),
+        (
+            "province_offsets",
+            (
+                "province_owners",
+                "province_money",
+                "province_profit",
+                "province_capitals",
+                "province_sizes",
+            ),
+        ),
+        (
+            "action_offsets",
+            (
+                "action_kinds",
+                "action_sources",
+                "action_targets",
+                "action_parameters",
+            ),
+        ),
+        ("relation_offsets", ("relations", "proposals")),
+    )
+    for offsets_key, value_keys in offset_groups:
+        counts = np.concatenate(
+            [
+                np.diff(np.asarray(observation[offsets_key], dtype=np.int64))
+                for observation in observations
+            ]
+        )
+        concatenated[offsets_key] = np.concatenate(
+            (np.zeros(1, dtype=np.int64), np.cumsum(counts, dtype=np.int64))
+        )
+        for key in value_keys:
+            concatenated[key] = np.concatenate(
+                [np.asarray(observation[key]) for observation in observations]
+            )
+    for key in ("widths", "heights", "active_players", "player_counts", "rounds"):
+        concatenated[key] = np.concatenate(
+            [np.asarray(observation[key]) for observation in observations]
+        )
+    return concatenated
+
+
+def action_distribution(
+    logits: Tensor, offsets: np.ndarray
+) -> torch.distributions.Categorical:
     device = logits.device
     boundaries_numpy = np.asarray(offsets, dtype=np.int64)
     counts_numpy = np.diff(boundaries_numpy)

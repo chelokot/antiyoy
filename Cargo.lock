@@ -95,6 +95,7 @@ dependencies = [
  "blake3",
  "postcard",
  "serde",
+ "serde_json",
  "thiserror",
 ]
 
@@ -106,6 +107,7 @@ dependencies = [
  "blake3",
  "postcard",
  "serde",
+ "serde_json",
  "thiserror",
 ]
 

@@ -7,11 +7,13 @@ from antiyoy_rl import ProceduralConfig, VectorEnv
 from antiyoy_rl.model import (
     UniversalPolicy,
     action_distribution,
+    concatenate_observations,
     domain_key,
     encode_rules,
     encode_rules_batch,
     load_policy_state,
     rotate_observation_180,
+    select_environments,
 )
 
 
@@ -98,6 +100,21 @@ def test_policy_batches_heterogeneous_map_dimensions() -> None:
     assert result["actors"].shape == (4,)
 
 
+def test_selected_observations_recombine_without_changing_policy_outputs() -> None:
+    environment = VectorEnv(3, width=7, height=5, seed=59)
+    observation = environment.observe()
+    selected = [select_environments(observation, [index]) for index in (2, 0, 1)]
+    recombined = concatenate_observations(selected)
+    policy = UniversalPolicy(hidden=16, layers=1)
+    rules = encode_rules_batch(environment.rules_jsons(), torch.device("cpu"))
+
+    logits, values = policy(recombined, rules[[2, 0, 1]])
+
+    assert logits.shape == (int(recombined["action_offsets"][-1]),)
+    assert values.shape == (3,)
+    assert recombined["active_players"].tolist() == [0, 0, 0]
+
+
 def test_policy_loads_the_published_observation_v6_weights() -> None:
     original = UniversalPolicy(hidden=16, layers=1)
     legacy = dict(original.state_dict())
@@ -154,7 +171,9 @@ def test_rotation_preserves_diplomacy_targets_and_remaps_cells() -> None:
     rotated = rotate_observation_180(observation)
 
     diplomacy = observation["action_kinds"] == 5
-    assert np.array_equal(rotated["action_targets"][diplomacy], observation["action_targets"][diplomacy])
+    assert np.array_equal(
+        rotated["action_targets"][diplomacy], observation["action_targets"][diplomacy]
+    )
     cell_targets = np.logical_and(observation["action_targets"] != 65535, ~diplomacy)
     assert np.array_equal(
         rotated["action_targets"][cell_targets],

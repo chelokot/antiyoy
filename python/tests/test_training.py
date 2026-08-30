@@ -13,7 +13,9 @@ from python.train import (
     imitation_action_weights,
     imitation_weights,
     initialization_state,
+    collect_fixed_opponent_episodes,
     make_environment,
+    optimize_fixed_opponent_episodes,
     parse_map_size,
     parsed_action_weights,
     parsed_slice_weights,
@@ -22,6 +24,7 @@ from python.train import (
     rollout_targets,
     validate_config,
 )
+from antiyoy_rl.model import UniversalPolicy, encode_rules_batch
 
 
 def training_config() -> TrainingConfig:
@@ -72,6 +75,10 @@ def training_config() -> TrainingConfig:
         territory_weight=0.03,
         treasury_weight=0.002,
         unit_weight=0.01,
+        fixed_opponent=None,
+        learner_seat=0,
+        opponent_minibatch=32,
+        opponent_reference_weight=0.0,
         profile="classic_generic_2022",
         profiles=None,
         fog=False,
@@ -279,6 +286,57 @@ def test_training_rejects_negative_reference_weight() -> None:
         validate_config(replace(training_config(), imitation_reference_weight=-0.1))
 
 
+def test_training_rejects_invalid_fixed_opponent_configuration() -> None:
+    with pytest.raises(ValueError, match="fixed_opponent"):
+        validate_config(replace(training_config(), fixed_opponent="unknown"))
+    with pytest.raises(ValueError, match="learner_seat"):
+        validate_config(replace(training_config(), learner_seat=2))
+    with pytest.raises(ValueError, match="opponent_reference_weight"):
+        validate_config(replace(training_config(), opponent_reference_weight=-0.1))
+
+
+def test_fixed_opponent_training_collects_complete_episodes_and_optimizes() -> None:
+    config = replace(
+        training_config(),
+        environments=2,
+        action_limit=20,
+        fixed_opponent="greedy",
+        learner_seat=0,
+        opponent_minibatch=8,
+    )
+    device = torch.device("cpu")
+    environment = make_environment(config)
+    model = UniversalPolicy(hidden=config.hidden, layers=config.layers)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+    rules = encode_rules_batch(environment.rules_jsons(), device)
+
+    episodes, reset_seed, environment_steps = collect_fixed_opponent_episodes(
+        environment,
+        model,
+        rules,
+        config,
+        device,
+        config.seed + config.environments,
+    )
+    metrics = optimize_fixed_opponent_episodes(
+        model,
+        None,
+        optimizer,
+        rules,
+        episodes,
+        config,
+        device,
+    )
+
+    assert len(episodes) == config.environments
+    assert all(episode.decisions for episode in episodes)
+    assert reset_seed > config.seed + config.environments
+    assert environment_steps >= config.environments
+    assert metrics["episodes"] == config.environments
+    assert metrics["decisions"] >= config.environments
+    assert metrics["optimizer_steps"] > 0
+
+
 def test_slice_weights_target_profile_and_active_player() -> None:
     config = replace(
         training_config(),
@@ -329,9 +387,7 @@ def test_action_weights_target_teacher_action_kind() -> None:
     )
     observation = {
         "action_offsets": torch.tensor([0, 2, 5, 7], dtype=torch.uint64).numpy(),
-        "action_kinds": torch.tensor(
-            [0, 3, 0, 1, 2, 3, 1], dtype=torch.uint8
-        ).numpy(),
+        "action_kinds": torch.tensor([0, 3, 0, 1, 2, 3, 1], dtype=torch.uint8).numpy(),
     }
 
     weights = imitation_action_weights(
@@ -349,18 +405,14 @@ def test_action_weights_target_teacher_action_kind() -> None:
     ["build", "unknown:2", "build:x", "build:0", "build:nan"],
 )
 def test_training_rejects_invalid_action_weights(specification: str) -> None:
-    config = replace(
-        training_config(), imitation_action_weights=[specification]
-    )
+    config = replace(training_config(), imitation_action_weights=[specification])
 
     with pytest.raises(ValueError, match="action weight"):
         parsed_action_weights(config)
 
 
 def test_training_rejects_duplicate_action_weights() -> None:
-    config = replace(
-        training_config(), imitation_action_weights=["build:2", "build:3"]
-    )
+    config = replace(training_config(), imitation_action_weights=["build:2", "build:3"])
 
     with pytest.raises(ValueError, match="duplicate imitation action weight"):
         parsed_action_weights(config)
@@ -445,9 +497,7 @@ def test_bundle_initialization_selects_profile_route() -> None:
         "experts": {"primary": primary, "specialist:v2": specialist},
     }
 
-    state, expert = initialization_state(
-        checkpoint, "online_experimental_v2_260801"
-    )
+    state, expert = initialization_state(checkpoint, "online_experimental_v2_260801")
 
     assert state is specialist
     assert expert == "specialist:v2"
