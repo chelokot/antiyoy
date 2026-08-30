@@ -1,7 +1,9 @@
 import numpy as np
 import pytest
 
-torch = pytest.importorskip("torch")
+pytest.importorskip("torch")
+
+import torch
 
 from antiyoy_rl import ProceduralConfig, VectorEnv
 from antiyoy_rl.model import (

@@ -6,7 +6,9 @@ from pathlib import Path
 
 import pytest
 
-torch = pytest.importorskip("torch")
+pytest.importorskip("torch")
+
+import torch
 
 from python.train import (
     Rollout,

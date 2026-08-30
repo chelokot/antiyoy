@@ -2,7 +2,9 @@ from pathlib import Path
 
 import pytest
 
-torch = pytest.importorskip("torch")
+pytest.importorskip("torch")
+
+import torch
 
 from antiyoy_rl import OBSERVATION_VERSION
 from antiyoy_rl.model import RULE_FEATURES, UniversalPolicy

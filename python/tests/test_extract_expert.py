@@ -2,7 +2,9 @@ from pathlib import Path
 
 import pytest
 
-torch = pytest.importorskip("torch")
+pytest.importorskip("torch")
+
+import torch
 
 from python.build_bundle import build_bundle
 from python.extract_expert import extract_expert
