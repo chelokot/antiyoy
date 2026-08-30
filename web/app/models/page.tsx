@@ -41,12 +41,13 @@ const engineSixRatings = [
 
 const ratingPools = [
   {
-    name: "Policy amplification",
-    arena: "core v6 · classic Generic 11×9 · same checkpoint",
-    evidence: "2026-08-31-policy-guided-puct-amplification-rocm.json",
+    name: "PUCT amplification loop",
+    arena: "core v6 · classic Generic 11×9 · frozen source policy",
+    evidence: "2026-08-31-puct-soft-distillation-rocm.json",
     rows: [
+      ["Soft-PUCT distilled", "seat-routed · zero search", "1034", "+34 vs source", "281–0–231 / 512"],
       ["Value-calibrated PUCT-8", "policy + search", "1033", "+33 vs direct", "280–0–232 / 512"],
-      ["Direct routed v6", "policy intuition", "1000", "anchor", "same-checkpoint baseline"],
+      ["Direct routed v6", "policy intuition", "1000", "anchor", "frozen source"],
     ],
   },
   {
@@ -91,9 +92,9 @@ const experiments = [
   },
   {
     method: "Amplify → distill",
-    status: "running loop",
-    description: "Generate stronger search decisions on policy states, distill them, then gate every profile, seed, and seat.",
-    result: "On the same 336 fresh games: 312–24 became 336–0, a +685 relative-Elo gain.",
+    status: "measured",
+    description: "Export the full PUCT root distribution, train a cheap policy, then route only a seat that passes its paired gate.",
+    result: "Zero-search student: 281–231 over its frozen source on 512 new games, +34.04 relative Elo; four hard-target variants were rejected.",
   },
 ] as const;
 
@@ -130,7 +131,7 @@ export default function ModelsPage() {
       <section className="models-section report-section">
         <div className="section-heading"><div><p>Promotion gate</p><h2>How a model earns the top row</h2></div></div>
         <div className="promotion-flow"><div><b>AMPLIFY</b><span>Search or PUCT labels policy-visited states.</span></div><i>→</i><div><b>DISTILL</b><span>A compact policy learns priors and values.</span></div><i>→</i><div><b>ATTACK</b><span>Fresh seeds, both seats, every rules profile.</span></div><i>→</i><div><b>PROMOTE</b><span>Only if the weakest slice does not regress.</span></div></div>
-        <footer><span>Next controlled experiment</span><strong>Distill accepted PUCT decisions, then repeat the gate across every profile and multiplayer route.</strong></footer>
+        <footer><span>Next controlled experiment</span><strong>Calibrate values and repeat soft PUCT distillation across the remaining profiles, both seats, and multiplayer routes.</strong></footer>
       </section>
     </main>
   );
