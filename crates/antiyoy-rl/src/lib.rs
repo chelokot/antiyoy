@@ -2,7 +2,7 @@
 
 use antiyoy_core::{
     Action, ActionError, ConfigError, DiplomacyCommand, Game, GenerationError, GeneratorConfig,
-    HexId, Object, Objective, ObjectiveError, PlayerId, Rules, Scenario, Structure,
+    HexId, Object, Objective, ObjectiveError, PlayerId, Rules, Scenario, Structure, adjudicate,
 };
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -162,6 +162,7 @@ pub struct StepResult {
     pub truncated: bool,
     pub objective_satisfied: bool,
     pub winner: Option<PlayerId>,
+    pub adjudicated_winner: Option<PlayerId>,
 }
 
 impl StepResult {
@@ -672,6 +673,7 @@ fn step_environment(
     let objective_status = objective.evaluate(game)?;
     let terminal = objective_status.is_terminal();
     let truncated = !terminal && *episode_steps >= action_limit;
+    let adjudicated_winner = truncated.then(|| adjudicate(game)).flatten();
     *done = terminal || truncated;
     let after = player_metrics(game, actor);
     let reward = reward_components(actor, before, after, objective_status.winner());
@@ -688,6 +690,7 @@ fn step_environment(
         truncated,
         objective_satisfied: objective_status.is_satisfied(),
         winner: objective_status.winner(),
+        adjudicated_winner,
     })
 }
 

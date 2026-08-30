@@ -49,6 +49,7 @@ def aggregate_outcomes(
     draws = sum(int(result["draws"]) for result in outcomes)
     losses = sum(int(result["losses"]) for result in outcomes)
     truncations = sum(int(result["truncations"]) for result in outcomes)
+    adjudications = sum(int(result.get("adjudications", 0)) for result in outcomes)
     terminal_draws = sum(int(result["terminal_draws"]) for result in outcomes)
     score = (wins + 0.5 * draws) / games
     players = int(results[0].get("players", 2))
@@ -60,6 +61,7 @@ def aggregate_outcomes(
         "draws": draws,
         "losses": losses,
         "truncations": truncations,
+        "adjudications": adjudications,
         "terminal_draws": terminal_draws,
         "score": score,
         "relative_elo": relative_skill_delta(score, games, players),

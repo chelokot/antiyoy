@@ -29,7 +29,18 @@ def test_observation_and_step_contract() -> None:
     result = environment.step(actions)
     assert result["actors"].tolist() == [0, 0, 0, 0]
     assert result["terminal"].tolist() == [0, 0, 0, 0]
+    assert result["adjudicated_winners"].tolist() == [255, 255, 255, 255]
     assert json.loads(environment.rules_json())["schema_version"] == 5
+
+
+def test_truncation_reports_deterministic_adjudication() -> None:
+    environment = VectorEnv(1, width=7, height=5, seed=47, action_limit=1)
+
+    result = environment.step(np.zeros(1, dtype=np.uint64))
+
+    assert result["truncated"].tolist() == [1]
+    assert result["winners"].tolist() == [255]
+    assert result["adjudicated_winners"].shape == (1,)
 
 
 def test_seeded_environments_are_equal_after_equal_actions() -> None:

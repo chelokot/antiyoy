@@ -720,6 +720,16 @@ fn step_dict<'py>(py: Python<'py>, results: &[StepResult]) -> PyResult<Bound<'py
                 .collect(),
         ),
     )?;
+    dictionary.set_item(
+        "adjudicated_winners",
+        PyArray1::from_vec(
+            py,
+            results
+                .iter()
+                .map(|result| result.adjudicated_winner.map_or(u8::MAX, |winner| winner.0))
+                .collect(),
+        ),
+    )?;
     Ok(dictionary)
 }
 

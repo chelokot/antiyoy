@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use antiyoy_agents::Agent;
+pub use antiyoy_core::adjudicate;
 use antiyoy_core::{Game, PlayerId, Rules, Scenario};
 use antiyoy_protocol::{Digest, Replay, ReplayError};
 use serde::{Deserialize, Serialize};
@@ -327,23 +328,6 @@ pub fn run_match<First: Agent + ?Sized, Second: Agent + ?Sized>(
         },
         replay,
     })
-}
-
-pub fn adjudicate(game: &Game) -> Option<PlayerId> {
-    let mut scores = [0_i64; 2];
-    for cell in game.cells().iter().copied() {
-        if !cell.owner().is_neutral() {
-            scores[cell.owner().index()] += 100 + i64::from(cell.unit().strength()) * 10;
-        }
-    }
-    for province in game.provinces() {
-        scores[province.owner().index()] += province.money();
-    }
-    match scores[0].cmp(&scores[1]) {
-        std::cmp::Ordering::Greater => Some(PlayerId(0)),
-        std::cmp::Ordering::Less => Some(PlayerId(1)),
-        std::cmp::Ordering::Equal => None,
-    }
 }
 
 pub fn score_for_first(outcome: MatchOutcome) -> f64 {

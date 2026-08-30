@@ -62,6 +62,7 @@ def outcome_summary(
     terminal_draws: int,
     truncations: int,
     players: int = 2,
+    adjudications: int = 0,
 ) -> dict[str, float | int]:
     score = (wins + 0.5 * draws) / games
     return {
@@ -70,6 +71,7 @@ def outcome_summary(
         "draws": draws,
         "terminal_draws": terminal_draws,
         "truncations": truncations,
+        "adjudications": adjudications,
         "losses": losses,
         "score": score,
         "elo_delta": relative_skill_delta(score, games, players),
@@ -217,6 +219,7 @@ def evaluate(
     seat_draws = np.zeros(players, dtype=np.int64)
     seat_terminal_draws = np.zeros(players, dtype=np.int64)
     seat_truncations = np.zeros(players, dtype=np.int64)
+    seat_adjudications = np.zeros(players, dtype=np.int64)
     seat_losses = np.zeros(players, dtype=np.int64)
     reset_seed = seed + games // players
     random = np.random.default_rng(seed)
@@ -269,6 +272,8 @@ def evaluate(
                 truncated = bool(result["truncated"][index])
                 if truncated:
                     seat_truncations[model_seat] += 1
+                    seat_adjudications[model_seat] += 1
+                    winner = int(result["adjudicated_winners"][index])
                 if winner == 255:
                     seat_draws[model_seat] += 1
                     if not truncated:
@@ -288,6 +293,7 @@ def evaluate(
         int(seat_terminal_draws.sum()),
         int(seat_truncations.sum()),
         players,
+        int(seat_adjudications.sum()),
     )
     seats = [
         {
@@ -300,6 +306,7 @@ def evaluate(
                 int(seat_terminal_draws[seat]),
                 int(seat_truncations[seat]),
                 players,
+                int(seat_adjudications[seat]),
             ),
         }
         for seat in range(players)

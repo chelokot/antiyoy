@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod action;
+mod adjudication;
 mod error;
 mod game;
 mod generator;
@@ -12,6 +13,7 @@ mod topology;
 mod types;
 
 pub use action::{Action, Transition};
+pub use adjudication::adjudicate;
 pub use error::{ActionError, ConfigError};
 pub use game::Game;
 pub use generator::{GENERATOR_SCHEMA_VERSION, GenerationError, GeneratorConfig};
