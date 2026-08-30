@@ -9,6 +9,8 @@ import {
   createJoinableDuel,
   createJoinableMatch,
   createOpenSeatInvites,
+  createRatedBotChallenge,
+  deleteOnlineMatch,
   fetchLeague,
   leagueStandings,
   parseInvite,
@@ -170,6 +172,73 @@ test("creates a four-player procedural room with one token-free invite per open 
   }
 });
 
+test("starts an immediate rated challenge with a rotating human seat and stable search identities", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestBody = "";
+  const seats: MatchSnapshot["seats"] = [
+    { name: "server-search/seat-1", kind: "Search" },
+    { name: "server-search/seat-2", kind: "Search" },
+    { name: "challenger", kind: "Human" },
+    { name: "server-search/seat-4", kind: "Search" },
+  ];
+  const challengeSnapshot = snapshot("Running", {
+    rules_profile: "OnlineExperimentalV2_260801",
+    scenario: {
+      Procedural: {
+        schema_version: 1,
+        width: 17,
+        height: 13,
+        players: 4,
+        seed: "18446744073709551615",
+        land_density_per_million: 600_000,
+        starting_province_size: 5,
+        starting_money: 10,
+        tree_density_per_million: 150_000,
+        neutral_tower_density_per_million: 20_000,
+        neutral_capital_density_per_million: 10_000,
+        grave_density_per_million: 15_000,
+      },
+    },
+    seats,
+  });
+  globalThis.fetch = async (_input, init) => {
+    requestBody = String(init?.body);
+    return Response.json({
+      snapshot: challengeSnapshot,
+      credentials: [{ seat: 2, name: "challenger", token: "challenger-secret" }],
+    });
+  };
+  try {
+    const session = await createRatedBotChallenge("https://antiyoy.test", "challenger", {
+      map: "procedural",
+      profile: "online_experimental_v2_260801",
+      width: 17,
+      height: 13,
+      players: 4,
+      seed: "18446744073709551615",
+      landDensity: 600_000,
+    }, 2);
+    const request = JSON.parse(requestBody) as { seats: MatchSnapshot["seats"] };
+    assert.deepEqual(request.seats, seats);
+    assert.equal(session.credential.seat, 2);
+    assert.equal(session.snapshot.status, "Running");
+    await assert.rejects(
+      createRatedBotChallenge("https://antiyoy.test", "server-search/seat-3", {
+        map: "duel",
+        profile: "online_duel_v1",
+        width: 11,
+        height: 9,
+        players: 2,
+        seed: "47",
+        landDensity: 650_000,
+      }, 0),
+      /reserved server bot namespace/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("claims the invited seat through the versioned endpoint", async () => {
   const originalFetch = globalThis.fetch;
   let requestUrl = "";
@@ -187,6 +256,29 @@ test("claims the invited seat through the versioned endpoint", async () => {
       requestUrl,
       `https://antiyoy.test/v1/matches/${MATCH_ID}/seats/1/claim`,
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("deletes the authoritative room with the current seat credential", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestUrl = "";
+  let requestInit: RequestInit | undefined;
+  globalThis.fetch = async (input, init) => {
+    requestUrl = String(input);
+    requestInit = init;
+    return new Response(null, { status: 204 });
+  };
+  try {
+    await deleteOnlineMatch({
+      endpoint: "https://antiyoy.test/",
+      credential: { seat: 1, name: "guest", token: "guest-secret" },
+      snapshot: snapshot(),
+    });
+    assert.equal(requestUrl, `https://antiyoy.test/v1/matches/${MATCH_ID}?seat=1`);
+    assert.equal(requestInit?.method, "DELETE");
+    assert.deepEqual(requestInit?.headers, { authorization: "Bearer guest-secret" });
   } finally {
     globalThis.fetch = originalFetch;
   }

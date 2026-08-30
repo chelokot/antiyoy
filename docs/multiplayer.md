@@ -124,3 +124,9 @@ The browser derives the same ordering as `League::standings`: descending Elo,
 then descending games, then bytewise UTF-8 name order. Its Server League panel
 loads lazily, highlights the current server identity, shows the latest verified
 ledger entries, and refreshes automatically when the connected room is rated.
+The same Game Config can start a rated challenge immediately: the selected
+human identity occupies one seat and every other seat is an authoritative
+bounded-search controller. Successful challenges rotate the human seat across
+attempts to expose turn-order bias. Search identities remain stable per seat,
+the human name persists on that browser, and leaving sends an authenticated
+room deletion while preserving any already-recorded league result.

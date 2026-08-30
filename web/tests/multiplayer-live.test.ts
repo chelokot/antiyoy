@@ -6,6 +6,7 @@ import {
   claimOpenSeat,
   createJoinableDuel,
   createJoinableMatch,
+  createRatedBotChallenge,
   type MatchSnapshot,
   type OnlineSession,
 } from "../app/multiplayer-client";
@@ -151,6 +152,48 @@ test("four invited players complete a procedural authoritative round", {
     await fetch(`${endpoint}/v1/matches/${host.snapshot.match_id}?seat=0`, {
       method: "DELETE",
       headers: { authorization: `Bearer ${host.credential.token}` },
+    });
+  }
+});
+
+test("a rated challenge rotates the human seat and receives an authoritative search reply", {
+  skip: endpoint === undefined,
+  timeout: 30_000,
+}, async () => {
+  assert.ok(endpoint);
+  const session = await createRatedBotChallenge(endpoint, "rated-human", {
+    map: "duel",
+    profile: "online_duel_v1",
+    width: 7,
+    height: 5,
+    players: 2,
+    seed: "9003",
+    landDensity: 650_000,
+  }, 1);
+  let probe: ConnectedProbe | null = null;
+  try {
+    assert.equal(session.credential.seat, 1);
+    assert.equal(session.snapshot.status, "Running");
+    assert.equal(session.snapshot.game.active_player, 1);
+    assert.ok(session.snapshot.revision > 0);
+    assert.deepEqual(session.snapshot.seats, [
+      { name: "server-search/seat-1", kind: "Search" },
+      { name: "rated-human", kind: "Human" },
+    ]);
+    probe = await connect(session);
+    submitEndTurn(probe.socket, session.snapshot.revision);
+    const replied = await waitForSnapshot(
+      probe,
+      (snapshot) => snapshot.revision > session.snapshot.revision
+        && (snapshot.status !== "Running" || snapshot.game.active_player === 1),
+    );
+    assert.ok(replied.actions_played > session.snapshot.actions_played);
+    assert.equal(replied.rating_status, "NotFinished");
+  } finally {
+    probe?.socket.close();
+    await fetch(`${endpoint}/v1/matches/${session.snapshot.match_id}?seat=1`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${session.credential.token}` },
     });
   }
 });

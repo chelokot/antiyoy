@@ -257,7 +257,36 @@ export async function createJoinableMatch(
   hostName: string,
   config: OnlineRoomConfig,
 ): Promise<OnlineSession> {
-  const request = createMatchRequest(hostName, config);
+  validatePlayerName(hostName);
+  const request = createMatchRequest(config, (seat) => {
+    const kind: SeatKind = seat === 0 ? "Human" : "Open";
+    return { name: seat === 0 ? hostName : `open-seat-${seat + 1}`, kind };
+  });
+  return createHumanMatch(endpoint, request, 0, hostName);
+}
+
+export async function createRatedBotChallenge(
+  endpoint: string,
+  playerName: string,
+  config: OnlineRoomConfig,
+  humanSeat: number,
+): Promise<OnlineSession> {
+  validatePlayerName(playerName);
+  if (!Number.isInteger(humanSeat) || humanSeat < 0 || humanSeat >= config.players) {
+    throw new Error("Human seat is outside the configured player count");
+  }
+  const request = createMatchRequest(config, (seat) => seat === humanSeat
+    ? { name: playerName, kind: "Human" as const }
+    : { name: `server-search/seat-${seat + 1}`, kind: "Search" as const });
+  return createHumanMatch(endpoint, request, humanSeat, playerName);
+}
+
+async function createHumanMatch(
+  endpoint: string,
+  request: CreateMatchRequest,
+  humanSeat: number,
+  playerName: string,
+): Promise<OnlineSession> {
   const response = await requestJson<CreateMatchResponse>(endpoint, "/v1/matches", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -265,8 +294,13 @@ export async function createJoinableMatch(
   });
   assertSnapshot(response.snapshot);
   const credential = response.credentials[0];
-  if (response.credentials.length !== 1 || credential === undefined || credential.seat !== 0) {
-    throw new Error("Server returned invalid host credentials");
+  if (
+    response.credentials.length !== 1
+    || credential === undefined
+    || credential.seat !== humanSeat
+    || credential.name !== playerName
+  ) {
+    throw new Error("Server returned invalid human credentials");
   }
   return { endpoint: normalizeEndpoint(endpoint), credential, snapshot: response.snapshot };
 }
@@ -293,6 +327,7 @@ export async function claimOpenSeat(
   seat: number,
   name: string,
 ): Promise<OnlineSession> {
+  validatePlayerName(name);
   const response = await requestJson<ClaimSeatResponse>(
     endpoint,
     `/v1/matches/${encodeURIComponent(validateMatchId(matchId))}/seats/${seat}/claim`,
@@ -313,6 +348,21 @@ export async function fetchLeague(endpoint: string): Promise<LeagueSnapshot> {
   const league = await requestJson<unknown>(endpoint, "/v1/league", { method: "GET" });
   assertLeagueSnapshot(league);
   return league;
+}
+
+export async function deleteOnlineMatch(session: OnlineSession): Promise<void> {
+  const matchId = validateMatchId(session.snapshot.match_id);
+  const response = await fetch(
+    `${normalizeEndpoint(session.endpoint)}/v1/matches/${matchId}?seat=${session.credential.seat}`,
+    {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${session.credential.token}` },
+    },
+  );
+  if (!response.ok) {
+    const error = await response.json() as { code: string; message: string };
+    throw new MultiplayerApiError(error.code, error.message);
+  }
 }
 
 export function leagueStandings(league: LeagueSnapshot): LeagueStanding[] {
@@ -376,10 +426,10 @@ export function parseInvite(hash: string): { matchId: string; seat: number } | n
   return { matchId: room, seat };
 }
 
-function createMatchRequest(hostName: string, config: OnlineRoomConfig): CreateMatchRequest {
-  if (hostName.length === 0 || hostName.length > 64) {
-    throw new Error("Player name must contain between 1 and 64 characters");
-  }
+function createMatchRequest(
+  config: OnlineRoomConfig,
+  seatAt: (seat: number) => { name: string; kind: SeatKind },
+): CreateMatchRequest {
   if (!/^\d+$/.test(config.seed)) {
     throw new Error("Seed must be an unsigned integer");
   }
@@ -424,16 +474,23 @@ function createMatchRequest(hostName: string, config: OnlineRoomConfig): CreateM
           grave_density_per_million: 15_000,
         },
       };
+  const seats = Array.from({ length: config.players }, (_, seat) => seatAt(seat));
   return {
     schema_version: NETWORK_SCHEMA_VERSION,
     rules_profile: RULES_PROFILE_WIRE[config.profile],
     scenario,
-    seats: Array.from({ length: config.players }, (_, seat) => {
-      const kind: SeatKind = seat === 0 ? "Human" : "Open";
-      return { name: seat === 0 ? hostName : `open-seat-${seat + 1}`, kind };
-    }),
+    seats,
     action_limit: 10_000,
   };
+}
+
+function validatePlayerName(name: string): void {
+  if (name.length === 0 || name.length > 64) {
+    throw new Error("Player name must contain between 1 and 64 characters");
+  }
+  if (name.startsWith("server-search/")) {
+    throw new Error("Player name uses the reserved server bot namespace");
+  }
 }
 
 function profileIdFromWire(profile: WireRulesProfile): RulesProfileId {

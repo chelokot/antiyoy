@@ -38,6 +38,9 @@ button { font: inherit; }
 .generate-button { width: 100%; margin-top: 0.75rem; border: 0.0625rem solid rgb(216 255 62 / 45%); background: rgb(216 255 62 / 6%); padding: 0.55rem; color: #d8ff3e; font-family: var(--font-geist-mono), monospace; font-size: 0.6rem; letter-spacing: 0.06em; }
 .generate-button:hover { border-color: #d8ff3e; background: rgb(216 255 62 / 12%); }
 .generate-button:disabled { cursor: not-allowed; opacity: 0.42; }
+.rated-challenge-button { border-color: var(--acid); background: var(--acid); color: #071114; font-weight: 700; }
+.rated-challenge-button:hover:not(:disabled) { background: #ebff9e; color: #071114; }
+.rated-challenge-note { margin: 0.45rem 0 0; color: #71817a; font-size: 0.61rem; line-height: 1.5; }
 .online-divider { display: flex; align-items: center; gap: 0.65rem; margin: 0.85rem 0; color: #65726c; font-family: var(--font-geist-mono), monospace; font-size: 0.55rem; letter-spacing: 0.12em; }
 .online-divider::before, .online-divider::after { height: 0.0625rem; flex: 1; background: var(--line); content: ""; }
 .online-config-summary { margin-top: 0.75rem; border: 0.0625rem solid rgb(77 218 229 / 22%); background: rgb(7 17 19 / 55%); padding: 0.7rem 0.75rem; }
@@ -51,6 +54,9 @@ button { font: inherit; }
 .online-status-authenticated { background: #56e39f; box-shadow: 0 0 0.55rem rgb(86 227 159 / 55%); }
 .online-status-connecting { background: #f4c95d; }
 .online-room-code { margin: 0.7rem 0 0; overflow-wrap: anywhere; color: #d9e4de; font-family: var(--font-geist-mono), monospace; font-size: 0.65rem; line-height: 1.5; }
+.online-rating-status { margin: 0.55rem 0 0; color: #82918a; font-family: var(--font-geist-mono), monospace; font-size: 0.57rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.online-rating-recorded { color: var(--acid); }
+.online-rating-duplicate { color: #f4c95d; }
 .online-invites { display: grid; gap: 0.1rem; margin-top: 0.85rem; border-top: 0.0625rem solid var(--line); padding-top: 0.8rem; }
 .online-invites .generate-button { margin-top: 0.45rem; }
 .online-invites > p:last-child { margin: 0.55rem 0 0; color: #71817a; font-size: 0.62rem; line-height: 1.45; }

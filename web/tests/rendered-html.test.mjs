@@ -41,6 +41,8 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(html, /Stored only in this browser/);
   assert.match(html, /ONLINE MULTIPLAYER/);
   assert.match(html, /Create 2-player room/);
+  assert.match(html, /Play rated vs 1 server search bot/);
+  assert.match(html, /seat rotates after every successful challenge/i);
   assert.match(html, /Join as seat 2/);
   assert.match(html, /ROOM SETTINGS/);
   assert.match(html, /AUTHORITATIVE SERVER/);
@@ -138,6 +140,8 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, /RULES_PROFILES\.map/);
   assert.match(arena, /<summary>PROVINCE ECONOMY<\/summary>/);
   assert.match(arena, /createJoinableMatch\(onlineEndpoint, onlineName, draftConfig\)/);
+  assert.match(arena, /createRatedBotChallenge\(/);
+  assert.match(arena, /SERVER_CHALLENGE_ATTEMPT_STORAGE_KEY/);
   assert.match(arena, /createOpenSeatInvites\(inviteBaseUrl, onlineSession\.snapshot\)/);
   assert.match(arena, /Copy invite for seat/);
   assert.match(arena, /roomConfigFromSnapshot\(session\.snapshot\)/);
@@ -152,6 +156,7 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, /duplicate replays rejected/);
   assert.match(styles, /\.league-standings \{[^}]*max-height: 13rem;[^}]*overflow-y: auto;/);
   assert.match(styles, /\.league-ledger \{[^}]*max-height: 13rem;[^}]*overflow-y: auto;/);
+  assert.match(styles, /\.rated-challenge-button \{[^}]*background: var\(--acid\);/);
 });
 
 test("executes greedy and whole-turn search in the compiled WebAssembly engine", async () => {

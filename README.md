@@ -144,7 +144,9 @@ Terminal rooms enter the server's Elo ledger only after replay verification;
 `GET /v1/league` returns its versioned standings and match ledger, and the
 browser exposes both in a compact Server League panel. Full-range `u64` seeds
 remain decimal strings across JSON while legacy numeric league files still
-load. Room files
+load. A one-click rated challenge fills the configured two-to-eight-player map
+with authoritative search opponents, rotates the human seat between successful
+attempts, and refreshes the verified Elo result in place. Room files
 and `league.json` use fsync-plus-rename atomic replacement.
 Match snapshots expose `NotFinished`, `Pending`, `Recorded`, or `Duplicate`
 rating status; an identical replay cannot inflate Elo twice.
