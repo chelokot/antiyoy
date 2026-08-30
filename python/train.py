@@ -41,6 +41,7 @@ class TrainingConfig:
     width: int
     height: int
     players: int
+    players_schedule: list[int] | None
     seed: int
     land_density_per_million: int
     land_density_schedule_per_million: list[int] | None
@@ -117,12 +118,15 @@ def reward_tensor(result: dict[str, np.ndarray], config: TrainingConfig, device:
 
 
 def procedural_config(
-    config: TrainingConfig, seed: int, land_density_per_million: int
+    config: TrainingConfig,
+    seed: int,
+    players: int,
+    land_density_per_million: int,
 ) -> ProceduralConfig:
     return ProceduralConfig(
         width=config.width,
         height=config.height,
-        players=config.players,
+        players=players,
         seed=seed,
         land_density_per_million=land_density_per_million,
         starting_province_size=config.starting_province_size,
@@ -136,7 +140,7 @@ def procedural_config(
 
 def make_environment(config: TrainingConfig) -> VectorEnv:
     generator = procedural_config(
-        config, config.seed, config.land_density_per_million
+        config, config.seed, config.players, config.land_density_per_million
     )
     objective = (
         None
@@ -144,12 +148,26 @@ def make_environment(config: TrainingConfig) -> VectorEnv:
         else ScenarioObjective.from_json(config.objective_json)
     )
     schedule = profile_schedule(config)
-    if config.procedural and config.land_density_schedule_per_million is not None:
-        densities = config.land_density_schedule_per_million
+    scheduled_domains = (
+        config.players_schedule is not None
+        or config.land_density_schedule_per_million is not None
+    )
+    if config.procedural and scheduled_domains:
+        players = (
+            [config.players]
+            if config.players_schedule is None
+            else config.players_schedule
+        )
+        densities = (
+            [config.land_density_per_million]
+            if config.land_density_schedule_per_million is None
+            else config.land_density_schedule_per_million
+        )
         generators = [
             procedural_config(
                 config,
                 config.seed + index,
+                players[index % len(players)],
                 densities[index % len(densities)],
             )
             for index in range(config.environments)
@@ -219,6 +237,12 @@ def profile_schedule(config: TrainingConfig) -> list[str]:
     ]
 
 
+def maximum_players(config: TrainingConfig) -> int:
+    if config.players_schedule is None:
+        return config.players
+    return max(config.players_schedule)
+
+
 def parsed_slice_weights(config: TrainingConfig) -> dict[tuple[str, int], float]:
     scheduled = set(profile_schedule(config))
     parsed: dict[tuple[str, int], float] = {}
@@ -234,7 +258,7 @@ def parsed_slice_weights(config: TrainingConfig) -> dict[tuple[str, int], float]
             raise ValueError("imitation slice weights use PROFILE:SEAT:WEIGHT") from error
         if profile not in scheduled:
             raise ValueError(f"imitation slice profile is not scheduled: {profile}")
-        if seat < 0 or seat >= config.players:
+        if seat < 0 or seat >= maximum_players(config):
             raise ValueError(f"imitation slice seat is out of range: {seat}")
         if not math.isfinite(weight) or weight <= 0:
             raise ValueError("imitation slice weight must be finite and positive")
@@ -281,7 +305,7 @@ def parsed_policy_rollin_slices(config: TrainingConfig) -> set[tuple[str, int]]:
             raise ValueError("imitation policy rollin slices use PROFILE:SEAT") from error
         if profile not in scheduled:
             raise ValueError(f"imitation policy rollin profile is not scheduled: {profile}")
-        if seat < 0 or seat >= config.players:
+        if seat < 0 or seat >= maximum_players(config):
             raise ValueError(f"imitation policy rollin seat is out of range: {seat}")
         key = (profile, seat)
         if key in parsed:
@@ -355,6 +379,15 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("imitation_reference_weight must not be negative")
     if config.profiles is not None and not config.profiles:
         raise ValueError("profiles must not be empty")
+    if config.procedural and (config.players < 2 or config.players > 8):
+        raise ValueError("procedural maps require between two and eight players")
+    if config.players_schedule is not None:
+        if not config.procedural:
+            raise ValueError("players schedule requires procedural maps")
+        if not config.players_schedule:
+            raise ValueError("players schedule must not be empty")
+        if any(players < 2 or players > 8 for players in config.players_schedule):
+            raise ValueError("players schedule values must be between two and eight")
     parsed_slice_weights(config)
     parsed_action_weights(config)
     policy_slices = parsed_policy_rollin_slices(config)
@@ -384,8 +417,6 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("initialize and resume are mutually exclusive")
     if config.initialize_profile is not None and config.initialize is None:
         raise ValueError("initialize_profile requires an initialization checkpoint")
-    if config.procedural and config.players < 2:
-        raise ValueError("procedural maps require at least two players")
     if config.land_density_schedule_per_million is not None:
         if not config.procedural:
             raise ValueError("land density schedule requires procedural maps")
@@ -865,6 +896,9 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "updates": config.updates,
         "environments": config.environments,
         "map_generator": "procedural_v1" if config.procedural else "symmetric_duel_v1",
+        "players_schedule": ",".join(
+            str(players) for players in config.players_schedule or []
+        ),
         "land_density_schedule_per_million": ",".join(
             str(density)
             for density in config.land_density_schedule_per_million or []
@@ -923,6 +957,7 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--width", type=int, default=11)
     parser.add_argument("--height", type=int, default=9)
     parser.add_argument("--players", type=int, default=2)
+    parser.add_argument("--players-schedule", type=int, nargs="+")
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--land-density-per-million", type=int, default=650_000)
     parser.add_argument(

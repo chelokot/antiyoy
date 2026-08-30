@@ -66,7 +66,9 @@ its rules through resets. Procedural reset seeds rebuild the entire connected
 map and starting position; the exact generator configs are stored in the
 checkpoint. Use `--land-density-schedule-per-million 600000 650000 700000` to
 cycle heterogeneous map densities across workers while keeping their assignments
-stable through deterministic resets. Add `--fog` to train from the active player's exact
+stable through deterministic resets. `--players-schedule 5 6 7 8` applies the
+same contract to player counts, and both schedules can be combined in one batch.
+Add `--fog` to train from the active player's exact
 visibility projection; full-state mode is the faster default for centralized
 self-play. Add `--diplomacy --initial-relation neutral` to expose bilateral
 offers, declarations of war, alliance propagation, and their exact action mask.

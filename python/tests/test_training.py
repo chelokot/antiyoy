@@ -30,6 +30,7 @@ def training_config() -> TrainingConfig:
         width=7,
         height=5,
         players=2,
+        players_schedule=None,
         seed=1,
         land_density_per_million=650_000,
         land_density_schedule_per_million=None,
@@ -142,6 +143,69 @@ def test_training_environment_cycles_land_density_schedule() -> None:
         700_000,
     ]
     assert [value["seed"] for value in generators] == [1, 2, 3, 4]
+
+
+def test_training_environment_cycles_players_and_density_schedules() -> None:
+    config = replace(
+        training_config(),
+        environments=8,
+        procedural=True,
+        width=25,
+        height=17,
+        players=5,
+        players_schedule=[5, 6, 7, 8],
+        profiles=["classic_generic_2022", "online_default_v1"],
+        profile=None,
+        land_density_schedule_per_million=[600_000, 700_000],
+    )
+
+    environment = make_environment(config)
+    observation = environment.observe()
+    generators = [json.loads(value) for value in environment.generator_jsons()]
+
+    assert observation["player_counts"].tolist() == [5, 6, 7, 8, 5, 6, 7, 8]
+    assert [value["players"] for value in generators] == [5, 6, 7, 8, 5, 6, 7, 8]
+    assert [value["land_density_per_million"] for value in generators] == [
+        600_000,
+        700_000,
+        600_000,
+        700_000,
+        600_000,
+        700_000,
+        600_000,
+        700_000,
+    ]
+
+
+def test_training_rejects_players_schedule_without_procedural_maps() -> None:
+    with pytest.raises(ValueError, match="requires procedural"):
+        validate_config(replace(training_config(), players_schedule=[5, 6, 7, 8]))
+
+
+@pytest.mark.parametrize("players", ([1, 5], [5, 9]))
+def test_training_rejects_invalid_players_schedule(players: list[int]) -> None:
+    with pytest.raises(ValueError, match="between two and eight"):
+        validate_config(
+            replace(
+                training_config(),
+                procedural=True,
+                players_schedule=players,
+            )
+        )
+
+
+def test_slice_configuration_uses_largest_scheduled_player_count() -> None:
+    config = replace(
+        training_config(),
+        procedural=True,
+        players=5,
+        players_schedule=[5, 8],
+        imitation_slice_weights=["classic_generic_2022:7:2"],
+        imitation_policy_rollin_slices=["classic_generic_2022:7"],
+    )
+
+    validate_config(config)
+    assert parsed_slice_weights(config) == {("classic_generic_2022", 7): 2.0}
 
 
 def test_training_rejects_land_density_schedule_without_procedural_maps() -> None:
