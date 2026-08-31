@@ -125,6 +125,12 @@ const experiments = [
     description: "Train relative utilities from complete self-play winners with game-disjoint validation instead of copying scalar predictions.",
     result: "Holdout sign accuracy rose from 51.7% to 85.5%, but outcome and scalar heads both finished 42–40 over direct policy and tied 5–5 head-to-head.",
   },
+  {
+    method: "Positive action regret",
+    status: "not promoted",
+    description: "Expose every PUCT root action Q-value and imitate only search moves whose value exceeds the direct greedy move, weighted by that measured regret.",
+    result: "The selected student improved 13 maps and regressed 7 across 384 games (+23.99 pool-relative Elo), but only 20 maps changed and the paired sign test remained p=0.263.",
+  },
 ] as const;
 
 function EvidenceLink({ file }: { file: string }) {
@@ -172,7 +178,7 @@ export default function ModelsPage() {
       <section className="models-section report-section">
         <div className="section-heading"><div><p>Promotion gate</p><h2>How a model earns the top row</h2></div></div>
         <div className="promotion-flow"><div><b>AMPLIFY</b><span>Search or PUCT labels policy-visited states.</span></div><i>→</i><div><b>DISTILL</b><span>A compact policy learns priors and values.</span></div><i>→</i><div><b>ATTACK</b><span>Fresh seeds, both seats, every rules profile.</span></div><i>→</i><div><b>PROMOTE</b><span>Only if the weakest slice does not regress.</span></div></div>
-        <footer><span>Next controlled experiment</span><strong>Learn action-conditioned regret or advantage targets: better terminal-value prediction alone did not improve procedural MaxN decisions.</strong></footer>
+        <footer><span>Next controlled experiment</span><strong>Collect a larger replayable action-Q dataset across seats and map families, then train a dedicated advantage head; 131 positive-regret labels were too sparse for promotion.</strong></footer>
       </section>
     </main>
   );

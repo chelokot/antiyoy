@@ -24,6 +24,10 @@
     "outcome-vector": {
       "file": "2026-08-31-outcome-vector-value-rocm.json",
       "sha256": "e4a1addb6cccd99a133054594f2ae85e4ca87476892b984fc86d2e48030f47e7"
+    },
+    "positive-regret": {
+      "file": "2026-08-31-positive-regret-distillation-rocm.json",
+      "sha256": "4f401d445d22c20d76cc1c86c56c348c0c9c57f16fa1ff249341af339cca6375"
     }
   },
   "comparisons": [
@@ -91,6 +95,19 @@
       "significance": "p=1.000",
       "verdict": "rejected cost",
       "evidence": "procedural-puct"
+    },
+    {
+      "pool": "Procedural 5-player · seat 4",
+      "method": "Positive-regret distill",
+      "compute": "1 neural pass",
+      "opponent": "direct routed policy",
+      "games": 384,
+      "record": "53–0–331 vs 47–0–337",
+      "relativeElo": "+23.99",
+      "pairedFlips": "13–7",
+      "significance": "p=0.263",
+      "verdict": "not promoted",
+      "evidence": "positive-regret"
     },
     {
       "pool": "Procedural 5-player · seat 4",
