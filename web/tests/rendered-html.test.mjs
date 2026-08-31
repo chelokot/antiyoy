@@ -144,7 +144,10 @@ test("renders the benchmark-backed model arena", async () => {
   assert.match(html, /4\.47× faster than exact MaxN/);
   assert.match(html, /tied 5–5 head-to-head/);
   assert.match(html, /3,379 counterfactual pairs fit well offline/);
-  assert.match(html, /complete root action-value slates/);
+  assert.match(html, /Conservative full-action slates/);
+  assert.match(html, /4\.96M actions reduced held-out target KL/);
+  assert.match(html, /Full-slate conservative · scale 2/);
+  assert.match(html, /nonlinear state-action residual scorer/);
   assert.match(html, /Play either promoted Soft-PUCT seat now/);
   assert.match(html, /280–0–232/);
   assert.match(html, /\+32\.67 relative Elo/);

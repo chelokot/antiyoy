@@ -32,6 +32,10 @@
     "replayable-action-q": {
       "file": "2026-08-31-replayable-action-q-distillation-rocm.json",
       "sha256": "7e3d0b31866ef3b371e6f9e7c7a80630c867a4e517a18b07248ebea1b4a0fcb5"
+    },
+    "conservative-action-slate": {
+      "file": "2026-08-31-conservative-action-slate-distillation-rocm.json",
+      "sha256": "87efd43a016af7b4c2383f1c03d58c905137bbe467514e3da12e816e028aa8da"
     }
   },
   "comparisons": [
@@ -138,6 +142,32 @@
       "significance": "p=1.000",
       "verdict": "rejected",
       "evidence": "replayable-action-q"
+    },
+    {
+      "pool": "Procedural 5-player · development",
+      "method": "Full-slate conservative · scale 1",
+      "compute": "5 routed heads",
+      "opponent": "direct routed policy",
+      "games": 100,
+      "record": "18–0–82 vs 20–0–80",
+      "relativeElo": "−22.59",
+      "pairedFlips": "1–3",
+      "significance": "p=0.625",
+      "verdict": "rejected",
+      "evidence": "conservative-action-slate"
+    },
+    {
+      "pool": "Procedural 5-player · development",
+      "method": "Full-slate conservative · scale 2",
+      "compute": "5 routed heads",
+      "opponent": "direct routed policy",
+      "games": 100,
+      "record": "18–0–82 vs 20–0–80",
+      "relativeElo": "−22.59",
+      "pairedFlips": "2–4",
+      "significance": "p=0.688",
+      "verdict": "rejected",
+      "evidence": "conservative-action-slate"
     },
     {
       "pool": "Procedural 5-player · seat 4",

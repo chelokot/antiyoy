@@ -122,3 +122,11 @@ and contiguous action prefix. Sampled prefixes must reproduce the exact Rust
 state before training. Offline action-pair accuracy is diagnostic only: shared
 and exact-seat heads still require fresh, paired full-game gates in every
 collected map domain, and a cross-domain tie or regression is not promoted.
+
+Full action-slate records preserve every legal alternative at each sampled
+root, including source logits, PUCT probabilities, Q-values, and visit counts.
+The replay ledger stores each episode once and fingerprints every sampled Rust
+state. Split games rather than individual roots, leave unvisited alternatives
+at the source policy, and require a paired outcome scout before spending fresh
+confirmation seeds. Lower held-out listwise KL is diagnostic, not evidence of
+strategic improvement.

@@ -137,6 +137,12 @@ const experiments = [
     description: "Store exact search and direct action features, root Q-values, source hashes, and complete action prefixes; split training and validation by game across two map domains.",
     result: "3,379 counterfactual pairs fit well offline, but the shared head finished 98–100 and five exact-seat heads finished 100–100 across 500 development-plus-confirmation games.",
   },
+  {
+    method: "Conservative full-action slates",
+    status: "rejected",
+    description: "Retain every legal alternative at 51,200 replayable PUCT roots, preserve unvisited source logits, and train exact-seat action heads with game-disjoint listwise targets.",
+    result: "4.96M actions reduced held-out target KL, but scale 1 and scale 2 each finished 18–20 on the paired development gate. Neither spent confirmation compute.",
+  },
 ] as const;
 
 function EvidenceLink({ file }: { file: string }) {
@@ -184,7 +190,7 @@ export default function ModelsPage() {
       <section className="models-section report-section">
         <div className="section-heading"><div><p>Promotion gate</p><h2>How a model earns the top row</h2></div></div>
         <div className="promotion-flow"><div><b>AMPLIFY</b><span>Search or PUCT labels policy-visited states.</span></div><i>→</i><div><b>DISTILL</b><span>A compact policy learns priors and values.</span></div><i>→</i><div><b>ATTACK</b><span>Fresh seeds, both seats, every rules profile.</span></div><i>→</i><div><b>PROMOTE</b><span>Only if the weakest slice does not regress.</span></div></div>
-        <footer><span>Next controlled experiment</span><strong>Collect complete root action-value slates, including neutral and losing alternatives, then train conservative state-conditional rankings with direct-policy KL on broad replay states.</strong></footer>
+        <footer><span>Next controlled experiment</span><strong>Train a nonlinear state-action residual scorer from calibrated deeper-search returns; first require game-disjoint ranking gains, then a paired outcome scout.</strong></footer>
       </section>
     </main>
   );

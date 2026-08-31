@@ -15,7 +15,7 @@ test("model arena snapshot is bound to immutable benchmark contents", async () =
   const evidenceNames = new Set(Object.keys(snapshot.evidence));
 
   assert.equal(snapshot.schemaVersion, 1);
-  assert.equal(snapshot.comparisons.length, 11);
+  assert.equal(snapshot.comparisons.length, 13);
   for (const [name, evidence] of Object.entries(snapshot.evidence)) {
     const contents = await readFile(new URL(evidence.file, benchmarkRoot));
     assert.equal(
@@ -30,13 +30,14 @@ test("model arena snapshot is bound to immutable benchmark contents", async () =
 });
 
 test("model arena snapshot preserves the measured search and value gates", async () => {
-  const [snapshot, procedural, vector, outcomes, regret, actionQ] = await Promise.all([
+  const [snapshot, procedural, vector, outcomes, regret, actionQ, actionSlate] = await Promise.all([
     readJson(snapshotUrl),
     readJson(new URL("2026-08-31-procedural-5p-puct-loop-rocm.json", benchmarkRoot)),
     readJson(new URL("2026-08-31-one-pass-maxn-vector-distillation-rocm.json", benchmarkRoot)),
     readJson(new URL("2026-08-31-outcome-vector-value-rocm.json", benchmarkRoot)),
     readJson(new URL("2026-08-31-positive-regret-distillation-rocm.json", benchmarkRoot)),
     readJson(new URL("2026-08-31-replayable-action-q-distillation-rocm.json", benchmarkRoot)),
+    readJson(new URL("2026-08-31-conservative-action-slate-distillation-rocm.json", benchmarkRoot)),
   ]);
   const rows = new Map(snapshot.comparisons.map((row) => [row.method, row]));
 
@@ -70,6 +71,19 @@ test("model arena snapshot preserves the measured search and value gates", async
     rows.get("Replayable action-Q exact-seat").pairedFlips,
     `${actionQ.seat_specific_heads.combined_development_and_fresh.candidate_better}–${actionQ.seat_specific_heads.combined_development_and_fresh.baseline_better}`,
   );
+  for (const [index, scale] of [1, 2].entries()) {
+    const candidate = actionSlate.candidates[index];
+    const row = rows.get(`Full-slate conservative · scale ${scale}`);
+    assert.equal(row.games, candidate.development.games);
+    assert.equal(
+      row.pairedFlips,
+      `${candidate.development.candidate_better}–${candidate.development.baseline_better}`,
+    );
+    assert.equal(
+      row.relativeElo,
+      candidate.development.baseline_adjusted_elo_delta.toFixed(2).replace("-", "−"),
+    );
+  }
   assert.deepEqual(outcomes.combined.outcome_against_scalar, {
     outcome_better: 5,
     scalar_better: 5,
