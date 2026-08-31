@@ -21,9 +21,15 @@ class ModelArtifact:
     size_bytes: int
 
 
-def registry() -> list[ModelArtifact]:
+@dataclass(frozen=True)
+class ModelRegistry:
+    default_identifier: str
+    artifacts: tuple[ModelArtifact, ...]
+
+
+def load_registry() -> ModelRegistry:
     payload = json.loads(REGISTRY.read_text())
-    return [
+    artifacts = tuple(
         ModelArtifact(
             identifier=model["id"],
             asset=model["asset"],
@@ -32,7 +38,15 @@ def registry() -> list[ModelArtifact]:
             size_bytes=model["size_bytes"],
         )
         for model in payload["models"]
-    ]
+    )
+    default_identifier = payload["default_model_id"]
+    if default_identifier not in {artifact.identifier for artifact in artifacts}:
+        raise ValueError("default model is missing from the registry")
+    return ModelRegistry(default_identifier, artifacts)
+
+
+def registry() -> list[ModelArtifact]:
+    return list(load_registry().artifacts)
 
 
 def fetch(identifier: str, destination: Path | None) -> Path:
@@ -45,7 +59,10 @@ def fetch(identifier: str, destination: Path | None) -> Path:
     temporary = target.with_name(f".{target.name}.part")
     digest = hashlib.sha256()
     size = 0
-    with urllib.request.urlopen(artifact.url) as response, temporary.open("wb") as output:
+    with (
+        urllib.request.urlopen(artifact.url) as response,
+        temporary.open("wb") as output,
+    ):
         while block := response.read(1024 * 1024):
             output.write(block)
             digest.update(block)
@@ -58,11 +75,12 @@ def fetch(identifier: str, destination: Path | None) -> Path:
 
 
 def main() -> None:
+    models = load_registry()
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "identifier",
         nargs="?",
-        default="universal-routed-2to8p-engine-v6-2026-08-31",
+        default=models.default_identifier,
     )
     parser.add_argument("--output", type=Path)
     arguments = parser.parse_args()

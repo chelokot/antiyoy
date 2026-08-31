@@ -17,7 +17,11 @@ def test_model_registry_has_unique_verified_artifacts() -> None:
 
 def test_registry_defaults_to_the_universal_two_to_eight_player_bundle() -> None:
     payload = json.loads(Path("model-registry/models.json").read_text())
-    current = payload["models"][0]
+    current = next(
+        model
+        for model in payload["models"]
+        if model["id"] == payload["default_model_id"]
+    )
 
     assert current["id"] == "universal-routed-2to8p-engine-v6-2026-08-31"
     assert current["status"] == "beta"
@@ -60,9 +64,7 @@ def test_registry_records_the_heldout_puct_distillation_gain() -> None:
     )
 
     assert specialist["route"]["seat"] == 0
-    assert specialist["distillation"]["target"] == (
-        "complete soft root distribution"
-    )
+    assert specialist["distillation"]["target"] == ("complete soft root distribution")
     result = specialist["vs_frozen_source_policy"]
     assert result["games"] == 512
     assert result["record"] == "281-0-231"
