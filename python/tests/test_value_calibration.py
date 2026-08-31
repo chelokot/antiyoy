@@ -99,3 +99,37 @@ def test_calibration_writes_an_overlay_compatible_checkpoint(tmp_path: Path) -> 
         for key, value in original["model"].items()
         if not key.startswith("value_head.")
     )
+
+
+def test_calibration_supports_procedural_multiplayer(tmp_path: Path) -> None:
+    source = tmp_path / "source.pt"
+    output = tmp_path / "procedural-calibrated.pt"
+    write_checkpoint(source, 1.0)
+
+    report = calibrate_value(
+        source,
+        output,
+        profile="classic_generic_2022",
+        games=3,
+        validation_games=1,
+        seed=719,
+        device_name="cpu",
+        width=9,
+        height=7,
+        action_limit=12,
+        sample_stride=1,
+        epochs=1,
+        batch_size=8,
+        learning_rate=1e-3,
+        exploration_probability=0.5,
+        exploration_top_k=3,
+        generator="procedural_v1",
+        players=3,
+        starting_province_size=3,
+    )
+
+    assert report["generator"] == "procedural_v1"
+    assert report["domain_descriptor"]["players"] == 3
+    assert report["collection"]["games"] == 3
+    assert len(report["collection"]["wins_by_seat"]) == 3
+    assert output.is_file()

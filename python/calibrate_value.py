@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from antiyoy_rl import VectorEnv
+from antiyoy_rl import ProceduralConfig, VectorEnv
 from antiyoy_rl.model import (
     UniversalPolicy,
     action_distribution,
@@ -179,6 +179,7 @@ def collect_self_play_samples(
     sample_stride: int,
     exploration_probability: float,
     exploration_top_k: int,
+    players: int,
 ) -> tuple[list[list[ValueSample]], dict[str, object]]:
     if sample_stride < 1:
         raise ValueError("sample stride must be positive")
@@ -261,7 +262,7 @@ def collect_self_play_samples(
         ]
         for environment_index, trajectory in enumerate(trajectories)
     ]
-    winner_counts = np.bincount(winners[winners != 255], minlength=2)
+    winner_counts = np.bincount(winners[winners != 255], minlength=players)
     return samples, {
         "games": games,
         "samples": sum(len(trajectory) for trajectory in samples),
@@ -292,31 +293,58 @@ def calibrate_value(
     learning_rate: float,
     exploration_probability: float = 0.15,
     exploration_top_k: int = 4,
+    generator: str = "symmetric_duel_v1",
+    players: int = 2,
+    land_density_per_million: int = 650_000,
+    starting_province_size: int = 5,
+    starting_money: int = 10,
+    tree_density_per_million: int = 150_000,
+    neutral_tower_density_per_million: int = 20_000,
+    neutral_capital_density_per_million: int = 10_000,
+    grave_density_per_million: int = 15_000,
 ) -> dict[str, object]:
     if games < 2 or validation_games < 1 or validation_games >= games:
         raise ValueError("validation games must be a non-empty strict subset")
+    if generator not in ("symmetric_duel_v1", "procedural_v1"):
+        raise ValueError("unsupported value calibration map generator")
+    if players < 2 or players > 8:
+        raise ValueError("value calibration player count must be between two and eight")
+    if generator == "symmetric_duel_v1" and players != 2:
+        raise ValueError("symmetric duel value calibration requires two players")
     device = torch.device(device_name)
     checkpoint = load_policy_checkpoint(checkpoint_path, device)
     config = dict(checkpoint["config"])
     descriptor = {
         "width": width,
         "height": height,
-        "players": 2,
+        "players": players,
         "action_limit": action_limit,
         "fog": config["fog"],
         "diplomacy": config.get("diplomacy", False),
         "initial_relation": config.get("initial_relation", "neutral"),
     }
-    evaluation_domain = domain_key("symmetric_duel_v1", descriptor)
+    if generator == "procedural_v1":
+        descriptor.update(
+            {
+                "land_density_per_million": land_density_per_million,
+                "starting_province_size": starting_province_size,
+                "starting_money": starting_money,
+                "tree_density_per_million": tree_density_per_million,
+                "neutral_tower_density_per_million": neutral_tower_density_per_million,
+                "neutral_capital_density_per_million": neutral_capital_density_per_million,
+                "grave_density_per_million": grave_density_per_million,
+            }
+        )
+    evaluation_domain = domain_key(generator, descriptor)
     models: dict[str, UniversalPolicy] = {}
     selected_experts: list[str] = []
     selected_config: dict[str, object] | None = None
-    for seat in range(2):
+    for seat in range(players):
         state, seat_config = select_policy_state(
             checkpoint,
             profile,
-            "symmetric_duel_v1",
-            2,
+            generator,
+            players,
             seat,
             evaluation_domain,
         )
@@ -326,19 +354,40 @@ def calibrate_value(
         selected_experts.append(expert)
         selected_config = seat_config
     if len(set(selected_experts)) != 1:
-        raise ValueError("value calibration requires one shared expert for both duel seats")
+        raise ValueError("all-seat value calibration requires one shared expert")
     target_expert = selected_experts[0]
-    environment = VectorEnv(
-        games,
-        width=width,
-        height=height,
-        seed=seed,
-        action_limit=action_limit,
-        profile=profile,
-        fog=bool(config["fog"]),
-        diplomacy=bool(config.get("diplomacy", False)),
-        initial_relation=str(config.get("initial_relation", "neutral")),
-    )
+    environment_arguments = {
+        "action_limit": action_limit,
+        "profile": profile,
+        "fog": bool(config["fog"]),
+        "diplomacy": bool(config.get("diplomacy", False)),
+        "initial_relation": str(config.get("initial_relation", "neutral")),
+    }
+    if generator == "procedural_v1":
+        procedural_config = ProceduralConfig(
+            width=width,
+            height=height,
+            players=players,
+            seed=seed,
+            land_density_per_million=land_density_per_million,
+            starting_province_size=starting_province_size,
+            starting_money=starting_money,
+            tree_density_per_million=tree_density_per_million,
+            neutral_tower_density_per_million=neutral_tower_density_per_million,
+            neutral_capital_density_per_million=neutral_capital_density_per_million,
+            grave_density_per_million=grave_density_per_million,
+        )
+        environment = VectorEnv.procedural(
+            games, procedural_config, **environment_arguments
+        )
+    else:
+        environment = VectorEnv(
+            games,
+            width=width,
+            height=height,
+            seed=seed,
+            **environment_arguments,
+        )
     rules = encode_rules_batch(environment.rules_jsons(), device)
     game_samples, collection = collect_self_play_samples(
         environment,
@@ -348,14 +397,11 @@ def calibrate_value(
         sample_stride,
         exploration_probability,
         exploration_top_k,
+        players,
     )
     training_games = games - validation_games
-    training = [
-        sample for game in game_samples[:training_games] for sample in game
-    ]
-    validation = [
-        sample for game in game_samples[training_games:] for sample in game
-    ]
+    training = [sample for game in game_samples[:training_games] for sample in game]
+    validation = [sample for game in game_samples[training_games:] for sample in game]
     rule_features = encode_rules(environment.rules_jsons()[0], device)
     model = models[target_expert]
     calibration = train_value_head(
@@ -381,7 +427,7 @@ def calibrate_value(
             "expert": target_expert,
         },
         "profile": profile,
-        "generator": "symmetric_duel_v1",
+        "generator": generator,
         "domain": evaluation_domain,
         "domain_descriptor": descriptor,
         "seed": seed,
@@ -424,6 +470,12 @@ def main() -> None:
     parser.add_argument("checkpoint", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--profile", default="classic_generic_2022")
+    parser.add_argument(
+        "--generator",
+        choices=("symmetric_duel_v1", "procedural_v1"),
+        default="symmetric_duel_v1",
+    )
+    parser.add_argument("--players", type=int, default=2)
     parser.add_argument("--games", type=int, default=64)
     parser.add_argument("--validation-games", type=int, default=16)
     parser.add_argument("--seed", type=int, default=600_000)
@@ -433,6 +485,15 @@ def main() -> None:
     parser.add_argument("--width", type=int, default=11)
     parser.add_argument("--height", type=int, default=9)
     parser.add_argument("--action-limit", type=int, default=1_000)
+    parser.add_argument("--land-density-per-million", type=int, default=650_000)
+    parser.add_argument("--starting-province-size", type=int, default=5)
+    parser.add_argument("--starting-money", type=int, default=10)
+    parser.add_argument("--tree-density-per-million", type=int, default=150_000)
+    parser.add_argument("--neutral-tower-density-per-million", type=int, default=20_000)
+    parser.add_argument(
+        "--neutral-capital-density-per-million", type=int, default=10_000
+    )
+    parser.add_argument("--grave-density-per-million", type=int, default=15_000)
     parser.add_argument("--sample-stride", type=int, default=4)
     parser.add_argument("--epochs", type=int, default=12)
     parser.add_argument("--batch-size", type=int, default=128)
@@ -457,6 +518,15 @@ def main() -> None:
         arguments.learning_rate,
         arguments.exploration_probability,
         arguments.exploration_top_k,
+        arguments.generator,
+        arguments.players,
+        arguments.land_density_per_million,
+        arguments.starting_province_size,
+        arguments.starting_money,
+        arguments.tree_density_per_million,
+        arguments.neutral_tower_density_per_million,
+        arguments.neutral_capital_density_per_million,
+        arguments.grave_density_per_million,
     )
     print(json.dumps(report, sort_keys=True))
 
