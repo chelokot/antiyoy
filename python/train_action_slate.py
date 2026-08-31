@@ -191,6 +191,56 @@ def select_slate_states(
     return result
 
 
+def seat_dataset_view(
+    dataset: dict[str, object], training_seat: int
+) -> dict[str, object]:
+    examples = {
+        **dataset["actions"],
+        **{
+            name: dataset["states"][name]
+            for name in (
+                "episode_seeds",
+                "episode_steps",
+                "seats",
+                "rounds",
+                "search_actions",
+                "direct_actions",
+            )
+        },
+        "groups": dataset["states"]["episode_seeds"].to(torch.int64),
+    }
+    selected = select_slate_states(
+        examples, examples["seats"].to(torch.long) == training_seat
+    )
+    return {
+        "source": dataset["source"],
+        "model": dataset["model"],
+        "config": dataset["config"],
+        "actions": {
+            name: selected[name]
+            for name in (
+                "offsets",
+                "features",
+                "baseline_logits",
+                "root_probabilities",
+                "root_values",
+                "root_visits",
+            )
+        },
+        "states": {
+            name: selected[name]
+            for name in (
+                "episode_seeds",
+                "episode_steps",
+                "seats",
+                "rounds",
+                "search_actions",
+                "direct_actions",
+            )
+        },
+    }
+
+
 def conservative_target_logits(
     baseline_logits: Tensor,
     root_values: Tensor,
@@ -353,13 +403,21 @@ def train_action_slate(
     if retention_weight < 0:
         raise ValueError("action-slate retention weight must be non-negative")
     datasets = [load_action_slate_dataset(path) for path in dataset_paths]
-    examples, sources = concatenate_slate_datasets(datasets)
+    dataset_summaries = [
+        {
+            "path": str(path),
+            "sha256": digest(path),
+            "states": int(dataset["states"]["episode_seeds"].shape[0]),
+            "actions": int(dataset["actions"]["features"].shape[0]),
+            "config": dataset["config"],
+        }
+        for path, dataset in zip(dataset_paths, datasets, strict=True)
+    ]
     if training_seat is not None:
         if training_seat < 0:
             raise ValueError("training seat must be non-negative")
-        examples = select_slate_states(
-            examples, examples["seats"].to(torch.long) == training_seat
-        )
+        datasets = [seat_dataset_view(dataset, training_seat) for dataset in datasets]
+    examples, sources = concatenate_slate_datasets(datasets)
     checkpoint_sha256 = digest(checkpoint_path)
     if any(str(source["sha256"]) != checkpoint_sha256 for source in sources):
         raise ValueError("action-slate dataset source does not match the checkpoint")
@@ -504,16 +562,7 @@ def train_action_slate(
             "feature_expert": feature_expert,
             "output_expert": output_expert,
         },
-        "datasets": [
-            {
-                "path": str(path),
-                "sha256": digest(path),
-                "states": int(dataset["states"]["episode_seeds"].shape[0]),
-                "actions": int(dataset["actions"]["features"].shape[0]),
-                "config": dataset["config"],
-            }
-            for path, dataset in zip(dataset_paths, datasets, strict=True)
-        ],
+        "datasets": dataset_summaries,
         "states": int(examples["groups"].shape[0]),
         "actions": int(examples["features"].shape[0]),
         "training_states": int(training_states.numel()),

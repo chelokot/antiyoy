@@ -201,6 +201,7 @@ def test_conservative_slate_training_improves_game_disjoint_targets(
         retention_weight=0.1,
         validation_fraction=0.2,
         seed=212,
+        training_seat=1,
     )
 
     assert (
@@ -210,4 +211,6 @@ def test_conservative_slate_training_improves_game_disjoint_targets(
     assert report["validation_after"]["measured_pair_accuracy"] > 0.5
     assert report["frozen_parameters_preserved"] is True
     assert report["changed_action_parameters"] > 0
+    assert report["states"] == 20
+    assert report["training_seat"] == 1
     assert output.is_file()
