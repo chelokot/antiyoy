@@ -9,7 +9,8 @@
     "matched_map_suite_aggregation": "2ca60ac",
     "raw_evaluation_schedules": "59e6f15",
     "root_perspective_puct": "b07bea9",
-    "single_turn_puct_horizon": "751b684"
+    "single_turn_puct_horizon": "751b684",
+    "maxn_puct": "d6b88b6"
   },
   "system": {
     "allocated_cpu_threads": 8,
@@ -363,6 +364,70 @@
     },
     "decision": "root perspective changed four outcomes at each budget but was exactly neutral. The single-turn horizon preserved every root-search outcome at both budgets while reducing leaf inference by 14.45% at PUCT-8 and 24.18% at PUCT-32; retain it as an efficiency mode, not a strength promotion."
   },
+  "ranking_maxn_puct_ablation": {
+    "node_budget": 8,
+    "model_seat": 3,
+    "players": 5,
+    "windows": [
+      {
+        "seed_first": 1060000,
+        "games": 64,
+        "source_policy_wins": 6,
+        "scalar_wins": 4,
+        "maxn_wins": 5,
+        "maxn_against_scalar": {
+          "candidate_better": 1,
+          "baseline_better": 0,
+          "same": 63,
+          "net_improvements": 1
+        },
+        "scalar_evaluated_leaves": 50986,
+        "maxn_evaluated_leaves": 53891,
+        "scalar_raw_result_sha256": "c910d87856cdfee1021c1ea136b7b83ef5e7cddf945dd38c5739a9f56bed092f",
+        "maxn_raw_result_sha256": "8ffc3e22748b185795386788bcec5b3bae540e7c2ddf71da331c93bbaa56777e"
+      },
+      {
+        "seed_first": 1070000,
+        "games": 64,
+        "source_policy_wins": 7,
+        "scalar_wins": 13,
+        "maxn_wins": 13,
+        "maxn_against_scalar": {
+          "candidate_better": 1,
+          "baseline_better": 1,
+          "same": 62,
+          "net_improvements": 0
+        },
+        "scalar_evaluated_leaves": 63955,
+        "maxn_evaluated_leaves": 62699,
+        "scalar_raw_result_sha256": "abe09ea41033298d387500f78376b45fc56b928383e9d66cee6fd50eeac97126",
+        "maxn_raw_result_sha256": "bb7619fa07d5717e34e7eb47f9784bac39c34a3638443c8ad46d3a85e1379843"
+      }
+    ],
+    "combined": {
+      "games": 128,
+      "source_policy_wins": 13,
+      "scalar_wins": 17,
+      "maxn_wins": 18,
+      "scalar_score_delta": 0.03125,
+      "maxn_score_delta": 0.0390625,
+      "scalar_baseline_adjusted_elo_delta": 52.752172255356555,
+      "maxn_baseline_adjusted_elo_delta": 64.25372319674237,
+      "maxn_against_scalar": {
+        "candidate_better": 2,
+        "baseline_better": 1,
+        "same": 125,
+        "discordant": 3,
+        "net_improvements": 1,
+        "exact_two_sided_sign_test_p": 1.0
+      },
+      "scalar_evaluated_leaves": 114941,
+      "maxn_evaluated_leaves": 116590,
+      "maxn_total_value_predictions": 582950,
+      "maxn_additional_perspective_predictions": 466360
+    },
+    "decision": "rejected as the next amplifier: MaxN improved only one net matched outcome over scalar PUCT across 128 games with p=1.0 while requiring five player-perspective value predictions per leaf. No PUCT-32 confirmation or distillation was run. The objective remains available for future vector-value checkpoints."
+  },
   "calibrated_puct_confirmations": [
     {
       "seed_first": 930000,
@@ -424,5 +489,5 @@
     "raw_result_sha256": "009444f9c053803457aaf22f44b288810a05b6af2e36c0cc9badfce4757290c4",
     "decision": "rejected: the repeated online PUCT signal did not survive zero-search distillation"
   },
-  "conclusion": "Procedural exact-seat binary calibration materially improved held-out value MAE, RMSE, and correlation, and PUCT-8 repeated a small +2-win uplift on each of two disjoint windows. A high-retention student nevertheless matched the source exactly on a fresh 128-game zero-search gate. A zero-sum multiplayer target improved regression metrics but lost two held-out PUCT wins and was rejected. Pairwise ranking produced the best value metrics and a combined +28.61 baseline-adjusted Elo over 320 PUCT games, but one of three windows was negative and the all-window matched-map sign test had p=0.377, so it remains unconfirmed and was not distilled. Quadrupling that teacher to 32 nodes then lost three matched maps directly against PUCT-8 and fell below the source policy on a fresh scout, ruling out search budget alone as the next amplifier. Root-perspective backup was strength-neutral on a further window. Bounding root-perspective PUCT to one turn preserved all 128 measured outcomes while reducing leaf inference by 14.45% at eight nodes and 24.18% at 32 nodes, so it is retained as an efficiency option rather than promoted as a stronger agent. No artifact was promoted. More representative multiplayer value data or a genuinely multi-agent value objective is required before another procedural PUCT distillation attempt."
+  "conclusion": "Procedural exact-seat binary calibration materially improved held-out value MAE, RMSE, and correlation, and PUCT-8 repeated a small +2-win uplift on each of two disjoint windows. A high-retention student nevertheless matched the source exactly on a fresh 128-game zero-search gate. A zero-sum multiplayer target improved regression metrics but lost two held-out PUCT wins and was rejected. Pairwise ranking produced the best value metrics and a combined +28.61 baseline-adjusted Elo over 320 PUCT games, but one of three windows was negative and the all-window matched-map sign test had p=0.377, so it remains unconfirmed and was not distilled. Quadrupling that teacher to 32 nodes then lost three matched maps directly against PUCT-8 and fell below the source policy on a fresh scout, ruling out search budget alone as the next amplifier. Root-perspective backup was strength-neutral on a further window. Bounding root-perspective PUCT to one turn preserved all 128 measured outcomes while reducing leaf inference by 14.45% at eight nodes and 24.18% at 32 nodes, so it is retained as an efficiency option rather than promoted as a stronger agent. MaxN vector backup then improved only one net outcome over scalar PUCT across 128 maps while requiring five value perspectives per leaf, so it too was rejected as the next amplifier. No artifact was promoted. Better shared vector-value representations or more representative multiplayer data are required before another procedural PUCT distillation attempt."
 }

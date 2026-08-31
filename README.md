@@ -272,6 +272,11 @@ not merely four times as many nodes. A root-perspective single-turn PUCT mode
 did preserve every measured full-search outcome on a subsequent 128 matched
 comparisons while cutting leaf inference by 14.45% at eight nodes and 24.18% at
 32 nodes. It is available as an efficiency mode, not claimed as a strength gain.
+A full MaxN backup is also implemented: every opponent maximizes its own value
+component instead of joining a scalar coalition. On its first two five-player
+windows it improved only one net map over scalar PUCT (18 versus 17 wins across
+128 games, sign-test p=1.0) while requiring five perspective predictions per
+leaf. It remains an experimental objective and was not distilled.
 
 Reproduce the accepted direct-policy comparison with the small specialist:
 
