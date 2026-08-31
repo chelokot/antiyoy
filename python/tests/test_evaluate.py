@@ -190,6 +190,7 @@ def test_policy_search_runs_the_native_tree_for_every_model_decision(
     assert search["total_nodes"] == search["decisions"] * search["node_budget"]
     assert search["total_root_visits"] > 0
     assert search["root_value_weight"] == 0.0
+    assert search["value_perspective"] == "active"
     assert result["score_delta"] == pytest.approx(0.0)
 
 

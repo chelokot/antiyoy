@@ -18,7 +18,11 @@ from antiyoy_rl.model import (
     encode_rules_batch,
     rotate_observation_180,
 )
-from antiyoy_rl.puct import PolicySearchConfig, policy_search_actions
+from antiyoy_rl.puct import (
+    PolicySearchConfig,
+    ValuePerspective,
+    policy_search_actions,
+)
 from antiyoy_rl.routed import RoutedPolicy
 
 try:
@@ -67,6 +71,7 @@ class PuctDistillationConfig:
     puct_maximum_depth: int = 128
     puct_root_value_weight: float | None = 1.0
     puct_leaf_batch_size: int = 512
+    puct_value_perspective: ValuePerspective = "active"
     training_seat: int | None = None
 
 
@@ -110,6 +115,8 @@ def validate_config(config: PuctDistillationConfig) -> None:
         raise ValueError("distillation PUCT search values are invalid")
     if config.puct_maximum_depth < 1:
         raise ValueError("distillation PUCT maximum depth must be positive")
+    if config.puct_value_perspective not in ("active", "root"):
+        raise ValueError("distillation PUCT value perspective is invalid")
     if config.puct_root_value_weight is not None and config.puct_root_value_weight < 0:
         raise ValueError("distillation PUCT root value weight must be non-negative")
     if (
@@ -282,6 +289,7 @@ def distill_puct(
         maximum_depth=config.puct_maximum_depth,
         root_value_weight=config.puct_root_value_weight,
         leaf_batch_size=config.puct_leaf_batch_size,
+        value_perspective=config.puct_value_perspective,
     )
     active_mask = np.ones(config.environments, dtype=np.uint8)
     next_reset_seed = config.seed + config.environments
@@ -587,6 +595,7 @@ def distill_puct(
             "maximum_depth": config.puct_maximum_depth,
             "root_value_weight": config.puct_root_value_weight,
             "leaf_batch_size": config.puct_leaf_batch_size,
+            "value_perspective": config.puct_value_perspective,
             "decisions": config.environments * config.updates,
             "evaluated_leaves": evaluated_leaves,
             "leaf_batches": leaf_batches,
@@ -665,6 +674,9 @@ def main() -> None:
     parser.add_argument("--puct-maximum-depth", type=int, default=128)
     parser.add_argument("--puct-root-value-weight", type=float, default=1.0)
     parser.add_argument("--puct-leaf-batch-size", type=int, default=512)
+    parser.add_argument(
+        "--puct-value-perspective", choices=("active", "root"), default="active"
+    )
     parser.add_argument("--training-seat", type=int)
     arguments = parser.parse_args()
     report = distill_puct(
@@ -703,6 +715,7 @@ def main() -> None:
             puct_maximum_depth=arguments.puct_maximum_depth,
             puct_root_value_weight=arguments.puct_root_value_weight,
             puct_leaf_batch_size=arguments.puct_leaf_batch_size,
+            puct_value_perspective=arguments.puct_value_perspective,
             training_seat=arguments.training_seat,
         ),
     )

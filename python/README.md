@@ -209,8 +209,9 @@ configurable and emitted in the result.
 Policy-guided PUCT is a separate model-side amplifier. Rust owns the cloned
 search trees, exact legal transitions, virtual visits, and deterministic
 backup; Python batches pending leaves into a single policy/value inference.
-The active routed expert is selected again at every leaf, so opponent and
-multiplayer turns are not evaluated with the root seat's specialist.
+The active routed expert supplies policy priors at every leaf. Value routing is
+independently configurable because multiplayer search may need the root seat's
+utility while an opponent supplies the legal-action policy.
 
 ```bash
 python evaluate.py ../models/universal-routed.pt --games 64 \
@@ -247,6 +248,15 @@ python evaluate.py ../models/universal-routed.pt --games 64 \
 Every opponent seat then uses the same routed checkpoint without search. The
 paired seat rotation and policy-vs-policy reference run isolate the Elo added by
 PUCT rather than mixing it with a different heuristic opponent.
+
+The historical scalar backup is exact for two-player zero-sum games but only an
+approximation with three or more players: each leaf value belongs to the player
+whose turn it is. Use `--puct-value-perspective root` for a consistent
+multiplayer paranoid search. Policy priors still come from the actual active
+seat's routed expert, while a separate value pass re-encodes the position from
+the root seat and routes its value expert. The tree then maximizes root utility
+on root turns and assumes every opponent minimizes it. The perspective mode is
+recorded and must match across comparisons.
 
 PUCT depends on a calibrated value head. Search-teacher imitation updates policy
 logits but deliberately do not train values, so a newly distilled expert must
@@ -328,7 +338,9 @@ exactly reproducible.
 The same command supports procedural multiplayer curricula. Select the exact
 player-count route with `--generator procedural_v1 --players 5`, provide the
 generator dimensions and densities, and use `--training-seat` for the specialist
-being improved. Procedural resets regenerate topology from every recorded seed.
+being improved. Add `--puct-value-perspective root` when the accepted teacher
+used root-perspective multiplayer backup. Procedural resets regenerate topology
+from every recorded seed.
 Teacher roll-in preserves each opponent's routed expert; student roll-in
 substitutes the student only for its target seat. Two-to-eight-player runs thus
 train and report one explicit route without silently replacing other seats.

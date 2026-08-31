@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import NotRequired, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 import numpy as np
 import torch
@@ -23,6 +23,9 @@ class PolicySearchMetrics(TypedDict):
     root_probabilities: NotRequired[np.ndarray]
 
 
+ValuePerspective = Literal["active", "root"]
+
+
 @dataclass(frozen=True)
 class PolicySearchConfig:
     node_budget: int = 256
@@ -31,9 +34,35 @@ class PolicySearchConfig:
     maximum_depth: int = 128
     root_value_weight: float | None = None
     leaf_batch_size: int = 512
+    value_perspective: ValuePerspective = "active"
 
 
 PolicyEvaluator = Callable[[Mapping[str, np.ndarray], Tensor], tuple[Tensor, Tensor]]
+
+
+def root_perspective_leaf_values(
+    evaluator: PolicyEvaluator,
+    observation: Mapping[str, np.ndarray],
+    rule_features: Tensor,
+    active_values: Tensor,
+    root_players: np.ndarray,
+) -> Tensor:
+    active_players = np.asarray(observation["active_players"])
+    roots = np.asarray(root_players, dtype=active_players.dtype)
+    if roots.shape != active_players.shape:
+        raise ValueError("root players must contain one value per search leaf")
+    if np.array_equal(active_players, roots):
+        return active_values
+    root_observation = dict(observation)
+    root_observation["active_players"] = roots
+    with torch.no_grad():
+        _, root_values = evaluator(root_observation, rule_features)
+    native_signs = torch.as_tensor(
+        np.where(active_players == roots, 1.0, -1.0),
+        dtype=root_values.dtype,
+        device=root_values.device,
+    )
+    return root_values * native_signs
 
 
 def policy_search_actions(
@@ -47,6 +76,9 @@ def policy_search_actions(
     active = np.asarray(active_mask, dtype=np.uint8)
     if active.shape != (environment.environments,):
         raise ValueError("active mask must contain one value per environment")
+    if config.value_perspective not in ("active", "root"):
+        raise ValueError("PUCT value perspective must be active or root")
+    root_players = np.asarray(environment.observe()["active_players"], dtype=np.uint8)
     search = environment.policy_search(
         node_budget=config.node_budget,
         exploration=config.exploration,
@@ -75,7 +107,18 @@ def policy_search_actions(
                     for index, count in enumerate(action_counts)
                 ]
             )
-            bounded_values = values.clamp(-1, 1)
+            leaf_values = (
+                root_perspective_leaf_values(
+                    evaluator,
+                    observation,
+                    selected_rules,
+                    values,
+                    root_players[search_environments],
+                )
+                if config.value_perspective == "root"
+                else values
+            )
+            bounded_values = leaf_values.clamp(-1, 1)
         search.complete_leaves(
             flat_priors.to(device="cpu", dtype=torch.float32).numpy(),
             bounded_values.to(device="cpu", dtype=torch.float32).numpy(),

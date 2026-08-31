@@ -5,13 +5,57 @@ import pytest
 import torch
 
 from antiyoy_rl import VectorEnv
-from antiyoy_rl.puct import PolicySearchConfig, policy_search_actions
+from antiyoy_rl.puct import (
+    PolicySearchConfig,
+    policy_search_actions,
+    root_perspective_leaf_values,
+)
 
 
 def uniform_evaluator(observation, _rules):
     actions = len(observation["action_kinds"])
     environments = len(observation["widths"])
     return torch.zeros(actions), torch.zeros(environments)
+
+
+def test_root_perspective_values_use_root_experts_and_native_signs() -> None:
+    evaluated_players: list[list[int]] = []
+
+    def evaluator(observation, _rules):
+        active_players = np.asarray(observation["active_players"])
+        evaluated_players.append(active_players.tolist())
+        return torch.zeros(3), torch.as_tensor(active_players + 1, dtype=torch.float32)
+
+    observation = {
+        "active_players": np.array([0, 1, 2], dtype=np.uint8),
+        "action_kinds": np.array([0, 0, 0], dtype=np.uint8),
+    }
+    values = root_perspective_leaf_values(
+        evaluator,
+        observation,
+        torch.zeros((3, 45)),
+        torch.tensor([0.1, 0.2, 0.3]),
+        np.array([2, 1, 0], dtype=np.uint8),
+    )
+
+    assert evaluated_players == [[2, 1, 0]]
+    assert values.tolist() == [-3.0, 2.0, -1.0]
+
+
+def test_root_perspective_values_reuse_active_evaluation_at_root() -> None:
+    def unexpected_evaluator(_observation, _rules):
+        raise AssertionError("identical perspectives must reuse the active evaluation")
+
+    values = torch.tensor([0.25, -0.5])
+    result = root_perspective_leaf_values(
+        unexpected_evaluator,
+        {"active_players": np.array([0, 1], dtype=np.uint8)},
+        torch.zeros((2, 45)),
+        values,
+        np.array([0, 1], dtype=np.uint8),
+    )
+
+    assert result is values
 
 
 def test_policy_search_is_deterministic_and_respects_active_mask() -> None:

@@ -18,7 +18,11 @@ from antiyoy_rl.model import (
     encode_rules_batch,
     load_policy_state,
 )
-from antiyoy_rl.puct import PolicySearchConfig, policy_search_actions
+from antiyoy_rl.puct import (
+    PolicySearchConfig,
+    ValuePerspective,
+    policy_search_actions,
+)
 from antiyoy_rl.routed import RoutedPolicy
 
 try:
@@ -339,6 +343,7 @@ def evaluate(
     puct_root_value_weight: float | None = None,
     puct_leaf_batch_size: int = 512,
     baseline_checkpoint_path: Path | None = None,
+    puct_value_perspective: ValuePerspective = "active",
 ) -> dict[str, object]:
     if model_agent not in ("policy", "puct"):
         raise ValueError(f"unsupported model agent: {model_agent}")
@@ -566,6 +571,7 @@ def evaluate(
         maximum_depth=puct_maximum_depth,
         root_value_weight=puct_root_value_weight,
         leaf_batch_size=puct_leaf_batch_size,
+        value_perspective=puct_value_perspective,
     )
     while not bool(finished.all()):
         observation = environment.observe()
@@ -790,6 +796,9 @@ def evaluate(
                 puct_root_value_weight if model_agent == "puct" else None
             ),
             "leaf_batch_size": puct_leaf_batch_size if model_agent == "puct" else 0,
+            "value_perspective": (
+                puct_value_perspective if model_agent == "puct" else None
+            ),
             "decisions": puct_decisions,
             "evaluated_leaves": puct_evaluated_leaves,
             "leaf_batches": puct_leaf_batches,
@@ -838,6 +847,9 @@ def main() -> None:
     parser.add_argument("--puct-maximum-depth", type=int, default=128)
     parser.add_argument("--puct-root-value-weight", type=float)
     parser.add_argument("--puct-leaf-batch-size", type=int, default=512)
+    parser.add_argument(
+        "--puct-value-perspective", choices=("active", "root"), default="active"
+    )
     parser.add_argument("--land-density-per-million", type=int, default=650_000)
     parser.add_argument("--starting-province-size", type=int, default=5)
     parser.add_argument("--starting-money", type=int, default=10)
@@ -898,6 +910,7 @@ def main() -> None:
                 arguments.puct_root_value_weight,
                 arguments.puct_leaf_batch_size,
                 arguments.baseline_checkpoint,
+                arguments.puct_value_perspective,
             ),
             sort_keys=True,
         )
