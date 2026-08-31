@@ -15,6 +15,7 @@ from python.calibrate_value import (
     train_value_head,
     value_metrics,
 )
+from python.build_bundle import build_bundle
 from python.tests.test_bundle import write_checkpoint
 
 
@@ -102,9 +103,20 @@ def test_calibration_writes_an_overlay_compatible_checkpoint(tmp_path: Path) -> 
 
 
 def test_calibration_supports_procedural_multiplayer(tmp_path: Path) -> None:
-    source = tmp_path / "source.pt"
+    primary = tmp_path / "primary.pt"
+    third_seat = tmp_path / "third-seat.pt"
+    source = tmp_path / "source-bundle.pt"
     output = tmp_path / "procedural-calibrated.pt"
-    write_checkpoint(source, 1.0)
+    write_checkpoint(primary, 1.0)
+    write_checkpoint(third_seat, 8.0)
+    build_bundle(
+        primary,
+        {},
+        source,
+        seat_context_route_paths={
+            ("classic_generic_2022", "procedural_v1", 3, 2): third_seat
+        },
+    )
 
     report = calibrate_value(
         source,
@@ -126,10 +138,15 @@ def test_calibration_supports_procedural_multiplayer(tmp_path: Path) -> None:
         generator="procedural_v1",
         players=3,
         starting_province_size=3,
+        training_seat=2,
     )
 
     assert report["generator"] == "procedural_v1"
     assert report["domain_descriptor"]["players"] == 3
     assert report["collection"]["games"] == 3
+    assert report["training_seat"] == 2
+    assert report["source"]["expert"] == report["source"]["seat_experts"][2]
     assert len(report["collection"]["wins_by_seat"]) == 3
     assert output.is_file()
+    calibrated = torch.load(output, map_location="cpu", weights_only=False)
+    assert torch.all(calibrated["model"]["missing_source"] == 8.0)

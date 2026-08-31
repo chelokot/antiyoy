@@ -268,8 +268,10 @@ digests. Controlled exploration replaces 15% of actions with a sampled rank
 PUCT will actually visit. Procedural calibration accepts the same generator
 contract as evaluation, including `--generator procedural_v1`, `--players 2..8`,
 map dimensions, density controls, and action limit. It routes every active seat
-through the source bundle and requires all calibrated seats to share one expert,
-so a single output value head has an unambiguous context. Overlay it only on the calibrated context, preserving
+through the source bundle. Add `--training-seat` to collect loss and held-out
+metrics only for one player's states and emit that seat's exact routed expert;
+without it, every calibrated seat must share one expert. Overlay the resulting
+checkpoint only on that calibrated context, preserving
 every inherited route:
 
 ```bash

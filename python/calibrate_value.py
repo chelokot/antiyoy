@@ -180,6 +180,7 @@ def collect_self_play_samples(
     exploration_probability: float,
     exploration_top_k: int,
     players: int,
+    training_seat: int | None,
 ) -> tuple[list[list[ValueSample]], dict[str, object]]:
     if sample_stride < 1:
         raise ValueError("sample stride must be positive")
@@ -203,11 +204,14 @@ def collect_self_play_samples(
         observation = environment.observe()
         active_players = np.asarray(observation["active_players"], dtype=np.uint8)
         for environment_index in np.flatnonzero(~finished):
-            if decisions[environment_index] % sample_stride == 0:
+            active_player = int(active_players[environment_index])
+            if decisions[environment_index] % sample_stride == 0 and (
+                training_seat is None or active_player == training_seat
+            ):
                 trajectories[environment_index].append(
                     (
                         select_environments(observation, [int(environment_index)]),
-                        int(active_players[environment_index]),
+                        active_player,
                     )
                 )
             decisions[environment_index] += 1
@@ -273,6 +277,7 @@ def collect_self_play_samples(
         "truncations": truncations,
         "draws": int(np.count_nonzero(winners == 255)),
         "wins_by_seat": winner_counts.tolist(),
+        "training_seat": training_seat,
     }
 
 
@@ -302,6 +307,7 @@ def calibrate_value(
     neutral_tower_density_per_million: int = 20_000,
     neutral_capital_density_per_million: int = 10_000,
     grave_density_per_million: int = 15_000,
+    training_seat: int | None = None,
 ) -> dict[str, object]:
     if games < 2 or validation_games < 1 or validation_games >= games:
         raise ValueError("validation games must be a non-empty strict subset")
@@ -311,6 +317,8 @@ def calibrate_value(
         raise ValueError("value calibration player count must be between two and eight")
     if generator == "symmetric_duel_v1" and players != 2:
         raise ValueError("symmetric duel value calibration requires two players")
+    if training_seat is not None and not 0 <= training_seat < players:
+        raise ValueError("value calibration training seat is outside the player range")
     device = torch.device(device_name)
     checkpoint = load_policy_checkpoint(checkpoint_path, device)
     config = dict(checkpoint["config"])
@@ -353,9 +361,10 @@ def calibrate_value(
             models[expert] = instantiate_policy(state, seat_config, device)
         selected_experts.append(expert)
         selected_config = seat_config
-    if len(set(selected_experts)) != 1:
+    if training_seat is None and len(set(selected_experts)) != 1:
         raise ValueError("all-seat value calibration requires one shared expert")
-    target_expert = selected_experts[0]
+    target_seat = 0 if training_seat is None else training_seat
+    target_expert = selected_experts[target_seat]
     environment_arguments = {
         "action_limit": action_limit,
         "profile": profile,
@@ -398,6 +407,7 @@ def calibrate_value(
         exploration_probability,
         exploration_top_k,
         players,
+        training_seat,
     )
     training_games = games - validation_games
     training = [sample for game in game_samples[:training_games] for sample in game]
@@ -425,6 +435,7 @@ def calibrate_value(
             "path": str(checkpoint_path),
             "sha256": source_sha256,
             "expert": target_expert,
+            "seat_experts": selected_experts,
         },
         "profile": profile,
         "generator": generator,
@@ -437,6 +448,7 @@ def calibrate_value(
         "epochs": epochs,
         "batch_size": batch_size,
         "learning_rate": learning_rate,
+        "training_seat": training_seat,
         "exploration_probability": exploration_probability,
         "exploration_top_k": exploration_top_k,
         "collection": collection,
@@ -494,6 +506,7 @@ def main() -> None:
         "--neutral-capital-density-per-million", type=int, default=10_000
     )
     parser.add_argument("--grave-density-per-million", type=int, default=15_000)
+    parser.add_argument("--training-seat", type=int)
     parser.add_argument("--sample-stride", type=int, default=4)
     parser.add_argument("--epochs", type=int, default=12)
     parser.add_argument("--batch-size", type=int, default=128)
@@ -527,6 +540,7 @@ def main() -> None:
         arguments.neutral_tower_density_per_million,
         arguments.neutral_capital_density_per_million,
         arguments.grave_density_per_million,
+        arguments.training_seat,
     )
     print(json.dumps(report, sort_keys=True))
 
