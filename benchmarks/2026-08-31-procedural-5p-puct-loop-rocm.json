@@ -7,7 +7,9 @@
     "exact_seat_value_calibration": "027d3df",
     "matched_map_evaluation": "8ebf947",
     "matched_map_suite_aggregation": "2ca60ac",
-    "raw_evaluation_schedules": "59e6f15"
+    "raw_evaluation_schedules": "59e6f15",
+    "root_perspective_puct": "b07bea9",
+    "single_turn_puct_horizon": "751b684"
   },
   "system": {
     "allocated_cpu_threads": 8,
@@ -288,6 +290,79 @@
     },
     "decision": "rejected after the matched scout: quadrupling the node budget lost three maps directly against PUCT-8 and regressed below the source policy, so no confirmation or distillation was run"
   },
+  "ranking_puct_objective_ablation": {
+    "seed_first": 1050000,
+    "games": 64,
+    "model_seat": 3,
+    "source_policy_record": "8-0-56",
+    "source_policy_truncations": 0,
+    "shared_candidate_record": "9-0-55",
+    "shared_score_delta": 0.015625,
+    "shared_baseline_adjusted_elo_delta": 23.59114398373515,
+    "variants": {
+      "active_search_puct_8": {
+        "evaluated_leaves": 52585,
+        "maximum_reached_depth": 5,
+        "raw_result_sha256": "e6d62b3c404af43e3fab5560bd34ec66a5c46936b51f654a5fae2a08466d658f"
+      },
+      "root_search_puct_8": {
+        "evaluated_leaves": 54235,
+        "maximum_reached_depth": 5,
+        "raw_result_sha256": "87c34a1d9e0b7c79de65b974112386db4ee4d23c4206d19abeb25b6841797b42"
+      },
+      "root_leaf_puct_8": {
+        "evaluated_leaves": 46398,
+        "maximum_reached_depth": 2,
+        "raw_result_sha256": "579a54b50eaaebf77ec3127dac895504f54f054108bfd721a57fd37864f9c32c"
+      },
+      "active_search_puct_32": {
+        "evaluated_leaves": 201288,
+        "maximum_reached_depth": 8,
+        "raw_result_sha256": "0c623f2b135ca437e6e42c57831d60714e30e13b24e882f21fb67801804581d3"
+      },
+      "root_search_puct_32": {
+        "evaluated_leaves": 202124,
+        "maximum_reached_depth": 8,
+        "raw_result_sha256": "14828f719527ae138635cb8a8ba0e23c27383ea961356218566bb61e54f25f72"
+      },
+      "root_leaf_puct_32": {
+        "evaluated_leaves": 153242,
+        "maximum_reached_depth": 4,
+        "raw_result_sha256": "48dbfe647a57c4b47cd22a11d72f789f8945a1d9131ad96d7d5e2652f81b4ed7"
+      }
+    },
+    "root_perspective_against_active": {
+      "puct_8": {
+        "candidate_better": 2,
+        "baseline_better": 2,
+        "same": 60,
+        "net_improvements": 0
+      },
+      "puct_32": {
+        "candidate_better": 2,
+        "baseline_better": 2,
+        "same": 60,
+        "net_improvements": 0
+      }
+    },
+    "single_turn_horizon_against_full_root_search": {
+      "puct_8": {
+        "candidate_better": 0,
+        "baseline_better": 0,
+        "same": 64,
+        "evaluated_leaf_reduction": 7837,
+        "evaluated_leaf_reduction_fraction": 0.14450078362680926
+      },
+      "puct_32": {
+        "candidate_better": 0,
+        "baseline_better": 0,
+        "same": 64,
+        "evaluated_leaf_reduction": 48882,
+        "evaluated_leaf_reduction_fraction": 0.2418416417644614
+      }
+    },
+    "decision": "root perspective changed four outcomes at each budget but was exactly neutral. The single-turn horizon preserved every root-search outcome at both budgets while reducing leaf inference by 14.45% at PUCT-8 and 24.18% at PUCT-32; retain it as an efficiency mode, not a strength promotion."
+  },
   "calibrated_puct_confirmations": [
     {
       "seed_first": 930000,
@@ -349,5 +424,5 @@
     "raw_result_sha256": "009444f9c053803457aaf22f44b288810a05b6af2e36c0cc9badfce4757290c4",
     "decision": "rejected: the repeated online PUCT signal did not survive zero-search distillation"
   },
-  "conclusion": "Procedural exact-seat binary calibration materially improved held-out value MAE, RMSE, and correlation, and PUCT-8 repeated a small +2-win uplift on each of two disjoint windows. A high-retention student nevertheless matched the source exactly on a fresh 128-game zero-search gate. A zero-sum multiplayer target improved regression metrics but lost two held-out PUCT wins and was rejected. Pairwise ranking produced the best value metrics and a combined +28.61 baseline-adjusted Elo over 320 PUCT games, but one of three windows was negative and the all-window matched-map sign test had p=0.377, so it remains unconfirmed and was not distilled. Quadrupling that teacher to 32 nodes then lost three matched maps directly against PUCT-8 and fell below the source policy on a fresh scout, ruling out search budget alone as the next amplifier. No artifact was promoted. More representative multiplayer value data or a better search objective is required before another procedural PUCT distillation attempt."
+  "conclusion": "Procedural exact-seat binary calibration materially improved held-out value MAE, RMSE, and correlation, and PUCT-8 repeated a small +2-win uplift on each of two disjoint windows. A high-retention student nevertheless matched the source exactly on a fresh 128-game zero-search gate. A zero-sum multiplayer target improved regression metrics but lost two held-out PUCT wins and was rejected. Pairwise ranking produced the best value metrics and a combined +28.61 baseline-adjusted Elo over 320 PUCT games, but one of three windows was negative and the all-window matched-map sign test had p=0.377, so it remains unconfirmed and was not distilled. Quadrupling that teacher to 32 nodes then lost three matched maps directly against PUCT-8 and fell below the source policy on a fresh scout, ruling out search budget alone as the next amplifier. Root-perspective backup was strength-neutral on a further window. Bounding root-perspective PUCT to one turn preserved all 128 measured outcomes while reducing leaf inference by 14.45% at eight nodes and 24.18% at 32 nodes, so it is retained as an efficiency option rather than promoted as a stronger agent. No artifact was promoted. More representative multiplayer value data or a genuinely multi-agent value objective is required before another procedural PUCT distillation attempt."
 }

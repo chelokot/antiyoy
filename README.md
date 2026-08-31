@@ -268,7 +268,10 @@ unconfirmed and was not distilled. A fresh same-map budget ablation also ruled
 out brute-force amplification: PUCT-8 won 13 of 64 games while PUCT-32 won 10,
 with the larger search losing three maps directly and improving none. The next
 multiplayer loop therefore needs better value data or a better search objective,
-not merely four times as many nodes.
+not merely four times as many nodes. A root-perspective single-turn PUCT mode
+did preserve every measured full-search outcome on a subsequent 128 matched
+comparisons while cutting leaf inference by 14.45% at eight nodes and 24.18% at
+32 nodes. It is available as an efficiency mode, not claimed as a strength gain.
 
 Reproduce the accepted direct-policy comparison with the small specialist:
 
