@@ -131,6 +131,12 @@ const experiments = [
     description: "Expose every PUCT root action Q-value and imitate only search moves whose value exceeds the direct greedy move, weighted by that measured regret.",
     result: "The selected student improved 13 maps and regressed 7 across 384 games (+23.99 pool-relative Elo), but only 20 maps changed and the paired sign test remained p=0.263.",
   },
+  {
+    method: "Replayable action-Q distillation",
+    status: "rejected",
+    description: "Store exact search and direct action features, root Q-values, source hashes, and complete action prefixes; split training and validation by game across two map domains.",
+    result: "3,379 counterfactual pairs fit well offline, but the shared head finished 98–100 and five exact-seat heads finished 100–100 across 500 development-plus-confirmation games.",
+  },
 ] as const;
 
 function EvidenceLink({ file }: { file: string }) {
@@ -178,7 +184,7 @@ export default function ModelsPage() {
       <section className="models-section report-section">
         <div className="section-heading"><div><p>Promotion gate</p><h2>How a model earns the top row</h2></div></div>
         <div className="promotion-flow"><div><b>AMPLIFY</b><span>Search or PUCT labels policy-visited states.</span></div><i>→</i><div><b>DISTILL</b><span>A compact policy learns priors and values.</span></div><i>→</i><div><b>ATTACK</b><span>Fresh seeds, both seats, every rules profile.</span></div><i>→</i><div><b>PROMOTE</b><span>Only if the weakest slice does not regress.</span></div></div>
-        <footer><span>Next controlled experiment</span><strong>Collect a larger replayable action-Q dataset across seats and map families, then train a dedicated advantage head; 131 positive-regret labels were too sparse for promotion.</strong></footer>
+        <footer><span>Next controlled experiment</span><strong>Collect complete root action-value slates, including neutral and losing alternatives, then train conservative state-conditional rankings with direct-policy KL on broad replay states.</strong></footer>
       </section>
     </main>
   );

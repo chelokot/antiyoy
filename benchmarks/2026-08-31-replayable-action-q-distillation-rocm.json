@@ -1,0 +1,252 @@
+{
+  "schema_version": 1,
+  "kind": "replayable_multidomain_action_q_distillation",
+  "implementation_commits": {
+    "policy_action_features": "bce06fe86f82ef79c7996a6b7dc1a74bbd5f216d",
+    "replayable_action_q_dataset": "f47865e512c2a079c50da91a7bc6602b66a7c231",
+    "seat_specific_distillation": "d794e608221a539888198216c7fa674ea8d51312"
+  },
+  "system": {
+    "allocated_cpu_threads": 8,
+    "cpu": "Intel Core i9-11900K",
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "gpu_index": 0,
+    "process_priority": "nice 10",
+    "pytorch": "2.9.1+rocm6.4"
+  },
+  "source": {
+    "artifact": "universal-routed-2to8p-engine-v6-2026-08-31.pt",
+    "sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "ranking_teacher_sha256": "bd383d0c7c48a41283982d81df56c65ff57c834d02c51d72dbdb1e1fbe112e5a",
+    "ranking_value_seat_sha256": [
+      "a21abd499c85f00daf5bafb5d5d1b93c863f314e5ee040d5b41e71f3d2dd4d68",
+      "f0d07bf2157d052feca91fb6386943e44d4aa3770344649016771f49753132ec",
+      "34d8ec70168a091bb4dde9fb72d5051ed54ab22500f30484a2f179c7b7a13c02",
+      "b57fac259074ec15cfbce8f99673cca20e53c783d883cf1e50a8cc38d3946fc7",
+      "8f30180a0d2d5e9a911a99ff6dec1413dc0b7833b7bc1dc41962a57b36b46dc6"
+    ]
+  },
+  "dataset_contract": {
+    "schema": "puct_action_q_pair_dataset",
+    "source_bound": "the dataset stores and verifies the complete source checkpoint SHA-256",
+    "replay": "every example stores its episode seed, seat, round, state fingerprint, and contiguous action-prefix range",
+    "verification": "16 sampled states per dataset were replayed through the Rust engine and matched their exact state fingerprint before the artifact was committed",
+    "target": "Q(search action) - Q(direct greedy action)",
+    "rollin": "direct student policy",
+    "puct_nodes": 8,
+    "environments": 64,
+    "updates_per_domain": 1200
+  },
+  "datasets": [
+    {
+      "domain": "19x15-density650-tree150",
+      "seed": 1700000,
+      "visited_roots": 76800,
+      "evaluated_leaves": 613199,
+      "examples": 1504,
+      "seat_examples": [416, 315, 288, 294, 191],
+      "unique_episode_seeds": 153,
+      "completed_games": 98,
+      "replay_actions": 474771,
+      "verified_replays": 16,
+      "truncations": 0,
+      "seconds": 113.28873981302604,
+      "artifact_sha256": "e6f10930e4d24fb6bccf9f643a29ec4268c87589c649c5b6fb5e12d00b440147",
+      "raw_report_sha256": "461be99e1d4a937a76cc3a1122aaffa4bce101f68f8342face049ae6891d9f80"
+    },
+    {
+      "domain": "17x13-density700-tree120",
+      "seed": 1800000,
+      "visited_roots": 76800,
+      "evaluated_leaves": 612876,
+      "examples": 1875,
+      "seat_examples": [533, 343, 488, 293, 218],
+      "unique_episode_seeds": 170,
+      "completed_games": 115,
+      "replay_actions": 636897,
+      "verified_replays": 16,
+      "truncations": 0,
+      "seconds": 225.9735550659825,
+      "artifact_sha256": "22a0e6214ba9edd9262ef21e97fbafaca759b6397c8b47440f3e888e6a980a81",
+      "raw_report_sha256": "953ab8cdedbe751daa268af0d5289fb33a4cdf84f53aea6b90a5cb3b244321f4"
+    }
+  ],
+  "shared_head_ablation": [
+    {
+      "advantage_scale": 0.5,
+      "validation_preference_accuracy": 0.6955307126045227,
+      "validation_improvement_correlation": 0.8306013017607841,
+      "validation_mae": 0.12205570394709166,
+      "development_wins": 23,
+      "development_baseline_wins": 20,
+      "development_candidate_better": 8,
+      "development_baseline_better": 5,
+      "development_elo_delta": 30.918840869229353,
+      "artifact_sha256": "c99b1d215ba4e895f58fcd971d0199d4de9cb40aa78970b8be94d257da35f97d",
+      "training_report_sha256": "5bc550ca0187cd98fe40b1aa125e12a065094303cc0128db776e795d3ab22467",
+      "evaluation_report_sha256": "b1f3348f742584dc93d181d418aa20212ba3af4f5f340a4e19594b079a6d095b"
+    },
+    {
+      "advantage_scale": 1.0,
+      "validation_preference_accuracy": 0.666201114654541,
+      "validation_improvement_correlation": 0.8369271128527523,
+      "validation_mae": 0.2418220488734377,
+      "development_wins": 10,
+      "development_baseline_wins": 20,
+      "development_candidate_better": 2,
+      "development_baseline_better": 12,
+      "development_elo_delta": -140.873007244545,
+      "artifact_sha256": "20c77f0904a4dc697e209019d8407c685a632732f1729fc5f0b3019b5db37064",
+      "training_report_sha256": "dbc1cf250d76f098bffb61e9fac341d4048a3b88ff2eb2b321e313810912bc00",
+      "evaluation_report_sha256": "e4c9d8b8835319202dfb71f5d6f5e7369561f0a7556a1a62389a2be9a7343f13"
+    },
+    {
+      "advantage_scale": 2.0,
+      "validation_preference_accuracy": 0.7472066879272461,
+      "validation_improvement_correlation": 0.8119563468493552,
+      "validation_mae": 0.5431372484962285,
+      "development_wins": 1,
+      "development_baseline_wins": 20,
+      "development_candidate_better": 1,
+      "development_baseline_better": 20,
+      "development_elo_delta": -557.4300813078349,
+      "artifact_sha256": "0d444a889079613a2798d6c1d5234ab2a50975bd3139a1b57a263e0140859f2d",
+      "training_report_sha256": "4b19159ce800f1ac33473b3b1a8168251d640389fb5a17da787004b2544cdac0",
+      "evaluation_report_sha256": "824affe88f1a1d8637c51254b34d1d061beaa8784181e0aad9c424a728842003"
+    }
+  ],
+  "selected_shared_head": {
+    "selection": "scale 0.5 fixed from the 100-game development window before confirmation",
+    "fresh_windows": [
+      {
+        "domain": "19x15-density650-tree150",
+        "seed": 2100000,
+        "games": 200,
+        "candidate_wins": 35,
+        "baseline_wins": 40,
+        "candidate_better": 13,
+        "baseline_better": 18,
+        "same": 169,
+        "exact_two_sided_sign_test_p": 0.47312965989112854,
+        "baseline_adjusted_elo_delta": -28.542363414267296,
+        "raw_result_sha256": "ad2b46fe73b5e106b4e03b48350fbb74380bf620ff99ff5cc4c1b670322f875b"
+      },
+      {
+        "domain": "17x13-density700-tree120",
+        "seed": 2200000,
+        "games": 200,
+        "candidate_wins": 40,
+        "baseline_wins": 40,
+        "candidate_better": 9,
+        "baseline_better": 9,
+        "same": 182,
+        "exact_two_sided_sign_test_p": 1.0,
+        "baseline_adjusted_elo_delta": 0.0,
+        "raw_result_sha256": "54e8d2ae8ef941607f24fb18045a3826b9ce5e2f2c0a79c336b1a0cb26138eb7"
+      }
+    ],
+    "combined_development_and_fresh": {
+      "games": 500,
+      "candidate_wins": 98,
+      "baseline_wins": 100,
+      "candidate_better": 30,
+      "baseline_better": 32,
+      "same": 438,
+      "exact_two_sided_sign_test_p": 0.899076313652859,
+      "baseline_adjusted_elo_delta": -4.375994425605143
+    },
+    "decision": "rejected"
+  },
+  "seat_specific_heads": {
+    "training": {
+      "advantage_scale": 0.5,
+      "epochs": 64,
+      "learning_rate": 0.0001,
+      "retention_weight": 1.0,
+      "split": "game-disjoint within each seat",
+      "examples": [949, 658, 776, 587, 409],
+      "validation_preference_accuracy": [0.6373056769371033, 0.6439393758773804, 0.8765822649002075, 0.644444465637207, 0.7263157963752747],
+      "validation_improvement_correlation": [0.7877760890962966, 0.8701191537007429, -0.03010128625924916, 0.8965244185303464, 0.7528409001167162],
+      "artifact_sha256": [
+        "1e46050d38656c9bd2ca6fa542dbaaaebc7b0063e09d18e7bba6eebe7f66c687",
+        "de4dae9fcbb5f66c95c63ad9cf2f34773406bc77dacfc6f4ba9d62ded3c45d76",
+        "b35b13ecbcc1a788b4fdfe7a579837375bbfc1e677585c082086ad7a3ae51777",
+        "1bbbe36a9df543a3412a341d6fb25ffe219097f0f5649856879c76837e87729d",
+        "aeb94e1c6658fe007c30e0fc52ebddb6b568f941dcd9ca673a346eea5126c87c"
+      ],
+      "training_report_sha256": [
+        "6a018153f9a1de2babe94978e72b97422a163ecedec099f6f75259a90a53080d",
+        "75fe839a14147e9d6af7602bcbcba263fd71942c2a48ad7f815c69798054623a",
+        "e1b4dabb25ebdb561714d10e09b8e3892b4fbd3f5b61e855ad94ed5c1010ee39",
+        "191a07e38f27158f8ba8e1df4da675d40b4a0dfac53be4b13083b0dd42f31556",
+        "aed3d1e7368eee505e093e23b67cdf2185a2b998a6cc22003d0159bd64bdb7c7"
+      ],
+      "routed_candidate_sha256": "34900002e004a513ad96e15a2db989ddefa56a1ecc83593c5c3192c07b643fed"
+    },
+    "development": {
+      "domain": "19x15-density650-tree150",
+      "seed": 2000000,
+      "games": 100,
+      "candidate_wins": 23,
+      "baseline_wins": 20,
+      "candidate_better": 7,
+      "baseline_better": 4,
+      "same": 89,
+      "exact_two_sided_sign_test_p": 0.548828125,
+      "baseline_adjusted_elo_delta": 30.918840869229353,
+      "raw_result_sha256": "d9643f22a7b14d9398e686fbfbc688045ffced2a904ade833eef4d16dc9ea0ef"
+    },
+    "fresh_windows": [
+      {
+        "domain": "19x15-density650-tree150",
+        "seed": 2300000,
+        "games": 200,
+        "candidate_wins": 34,
+        "baseline_wins": 40,
+        "candidate_better": 9,
+        "baseline_better": 15,
+        "same": 176,
+        "exact_two_sided_sign_test_p": 0.30745625495910645,
+        "baseline_adjusted_elo_delta": -34.627671867935014,
+        "raw_result_sha256": "7eb1c666071999fd34ae32325effa3431b2e2589aacede477198ae765c9442d2"
+      },
+      {
+        "domain": "17x13-density700-tree120",
+        "seed": 2400000,
+        "games": 200,
+        "candidate_wins": 43,
+        "baseline_wins": 40,
+        "candidate_better": 13,
+        "baseline_better": 10,
+        "same": 177,
+        "exact_two_sided_sign_test_p": 0.6776394844055176,
+        "baseline_adjusted_elo_delta": 15.851517799326068,
+        "raw_result_sha256": "85faef5e8abf143a79295e52b4b6cbaf3ab5b8262995c11d2e2d40a7deb8e376"
+      }
+    ],
+    "fresh_combined": {
+      "games": 400,
+      "candidate_wins": 77,
+      "baseline_wins": 80,
+      "candidate_better": 22,
+      "baseline_better": 25,
+      "same": 353,
+      "exact_two_sided_sign_test_p": 0.7708669945730264,
+      "baseline_adjusted_elo_delta": -8.26072233226347
+    },
+    "combined_development_and_fresh": {
+      "games": 500,
+      "candidate_wins": 100,
+      "baseline_wins": 100,
+      "candidate_better": 29,
+      "baseline_better": 29,
+      "same": 442,
+      "exact_two_sided_sign_test_p": 1.0,
+      "baseline_adjusted_elo_delta": 0.0
+    },
+    "decision": "rejected"
+  },
+  "decision": "not promoted: both the shared and exact-seat action heads failed independent multidomain gates",
+  "conclusion": "A replayable multi-domain dataset increased positive-regret supervision from 131 to 3379 action pairs, and offline pair accuracy reached 64-88% depending on seat. That offline fit did not transfer reliably to full games: the shared head finished 98-100 and exact-seat heads finished 100-100 against the source over their complete 500-game development-plus-confirmation evaluations. The 19x15 exact-seat confirmation regressed 9-15 paired maps while 17x13 improved 13-10, proving domain instability rather than a release-worthy universal gain.",
+  "next_experiment": "Collect complete root action-value slates, including unchanged and negative alternatives, and train a conservative state-conditional ranking objective with direct-policy KL on broad replay states. The current positive-only disagreement pairs permit globally over-favoring search-like action features and are insufficient for policy improvement."
+}

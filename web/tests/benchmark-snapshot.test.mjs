@@ -15,7 +15,7 @@ test("model arena snapshot is bound to immutable benchmark contents", async () =
   const evidenceNames = new Set(Object.keys(snapshot.evidence));
 
   assert.equal(snapshot.schemaVersion, 1);
-  assert.equal(snapshot.comparisons.length, 9);
+  assert.equal(snapshot.comparisons.length, 11);
   for (const [name, evidence] of Object.entries(snapshot.evidence)) {
     const contents = await readFile(new URL(evidence.file, benchmarkRoot));
     assert.equal(
@@ -30,12 +30,13 @@ test("model arena snapshot is bound to immutable benchmark contents", async () =
 });
 
 test("model arena snapshot preserves the measured search and value gates", async () => {
-  const [snapshot, procedural, vector, outcomes, regret] = await Promise.all([
+  const [snapshot, procedural, vector, outcomes, regret, actionQ] = await Promise.all([
     readJson(snapshotUrl),
     readJson(new URL("2026-08-31-procedural-5p-puct-loop-rocm.json", benchmarkRoot)),
     readJson(new URL("2026-08-31-one-pass-maxn-vector-distillation-rocm.json", benchmarkRoot)),
     readJson(new URL("2026-08-31-outcome-vector-value-rocm.json", benchmarkRoot)),
     readJson(new URL("2026-08-31-positive-regret-distillation-rocm.json", benchmarkRoot)),
+    readJson(new URL("2026-08-31-replayable-action-q-distillation-rocm.json", benchmarkRoot)),
   ]);
   const rows = new Map(snapshot.comparisons.map((row) => [row.method, row]));
 
@@ -60,6 +61,14 @@ test("model arena snapshot preserves the measured search and value gates", async
   assert.equal(
     rows.get("Positive-regret distill").pairedFlips,
     `${regret.retention_8_candidate.combined.candidate_better}–${regret.retention_8_candidate.combined.baseline_better}`,
+  );
+  assert.equal(
+    rows.get("Replayable action-Q shared").relativeElo,
+    actionQ.selected_shared_head.combined_development_and_fresh.baseline_adjusted_elo_delta.toFixed(2).replace("-", "−"),
+  );
+  assert.equal(
+    rows.get("Replayable action-Q exact-seat").pairedFlips,
+    `${actionQ.seat_specific_heads.combined_development_and_fresh.candidate_better}–${actionQ.seat_specific_heads.combined_development_and_fresh.baseline_better}`,
   );
   assert.deepEqual(outcomes.combined.outcome_against_scalar, {
     outcome_better: 5,

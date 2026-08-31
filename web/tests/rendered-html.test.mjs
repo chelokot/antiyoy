@@ -139,10 +139,12 @@ test("renders the benchmark-backed model arena", async () => {
   assert.match(html, /One-pass MaxN/);
   assert.match(html, /Outcome-value MaxN/);
   assert.match(html, /Positive-regret distill/);
+  assert.match(html, /Replayable action-Q exact-seat/);
   assert.match(html, /Proof SHA/);
   assert.match(html, /4\.47× faster than exact MaxN/);
   assert.match(html, /tied 5–5 head-to-head/);
-  assert.match(html, /131 positive-regret labels were too sparse/);
+  assert.match(html, /3,379 counterfactual pairs fit well offline/);
+  assert.match(html, /complete root action-value slates/);
   assert.match(html, /Play either promoted Soft-PUCT seat now/);
   assert.match(html, /280–0–232/);
   assert.match(html, /\+32\.67 relative Elo/);

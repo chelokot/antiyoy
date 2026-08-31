@@ -115,3 +115,10 @@ outcomes and apply an exact two-sided sign test only to discordant maps. Suites
 pool those raw counts before recomputing significance; per-window p-values are
 never averaged. Aggregate Elo without this matched-map evidence is diagnostic,
 not sufficient for promotion.
+
+Replayable action-Q records bind every dataset to the complete source-model
+hash and retain each sampled state's episode seed, seat, round, fingerprint,
+and contiguous action prefix. Sampled prefixes must reproduce the exact Rust
+state before training. Offline action-pair accuracy is diagnostic only: shared
+and exact-seat heads still require fresh, paired full-game gates in every
+collected map domain, and a cross-domain tie or regression is not promoted.

@@ -28,6 +28,10 @@
     "positive-regret": {
       "file": "2026-08-31-positive-regret-distillation-rocm.json",
       "sha256": "4f401d445d22c20d76cc1c86c56c348c0c9c57f16fa1ff249341af339cca6375"
+    },
+    "replayable-action-q": {
+      "file": "2026-08-31-replayable-action-q-distillation-rocm.json",
+      "sha256": "7e3d0b31866ef3b371e6f9e7c7a80630c867a4e517a18b07248ebea1b4a0fcb5"
     }
   },
   "comparisons": [
@@ -108,6 +112,32 @@
       "significance": "p=0.263",
       "verdict": "not promoted",
       "evidence": "positive-regret"
+    },
+    {
+      "pool": "Procedural 5-player · 2 domains",
+      "method": "Replayable action-Q shared",
+      "compute": "1 neural pass",
+      "opponent": "direct routed policy",
+      "games": 500,
+      "record": "98–0–402 vs 100–0–400",
+      "relativeElo": "−4.38",
+      "pairedFlips": "30–32",
+      "significance": "p=0.899",
+      "verdict": "rejected",
+      "evidence": "replayable-action-q"
+    },
+    {
+      "pool": "Procedural 5-player · 2 domains",
+      "method": "Replayable action-Q exact-seat",
+      "compute": "5 routed heads",
+      "opponent": "direct routed policy",
+      "games": 500,
+      "record": "100–0–400 vs 100–0–400",
+      "relativeElo": "0.00",
+      "pairedFlips": "29–29",
+      "significance": "p=1.000",
+      "verdict": "rejected",
+      "evidence": "replayable-action-q"
     },
     {
       "pool": "Procedural 5-player · seat 4",
