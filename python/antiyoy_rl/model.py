@@ -192,6 +192,26 @@ class UniversalPolicy(nn.Module):
         observation: Mapping[str, np.ndarray],
         rule_features: Tensor,
     ) -> tuple[Tensor, Tensor, Tensor]:
+        logits, values, value_features, _ = self._forward_with_features(
+            observation, rule_features
+        )
+        return logits, values, value_features
+
+    def forward_with_action_features(
+        self,
+        observation: Mapping[str, np.ndarray],
+        rule_features: Tensor,
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        logits, values, _, action_features = self._forward_with_features(
+            observation, rule_features
+        )
+        return logits, values, action_features
+
+    def _forward_with_features(
+        self,
+        observation: Mapping[str, np.ndarray],
+        rule_features: Tensor,
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         widths = np.asarray(observation["widths"], dtype=np.int64)
         heights = np.asarray(observation["heights"], dtype=np.int64)
         dimensions: dict[tuple[int, int], list[int]] = {}
@@ -202,6 +222,7 @@ class UniversalPolicy(nn.Module):
         if rule_features.ndim != 1 and rule_features.shape[0] != widths.size:
             raise ValueError("rule feature rows must match the environment count")
         action_logits: dict[int, Tensor] = {}
+        action_features: dict[int, Tensor] = {}
         values: dict[int, Tensor] = {}
         value_features: dict[int, Tensor] = {}
         for environments in dimensions.values():
@@ -211,26 +232,31 @@ class UniversalPolicy(nn.Module):
                 if rule_features.ndim == 1
                 else rule_features[environments]
             )
-            group_logits, group_values, group_features = self._forward_uniform(
-                selected, selected_rules
-            )
+            (
+                group_logits,
+                group_values,
+                group_value_features,
+                group_action_features,
+            ) = self._forward_uniform(selected, selected_rules)
             group_offsets = np.asarray(selected["action_offsets"], dtype=np.int64)
             for group_index, environment in enumerate(environments):
                 start, end = group_offsets[group_index : group_index + 2]
                 action_logits[environment] = group_logits[start:end]
                 values[environment] = group_values[group_index]
-                value_features[environment] = group_features[group_index]
+                value_features[environment] = group_value_features[group_index]
+                action_features[environment] = group_action_features[start:end]
         return (
             torch.cat([action_logits[index] for index in range(widths.size)]),
             torch.stack([values[index] for index in range(widths.size)]),
             torch.stack([value_features[index] for index in range(widths.size)]),
+            torch.cat([action_features[index] for index in range(widths.size)]),
         )
 
     def _forward_uniform(
         self,
         observation: Mapping[str, np.ndarray],
         rule_features: Tensor,
-    ) -> tuple[Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         device = self.missing_source.device
         widths = torch.as_tensor(observation["widths"], dtype=torch.long, device=device)
         heights = torch.as_tensor(
@@ -314,12 +340,13 @@ class UniversalPolicy(nn.Module):
         flat_cells = grid.permute(0, 2, 3, 1).reshape(
             environments * cell_count, self.hidden
         )
-        logits = self._action_logits(
+        action_features = self._action_features(
             observation, flat_cells, global_features, cell_count, device
         )
+        logits = self.action_head(action_features).squeeze(1)
         value_features = torch.cat((pooled, context), dim=1)
         values = self.value_head(value_features).squeeze(1)
-        return logits, values, value_features
+        return logits, values, value_features, action_features
 
     def _cell_relation_features(
         self,
@@ -483,7 +510,7 @@ class UniversalPolicy(nn.Module):
         numeric[valid] = torch.sign(values) * torch.log1p(torch.abs(values))
         return self.province_projection(numeric)
 
-    def _action_logits(
+    def _action_features(
         self,
         observation: Mapping[str, np.ndarray],
         cells: Tensor,
@@ -545,7 +572,7 @@ class UniversalPolicy(nn.Module):
             ),
             dim=1,
         )
-        return self.action_head(features).squeeze(1)
+        return features
 
     def _diplomacy_action_targets(
         self,
