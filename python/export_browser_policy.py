@@ -35,6 +35,19 @@ INPUT_NAMES = (
     "action_kinds",
     "action_parameters",
 )
+BROWSER_GENERATOR = "symmetric_duel_v1"
+
+
+def select_browser_policy_state(
+    checkpoint: dict[str, object], profile: str, seat: int
+) -> tuple[dict[str, torch.Tensor], dict[str, object]]:
+    return select_policy_state(
+        checkpoint,
+        profile=profile,
+        generator=BROWSER_GENERATOR,
+        players=2,
+        seat=seat,
+    )
 
 
 def province_features(observation: dict[str, np.ndarray]) -> np.ndarray:
@@ -98,13 +111,7 @@ def export_policy(
 ) -> dict[str, object]:
     device = torch.device("cpu")
     checkpoint = load_policy_checkpoint(checkpoint_path, device)
-    state, config = select_policy_state(
-        checkpoint,
-        profile=profile,
-        generator="symmetric_duel",
-        players=2,
-        seat=seat,
-    )
+    state, config = select_browser_policy_state(checkpoint, profile, seat)
     policy = UniversalPolicy(int(config["hidden"]), int(config["layers"]))
     load_policy_state(policy, state)
     policy.eval()

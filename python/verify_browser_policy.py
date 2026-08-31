@@ -10,12 +10,16 @@ import torch
 
 from antiyoy_rl import VectorEnv
 from antiyoy_rl.model import UniversalPolicy, encode_rules, load_policy_state
-from export_browser_policy import INPUT_NAMES, browser_inputs
+from export_browser_policy import (
+    INPUT_NAMES,
+    browser_inputs,
+    select_browser_policy_state,
+)
 
 try:
-    from .evaluate import load_policy_checkpoint, select_policy_state
+    from .evaluate import load_policy_checkpoint
 except ImportError:
-    from evaluate import load_policy_checkpoint, select_policy_state
+    from evaluate import load_policy_checkpoint
 
 
 def verify_policy(
@@ -30,13 +34,7 @@ def verify_policy(
 ) -> dict[str, int | float | str]:
     device = torch.device("cpu")
     checkpoint = load_policy_checkpoint(checkpoint_path, device)
-    state, config = select_policy_state(
-        checkpoint,
-        profile=profile,
-        generator="symmetric_duel",
-        players=2,
-        seat=seat,
-    )
+    state, config = select_browser_policy_state(checkpoint, profile, seat)
     policy = UniversalPolicy(int(config["hidden"]), int(config["layers"]))
     load_policy_state(policy, state)
     policy.eval()

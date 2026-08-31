@@ -154,7 +154,9 @@ def build_bundle(
         specialist = load_source(path)
         compatible(primary, specialist)
         if profile not in source_profiles(specialist):
-            raise ValueError(f"specialist curriculum does not contain routed profile: {profile}")
+            raise ValueError(
+                f"specialist curriculum does not contain routed profile: {profile}"
+            )
         if profile not in routes:
             profiles.append(profile)
         expert = register_context_expert(
@@ -178,7 +180,9 @@ def build_bundle(
         specialist = load_source(path)
         compatible(primary, specialist)
         if profile not in source_profiles(specialist):
-            raise ValueError(f"specialist curriculum does not contain routed profile: {profile}")
+            raise ValueError(
+                f"specialist curriculum does not contain routed profile: {profile}"
+            )
         if profile not in routes:
             profiles.append(profile)
         expert = register_context_expert(
@@ -371,14 +375,18 @@ def overlay_bundle(
             "bundle_version": BUNDLE_VERSION,
             "config": config,
             "experts": {
-                expert: state for expert, state in experts.items() if expert in referenced
+                expert: state
+                for expert, state in experts.items()
+                if expert in referenced
             },
             "routes": routes,
             "context_routes": context_routes,
             "seat_context_routes": seat_context_routes,
             "domain_routes": domain_routes,
             "sources": {
-                expert: source for expert, source in sources.items() if expert in referenced
+                expert: source
+                for expert, source in sources.items()
+                if expert in referenced
             },
             "summary": {
                 "algorithm": "deterministic_profile_routed_experts",
@@ -419,9 +427,7 @@ def parse_context_routes(
         context, separator, path = specification.partition("=")
         parts = context.rsplit(":", 2)
         if not separator or len(parts) != 3 or not path:
-            raise ValueError(
-                "context routes use PROFILE:GENERATOR:PLAYERS=CHECKPOINT"
-            )
+            raise ValueError("context routes use PROFILE:GENERATOR:PLAYERS=CHECKPOINT")
         profile, generator, players_text = parts
         if generator not in ("symmetric_duel_v1", "procedural_v1"):
             raise ValueError(f"unsupported context route generator: {generator}")
@@ -515,7 +521,9 @@ def main() -> None:
     parser.add_argument("primary", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--overlay", action="store_true")
-    parser.add_argument("--route", action="append", default=[], metavar="PROFILE=CHECKPOINT")
+    parser.add_argument(
+        "--route", action="append", default=[], metavar="PROFILE=CHECKPOINT"
+    )
     parser.add_argument(
         "--context-route",
         action="append",
