@@ -82,6 +82,9 @@ def test_policy_self_match_is_an_exact_zero_delta(tmp_path: Path) -> None:
     assert result["score_delta"] == pytest.approx(0.0)
     assert result["baseline_adjusted_elo_delta"] == pytest.approx(0.0)
     assert result["elo_delta"] == pytest.approx(0.0)
+    assert result["game_seeds"] == [91_000, 91_000]
+    assert result["model_seats"] == [0, 1]
+    assert result["winners"] == result["baseline_self_play"]["winners"] * 2
     assert result["policy_search"]["decisions"] == 0
     assert [seat["paired_method_comparison"] for seat in result["seats"]] == [
         {

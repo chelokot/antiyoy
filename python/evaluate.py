@@ -547,6 +547,7 @@ def evaluate(
     seat_adjudications = np.zeros(players, dtype=np.int64)
     seat_losses = np.zeros(players, dtype=np.int64)
     game_scores = np.zeros(games, dtype=np.float64)
+    game_winners = np.full(games, 255, dtype=np.uint8)
     reset_seed = seed + games // players
     random = np.random.default_rng(seed)
     transitions = 0
@@ -640,6 +641,7 @@ def evaluate(
                 else:
                     seat_losses[game_model_seat] += 1
                 game_scores[index] = winner_score(winner, game_model_seat)
+                game_winners[index] = winner
                 finished[index] = True
             environment.reset(int(index), reset_seed)
             reset_seed += 1
@@ -748,6 +750,9 @@ def evaluate(
             baseline_selected_experts if baseline == "policy" else []
         ),
         "model_seat": model_seat,
+        "game_seeds": evaluation_seeds.tolist(),
+        "model_seats": model_seats.tolist(),
+        "winners": game_winners.tolist(),
         "baseline_self_play": baseline_reference,
         "paired_method_comparison": paired_method_comparison(
             game_scores, baseline_scores

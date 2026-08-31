@@ -365,6 +365,10 @@ discordant maps. This distinguishes a method that flips specific failures from
 two agents whose aggregate win counts happen to differ on unrelated maps. Suite
 reports pool these matched-map counts across seed windows and recompute the
 sign test, including separate totals for every seat.
+Every result also preserves the ordered `game_seeds`, `model_seats`, and
+candidate `winners` vectors. Evaluations with different search settings can
+therefore be compared map by map when these schedules and the arena
+configuration are identical.
 
 Arena dimensions and action limits otherwise inherit the training checkpoint.
 Cross-checkpoint comparisons must pass the same explicit `--width`, `--height`,
