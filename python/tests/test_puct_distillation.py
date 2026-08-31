@@ -11,6 +11,7 @@ from python.distill_puct import (
     distill_puct,
     validate_config,
 )
+from python.build_bundle import build_bundle
 from python.tests.test_bundle import write_checkpoint
 
 
@@ -56,6 +57,49 @@ def test_puct_distillation_changes_only_the_action_head(tmp_path: Path) -> None:
     )
 
 
+def test_puct_distillation_can_target_one_seat(tmp_path: Path) -> None:
+    primary = tmp_path / "primary.pt"
+    second_seat = tmp_path / "second-seat.pt"
+    source = tmp_path / "source-bundle.pt"
+    output = tmp_path / "seat-one.pt"
+    write_checkpoint(primary, 1.0)
+    write_checkpoint(second_seat, 7.0)
+    build_bundle(
+        primary,
+        {},
+        source,
+        seat_context_route_paths={
+            ("classic_generic_2022", "symmetric_duel_v1", 2, 1): second_seat
+        },
+    )
+
+    report = distill_puct(
+        source,
+        output,
+        PuctDistillationConfig(
+            environments=2,
+            updates=32,
+            seed=813_000,
+            device="cpu",
+            width=7,
+            height=5,
+            action_limit=12,
+            puct_nodes=4,
+            puct_leaf_batch_size=8,
+            training_seat=1,
+        ),
+    )
+
+    assert report["training_seat"] == 1
+    assert 0 < report["examples"] < report["visited_states"]
+    assert 0 < report["training"]["optimization_updates"] < 32
+    assert report["changed_action_parameters"] > 0
+    assert report["source"]["expert"] == report["source"]["seat_experts"][1]
+    assert report["source"]["seat_experts"][0] != report["source"]["seat_experts"][1]
+    distilled = torch.load(output, map_location="cpu", weights_only=False)
+    assert torch.all(distilled["model"]["missing_source"] == 7.0)
+
+
 @pytest.mark.parametrize(
     "config",
     [
@@ -66,6 +110,7 @@ def test_puct_distillation_changes_only_the_action_head(tmp_path: Path) -> None:
         PuctDistillationConfig(rollin="unknown"),
         PuctDistillationConfig(target_mode="unknown"),
         PuctDistillationConfig(puct_nodes=1),
+        PuctDistillationConfig(training_seat=2),
     ],
 )
 def test_puct_distillation_rejects_invalid_configuration(

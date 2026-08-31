@@ -58,6 +58,7 @@ class PuctDistillationConfig:
     puct_maximum_depth: int = 128
     puct_root_value_weight: float | None = 1.0
     puct_leaf_batch_size: int = 512
+    training_seat: int | None = None
 
 
 def validate_config(config: PuctDistillationConfig) -> None:
@@ -83,6 +84,8 @@ def validate_config(config: PuctDistillationConfig) -> None:
         raise ValueError("distillation PUCT maximum depth must be positive")
     if config.puct_root_value_weight is not None and config.puct_root_value_weight < 0:
         raise ValueError("distillation PUCT root value weight must be non-negative")
+    if config.training_seat is not None and config.training_seat not in (0, 1):
+        raise ValueError("distillation training seat must be zero or one")
 
 
 def frozen_policy_parameters(model: UniversalPolicy) -> dict[str, torch.Tensor]:
@@ -146,9 +149,18 @@ def distill_puct(
         selected_states.append(state)
         selected_configs.append(selected_config)
         selected_experts.append(str(selected_config["selected_expert"]))
-    if selected_experts[0] != selected_experts[1]:
+    if config.training_seat is None and selected_experts[0] != selected_experts[1]:
         raise ValueError("PUCT distillation requires one shared expert for both seats")
-    teacher = instantiate_policy(selected_states[0], selected_configs[0], device)
+    student_seat = config.training_seat if config.training_seat is not None else 0
+    teacher_models: dict[str, UniversalPolicy] = {}
+    for expert, state, selected_config in zip(
+        selected_experts, selected_states, selected_configs, strict=True
+    ):
+        if expert not in teacher_models:
+            teacher_models[expert] = instantiate_policy(state, selected_config, device)
+            teacher_models[expert].requires_grad_(False)
+    teacher_policy = RoutedPolicy(teacher_models, selected_experts)
+    teacher = teacher_models[selected_experts[student_seat]]
     teacher.requires_grad_(False)
     student = copy.deepcopy(teacher)
     preserved = frozen_policy_parameters(student)
@@ -176,7 +188,6 @@ def distill_puct(
     for environment_index in range(config.environments):
         environment.reset(environment_index, config.seed + environment_index)
     rules = encode_rules_batch(environment.rules_jsons(), device)
-    teacher_policy = RoutedPolicy({"teacher": teacher}, ("teacher", "teacher"))
     search_config = PolicySearchConfig(
         node_budget=config.puct_nodes,
         exploration=config.puct_exploration,
@@ -199,6 +210,7 @@ def distill_puct(
     root_target_kl_average = 0.0
     labeled_examples = 0
     disagreement_updates = 0
+    optimization_updates = 0
     evaluated_leaves = 0
     leaf_batches = 0
     total_nodes = 0
@@ -208,6 +220,15 @@ def distill_puct(
     student.train()
     for update in range(1, config.updates + 1):
         observation = environment.observe()
+        training_mask_numpy = (
+            np.ones(config.environments, dtype=np.bool_)
+            if config.training_seat is None
+            else np.asarray(observation["active_players"]) == config.training_seat
+        )
+        training_examples = int(training_mask_numpy.sum())
+        training_mask = torch.as_tensor(
+            training_mask_numpy, dtype=torch.bool, device=device
+        )
         teacher_actions, search_metrics = policy_search_actions(
             environment,
             teacher_policy,
@@ -225,7 +246,7 @@ def distill_puct(
             device=device,
         )
         with torch.no_grad():
-            direct_logits, _ = teacher(observation, rules)
+            direct_logits, _ = teacher_policy(observation, rules)
             direct_distribution = action_distribution(
                 direct_logits, observation["action_offsets"]
             )
@@ -247,12 +268,12 @@ def distill_puct(
         )
         targets = torch.as_tensor(teacher_actions, dtype=torch.long, device=device)
         teacher_losses = -student_distribution.log_prob(targets)
-        disagreement_mask = direct_actions != targets
+        disagreement_mask = torch.logical_and(direct_actions != targets, training_mask)
         disagreements = int(disagreement_mask.sum().item())
         if config.target_mode == "root_distribution":
             root_losses = []
             root_target_kls = []
-            for environment_index in range(config.environments):
+            for environment_index in np.flatnonzero(training_mask_numpy):
                 start = int(root_offsets[environment_index])
                 end = int(root_offsets[environment_index + 1])
                 target_probabilities = root_probabilities[start:end]
@@ -275,9 +296,17 @@ def distill_puct(
                         )
                     ).sum()
                 )
-            imitation_loss = torch.stack(root_losses).mean()
-            root_target_kl = float(torch.stack(root_target_kls).mean().item())
-            labeled_examples += config.environments
+            imitation_loss = (
+                torch.stack(root_losses).mean()
+                if root_losses
+                else student_logits.sum() * 0
+            )
+            root_target_kl = (
+                float(torch.stack(root_target_kls).mean().item())
+                if root_target_kls
+                else 0.0
+            )
+            labeled_examples += training_examples
         elif config.target_mode == "selected_disagreements":
             imitation_loss = (
                 teacher_losses[disagreement_mask].mean()
@@ -287,19 +316,35 @@ def distill_puct(
             root_target_kl = 0.0
             labeled_examples += disagreements
         else:
-            imitation_loss = teacher_losses.mean()
+            imitation_loss = (
+                teacher_losses[training_mask].mean()
+                if training_examples > 0
+                else student_logits.sum() * 0
+            )
             root_target_kl = 0.0
-            labeled_examples += config.environments
-        retention = torch.distributions.kl_divergence(
+            labeled_examples += training_examples
+        retention_values = torch.distributions.kl_divergence(
             reference_distribution, student_distribution
-        ).mean()
+        )
+        retention = (
+            retention_values[training_mask].mean()
+            if training_examples > 0
+            else retention_values.sum() * 0
+        )
         loss = imitation_loss + config.retention_weight * retention
-        optimizer.zero_grad(set_to_none=True)
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(student.action_head.parameters(), 1.0)
-        optimizer.step()
-        accuracy = float(
-            (student_distribution.logits.argmax(dim=1) == targets).float().mean().item()
+        if training_examples > 0:
+            optimizer.zero_grad(set_to_none=True)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(student.action_head.parameters(), 1.0)
+            optimizer.step()
+            optimization_updates += 1
+        selected_predictions = student_distribution.logits.argmax(dim=1)[training_mask]
+        accuracy = (
+            float(
+                (selected_predictions == targets[training_mask]).float().mean().item()
+            )
+            if training_examples > 0
+            else 1.0
         )
         disagreement_accuracy = (
             float(
@@ -314,19 +359,28 @@ def distill_puct(
             if disagreements > 0
             else 1.0
         )
-        disagreement = disagreements / config.environments
-        imitation_loss_average += (
-            float(imitation_loss.item()) - imitation_loss_average
-        ) / update
-        retention_average += (float(retention.item()) - retention_average) / update
-        accuracy_average += (accuracy - accuracy_average) / update
-        if disagreements > 0:
-            disagreement_updates += 1
-            disagreement_accuracy_average += (
-                disagreement_accuracy - disagreement_accuracy_average
-            ) / disagreement_updates
-        disagreement_average += (disagreement - disagreement_average) / update
-        root_target_kl_average += (root_target_kl - root_target_kl_average) / update
+        disagreement = (
+            disagreements / training_examples if training_examples > 0 else 0.0
+        )
+        if training_examples > 0:
+            imitation_loss_average += (
+                float(imitation_loss.item()) - imitation_loss_average
+            ) / optimization_updates
+            retention_average += (
+                float(retention.item()) - retention_average
+            ) / optimization_updates
+            accuracy_average += (accuracy - accuracy_average) / optimization_updates
+            disagreement_average += (
+                disagreement - disagreement_average
+            ) / optimization_updates
+            root_target_kl_average += (
+                root_target_kl - root_target_kl_average
+            ) / optimization_updates
+            if disagreements > 0:
+                disagreement_updates += 1
+                disagreement_accuracy_average += (
+                    disagreement_accuracy - disagreement_accuracy_average
+                ) / disagreement_updates
         evaluated_leaves += int(search_metrics["evaluated_leaves"])
         leaf_batches += int(search_metrics["leaf_batches"])
         total_nodes += int(search_metrics["nodes"].sum())
@@ -377,6 +431,7 @@ def distill_puct(
                         "disagreement_accuracy": disagreement_accuracy,
                         "teacher_direct_disagreement": disagreement,
                         "root_target_kl": root_target_kl,
+                        "training_examples": training_examples,
                         "labeled_examples": labeled_examples,
                         "completed_games": completed_games,
                     },
@@ -392,7 +447,7 @@ def distill_puct(
     )
     if changed_action_parameters == 0:
         raise RuntimeError("PUCT distillation did not change the action head")
-    output_config = dict(selected_configs[0])
+    output_config = dict(selected_configs[student_seat])
     output_config.pop("selected_expert", None)
     output_config.pop("policy_kind", None)
     report: dict[str, object] = {
@@ -401,7 +456,8 @@ def distill_puct(
         "source": {
             "path": str(checkpoint_path),
             "sha256": digest(checkpoint_path),
-            "expert": selected_experts[0],
+            "expert": selected_experts[student_seat],
+            "seat_experts": selected_experts,
         },
         "profile": config.profile,
         "generator": "symmetric_duel_v1",
@@ -410,7 +466,9 @@ def distill_puct(
         "seed": config.seed,
         "environments": config.environments,
         "updates": config.updates,
-        "examples": config.environments * config.updates,
+        "visited_states": config.environments * config.updates,
+        "examples": labeled_examples,
+        "training_seat": config.training_seat,
         "learning_rate": config.learning_rate,
         "retention_weight": config.retention_weight,
         "rollin": config.rollin,
@@ -428,6 +486,7 @@ def distill_puct(
             "teacher_direct_disagreement": disagreement_average,
             "root_target_kl": root_target_kl_average,
             "labeled_examples": labeled_examples,
+            "optimization_updates": optimization_updates,
             "disagreement_updates": disagreement_updates,
             "completed_games": completed_games,
             "wins_by_seat": wins_by_seat.tolist(),
@@ -504,6 +563,7 @@ def main() -> None:
     parser.add_argument("--puct-maximum-depth", type=int, default=128)
     parser.add_argument("--puct-root-value-weight", type=float, default=1.0)
     parser.add_argument("--puct-leaf-batch-size", type=int, default=512)
+    parser.add_argument("--training-seat", type=int, choices=(0, 1))
     arguments = parser.parse_args()
     report = distill_puct(
         arguments.checkpoint,
@@ -528,6 +588,7 @@ def main() -> None:
             puct_maximum_depth=arguments.puct_maximum_depth,
             puct_root_value_weight=arguments.puct_root_value_weight,
             puct_leaf_batch_size=arguments.puct_leaf_batch_size,
+            training_seat=arguments.training_seat,
         ),
     )
     print(json.dumps(report, sort_keys=True), flush=True)

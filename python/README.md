@@ -298,6 +298,13 @@ the magnitude of small search corrections instead of turning every target into
 a hard argmax. KL retention covers the complete batch. The checkpoint records
 search cost, target KL, labeled examples, direct-policy disagreement,
 imitation accuracy, KL retention, completed games, and all deterministic seeds.
+Add `--training-seat 0` or `--training-seat 1` to optimize only positions where
+that player is active. The teacher still routes every search leaf through the
+source expert for its actual seat, while retention and imitation losses count
+only the requested specialist states. The report separates all visited states,
+actual labeled examples, and optimizer updates. Without this option, both seats
+must resolve to one shared source expert so the legacy all-seat protocol remains
+exactly reproducible.
 Compare the cheap student against the exact frozen source on disjoint seeds:
 
 ```bash
