@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import numpy as np
@@ -12,6 +13,7 @@ from python.evaluate import (
     evaluation_schedule,
     named_action_counts,
     outcome_summary,
+    paired_comparison_summary,
     paired_method_comparison,
     paired_elo,
     paired_seeds,
@@ -516,6 +518,22 @@ def test_suite_aggregate_rejects_partial_matched_map_evidence() -> None:
 
     with pytest.raises(ValueError, match="cannot mix paired and unpaired"):
         aggregate_outcomes([paired, unpaired])
+
+
+def test_procedural_puct_report_combines_every_matched_map_window() -> None:
+    report = json.loads(
+        Path("benchmarks/2026-08-31-procedural-5p-puct-loop-rocm.json").read_text()
+    )["ranking_value_ablation"]
+    windows = report["puct_windows"]
+    combined = report["combined"]
+    comparisons = [window["paired_method_comparison"] for window in windows]
+
+    assert combined["games"] == sum(window["games"] for window in windows)
+    assert combined["paired_method_comparison"] == paired_comparison_summary(
+        sum(comparison["candidate_better"] for comparison in comparisons),
+        sum(comparison["baseline_better"] for comparison in comparisons),
+        sum(comparison["same"] for comparison in comparisons),
+    )
 
 
 def test_minimum_seat_slice_preserves_profile_and_seed() -> None:
