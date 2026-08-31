@@ -6,7 +6,7 @@ import torch
 from antiyoy_rl import VectorEnv
 from antiyoy_rl.browser_policy import BrowserPolicy
 from antiyoy_rl.model import UniversalPolicy, encode_rules
-from export_browser_policy import browser_inputs, select_browser_policy_state
+from python.export_browser_policy import browser_inputs, select_browser_policy_state
 
 
 def test_browser_policy_matches_universal_policy() -> None:
