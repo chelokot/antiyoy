@@ -264,7 +264,11 @@ baseline-adjusted Elo). The windows were 17–13, 12–13, and 16–13. On the t
 window it flipped seven maps positively and four negatively. Across all 320
 matched maps it improved 19 outcomes, regressed 13, and left 288 unchanged;
 the exact two-sided sign test was only p=0.377. It remains promising but
-unconfirmed and was not distilled.
+unconfirmed and was not distilled. A fresh same-map budget ablation also ruled
+out brute-force amplification: PUCT-8 won 13 of 64 games while PUCT-32 won 10,
+with the larger search losing three maps directly and improving none. The next
+multiplayer loop therefore needs better value data or a better search objective,
+not merely four times as many nodes.
 
 Reproduce the accepted direct-policy comparison with the small specialist:
 
