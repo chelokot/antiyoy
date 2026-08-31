@@ -37,7 +37,7 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(html, />Auto</);
   assert.match(html, /YOUR MOVE/);
   assert.match(html, /choose a unit or shop item/);
-  assert.match(html, /Routed neural · v6/);
+  assert.match(html, /Soft-PUCT · seat 2/);
   assert.match(html, /Play as/);
   assert.match(html, /Amber · second/);
   assert.match(html, /YOUR PLACEMENT/);
@@ -58,10 +58,11 @@ test("server-renders the arena shell and metadata", async () => {
 });
 
 test("ships the generated engine, browser policies, and social card", async () => {
-  const [bindings, packageJson, distilledPolicy] = await Promise.all([
+  const [bindings, packageJson, distilledSeatZero, distilledSeatOne] = await Promise.all([
     readFile(new URL("../lib/antiyoy-wasm/antiyoy_wasm.js", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
-    readFile(new URL("../public/browser-classic-generic-puct-seat0-v1.onnx", import.meta.url)),
+    readFile(new URL("../public/browser-classic-generic-puct-seat0-v2.onnx", import.meta.url)),
+    readFile(new URL("../public/browser-classic-generic-puct-seat1-v2.onnx", import.meta.url)),
     access(new URL("../lib/antiyoy-wasm/antiyoy_wasm_bg.wasm", import.meta.url)),
     access(new URL("../public/og.png", import.meta.url)),
     access(new URL("../public/browser-primary.onnx", import.meta.url)),
@@ -88,12 +89,17 @@ test("ships the generated engine, browser policies, and social card", async () =
   assert.match(packageJson, /"build:wasm"/);
   assert.match(packageJson, /"stage:wasm"/);
   assert.equal(
-    createHash("sha256").update(distilledPolicy).digest("hex"),
-    "0b4a87d568434dc446d18988b5e025c90bf17d87a276d4445f30d89e980415c0",
+    createHash("sha256").update(distilledSeatZero).digest("hex"),
+    "02af43e8f76cc9c894ba5adde1f688984180cc5317a6d4d77fe27b20dec63698",
+  );
+  assert.equal(
+    createHash("sha256").update(distilledSeatOne).digest("hex"),
+    "1858f5da66d21a5ae874963cd737dc75e251a0a24a9ab1fcfc6308879f3654f5",
   );
   await access(new URL("../public/antiyoy_wasm_bg.wasm", import.meta.url));
   await access(new URL("../dist/client/browser-primary.onnx", import.meta.url));
-  await access(new URL("../dist/client/browser-classic-generic-puct-seat0-v1.onnx", import.meta.url));
+  await access(new URL("../dist/client/browser-classic-generic-puct-seat0-v2.onnx", import.meta.url));
+  await access(new URL("../dist/client/browser-classic-generic-puct-seat1-v2.onnx", import.meta.url));
   await access(new URL("../dist/client/browser-experimental-v2.onnx", import.meta.url));
   await access(new URL("../dist/client/browser-online-default-seat0-v6.onnx", import.meta.url));
   await access(new URL("../dist/client/browser-online-duel-seat0-v6.onnx", import.meta.url));
@@ -113,8 +119,8 @@ test("renders the benchmark-backed model arena", async () => {
   assert.match(html, /Policy-guided PUCT \/ MCTS/);
   assert.match(html, /Value-calibrated PUCT-8/);
   assert.match(html, /Soft-PUCT distilled/);
-  assert.match(html, /281–231 over its frozen source/);
-  assert.match(html, /Play the promoted Soft-PUCT student now/);
+  assert.match(html, /470–42 in its fixed-seat pool/);
+  assert.match(html, /Play either promoted Soft-PUCT seat now/);
   assert.match(html, /280–0–232/);
   assert.match(html, /\+32\.67 relative Elo/);
   assert.match(html, /Ratings from different pools are deliberately not merged/);
@@ -164,9 +170,10 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, /aria-controls="inspector-drawer"/);
   assert.match(arena, /aria-label="Bot opponent"/);
   assert.match(arena, /aria-label="Human side"/);
-  assert.match(arena, /Distilled PUCT · 1034/);
+  assert.match(arena, /Soft-PUCT · seat/);
   assert.match(arena, /advancePoliciesUntilHuman/);
   assert.match(arena, /classicGenericPuctSeat0/);
+  assert.match(arena, /classicGenericPuctSeat1/);
   assert.match(arena, /resolveHexClick\(intentActions, movementSources, cellId\)/);
   assert.match(arena, /setActionIntent\(resolution\.intent\)/);
   assert.match(arena, /const shopProvince = province\?\.owner === economyPlayer \? province : null;/);

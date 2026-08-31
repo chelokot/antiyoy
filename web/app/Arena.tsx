@@ -127,7 +127,8 @@ const BOT_STRENGTHS = {
 const BOT_STRENGTH_NAMES = ["quick", "strong", "brutal"] as const;
 const BROWSER_POLICY_MODELS = {
   primary: "/browser-primary.onnx",
-  classicGenericPuctSeat0: "/browser-classic-generic-puct-seat0-v1.onnx",
+  classicGenericPuctSeat0: "/browser-classic-generic-puct-seat0-v2.onnx",
+  classicGenericPuctSeat1: "/browser-classic-generic-puct-seat1-v2.onnx",
   experimentalV2: "/browser-experimental-v2.onnx",
   onlineDefaultSeat0: "/browser-online-default-seat0-v6.onnx",
   onlineDuelSeat0: "/browser-online-duel-seat0-v6.onnx",
@@ -348,10 +349,10 @@ function supportsNeuralPolicy(config: LiveConfig): boolean {
 }
 
 function policyKeyForProfile(profile: RulesProfileName, seat = 1): BrowserPolicyKey {
+  if (profile === "classic_generic_2022") {
+    return seat === 0 ? "classicGenericPuctSeat0" : "classicGenericPuctSeat1";
+  }
   if (seat === 0) {
-    if (profile === "classic_generic_2022") {
-      return "classicGenericPuctSeat0";
-    }
     if (profile === "online_default_v1") {
       return "onlineDefaultSeat0";
     }
@@ -366,8 +367,8 @@ function policyKeyForProfile(profile: RulesProfileName, seat = 1): BrowserPolicy
 }
 
 function neuralPolicyLabel(profile: RulesProfileName, seat: number): string {
-  return profile === "classic_generic_2022" && seat === 0
-    ? "Distilled PUCT · 1034"
+  return profile === "classic_generic_2022"
+    ? `Soft-PUCT · seat ${seat + 1}`
     : "Routed neural · v6";
 }
 
@@ -407,6 +408,7 @@ export default function Arena() {
   const [policyStatuses, setPolicyStatuses] = useState<Record<BrowserPolicyKey, PolicyStatus>>({
     primary: "loading",
     classicGenericPuctSeat0: "loading",
+    classicGenericPuctSeat1: "loading",
     experimentalV2: "loading",
     onlineDefaultSeat0: "loading",
     onlineDuelSeat0: "loading",

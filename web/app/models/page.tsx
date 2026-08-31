@@ -41,6 +41,16 @@ const engineSixRatings = [
 
 const ratingPools = [
   {
+    name: "Exact-seat PUCT distillation",
+    arena: "core v6 · classic Generic 11×9 · candidate fixed as seat 2",
+    evidence: "2026-08-31-puct-seat1-soft-distillation-rocm.json",
+    rows: [
+      ["Soft-PUCT seat 2", "seat-routed · zero search", "1420", "+420 vs opponent", "470–0–42 / 512"],
+      ["Source seat 2", "same frozen source policy", "—", "9.4% score", "48–0–464 / 512"],
+      ["Frozen source seat 1", "common opponent · positional anchor", "1000", "anchor", "512 maps"],
+    ],
+  },
+  {
     name: "PUCT amplification loop",
     arena: "core v6 · classic Generic 11×9 · frozen source policy",
     evidence: "2026-08-31-puct-soft-distillation-rocm.json",
@@ -94,7 +104,7 @@ const experiments = [
     method: "Amplify → distill",
     status: "measured",
     description: "Export the full PUCT root distribution, train a cheap policy, then route only a seat that passes its paired gate.",
-    result: "Zero-search student: 281–231 over its frozen source on 512 new games, +34.04 relative Elo; four hard-target variants were rejected.",
+    result: "Seat 1 student: 281–231 in a paired gate. Seat 2 student: 470–42 in its fixed-seat pool versus 48–464 for the source, +0.824 score and +419.54 relative Elo.",
   },
 ] as const;
 
@@ -119,9 +129,9 @@ export default function ModelsPage() {
       </section>
 
       <section className="models-section pools-section">
-        <div className="section-heading"><div><p>Pools 02–04</p><h2>Other controlled ladders</h2></div><p>Useful comparisons stay inside their own protocol. This avoids laundering incompatible measurements into one impressive-looking number.</p></div>
+        <div className="section-heading"><div><p>Pools 02–05</p><h2>Other controlled ladders</h2></div><p>Useful comparisons stay inside their own protocol. This avoids laundering incompatible measurements into one impressive-looking number.</p></div>
         <div className="pool-grid">{ratingPools.map((pool) => <article className="rating-pool" key={pool.name}><header><h3>{pool.name}</h3><p>{pool.arena}</p><EvidenceLink file={pool.evidence} /></header><table><tbody>{pool.rows.map(([agent, method, rating, delta, record]) => <tr key={agent}><th scope="row"><span>{agent}</span><small>{method}</small></th><td><strong>{rating}</strong><small>{delta}</small></td><td>{record}</td></tr>)}</tbody></table></article>)}</div>
-        <p className="method-note"><Link href="/">Play the promoted Soft-PUCT student now: select “Amber · second” and it controls Cyan locally through ONNX.</Link></p>
+        <p className="method-note"><Link href="/">Play either promoted Soft-PUCT seat now. Choose Cyan or Amber; the opponent runs locally through ONNX.</Link></p>
       </section>
 
       <section className="models-section">
