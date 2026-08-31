@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_multiplayer_positive_regret_distillation",
+  "implementation_commits": {
+    "root_action_values": "dc315bc9cf2b1a980a549d7b38bc77c1ef0e89a1",
+    "positive_regret_distillation": "7e3fc881a54fe2aa226a3d17646b1066cc1fed09"
+  },
+  "system": {
+    "allocated_cpu_threads": 8,
+    "cpu": "Intel Core i9-11900K",
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "process_priority": "nice 10",
+    "pytorch": "2.9.1+rocm6.4"
+  },
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v1",
+    "players": 5,
+    "width": 19,
+    "height": 15,
+    "action_limit": 2400,
+    "land_density_per_million": 650000,
+    "training_seat": 3
+  },
+  "source": {
+    "artifact": "universal-routed-2to8p-engine-v6-2026-08-31.pt",
+    "sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867"
+  },
+  "ranking_teacher": {
+    "seed": 1200000,
+    "games": 64,
+    "validation_games": 16,
+    "training_samples": 2371,
+    "validation_samples": 856,
+    "loss": "pairwise logistic ranking plus 0.25 MSE magnitude anchor",
+    "validation_before": {
+      "mae": 0.8391632751809763,
+      "rmse": 0.8492194045655045,
+      "sign_accuracy": 0.9112149532710281,
+      "correlation": 0.7732120392676981
+    },
+    "validation_after": {
+      "mae": 0.36959619503294194,
+      "rmse": 0.5475721857613323,
+      "sign_accuracy": 0.9158878504672897,
+      "correlation": 0.8420939240764285
+    },
+    "artifact_sha256": "0da6c6af27d203865dff5df58a9f2b7dfcf53c12d2f6d6d5d1ce13a1d08beece",
+    "routed_teacher_sha256": "36252f15a1e8fdab286e0ff905b4684ee18e0bf1fe6e5bde938c833fe8c6e87d",
+    "raw_report_sha256": "357ca07722f415846ba1da4c04d9c9f3547b6bf1d0ae9f646dd5f120c45af436"
+  },
+  "method": {
+    "target": "positive search regret = Q(search action) - Q(direct greedy action)",
+    "selection": "search action differs from direct action and regret exceeds the configured threshold",
+    "loss": "positive-regret-weighted negative log likelihood plus frozen-teacher retention KL",
+    "policy_parameters": "action_head_only",
+    "puct_nodes": 8,
+    "updates": 600,
+    "environments": 64,
+    "visited_states": 38400,
+    "training_seed": 1210000
+  },
+  "retention_16_ablation": {
+    "minimum_regret": 0.05,
+    "retention_weight": 16.0,
+    "labeled_examples": 92,
+    "regret_candidates": 132,
+    "mean_positive_regret": 0.589670925522628,
+    "maximum_positive_regret": 1.2783279418945312,
+    "seconds": 52.86036878696177,
+    "artifact_sha256": "2c2c017d1eaa62edf713b55c8acb40741671b838c61f7985ecd7e500099e73f6",
+    "routed_candidate_sha256": "1408a819ccfc00afc6df309220f8806202b895e6e412fe8602870e08d8699f85",
+    "training_log_sha256": "f9ae4a67bc42fcb33e57644935781480634454bc6dbf4846e44996f0dba5fcb6",
+    "evaluation_windows": [
+      {
+        "seed_first": 1220000,
+        "games": 128,
+        "candidate_wins": 21,
+        "baseline_wins": 19,
+        "candidate_better": 3,
+        "baseline_better": 1,
+        "same": 124,
+        "exact_two_sided_sign_test_p": 0.625,
+        "raw_result_sha256": "a0c34cb3108414af8288e4723fa4dbc8d4e6b0ba00c8ad21604ee63bc156b4e3"
+      },
+      {
+        "seed_first": 1230000,
+        "games": 128,
+        "candidate_wins": 16,
+        "baseline_wins": 15,
+        "candidate_better": 2,
+        "baseline_better": 1,
+        "same": 125,
+        "exact_two_sided_sign_test_p": 1.0,
+        "raw_result_sha256": "7842deef680974330c16599c96e03ebfdfb886542f2911872e3f4e7d453ed32b"
+      }
+    ],
+    "combined": {
+      "games": 256,
+      "candidate_wins": 37,
+      "baseline_wins": 34,
+      "candidate_better": 5,
+      "baseline_better": 2,
+      "same": 249,
+      "exact_two_sided_sign_test_p": 0.453125,
+      "baseline_adjusted_elo_delta": 17.05266665410406
+    }
+  },
+  "retention_8_candidate": {
+    "minimum_regret": 0.01,
+    "retention_weight": 8.0,
+    "labeled_examples": 131,
+    "regret_candidates": 132,
+    "mean_positive_regret": 0.422710862238216,
+    "maximum_positive_regret": 1.2783279418945312,
+    "seconds": 52.909848336013965,
+    "artifact_sha256": "2e20980b1f16e4a63430bf3545c690a3f8798a4369eae3148dbf6ccaef576835",
+    "routed_candidate_sha256": "78205c1e76b0072e171a5bb4f0924880e20d04b6168dd7eb78f17f5b5baec98d",
+    "training_log_sha256": "2fa6af6338e152f0bde397b265dc82a36b40109729e2cb1479fbf530b3064d52",
+    "development_window": {
+      "seed_first": 1220000,
+      "games": 128,
+      "candidate_wins": 23,
+      "baseline_wins": 19,
+      "candidate_better": 6,
+      "baseline_better": 2,
+      "same": 120,
+      "exact_two_sided_sign_test_p": 0.2890625,
+      "baseline_adjusted_elo_delta": 39.68457357417978,
+      "raw_result_sha256": "5b16056068c6c0e17b48d9e92ba54ca7793dedce7fa797c8ae0700652f066b24"
+    },
+    "fresh_confirmation": {
+      "seed_first": 1240000,
+      "games": 256,
+      "candidate_wins": 30,
+      "baseline_wins": 28,
+      "candidate_better": 7,
+      "baseline_better": 5,
+      "same": 244,
+      "exact_two_sided_sign_test_p": 0.7744140625,
+      "baseline_adjusted_elo_delta": 13.515852492198446,
+      "truncations": 2,
+      "baseline_truncations": 2,
+      "raw_result_sha256": "2294c54d4000992cfa8e747a0c9c4248b4d0aaba9feac95d833da542b9b281b7"
+    },
+    "combined": {
+      "games": 384,
+      "candidate_wins": 53,
+      "baseline_wins": 47,
+      "candidate_better": 13,
+      "baseline_better": 7,
+      "same": 364,
+      "exact_two_sided_sign_test_p": 0.26317596435546875,
+      "baseline_adjusted_elo_delta": 23.991967504276584
+    }
+  },
+  "decision": "promising but not promoted: both retention settings were positive on every measured window, and the selected retention-8 candidate repeated a +2 net-map gain on a fresh 256-game confirmation, but the combined matched-map sign test remained non-significant at p=0.263",
+  "conclusion": "Exposing root action Q-values made it possible to distinguish a search correction from a simple visit target and compressed a small repeatable fraction of the ranking-PUCT signal into a zero-search policy. The selected candidate improved 13 maps and regressed 7 across 384 development-plus-confirmation games, worth +23.99 arena-specific baseline-adjusted Elo, but the sparse discordant sample does not justify a release artifact. The implementation is retained for larger counterfactual datasets; the candidate is rejected from the model registry."
+}
