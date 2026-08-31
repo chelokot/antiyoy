@@ -372,6 +372,13 @@ impl PuctSearch {
         Ok(weights.into_iter().map(|weight| weight / mass).collect())
     }
 
+    pub fn root_action_values(&self) -> Result<Vec<f64>, PuctError> {
+        let NodeState::Expanded(edges) = &self.nodes[0].state else {
+            return Err(PuctError::NoRootAction);
+        };
+        Ok(edges.iter().map(mean_value).collect())
+    }
+
     pub fn stats(&self) -> PuctStats {
         let root_visits = match &self.nodes[0].state {
             NodeState::Expanded(edges) => edges.iter().map(|edge| u64::from(edge.visits)).sum(),
@@ -832,6 +839,10 @@ mod tests {
         assert!((targets[1] - 0.9).abs() < 1e-12);
         assert_eq!(targets[2..], vec![0.0; targets.len() - 2]);
         assert!((targets.iter().sum::<f64>() - 1.0).abs() < 1e-12);
+        let values = search.root_action_values().expect("root action values");
+        assert!((values[0] - 1.0).abs() < f64::EPSILON);
+        assert!((values[1] + 1.0).abs() < f64::EPSILON);
+        assert_eq!(values[2..], vec![0.0; values.len() - 2]);
     }
 
     #[test]

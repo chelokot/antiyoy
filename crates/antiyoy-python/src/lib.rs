@@ -306,10 +306,12 @@ impl PolicySearchBatch {
         }
         let mut offsets = Vec::with_capacity(self.searches.len() + 1);
         let mut probabilities = Vec::new();
+        let mut values = Vec::new();
         offsets.push(0_u64);
         for search in &self.searches {
             if let Some(search) = search {
                 probabilities.extend(search.root_target_probabilities().map_err(runtime_error)?);
+                values.extend(search.root_action_values().map_err(runtime_error)?);
             }
             offsets.push(
                 u64::try_from(probabilities.len())
@@ -319,6 +321,7 @@ impl PolicySearchBatch {
         let dictionary = PyDict::new(py);
         dictionary.set_item("offsets", PyArray1::from_vec(py, offsets))?;
         dictionary.set_item("probabilities", PyArray1::from_vec(py, probabilities))?;
+        dictionary.set_item("values", PyArray1::from_vec(py, values))?;
         Ok(dictionary)
     }
 
