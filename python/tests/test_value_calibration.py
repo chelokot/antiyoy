@@ -12,6 +12,7 @@ from antiyoy_rl.model import UniversalPolicy, encode_rules, select_environments
 from python.calibrate_value import (
     ValueSample,
     calibrate_value,
+    outcome_target,
     train_value_head,
     value_metrics,
 )
@@ -29,6 +30,14 @@ def test_value_metrics_reports_error_sign_and_correlation() -> None:
     assert metrics["mae"] == pytest.approx(0.3)
     assert metrics["sign_accuracy"] == pytest.approx(2 / 3)
     assert metrics["correlation"] > 0.9
+
+
+def test_zero_sum_multiplayer_targets_have_zero_total_reward() -> None:
+    targets = [outcome_target(2, seat, 5, "zero_sum") for seat in range(5)]
+
+    assert targets[2] == 1.0
+    assert targets[0] == pytest.approx(-0.25)
+    assert sum(targets) == pytest.approx(0.0)
 
 
 def test_value_training_changes_only_the_value_head() -> None:
@@ -139,12 +148,14 @@ def test_calibration_supports_procedural_multiplayer(tmp_path: Path) -> None:
         players=3,
         starting_province_size=3,
         training_seat=2,
+        target_mode="zero_sum",
     )
 
     assert report["generator"] == "procedural_v1"
     assert report["domain_descriptor"]["players"] == 3
     assert report["collection"]["games"] == 3
     assert report["training_seat"] == 2
+    assert report["target_mode"] == "zero_sum"
     assert report["source"]["expert"] == report["source"]["seat_experts"][2]
     assert len(report["collection"]["wins_by_seat"]) == 3
     assert output.is_file()

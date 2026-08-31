@@ -43,10 +43,19 @@ class ValueSample:
     target: float
 
 
-def outcome_target(winner: int, active_player: int) -> float:
+def outcome_target(
+    winner: int,
+    active_player: int,
+    players: int = 2,
+    target_mode: str = "binary",
+) -> float:
     if winner == 255:
         return 0.0
-    return 1.0 if winner == active_player else -1.0
+    if winner == active_player:
+        return 1.0
+    if target_mode == "zero_sum":
+        return -1.0 / (players - 1)
+    return -1.0
 
 
 def value_metrics(predictions: np.ndarray, targets: np.ndarray) -> dict[str, object]:
@@ -181,11 +190,14 @@ def collect_self_play_samples(
     exploration_top_k: int,
     players: int,
     training_seat: int | None,
+    target_mode: str,
 ) -> tuple[list[list[ValueSample]], dict[str, object]]:
     if sample_stride < 1:
         raise ValueError("sample stride must be positive")
     if not 0 <= exploration_probability <= 1 or exploration_top_k < 2:
         raise ValueError("exploration requires a probability and at least two actions")
+    if target_mode not in ("binary", "zero_sum"):
+        raise ValueError("unsupported value calibration target mode")
     games = environment.environments
     for environment_index in range(games):
         environment.reset(environment_index, seed + environment_index)
@@ -260,7 +272,12 @@ def collect_self_play_samples(
         [
             ValueSample(
                 observation,
-                outcome_target(int(winners[environment_index]), active_player),
+                outcome_target(
+                    int(winners[environment_index]),
+                    active_player,
+                    players,
+                    target_mode,
+                ),
             )
             for observation, active_player in trajectory
         ]
@@ -278,6 +295,7 @@ def collect_self_play_samples(
         "draws": int(np.count_nonzero(winners == 255)),
         "wins_by_seat": winner_counts.tolist(),
         "training_seat": training_seat,
+        "target_mode": target_mode,
     }
 
 
@@ -308,6 +326,7 @@ def calibrate_value(
     neutral_capital_density_per_million: int = 10_000,
     grave_density_per_million: int = 15_000,
     training_seat: int | None = None,
+    target_mode: str = "binary",
 ) -> dict[str, object]:
     if games < 2 or validation_games < 1 or validation_games >= games:
         raise ValueError("validation games must be a non-empty strict subset")
@@ -319,6 +338,8 @@ def calibrate_value(
         raise ValueError("symmetric duel value calibration requires two players")
     if training_seat is not None and not 0 <= training_seat < players:
         raise ValueError("value calibration training seat is outside the player range")
+    if target_mode not in ("binary", "zero_sum"):
+        raise ValueError("unsupported value calibration target mode")
     device = torch.device(device_name)
     checkpoint = load_policy_checkpoint(checkpoint_path, device)
     config = dict(checkpoint["config"])
@@ -408,6 +429,7 @@ def calibrate_value(
         exploration_top_k,
         players,
         training_seat,
+        target_mode,
     )
     training_games = games - validation_games
     training = [sample for game in game_samples[:training_games] for sample in game]
@@ -449,6 +471,7 @@ def calibrate_value(
         "batch_size": batch_size,
         "learning_rate": learning_rate,
         "training_seat": training_seat,
+        "target_mode": target_mode,
         "exploration_probability": exploration_probability,
         "exploration_top_k": exploration_top_k,
         "collection": collection,
@@ -507,6 +530,9 @@ def main() -> None:
     )
     parser.add_argument("--grave-density-per-million", type=int, default=15_000)
     parser.add_argument("--training-seat", type=int)
+    parser.add_argument(
+        "--target-mode", choices=("binary", "zero_sum"), default="binary"
+    )
     parser.add_argument("--sample-stride", type=int, default=4)
     parser.add_argument("--epochs", type=int, default=12)
     parser.add_argument("--batch-size", type=int, default=128)
@@ -541,6 +567,7 @@ def main() -> None:
         arguments.neutral_capital_density_per_million,
         arguments.grave_density_per_million,
         arguments.training_seat,
+        arguments.target_mode,
     )
     print(json.dumps(report, sort_keys=True))
 

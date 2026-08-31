@@ -274,6 +274,12 @@ without it, every calibrated seat must share one expert. Overlay the resulting
 checkpoint only on that calibrated context, preserving
 every inherited route:
 
+For multiplayer value heads, `--target-mode zero_sum` assigns the winner `+1`
+and each loser `-1 / (players - 1)`. The per-game target sum is therefore zero,
+instead of making four of five targets `-1` in a five-player game. The legacy
+`binary` target remains the default for exact reproduction; compare target modes
+on disjoint value and outcome gates before routing either checkpoint.
+
 ```bash
 python build_bundle.py ../models/universal-routed.pt \
   ../models/universal-routed-value.pt --overlay \
