@@ -125,6 +125,64 @@
     },
     "decision": "rejected: improved value regression metrics but reduced held-out PUCT wins"
   },
+  "ranking_value_ablation": {
+    "implementation_commit": "93936a3",
+    "training_seat": 3,
+    "training_seed": 1000000,
+    "target_mode": "binary",
+    "loss": "pairwise logistic ranking plus 0.25 MSE magnitude anchor",
+    "games": 64,
+    "validation_games": 16,
+    "samples": 3416,
+    "validation_samples": 932,
+    "validation_before": {
+      "mae": 0.8467704839784604,
+      "rmse": 0.8711551685055802,
+      "sign_accuracy": 0.776824034334764,
+      "correlation": 0.6443593105681517
+    },
+    "validation_after": {
+      "mae": 0.39362014878477275,
+      "rmse": 0.6388778381160644,
+      "sign_accuracy": 0.878755364806867,
+      "correlation": 0.7487091738053894
+    },
+    "artifact_sha256": "03056c966239557c6b77cfac43f53359d6ed931517cb8ee6bdaccfdb237ebdf0",
+    "routed_bundle_sha256": "268fadc95d71b88dcd1938c390c760149bc9704c0165c2a1f0af9d828188974b",
+    "training_report_sha256": "2550e53520a1aa93a1a6906e97fb715be232ad3f7a428dca02b076f191757c8b",
+    "puct_windows": [
+      {
+        "seed_first": 1010000,
+        "games": 128,
+        "candidate_record": "17-0-111",
+        "baseline_seat_3_record": "13-0-115",
+        "score_delta": 0.03125,
+        "baseline_adjusted_elo_delta": 52.752172255356555,
+        "truncations": 1,
+        "baseline_truncations": 1,
+        "raw_result_sha256": "582ccf96578c23693da5a340a94bc308b22bb3a8718111be3ebd7ea93c587246"
+      },
+      {
+        "seed_first": 1020000,
+        "games": 128,
+        "candidate_record": "12-0-116",
+        "baseline_seat_3_record": "13-0-115",
+        "score_delta": -0.0078125,
+        "baseline_adjusted_elo_delta": -15.408902053007493,
+        "truncations": 1,
+        "baseline_truncations": 1,
+        "raw_result_sha256": "efdeb8b76649ae262f3d5e60f489c8450d9f31a6201566d3a41074ed3212ddc5"
+      }
+    ],
+    "combined": {
+      "games": 256,
+      "candidate_wins": 29,
+      "baseline_seat_3_wins": 26,
+      "score_delta": 0.01171875,
+      "baseline_adjusted_elo_delta": 21.250651501043293
+    },
+    "decision": "promising but unconfirmed: aggregate positive, confirmation window negative, no distillation authorized"
+  },
   "calibrated_puct_confirmations": [
     {
       "seed_first": 930000,
@@ -186,5 +244,5 @@
     "raw_result_sha256": "009444f9c053803457aaf22f44b288810a05b6af2e36c0cc9badfce4757290c4",
     "decision": "rejected: the repeated online PUCT signal did not survive zero-search distillation"
   },
-  "conclusion": "Procedural exact-seat binary calibration materially improved held-out value MAE, RMSE, and correlation, and PUCT-8 repeated a small +2-win uplift on each of two disjoint windows. A high-retention student nevertheless matched the source exactly on a fresh 128-game zero-search gate. A zero-sum multiplayer target also improved regression metrics but lost two held-out PUCT wins and was rejected. No artifact was promoted. A larger teacher or value objective trained for action ranking is required before another procedural PUCT distillation attempt."
+  "conclusion": "Procedural exact-seat binary calibration materially improved held-out value MAE, RMSE, and correlation, and PUCT-8 repeated a small +2-win uplift on each of two disjoint windows. A high-retention student nevertheless matched the source exactly on a fresh 128-game zero-search gate. A zero-sum multiplayer target improved regression metrics but lost two held-out PUCT wins and was rejected. Pairwise ranking produced the best value metrics and a combined +21.25 baseline-adjusted Elo over 256 PUCT games, but its second window was negative, so it remains unconfirmed and was not distilled. No artifact was promoted. More data or a larger teacher is required before another procedural PUCT distillation attempt."
 }

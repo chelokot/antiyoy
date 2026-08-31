@@ -110,7 +110,7 @@ const experiments = [
     method: "Procedural multiplayer PUCT",
     status: "not promoted",
     description: "Calibrate one five-player seat, verify online PUCT twice, then distill only that route with strong KL retention.",
-    result: "Binary-value PUCT repeated +2 wins (+25 adjusted Elo) but its student tied the source 19–19. A zero-sum value ablation improved RMSE yet lost 16–18 (−24 adjusted Elo).",
+    result: "Binary-value PUCT repeated +2 wins but its student tied 19–19. Zero-sum lost 16–18. Ranking value led 29–26 overall, but its confirmation window lost 12–13; none was promoted.",
   },
 ] as const;
 

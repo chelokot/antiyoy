@@ -254,6 +254,10 @@ An additional zero-sum reward ablation improved held-out value RMSE from 0.581
 to 0.475, but its PUCT agent lost 16–18 to the source seat on 128 fresh maps
 (`−23.59` baseline-adjusted Elo). It was also rejected: regression quality alone
 is not a promotion criterion.
+Pairwise value ranking produced the strongest diagnostic metrics and a combined
+29 wins versus 26 source wins over two 128-game PUCT windows (`+21.25`
+baseline-adjusted Elo). The windows were 17–13 and 12–13, so the sign did not
+repeat; it is recorded as promising but unconfirmed and was not distilled.
 
 Reproduce the accepted direct-policy comparison with the small specialist:
 
