@@ -250,6 +250,10 @@ zero-search student scored exactly the same 19 wins as the source on a fresh
 128-game gate, including the same single truncation. The complete negative
 result, including a discarded routing-protocol error, is recorded in
 [`benchmarks/2026-08-31-procedural-5p-puct-loop-rocm.json`](benchmarks/2026-08-31-procedural-5p-puct-loop-rocm.json).
+An additional zero-sum reward ablation improved held-out value RMSE from 0.581
+to 0.475, but its PUCT agent lost 16–18 to the source seat on 128 fresh maps
+(`−23.59` baseline-adjusted Elo). It was also rejected: regression quality alone
+is not a promotion criterion.
 
 Reproduce the accepted direct-policy comparison with the small specialist:
 

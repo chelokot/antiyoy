@@ -91,6 +91,40 @@
     "raw_report_sha256": "f8f4ea36fbe21ac5b6721c2a5812bad6b8a57fa843d23b8ab5c2402bff570f01",
     "routed_bundle_sha256": "2184c1895677ff330beba1d59a780e1ded954df07c2a9cd9a79eeb362f1198d4"
   },
+  "zero_sum_value_ablation": {
+    "implementation_commit": "51d2bd1",
+    "training_seat": 3,
+    "training_seed": 980000,
+    "target": "winner +1, every loser -1/(players-1)",
+    "games": 64,
+    "validation_games": 16,
+    "samples": 4498,
+    "validation_samples": 1135,
+    "validation_before": {
+      "mae": 0.4388009922866123,
+      "rmse": 0.5806047957610315,
+      "correlation": 0.6476824722079254
+    },
+    "validation_after": {
+      "mae": 0.3858621485490303,
+      "rmse": 0.47528705037092484,
+      "correlation": 0.6794674830813706
+    },
+    "artifact_sha256": "e54575f0b78d28e3ae8196466da396e259affdb4b8b1556592573c57ff61ee68",
+    "routed_bundle_sha256": "2990fbabec7a59ec3a37671f2493ef012174f2a228e68254138758c7f7d167f0",
+    "training_report_sha256": "b3750063e3a03e8b250a6115dce4f089fda71e49e02b0d1ca8d74f451abfaf59",
+    "puct_gate": {
+      "seed_first": 990000,
+      "games": 128,
+      "candidate_record": "16-0-112",
+      "baseline_seat_3_record": "18-0-110",
+      "score_delta": -0.015625,
+      "baseline_adjusted_elo_delta": -23.59114398373514,
+      "truncations": 0,
+      "raw_result_sha256": "7430e210aa0a3018376ab928214a8881f73f64adf9fb54f85ad7b16418e6b625"
+    },
+    "decision": "rejected: improved value regression metrics but reduced held-out PUCT wins"
+  },
   "calibrated_puct_confirmations": [
     {
       "seed_first": 930000,
@@ -152,5 +186,5 @@
     "raw_result_sha256": "009444f9c053803457aaf22f44b288810a05b6af2e36c0cc9badfce4757290c4",
     "decision": "rejected: the repeated online PUCT signal did not survive zero-search distillation"
   },
-  "conclusion": "Procedural exact-seat calibration materially improved held-out value MAE, RMSE, and correlation, and PUCT-8 repeated a small +2-win uplift on each of two disjoint windows. A high-retention student nevertheless matched the source exactly on a fresh 128-game zero-search gate. No artifact was promoted. Larger or ranking-aware multiplayer value training is required before another PUCT distillation attempt."
+  "conclusion": "Procedural exact-seat binary calibration materially improved held-out value MAE, RMSE, and correlation, and PUCT-8 repeated a small +2-win uplift on each of two disjoint windows. A high-retention student nevertheless matched the source exactly on a fresh 128-game zero-search gate. A zero-sum multiplayer target also improved regression metrics but lost two held-out PUCT wins and was rejected. No artifact was promoted. A larger teacher or value objective trained for action ranking is required before another procedural PUCT distillation attempt."
 }
