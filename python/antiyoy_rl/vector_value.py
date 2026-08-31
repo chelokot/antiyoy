@@ -87,9 +87,9 @@ def relative_to_absolute_utilities(
         dtype=torch.long,
         device=relative_utilities.device,
     )
-    rows = torch.arange(
-        counts.size, device=relative_utilities.device
-    ).repeat_interleave(
-        torch.as_tensor(counts, dtype=torch.long, device=relative_utilities.device)
+    rows = torch.as_tensor(
+        np.repeat(np.arange(counts.size, dtype=np.int64), counts),
+        dtype=torch.long,
+        device=relative_utilities.device,
     )
     return relative_utilities[rows, relative_indices]

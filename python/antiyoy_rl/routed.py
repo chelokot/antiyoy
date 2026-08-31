@@ -79,10 +79,13 @@ class RoutedPolicy:
                 if rule_features.ndim == 1
                 else rule_features[environments]
             )
-            expert_logits, _, features = self.models[
+            expert_logits, expert_values, features = self.models[
                 expert
             ].forward_with_value_features(selected, selected_rules)
             expert_relative_values = value_head(features)
+            expert_relative_values = torch.cat(
+                (expert_values.unsqueeze(1), expert_relative_values[:, 1:]), dim=1
+            )
             offsets = np.asarray(selected["action_offsets"], dtype=np.int64)
             for selected_index, environment in enumerate(environments):
                 start, end = offsets[selected_index : selected_index + 2]
