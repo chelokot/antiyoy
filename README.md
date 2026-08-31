@@ -241,6 +241,16 @@ every direct cross-seat game in the aggregate no-regression gate. Full training,
 rejected-candidate, holdout, routing, and browser-parity evidence is in
 [`benchmarks/2026-08-31-puct-seat1-soft-distillation-rocm.json`](benchmarks/2026-08-31-puct-seat1-soft-distillation-rocm.json).
 
+The first procedural five-player PUCT loop was deliberately not promoted.
+Uncalibrated PUCT-8 produced no aggregate win gain. Exact-seat value calibration
+for seat 3 improved held-out correlation from 0.616 to 0.746 and reduced MAE
+from 0.831 to 0.548. The resulting online PUCT agent then repeated a small
++2-win gain on both a 64-game and a 128-game window. However, its high-retention
+zero-search student scored exactly the same 19 wins as the source on a fresh
+128-game gate, including the same single truncation. The complete negative
+result, including a discarded routing-protocol error, is recorded in
+[`benchmarks/2026-08-31-procedural-5p-puct-loop-rocm.json`](benchmarks/2026-08-31-procedural-5p-puct-loop-rocm.json).
+
 Reproduce the accepted direct-policy comparison with the small specialist:
 
 ```bash

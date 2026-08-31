@@ -1,0 +1,153 @@
+{
+  "schema_version": 3,
+  "kind": "procedural_multiplayer_value_puct_distillation_ablation",
+  "implementation_commits": {
+    "procedural_distillation": "c6d686b",
+    "procedural_value_calibration": "151645e",
+    "exact_seat_value_calibration": "027d3df"
+  },
+  "system": {
+    "allocated_cpu_threads": 8,
+    "cpu": "Intel Core i9-11900K",
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "process_priority": "nice 10",
+    "pytorch": "2.9.1+rocm6.4"
+  },
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v1",
+    "players": 5,
+    "width": 19,
+    "height": 15,
+    "action_limit": 2400,
+    "land_density_per_million": 650000
+  },
+  "source": {
+    "artifact": "universal-routed-2to8p-engine-v6-2026-08-31.pt",
+    "sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "selected_expert": "context:ea1a83a813d1f57f"
+  },
+  "uncalibrated_puct_scout": {
+    "seed_first": 890000,
+    "games_per_seat": 16,
+    "node_budget": 8,
+    "root_value_weight": 1.0,
+    "candidate_wins_by_seat": [7, 5, 1, 2, 0],
+    "baseline_self_play_wins_by_seat": [7, 5, 2, 2, 0],
+    "win_deltas_by_seat": [0, 0, -1, 0, 0],
+    "truncations": 0,
+    "raw_result_sha256_by_seat": [
+      "909e78c8ff76f39846dd73eb8450212790c19b4206fccbb6c158d45381fa395e",
+      "5426414c947179239d87724825d35ef0e902529f14ea08d566bde1f278dce33f",
+      "4d9957e512b7e07ac9f40378bed4f58656e66e772926ed2d316f30b453a5a309",
+      "9246cc6374cdeb6fb6cc0329744f89630257b2baa5d163143e8d504ff0782e50",
+      "8309809a3fa02970a24c8b4924aec95b95ad4f9a857c905ec1afeddfb3d4ef50"
+    ],
+    "decision": "rejected: no aggregate uplift and one seat regressed"
+  },
+  "all_seat_value_calibration": {
+    "training_seed": 910000,
+    "games": 64,
+    "validation_games": 16,
+    "samples": 9815,
+    "validation_samples": 2599,
+    "validation_before": {
+      "mae": 0.8464668309842797,
+      "rmse": 0.8695709951533402,
+      "sign_accuracy": 0.80723355136591,
+      "correlation": 0.6296975454267127
+    },
+    "validation_after": {
+      "mae": 0.5925559899001087,
+      "rmse": 0.7587776658943335,
+      "sign_accuracy": 0.7987687572143132,
+      "correlation": 0.6404780205899506
+    },
+    "artifact_sha256": "69cd8b035bebe351cfa55ca04be2efe38b3dfe3ec1a69b63a6e2148c8c02408d",
+    "raw_report_sha256": "b2d870cf7a329db77ef0bd7f5d1eb784b355de1a831a8cc956756c3d10fbc1fa",
+    "puct_scout_win_deltas_by_seat": [0, 0, -1, 1, 0],
+    "decision": "rejected: value errors improved but PUCT aggregate stayed neutral"
+  },
+  "exact_seat_value_calibration": {
+    "training_seat": 3,
+    "training_seed": 920000,
+    "games": 64,
+    "validation_games": 16,
+    "samples": 3941,
+    "validation_samples": 963,
+    "validation_before": {
+      "mae": 0.8306962294583349,
+      "rmse": 0.8581639108465684,
+      "sign_accuracy": 0.7923156801661475,
+      "correlation": 0.6164596665825185
+    },
+    "validation_after": {
+      "mae": 0.5475184349584957,
+      "rmse": 0.7341497580081776,
+      "sign_accuracy": 0.7611630321910696,
+      "correlation": 0.7458050748780007
+    },
+    "artifact_sha256": "da6ac8b9b2373e6509a9b9d8e304fa37e33ba1700d2e2c574f09027847264154",
+    "raw_report_sha256": "f8f4ea36fbe21ac5b6721c2a5812bad6b8a57fa843d23b8ab5c2402bff570f01",
+    "routed_bundle_sha256": "2184c1895677ff330beba1d59a780e1ded954df07c2a9cd9a79eeb362f1198d4"
+  },
+  "calibrated_puct_confirmations": [
+    {
+      "seed_first": 930000,
+      "games": 64,
+      "candidate_record": "11-0-53",
+      "baseline_seat_3_wins": 9,
+      "score_delta": 0.03125,
+      "truncations": 0,
+      "raw_result_sha256": "fbbe63455bff405ba10db2a45ea54deb63e447fc09d3c7a223e61113e5a5b64d"
+    },
+    {
+      "seed_first": 940000,
+      "games": 128,
+      "candidate_record": "17-0-111",
+      "baseline_seat_3_wins": 15,
+      "score_delta": 0.015625,
+      "truncations": 0,
+      "raw_result_sha256": "658e118a77b48f39e7615789e46bc786a01e101f79d2bd15f1e01f98a0333886"
+    }
+  ],
+  "distillation": {
+    "training_seat": 3,
+    "training_seed": 960000,
+    "environments": 64,
+    "updates": 600,
+    "visited_states": 38400,
+    "examples": 6530,
+    "optimization_updates": 554,
+    "node_budget": 8,
+    "learning_rate": 0.000025,
+    "retention_kl_weight": 16.0,
+    "mean_retention_kl": 0.00013099352422396668,
+    "root_target_kl": 0.009617121044682856,
+    "teacher_direct_disagreement": 0.012529163300446393,
+    "frozen_parameters_preserved": true,
+    "seconds": 144.84772103000432,
+    "artifact_sha256": "024838ad983c57960b11d54f1818ee0b4e94361fb6ee94a0cf08070c2eccc470",
+    "training_log_sha256": "13fb0a6bda38650170b6e8d4d95aceebe56c9d759f72658877653ef95f9aaed2",
+    "protocol_rejected_attempt": {
+      "training_seed": 950000,
+      "reason": "standalone calibrated checkpoint incorrectly exposed the seat-3 value head to every opponent leaf",
+      "training_log_sha256": "855c248579230e7d05dd978c6693e10a5bb38ef677b3aad45546980a390b9ec6"
+    }
+  },
+  "zero_search_gate": {
+    "seed_first": 970000,
+    "games": 128,
+    "model_seat": 3,
+    "student_record": "19-0-109",
+    "source_seat_3_record": "19-0-109",
+    "score": 0.1484375,
+    "baseline_score": 0.1484375,
+    "score_delta": 0.0,
+    "truncations": 1,
+    "baseline_truncations": 1,
+    "raw_result_sha256": "009444f9c053803457aaf22f44b288810a05b6af2e36c0cc9badfce4757290c4",
+    "decision": "rejected: the repeated online PUCT signal did not survive zero-search distillation"
+  },
+  "conclusion": "Procedural exact-seat calibration materially improved held-out value MAE, RMSE, and correlation, and PUCT-8 repeated a small +2-win uplift on each of two disjoint windows. A high-retention student nevertheless matched the source exactly on a fresh 128-game zero-search gate. No artifact was promoted. Larger or ranking-aware multiplayer value training is required before another PUCT distillation attempt."
+}

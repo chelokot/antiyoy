@@ -106,6 +106,12 @@ const experiments = [
     description: "Export the full PUCT root distribution, train a cheap policy, then route only a seat that passes its paired gate.",
     result: "Seat 1 student: 281–231 in a paired gate. Seat 2 student: 470–42 in its fixed-seat pool versus 48–464 for the source, +0.824 score and +419.54 relative Elo.",
   },
+  {
+    method: "Procedural multiplayer PUCT",
+    status: "not promoted",
+    description: "Calibrate one five-player seat, verify online PUCT twice, then distill only that route with strong KL retention.",
+    result: "Online PUCT repeated +2 wins on 64 and 128 games, but its student tied the source 19–19 on a fresh 128-game fixed-seat gate.",
+  },
 ] as const;
 
 function EvidenceLink({ file }: { file: string }) {
@@ -142,7 +148,7 @@ export default function ModelsPage() {
       <section className="models-section report-section">
         <div className="section-heading"><div><p>Promotion gate</p><h2>How a model earns the top row</h2></div></div>
         <div className="promotion-flow"><div><b>AMPLIFY</b><span>Search or PUCT labels policy-visited states.</span></div><i>→</i><div><b>DISTILL</b><span>A compact policy learns priors and values.</span></div><i>→</i><div><b>ATTACK</b><span>Fresh seeds, both seats, every rules profile.</span></div><i>→</i><div><b>PROMOTE</b><span>Only if the weakest slice does not regress.</span></div></div>
-        <footer><span>Next controlled experiment</span><strong>Calibrate values and repeat soft PUCT distillation across the remaining profiles, both seats, and multiplayer routes.</strong></footer>
+        <footer><span>Next controlled experiment</span><strong>Train ranking-aware multiplayer values or a larger search teacher before attempting procedural distillation again.</strong></footer>
       </section>
     </main>
   );

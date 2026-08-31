@@ -120,6 +120,8 @@ test("renders the benchmark-backed model arena", async () => {
   assert.match(html, /Value-calibrated PUCT-8/);
   assert.match(html, /Soft-PUCT distilled/);
   assert.match(html, /470–42 in its fixed-seat pool/);
+  assert.match(html, /Procedural multiplayer PUCT/);
+  assert.match(html, /tied the source 19–19/);
   assert.match(html, /Play either promoted Soft-PUCT seat now/);
   assert.match(html, /280–0–232/);
   assert.match(html, /\+32\.67 relative Elo/);
