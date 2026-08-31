@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "evidence": {
+    "engine-v6": {
+      "file": "2026-08-31-engine-v6-amplify-distill-rocm.json",
+      "sha256": "b7a23a5988faa544d893e855bbbf8e77954206942797e8a2387e50aad8a8d345"
+    },
+    "duel-puct": {
+      "file": "2026-08-31-policy-guided-puct-amplification-rocm.json",
+      "sha256": "d40452bfdb875a7a29d9f460ac63bded4bb1d48f3122f8c49e34065c8383fa73"
+    },
+    "duel-distill": {
+      "file": "2026-08-31-puct-soft-distillation-rocm.json",
+      "sha256": "f89ff07000fffe3091d2fc45190f1d1132739aca9985012565e0c314a423e892"
+    },
+    "procedural-puct": {
+      "file": "2026-08-31-procedural-5p-puct-loop-rocm.json",
+      "sha256": "0a424a9d17026b8a50ec301adfdde9a04a06a5cd26a1d1568abbce3a1dbae793"
+    },
+    "vector-maxn": {
+      "file": "2026-08-31-one-pass-maxn-vector-distillation-rocm.json",
+      "sha256": "efca54520e6bf5fdcb9210a9ad1e1d80ed8d12d21ec862f532eeb140ebd0f987"
+    },
+    "outcome-vector": {
+      "file": "2026-08-31-outcome-vector-value-rocm.json",
+      "sha256": "e4a1addb6cccd99a133054594f2ae85e4ca87476892b984fc86d2e48030f47e7"
+    }
+  },
+  "comparisons": [
+    {
+      "pool": "Fixed duel · 7 profiles",
+      "method": "Routed v6 policy",
+      "compute": "1 neural pass",
+      "opponent": "search-2048",
+      "games": 336,
+      "record": "336–0–0",
+      "relativeElo": "+1131",
+      "pairedFlips": "336–0",
+      "significance": "perfect sample",
+      "verdict": "promoted",
+      "evidence": "engine-v6"
+    },
+    {
+      "pool": "Classic Generic duel",
+      "method": "Value-calibrated PUCT-8",
+      "compute": "policy + 8 nodes",
+      "opponent": "direct frozen policy",
+      "games": 512,
+      "record": "280–0–232",
+      "relativeElo": "+32.67",
+      "pairedFlips": "not reported",
+      "significance": "CI 50.36–58.95%",
+      "verdict": "accepted online",
+      "evidence": "duel-puct"
+    },
+    {
+      "pool": "Classic Generic duel",
+      "method": "Soft-root PUCT distill",
+      "compute": "1 neural pass",
+      "opponent": "direct frozen policy",
+      "games": 512,
+      "record": "281–0–231",
+      "relativeElo": "+34.04",
+      "pairedFlips": "25–0 by routed seat",
+      "significance": "CI 50.55–59.14%",
+      "verdict": "promoted",
+      "evidence": "duel-distill"
+    },
+    {
+      "pool": "Procedural 5-player · seat 4",
+      "method": "Ranking-value PUCT-8",
+      "compute": "policy + 8 nodes",
+      "opponent": "direct routed policy",
+      "games": 320,
+      "record": "45–0–275 vs 39–0–281",
+      "relativeElo": "+28.61",
+      "pairedFlips": "19–13",
+      "significance": "p=0.377",
+      "verdict": "unconfirmed",
+      "evidence": "procedural-puct"
+    },
+    {
+      "pool": "Procedural 5-player · seat 4",
+      "method": "Exact MaxN PUCT-8",
+      "compute": "5 value passes / leaf",
+      "opponent": "direct routed policy",
+      "games": 128,
+      "record": "18–0–110 vs 13–0–115",
+      "relativeElo": "+64.25",
+      "pairedFlips": "2–1",
+      "significance": "p=1.000",
+      "verdict": "rejected cost",
+      "evidence": "procedural-puct"
+    },
+    {
+      "pool": "Procedural 5-player · seat 4",
+      "method": "One-pass MaxN",
+      "compute": "1 shared vector pass",
+      "opponent": "direct routed policy",
+      "games": 128,
+      "record": "22–0–106 vs 25–0–103",
+      "relativeElo": "−27.19",
+      "pairedFlips": "1–4",
+      "significance": "p=0.375",
+      "verdict": "runtime only",
+      "evidence": "vector-maxn"
+    },
+    {
+      "pool": "Procedural 5-player · seat 4",
+      "method": "Outcome-value MaxN",
+      "compute": "1 shared vector pass",
+      "opponent": "direct routed policy",
+      "games": 256,
+      "record": "42–0–214 vs 40–0–216",
+      "relativeElo": "+10.09",
+      "pairedFlips": "8–6",
+      "significance": "p=0.791",
+      "verdict": "not promoted",
+      "evidence": "outcome-vector"
+    },
+    {
+      "pool": "Procedural 5-player · seat 4",
+      "method": "Scalar-teacher MaxN",
+      "compute": "1 shared vector pass",
+      "opponent": "direct routed policy",
+      "games": 256,
+      "record": "42–0–214 vs 40–0–216",
+      "relativeElo": "+10.09",
+      "pairedFlips": "4–2",
+      "significance": "p=0.688",
+      "verdict": "not promoted",
+      "evidence": "outcome-vector"
+    }
+  ]
+}

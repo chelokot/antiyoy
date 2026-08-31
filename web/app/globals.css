@@ -274,6 +274,21 @@ button { font: inherit; }
 .ranking-table a { color: #202221; font-weight: 700; }
 .rating-number { font-family: Georgia, serif; font-size: 1.8rem; }
 .method-note { max-width: 52rem; margin: 1rem 0 0; color: #666862; font-size: 0.72rem; line-height: 1.5; }
+.method-matrix-section { background: #e8e2d2; }
+.method-matrix-wrap { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; border-block: 0.125rem solid #202221; }
+.method-matrix { width: 100%; min-width: 92rem; border-collapse: collapse; font-size: 0.7rem; }
+.method-matrix th, .method-matrix td { border-right: 0.0625rem solid rgb(32 34 33 / 20%); border-bottom: 0.0625rem solid rgb(32 34 33 / 28%); padding: 0.75rem 0.65rem; text-align: left; vertical-align: top; }
+.method-matrix thead th { position: sticky; top: 0; background: #e8e2d2; color: #686a65; font-size: 0.58rem; letter-spacing: 0.07em; text-transform: uppercase; }
+.method-matrix tbody th { min-width: 12rem; font-family: Georgia, serif; font-size: 0.95rem; font-weight: 400; }
+.method-matrix tbody td:first-child { min-width: 11rem; color: #555752; font-weight: 700; }
+.method-matrix tbody td:nth-child(3), .method-matrix tbody td:nth-child(4) { min-width: 9rem; }
+.method-matrix tbody tr:hover { background: rgb(231 199 88 / 28%); }
+.method-matrix small { display: block; margin-top: 0.25rem; color: #74766f; font-size: 0.58rem; }
+.method-matrix a { color: inherit; font-family: var(--font-geist-mono), monospace; font-size: 0.62rem; font-weight: 700; }
+.method-delta { font-family: Georgia, serif; font-size: 1.15rem; white-space: nowrap; }
+.verdict { display: inline-block; border: 0.0625rem solid #202221; padding: 0.2rem 0.35rem; font-size: 0.54rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; }
+.verdict-promoted, .verdict-accepted-online { background: #e7c758; }
+.verdict-unconfirmed { border-style: dashed; }
 .pool-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 0.125rem solid #202221; }
 .rating-pool + .rating-pool { border-left: 0.125rem solid #202221; }
 .rating-pool header { min-height: 6rem; border-bottom: 0.125rem solid #202221; padding: 1rem; }

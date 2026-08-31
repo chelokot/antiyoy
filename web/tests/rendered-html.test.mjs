@@ -134,6 +134,14 @@ test("renders the benchmark-backed model arena", async () => {
   assert.match(html, /Procedural multiplayer PUCT/);
   assert.match(html, /Ranking value leads 45–39/);
   assert.match(html, /320-map paired sign test is p=0.377/);
+  assert.match(html, /What does search actually buy\?/);
+  assert.match(html, /Exact MaxN PUCT-8/);
+  assert.match(html, /One-pass MaxN/);
+  assert.match(html, /Outcome-value MaxN/);
+  assert.match(html, /Proof SHA/);
+  assert.match(html, /4\.47× faster than exact MaxN/);
+  assert.match(html, /tied 5–5 head-to-head/);
+  assert.match(html, /action-conditioned regret or advantage targets/);
   assert.match(html, /Play either promoted Soft-PUCT seat now/);
   assert.match(html, /280–0–232/);
   assert.match(html, /\+32\.67 relative Elo/);

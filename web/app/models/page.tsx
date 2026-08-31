@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import benchmarkData from "./benchmark-data.json";
 
 export const metadata: Metadata = {
   title: "Model Arena · Antiyoy",
@@ -112,10 +113,27 @@ const experiments = [
     description: "Calibrate one five-player seat, verify online PUCT twice, then distill only that route with strong KL retention.",
     result: "Binary-value PUCT repeated +2 wins but its student tied 19–19. Zero-sum lost 16–18. Ranking value leads 45–39 over three windows, but the 320-map paired sign test is p=0.377; none is promoted.",
   },
+  {
+    method: "Vector MaxN distillation",
+    status: "runtime accepted",
+    description: "Predict every player utility from one shared encoder pass while preserving the active player's exact scalar value.",
+    result: "4.47× faster than exact MaxN and identical on 63/64 held-out map scores. The agent still regressed against direct policy, so only the runtime path was accepted.",
+  },
+  {
+    method: "Outcome-grounded values",
+    status: "not promoted",
+    description: "Train relative utilities from complete self-play winners with game-disjoint validation instead of copying scalar predictions.",
+    result: "Holdout sign accuracy rose from 51.7% to 85.5%, but outcome and scalar heads both finished 42–40 over direct policy and tied 5–5 head-to-head.",
+  },
 ] as const;
 
 function EvidenceLink({ file }: { file: string }) {
   return <a href={`https://github.com/chelokot/antiyoy/blob/main/benchmarks/${file}`} target="_blank" rel="noreferrer">raw ↗</a>;
+}
+
+function SnapshotEvidenceLink({ evidence }: { evidence: keyof typeof benchmarkData.evidence }) {
+  const source = benchmarkData.evidence[evidence];
+  return <a href={`https://github.com/chelokot/antiyoy/blob/main/benchmarks/${source.file}`} title={`SHA-256 ${source.sha256}`} target="_blank" rel="noreferrer">{source.sha256.slice(0, 7)} ↗</a>;
 }
 
 export default function ModelsPage() {
@@ -140,6 +158,12 @@ export default function ModelsPage() {
         <p className="method-note"><Link href="/">Play either promoted Soft-PUCT seat now. Choose Cyan or Amber; the opponent runs locally through ONNX.</Link></p>
       </section>
 
+      <section className="models-section method-matrix-section">
+        <div className="section-heading"><div><p>Compute ledger</p><h2>What does search actually buy?</h2></div><p>Each row stays inside its named pool. Paired flips count maps changed by the method; p-values prevent a visually large Elo estimate from hiding a tiny discordant sample. Proof hashes are verified against the repository benchmark at build time.</p></div>
+        <div className="method-matrix-wrap"><table className="method-matrix"><thead><tr><th>Pool</th><th>Agent / method</th><th>Compute</th><th>Opponent</th><th>W–D–L</th><th>Games</th><th>Relative Elo</th><th>Paired flips</th><th>Gate</th><th>Proof SHA</th></tr></thead><tbody>{benchmarkData.comparisons.map((row) => <tr key={`${row.pool}:${row.method}`}><td>{row.pool}</td><th scope="row">{row.method}</th><td>{row.compute}</td><td>{row.opponent}</td><td>{row.record}</td><td>{row.games}</td><td className="method-delta">{row.relativeElo}</td><td>{row.pairedFlips}<small>{row.significance}</small></td><td><span className={`verdict verdict-${row.verdict.replaceAll(" ", "-")}`}>{row.verdict}</span></td><td><SnapshotEvidenceLink evidence={row.evidence as keyof typeof benchmarkData.evidence} /></td></tr>)}</tbody></table></div>
+        <p className="method-note">The table is a comparison index, not one global ladder. “Relative Elo” is local to the opponent and protocol named on that row.</p>
+      </section>
+
       <section className="models-section">
         <div className="section-heading"><div><p>Research loop</p><h2>Intuition, amplification, distillation</h2></div><p>The loop is viable, but each arrow needs a paired outcome test. Imitation accuracy alone has already produced rejected regressions in this project.</p></div>
         <ol className="experiment-ledger">{experiments.map((experiment, index) => <li key={experiment.method}><span>{String(index + 1).padStart(2, "0")}</span><div><div className="experiment-title"><h3>{experiment.method}</h3><b>{experiment.status}</b></div><p>{experiment.description}</p><strong>{experiment.result}</strong></div></li>)}</ol>
@@ -148,7 +172,7 @@ export default function ModelsPage() {
       <section className="models-section report-section">
         <div className="section-heading"><div><p>Promotion gate</p><h2>How a model earns the top row</h2></div></div>
         <div className="promotion-flow"><div><b>AMPLIFY</b><span>Search or PUCT labels policy-visited states.</span></div><i>→</i><div><b>DISTILL</b><span>A compact policy learns priors and values.</span></div><i>→</i><div><b>ATTACK</b><span>Fresh seeds, both seats, every rules profile.</span></div><i>→</i><div><b>PROMOTE</b><span>Only if the weakest slice does not regress.</span></div></div>
-        <footer><span>Next controlled experiment</span><strong>Train ranking-aware multiplayer values or a larger search teacher before attempting procedural distillation again.</strong></footer>
+        <footer><span>Next controlled experiment</span><strong>Learn action-conditioned regret or advantage targets: better terminal-value prediction alone did not improve procedural MaxN decisions.</strong></footer>
       </section>
     </main>
   );
