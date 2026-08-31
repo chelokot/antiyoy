@@ -54,7 +54,18 @@ test("server-renders the arena shell and metadata", async () => {
   assert.match(html, /SERVER LEAGUE/);
   assert.match(html, /REPLAY-VERIFIED ELO/);
   assert.match(html, /\/og\.png/);
+  assert.match(html, /\/game-pieces\/capital\.png/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton/);
+});
+
+test("serves a game-native browser icon", async () => {
+  const response = await render("/favicon.ico");
+
+  assert.equal(response.status, 308);
+  assert.equal(
+    response.headers.get("location"),
+    "http://localhost/game-pieces/capital.png",
+  );
 });
 
 test("ships the generated engine, browser policies, and social card", async () => {

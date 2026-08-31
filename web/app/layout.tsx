@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://antiyoy-arena-lab.chelokot.chatgpt.site"),
   title: "Antiyoy Arena Lab",
   description: "Inspect deterministic self-play, policies, state, and ratings from the Antiyoy RL environment.",
+  icons: { icon: "/game-pieces/capital.png" },
   openGraph: {
     title: "Antiyoy Arena Lab",
     description: "Deterministic Rust self-play, compiled to WebAssembly.",
