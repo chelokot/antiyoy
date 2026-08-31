@@ -13,6 +13,7 @@ try:
     from .evaluate import (
         PAIRING_SCHEME,
         SEAT_ROTATION_SCHEME,
+        baseline_adjusted_elo_delta,
         evaluate,
         relative_skill_delta,
     )
@@ -20,6 +21,7 @@ except ImportError:
     from evaluate import (
         PAIRING_SCHEME,
         SEAT_ROTATION_SCHEME,
+        baseline_adjusted_elo_delta,
         evaluate,
         relative_skill_delta,
     )
@@ -40,9 +42,7 @@ def aggregate_outcomes(
     results: list[dict[str, object]], seat: int | None = None
 ) -> dict[str, float | int]:
     outcomes = (
-        results
-        if seat is None
-        else [result["seats"][seat] for result in results]
+        results if seat is None else [result["seats"][seat] for result in results]
     )
     games = sum(int(result["games"]) for result in outcomes)
     wins = sum(int(result["wins"]) for result in outcomes)
@@ -84,6 +84,9 @@ def aggregate_outcomes(
                 "baseline_truncations": baseline_truncations,
                 "baseline_score": baseline_score,
                 "score_delta": score - baseline_score,
+                "baseline_adjusted_elo_delta": baseline_adjusted_elo_delta(
+                    score, baseline_score, games
+                ),
                 "baseline_truncation_rate": baseline_truncation_rate,
                 "truncation_rate_delta": (
                     truncations / games - baseline_truncation_rate
@@ -125,9 +128,7 @@ def minimum_profile_seat_slice(
     slices = []
     profiles = dict.fromkeys(str(result["profile"]) for result in results)
     for profile in profiles:
-        profile_results = [
-            result for result in results if result["profile"] == profile
-        ]
+        profile_results = [result for result in results if result["profile"] == profile]
         seats = len(profile_results[0]["seats"])
         for seat in range(seats):
             slices.append(
@@ -162,11 +163,15 @@ def main() -> None:
     parser.add_argument("checkpoint", type=Path)
     parser.add_argument("--games", type=int, default=32)
     parser.add_argument("--seeds", type=int, nargs="+", default=[100000, 130000])
-    parser.add_argument("--profiles", nargs="+", choices=ALL_PROFILES, default=ALL_PROFILES)
+    parser.add_argument(
+        "--profiles", nargs="+", choices=ALL_PROFILES, default=ALL_PROFILES
+    )
     parser.add_argument(
         "--baseline", choices=("search", "greedy", "random"), default="search"
     )
-    parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--device", default="cuda" if torch.cuda.is_available() else "cpu"
+    )
     parser.add_argument("--search-nodes", type=int, default=2048)
     parser.add_argument("--search-beam-width", type=int, default=32)
     parser.add_argument("--search-branch-width", type=int, default=48)
@@ -181,7 +186,9 @@ def main() -> None:
     parser.add_argument("--starting-money", type=int, default=10)
     parser.add_argument("--tree-density-per-million", type=int, default=150_000)
     parser.add_argument("--neutral-tower-density-per-million", type=int, default=20_000)
-    parser.add_argument("--neutral-capital-density-per-million", type=int, default=10_000)
+    parser.add_argument(
+        "--neutral-capital-density-per-million", type=int, default=10_000
+    )
     parser.add_argument("--grave-density-per-million", type=int, default=15_000)
     parser.add_argument("--minimum-aggregate-score", type=float)
     parser.add_argument("--minimum-seat-score", type=float)
@@ -310,15 +317,19 @@ def main() -> None:
             f"aggregate score {aggregate['score']:.6f} is below required {minimum_score:.6f}"
         )
     minimum_seat_score = arguments.minimum_seat_score
-    if minimum_seat_score is not None and float(weakest_seat["score"]) < minimum_seat_score:
+    if (
+        minimum_seat_score is not None
+        and float(weakest_seat["score"]) < minimum_seat_score
+    ):
         raise SystemExit(
             f"weakest seat score {weakest_seat['score']:.6f} is below required "
             f"{minimum_seat_score:.6f}"
         )
     minimum_seat_score_delta = arguments.minimum_seat_score_delta
-    if minimum_seat_score_delta is not None and float(
-        weakest_seat["score_delta"]
-    ) < minimum_seat_score_delta:
+    if (
+        minimum_seat_score_delta is not None
+        and float(weakest_seat["score_delta"]) < minimum_seat_score_delta
+    ):
         raise SystemExit(
             f"weakest seat score delta {weakest_seat['score_delta']:.6f} is below required "
             f"{minimum_seat_score_delta:.6f}"

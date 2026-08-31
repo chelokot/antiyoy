@@ -110,7 +110,7 @@ const experiments = [
     method: "Procedural multiplayer PUCT",
     status: "not promoted",
     description: "Calibrate one five-player seat, verify online PUCT twice, then distill only that route with strong KL retention.",
-    result: "Online PUCT repeated +2 wins on 64 and 128 games, but its student tied the source 19–19 on a fresh 128-game fixed-seat gate.",
+    result: "Online PUCT repeated +2 wins (+25 baseline-adjusted Elo on 128 games), but its student tied the source 19–19 on a fresh 128-game fixed-seat gate.",
   },
 ] as const;
 

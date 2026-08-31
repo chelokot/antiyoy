@@ -57,6 +57,17 @@ def relative_skill_delta(score: float, games: int, players: int) -> float:
     return 400 * math.log10(clipped_score * (players - 1) / (1 - clipped_score))
 
 
+def baseline_adjusted_elo_delta(
+    score: float, baseline_score: float, games: int
+) -> float:
+    minimum_score = 0.5 / games
+    candidate = min(max(score, minimum_score), 1 - minimum_score)
+    baseline = min(max(baseline_score, minimum_score), 1 - minimum_score)
+    candidate_odds = candidate / (1 - candidate)
+    baseline_odds = baseline / (1 - baseline)
+    return 400 * math.log10(candidate_odds / baseline_odds)
+
+
 def paired_seeds(games: int, seed: int) -> np.ndarray:
     if games < 2 or games % 2 != 0:
         raise ValueError("paired evaluation requires a positive even number of games")
@@ -134,6 +145,9 @@ def reference_adjusted_outcome(
         "baseline_truncations": baseline_truncations,
         "baseline_score": baseline_score,
         "score_delta": float(outcome["score"]) - baseline_score,
+        "baseline_adjusted_elo_delta": baseline_adjusted_elo_delta(
+            float(outcome["score"]), baseline_score, baseline_games
+        ),
         "baseline_truncation_rate": baseline_truncation_rate,
         "truncation_rate_delta": (
             int(outcome["truncations"]) / baseline_games - baseline_truncation_rate

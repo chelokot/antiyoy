@@ -98,6 +98,7 @@
       "candidate_record": "11-0-53",
       "baseline_seat_3_wins": 9,
       "score_delta": 0.03125,
+      "baseline_adjusted_elo_delta": 41.29479824494199,
       "truncations": 0,
       "raw_result_sha256": "fbbe63455bff405ba10db2a45ea54deb63e447fc09d3c7a223e61113e5a5b64d"
     },
@@ -107,6 +108,7 @@
       "candidate_record": "17-0-111",
       "baseline_seat_3_wins": 15,
       "score_delta": 0.015625,
+      "baseline_adjusted_elo_delta": 24.845250807741976,
       "truncations": 0,
       "raw_result_sha256": "658e118a77b48f39e7615789e46bc786a01e101f79d2bd15f1e01f98a0333886"
     }
@@ -144,6 +146,7 @@
     "score": 0.1484375,
     "baseline_score": 0.1484375,
     "score_delta": 0.0,
+    "baseline_adjusted_elo_delta": 0.0,
     "truncations": 1,
     "baseline_truncations": 1,
     "raw_result_sha256": "009444f9c053803457aaf22f44b288810a05b6af2e36c0cc9badfce4757290c4",

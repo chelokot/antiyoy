@@ -7,6 +7,7 @@ pytest.importorskip("torch")
 
 from python.evaluate import (
     FIXED_SEAT_SCHEME,
+    baseline_adjusted_elo_delta,
     evaluate,
     evaluation_schedule,
     named_action_counts,
@@ -75,6 +76,7 @@ def test_policy_self_match_is_an_exact_zero_delta(tmp_path: Path) -> None:
     )
 
     assert result["score_delta"] == pytest.approx(0.0)
+    assert result["baseline_adjusted_elo_delta"] == pytest.approx(0.0)
     assert result["elo_delta"] == pytest.approx(0.0)
     assert result["policy_search"]["decisions"] == 0
 
@@ -103,6 +105,7 @@ def test_policy_pair_uses_an_independent_baseline_checkpoint(tmp_path: Path) -> 
     assert result["baseline_checkpoint"] == str(checkpoint)
     assert result["baseline_selected_experts"] == ["single", "single"]
     assert result["score_delta"] == pytest.approx(0.0)
+    assert result["baseline_adjusted_elo_delta"] == pytest.approx(0.0)
     assert result["elo_delta"] == pytest.approx(0.0)
 
 
@@ -239,6 +242,23 @@ def test_reference_adjustment_calibrates_asymmetric_seat() -> None:
 
     assert adjusted["baseline_score"] == pytest.approx(1 / 6)
     assert adjusted["score_delta"] == pytest.approx(0.0)
+    assert adjusted["baseline_adjusted_elo_delta"] == pytest.approx(0.0)
+
+
+def test_baseline_adjusted_elo_reports_method_uplift_at_a_fixed_seat() -> None:
+    adjusted = reference_adjusted_outcome(
+        outcome_summary(128, 17, 0, 111, 0, 0, players=5),
+        128,
+        15,
+        0,
+        0,
+    )
+
+    assert adjusted["elo_delta"] < 0
+    assert adjusted["baseline_adjusted_elo_delta"] > 0
+    assert adjusted["baseline_adjusted_elo_delta"] == pytest.approx(
+        baseline_adjusted_elo_delta(17 / 128, 15 / 128, 128)
+    )
 
 
 def test_suite_aggregate_counts_draws_and_truncations() -> None:

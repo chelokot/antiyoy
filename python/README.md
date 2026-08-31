@@ -340,6 +340,11 @@ the evaluator calibrates the result against baseline self-play on the same
 seed window. This reduces a six-player specialist scout to one sixth of the
 games without evaluating unrelated routes. It is a selection tool, not a
 release gate: a promoted bundle still requires the held-out all-seat suite.
+The result includes both absolute multiplayer `elo_delta`, measured against the
+equal-player win expectation, and `baseline_adjusted_elo_delta`, the edge-corrected
+log-odds improvement over the source policy at the same seat. Method comparisons
+must use the latter or the raw `score_delta`; a weak starting seat can improve
+while its absolute multiplayer rating remains negative.
 
 Arena dimensions and action limits otherwise inherit the training checkpoint.
 Cross-checkpoint comparisons must pass the same explicit `--width`, `--height`,
