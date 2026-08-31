@@ -19,6 +19,7 @@ from antiyoy_rl.model import (
     load_policy_state,
 )
 from antiyoy_rl.puct import (
+    OpponentHorizon,
     PolicySearchConfig,
     ValuePerspective,
     policy_search_actions,
@@ -344,6 +345,7 @@ def evaluate(
     puct_leaf_batch_size: int = 512,
     baseline_checkpoint_path: Path | None = None,
     puct_value_perspective: ValuePerspective = "active",
+    puct_opponent_horizon: OpponentHorizon = "search",
 ) -> dict[str, object]:
     if model_agent not in ("policy", "puct"):
         raise ValueError(f"unsupported model agent: {model_agent}")
@@ -572,6 +574,7 @@ def evaluate(
         root_value_weight=puct_root_value_weight,
         leaf_batch_size=puct_leaf_batch_size,
         value_perspective=puct_value_perspective,
+        opponent_horizon=puct_opponent_horizon,
     )
     while not bool(finished.all()):
         observation = environment.observe()
@@ -799,6 +802,9 @@ def evaluate(
             "value_perspective": (
                 puct_value_perspective if model_agent == "puct" else None
             ),
+            "opponent_horizon": (
+                puct_opponent_horizon if model_agent == "puct" else None
+            ),
             "decisions": puct_decisions,
             "evaluated_leaves": puct_evaluated_leaves,
             "leaf_batches": puct_leaf_batches,
@@ -849,6 +855,9 @@ def main() -> None:
     parser.add_argument("--puct-leaf-batch-size", type=int, default=512)
     parser.add_argument(
         "--puct-value-perspective", choices=("active", "root"), default="active"
+    )
+    parser.add_argument(
+        "--puct-opponent-horizon", choices=("search", "leaf"), default="search"
     )
     parser.add_argument("--land-density-per-million", type=int, default=650_000)
     parser.add_argument("--starting-province-size", type=int, default=5)
@@ -911,6 +920,7 @@ def main() -> None:
                 arguments.puct_leaf_batch_size,
                 arguments.baseline_checkpoint,
                 arguments.puct_value_perspective,
+                arguments.puct_opponent_horizon,
             ),
             sort_keys=True,
         )

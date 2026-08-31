@@ -135,6 +135,7 @@ def test_puct_distillation_routes_a_procedural_multiplayer_seat(
             puct_nodes=4,
             puct_leaf_batch_size=12,
             puct_value_perspective="root",
+            puct_opponent_horizon="leaf",
             training_seat=2,
         ),
     )
@@ -145,6 +146,7 @@ def test_puct_distillation_routes_a_procedural_multiplayer_seat(
     assert report["source"]["expert"] == report["source"]["seat_experts"][2]
     assert len(report["source"]["seat_experts"]) == 3
     assert report["policy_search"]["value_perspective"] == "root"
+    assert report["policy_search"]["opponent_horizon"] == "leaf"
     assert 0 < report["examples"] < report["visited_states"]
     distilled = torch.load(output, map_location="cpu", weights_only=False)
     assert torch.all(distilled["model"]["missing_source"] == 8.0)
@@ -161,6 +163,7 @@ def test_puct_distillation_routes_a_procedural_multiplayer_seat(
         PuctDistillationConfig(target_mode="unknown"),
         PuctDistillationConfig(puct_nodes=1),
         PuctDistillationConfig(puct_value_perspective="unknown"),
+        PuctDistillationConfig(puct_opponent_horizon="unknown"),
         PuctDistillationConfig(training_seat=2),
         PuctDistillationConfig(generator="unknown"),
         PuctDistillationConfig(players=1),

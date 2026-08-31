@@ -24,6 +24,7 @@ class PolicySearchMetrics(TypedDict):
 
 
 ValuePerspective = Literal["active", "root"]
+OpponentHorizon = Literal["search", "leaf"]
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,7 @@ class PolicySearchConfig:
     root_value_weight: float | None = None
     leaf_batch_size: int = 512
     value_perspective: ValuePerspective = "active"
+    opponent_horizon: OpponentHorizon = "search"
 
 
 PolicyEvaluator = Callable[[Mapping[str, np.ndarray], Tensor], tuple[Tensor, Tensor]]
@@ -78,6 +80,8 @@ def policy_search_actions(
         raise ValueError("active mask must contain one value per environment")
     if config.value_perspective not in ("active", "root"):
         raise ValueError("PUCT value perspective must be active or root")
+    if config.opponent_horizon not in ("search", "leaf"):
+        raise ValueError("PUCT opponent horizon must be search or leaf")
     root_players = np.asarray(environment.observe()["active_players"], dtype=np.uint8)
     search = environment.policy_search(
         node_budget=config.node_budget,
@@ -85,6 +89,7 @@ def policy_search_actions(
         virtual_loss=config.virtual_loss,
         maximum_depth=config.maximum_depth,
         root_value_weight=config.root_value_weight,
+        search_opponent_turns=config.opponent_horizon == "search",
         active_mask=active,
     )
     leaf_batches = 0

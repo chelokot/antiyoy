@@ -258,6 +258,13 @@ the root seat and routes its value expert. The tree then maximizes root utility
 on root turns and assumes every opponent minimizes it. The perspective mode is
 recorded and must match across comparisons.
 
+`--puct-opponent-horizon leaf` instead searches only the root player's current
+turn. A state reached after `EndTurn` is evaluated once from the root
+perspective but opponent actions are not expanded. This matches the horizon of
+the native whole-turn planner and avoids inventing a coalition of every other
+player. The default `search` horizon preserves full adversarial tree expansion;
+the horizon is emitted alongside every PUCT result.
+
 PUCT depends on a calibrated value head. Search-teacher imitation updates policy
 logits but deliberately do not train values, so a newly distilled expert must
 pass value calibration before its PUCT result is treated as amplification. The
@@ -338,9 +345,10 @@ exactly reproducible.
 The same command supports procedural multiplayer curricula. Select the exact
 player-count route with `--generator procedural_v1 --players 5`, provide the
 generator dimensions and densities, and use `--training-seat` for the specialist
-being improved. Add `--puct-value-perspective root` when the accepted teacher
-used root-perspective multiplayer backup. Procedural resets regenerate topology
-from every recorded seed.
+being improved. Add both `--puct-value-perspective root` and
+`--puct-opponent-horizon leaf` when the accepted teacher used root-perspective
+whole-turn search. Procedural resets regenerate topology from every recorded
+seed.
 Teacher roll-in preserves each opponent's routed expert; student roll-in
 substitutes the student only for its target seat. Two-to-eight-player runs thus
 train and report one explicit route without silently replacing other seats.

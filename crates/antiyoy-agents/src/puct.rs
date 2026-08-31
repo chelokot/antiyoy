@@ -10,6 +10,7 @@ pub struct PuctConfig {
     pub virtual_loss: f64,
     pub maximum_depth: usize,
     pub root_value_weight: Option<f64>,
+    pub search_opponent_turns: bool,
 }
 
 impl Default for PuctConfig {
@@ -20,6 +21,7 @@ impl Default for PuctConfig {
             virtual_loss: 1.0,
             maximum_depth: 128,
             root_value_weight: None,
+            search_opponent_turns: true,
         }
     }
 }
@@ -90,6 +92,7 @@ struct Node {
     state: NodeState,
     value_estimate: f64,
     pending: bool,
+    expandable: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -133,6 +136,7 @@ impl PuctSearch {
                 state: NodeState::Unexpanded,
                 value_estimate: 0.0,
                 pending: false,
+                expandable: true,
             }],
             pending: BTreeMap::new(),
             next_token: 0,
@@ -205,26 +209,30 @@ impl PuctSearch {
             self.pending.insert(token, pending);
             return Err(PuctError::Priors);
         }
+        let root_value = self.root_value(pending.node, value);
         let node = &mut self.nodes[pending.node];
         node.pending = false;
         node.value_estimate = value;
-        node.state = NodeState::Expanded(
-            node.legal_actions
-                .iter()
-                .copied()
-                .zip(priors.iter().copied())
-                .map(|(action, prior)| Edge {
-                    action,
-                    prior: prior / mass,
-                    visits: 0,
-                    value_sum: 0.0,
-                    virtual_visits: 0,
-                    child: None,
-                })
-                .collect(),
-        );
+        node.state = if node.expandable {
+            NodeState::Expanded(
+                node.legal_actions
+                    .iter()
+                    .copied()
+                    .zip(priors.iter().copied())
+                    .map(|(action, prior)| Edge {
+                        action,
+                        prior: prior / mass,
+                        visits: 0,
+                        value_sum: 0.0,
+                        virtual_visits: 0,
+                        child: None,
+                    })
+                    .collect(),
+            )
+        } else {
+            NodeState::Terminal(root_value)
+        };
         self.remove_virtual_visits(&pending.path);
-        let root_value = self.root_value(pending.node, value);
         self.backup(&pending.path, root_value);
         self.completed_simulations += 1;
         self.maximum_depth = self.maximum_depth.max(pending.depth);
@@ -402,12 +410,15 @@ impl PuctSearch {
         game.step(action)
             .expect("PUCT expands only engine-generated legal actions");
         let mut legal_actions = Vec::new();
-        let state = if game.is_terminal() {
+        let terminal = game.is_terminal();
+        let state = if terminal {
             NodeState::Terminal(terminal_value(&game, self.root_player))
         } else {
             game.legal_actions(&mut legal_actions);
             NodeState::Unexpanded
         };
+        let expandable = !terminal
+            && (self.config.search_opponent_turns || game.active_player() == self.root_player);
         let child = self.nodes.len();
         self.nodes.push(Node {
             game,
@@ -415,6 +426,7 @@ impl PuctSearch {
             state,
             value_estimate: 0.0,
             pending: false,
+            expandable,
         });
         let NodeState::Expanded(edges) = &mut self.nodes[node_index].state else {
             unreachable!();
@@ -697,6 +709,28 @@ mod tests {
         });
         assert_eq!(search.stats().completed_simulations, 64);
         assert_eq!(search.stats().pending_leaves, 0);
+    }
+
+    #[test]
+    fn opponent_leaf_horizon_evaluates_but_never_expands_other_turns() {
+        let search = search_with_uniform_evaluation(PuctConfig {
+            node_budget: 64,
+            search_opponent_turns: false,
+            ..PuctConfig::default()
+        });
+        let opponent_leaves = search
+            .nodes
+            .iter()
+            .filter(|node| {
+                !node.game.is_terminal() && node.game.active_player() != search.root_player
+            })
+            .collect::<Vec<_>>();
+        assert!(!opponent_leaves.is_empty());
+        assert!(
+            opponent_leaves
+                .iter()
+                .all(|node| matches!(node.state, NodeState::Terminal(_)))
+        );
     }
 
     #[test]
