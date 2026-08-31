@@ -265,6 +265,15 @@ the native whole-turn planner and avoids inventing a coalition of every other
 player. The default `search` horizon preserves full adversarial tree expansion;
 the horizon is emitted alongside every PUCT result.
 
+`--puct-objective maxn` removes that coalition approximation while retaining
+full opponent expansion. Every leaf is evaluated from each of its two-to-eight
+player perspectives in one combined inference batch. Rust backs up the complete
+utility vector and each node maximizes the component belonging to its actual
+active player. The existing scalar value head and checkpoint format are reused;
+the active player's already-computed value is not evaluated twice. `scalar`
+remains the compatibility default, and the objective is recorded in evaluation
+and distillation reports.
+
 PUCT depends on a calibrated value head. Search-teacher imitation updates policy
 logits but deliberately do not train values, so a newly distilled expert must
 pass value calibration before its PUCT result is treated as amplification. The

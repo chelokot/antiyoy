@@ -7,7 +7,7 @@ mod search;
 use antiyoy_core::{Action, DiplomacyCommand, Game};
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 
-pub use puct::{PuctConfig, PuctError, PuctLeaf, PuctSearch, PuctStats};
+pub use puct::{PuctConfig, PuctError, PuctLeaf, PuctSearch, PuctStats, PuctValueMode};
 pub use search::{SearchAgent, SearchConfig, SearchConfigError, SearchStats};
 
 pub trait Agent {

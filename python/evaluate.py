@@ -21,6 +21,7 @@ from antiyoy_rl.model import (
 from antiyoy_rl.puct import (
     OpponentHorizon,
     PolicySearchConfig,
+    SearchObjective,
     ValuePerspective,
     policy_search_actions,
 )
@@ -346,6 +347,7 @@ def evaluate(
     baseline_checkpoint_path: Path | None = None,
     puct_value_perspective: ValuePerspective = "active",
     puct_opponent_horizon: OpponentHorizon = "search",
+    puct_objective: SearchObjective = "scalar",
 ) -> dict[str, object]:
     if model_agent not in ("policy", "puct"):
         raise ValueError(f"unsupported model agent: {model_agent}")
@@ -575,6 +577,7 @@ def evaluate(
         leaf_batch_size=puct_leaf_batch_size,
         value_perspective=puct_value_perspective,
         opponent_horizon=puct_opponent_horizon,
+        objective=puct_objective,
     )
     while not bool(finished.all()):
         observation = environment.observe()
@@ -805,6 +808,7 @@ def evaluate(
             "opponent_horizon": (
                 puct_opponent_horizon if model_agent == "puct" else None
             ),
+            "objective": puct_objective if model_agent == "puct" else None,
             "decisions": puct_decisions,
             "evaluated_leaves": puct_evaluated_leaves,
             "leaf_batches": puct_leaf_batches,
@@ -858,6 +862,9 @@ def main() -> None:
     )
     parser.add_argument(
         "--puct-opponent-horizon", choices=("search", "leaf"), default="search"
+    )
+    parser.add_argument(
+        "--puct-objective", choices=("scalar", "maxn"), default="scalar"
     )
     parser.add_argument("--land-density-per-million", type=int, default=650_000)
     parser.add_argument("--starting-province-size", type=int, default=5)
@@ -921,6 +928,7 @@ def main() -> None:
                 arguments.baseline_checkpoint,
                 arguments.puct_value_perspective,
                 arguments.puct_opponent_horizon,
+                arguments.puct_objective,
             ),
             sort_keys=True,
         )

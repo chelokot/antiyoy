@@ -9,7 +9,7 @@ import torch
 from torch import Tensor
 
 from ._native import VectorEnv
-from .model import action_distribution
+from .model import action_distribution, concatenate_observations, select_environments
 
 
 class PolicySearchMetrics(TypedDict):
@@ -25,6 +25,8 @@ class PolicySearchMetrics(TypedDict):
 
 ValuePerspective = Literal["active", "root"]
 OpponentHorizon = Literal["search", "leaf"]
+SearchObjective = Literal["scalar", "maxn"]
+MAXN_PLAYERS = 8
 
 
 @dataclass(frozen=True)
@@ -37,6 +39,7 @@ class PolicySearchConfig:
     leaf_batch_size: int = 512
     value_perspective: ValuePerspective = "active"
     opponent_horizon: OpponentHorizon = "search"
+    objective: SearchObjective = "scalar"
 
 
 PolicyEvaluator = Callable[[Mapping[str, np.ndarray], Tensor], tuple[Tensor, Tensor]]
@@ -67,6 +70,67 @@ def root_perspective_leaf_values(
     return root_values * native_signs
 
 
+def maxn_leaf_utilities(
+    evaluator: PolicyEvaluator,
+    observation: Mapping[str, np.ndarray],
+    rule_features: Tensor,
+    active_values: Tensor,
+) -> Tensor:
+    active_players = np.asarray(observation["active_players"], dtype=np.int64)
+    player_counts = np.asarray(observation["player_counts"], dtype=np.int64)
+    if active_players.shape != player_counts.shape:
+        raise ValueError("active players and player counts must have equal shapes")
+    if player_counts.size == 0 or np.any(player_counts < 2):
+        raise ValueError("MaxN requires at least two players per leaf")
+    if np.any(player_counts > MAXN_PLAYERS):
+        raise ValueError(f"MaxN supports at most {MAXN_PLAYERS} players")
+    if active_values.shape != torch.Size((player_counts.size,)):
+        raise ValueError("active values must contain one value per search leaf")
+    utility_offsets = np.concatenate(
+        (np.zeros(1, dtype=np.int64), np.cumsum(player_counts, dtype=np.int64))
+    )
+    utilities = torch.empty(
+        int(utility_offsets[-1]),
+        dtype=active_values.dtype,
+        device=active_values.device,
+    )
+    active_indices = torch.as_tensor(
+        utility_offsets[:-1] + active_players,
+        dtype=torch.long,
+        device=active_values.device,
+    )
+    utilities[active_indices] = active_values
+    perspective_observations: list[dict[str, np.ndarray]] = []
+    perspective_rules: list[Tensor] = []
+    perspective_targets: list[np.ndarray] = []
+    for player in range(int(player_counts.max())):
+        environments = np.flatnonzero(
+            np.logical_and(player_counts > player, active_players != player)
+        )
+        if environments.size == 0:
+            continue
+        selected = select_environments(observation, environments.tolist())
+        selected["active_players"] = np.full(environments.size, player, dtype=np.uint8)
+        perspective_observations.append(selected)
+        perspective_rules.append(
+            rule_features.reshape(1, -1).expand(environments.size, -1)
+            if rule_features.ndim == 1
+            else rule_features[environments]
+        )
+        perspective_targets.append(utility_offsets[environments] + player)
+    combined_observation = concatenate_observations(perspective_observations)
+    combined_rules = torch.cat(perspective_rules)
+    with torch.no_grad():
+        _, perspective_values = evaluator(combined_observation, combined_rules)
+    targets = torch.as_tensor(
+        np.concatenate(perspective_targets),
+        dtype=torch.long,
+        device=active_values.device,
+    )
+    utilities[targets] = perspective_values
+    return utilities
+
+
 def policy_search_actions(
     environment: VectorEnv,
     evaluator: PolicyEvaluator,
@@ -82,6 +146,12 @@ def policy_search_actions(
         raise ValueError("PUCT value perspective must be active or root")
     if config.opponent_horizon not in ("search", "leaf"):
         raise ValueError("PUCT opponent horizon must be search or leaf")
+    if config.objective not in ("scalar", "maxn"):
+        raise ValueError("PUCT objective must be scalar or maxn")
+    if config.objective == "maxn" and config.value_perspective != "active":
+        raise ValueError(
+            "MaxN evaluates every player and requires active perspective mode"
+        )
     root_players = np.asarray(environment.observe()["active_players"], dtype=np.uint8)
     search = environment.policy_search(
         node_budget=config.node_budget,
@@ -90,6 +160,7 @@ def policy_search_actions(
         maximum_depth=config.maximum_depth,
         root_value_weight=config.root_value_weight,
         search_opponent_turns=config.opponent_horizon == "search",
+        maxn=config.objective == "maxn",
         active_mask=active,
     )
     leaf_batches = 0
@@ -112,22 +183,34 @@ def policy_search_actions(
                     for index, count in enumerate(action_counts)
                 ]
             )
-            leaf_values = (
-                root_perspective_leaf_values(
-                    evaluator,
-                    observation,
-                    selected_rules,
-                    values,
-                    root_players[search_environments],
+            if config.objective == "maxn":
+                bounded_utilities = maxn_leaf_utilities(
+                    evaluator, observation, selected_rules, values
+                ).clamp(-1, 1)
+            else:
+                leaf_values = (
+                    root_perspective_leaf_values(
+                        evaluator,
+                        observation,
+                        selected_rules,
+                        values,
+                        root_players[search_environments],
+                    )
+                    if config.value_perspective == "root"
+                    else values
                 )
-                if config.value_perspective == "root"
-                else values
+                bounded_values = leaf_values.clamp(-1, 1)
+        cpu_priors = flat_priors.to(device="cpu", dtype=torch.float32).numpy()
+        if config.objective == "maxn":
+            search.complete_maxn_leaves(
+                cpu_priors,
+                bounded_utilities.to(device="cpu", dtype=torch.float32).numpy(),
             )
-            bounded_values = leaf_values.clamp(-1, 1)
-        search.complete_leaves(
-            flat_priors.to(device="cpu", dtype=torch.float32).numpy(),
-            bounded_values.to(device="cpu", dtype=torch.float32).numpy(),
-        )
+        else:
+            search.complete_leaves(
+                cpu_priors,
+                bounded_values.to(device="cpu", dtype=torch.float32).numpy(),
+            )
         leaf_batches += 1
         evaluated_leaves += len(search_environments)
     stats = search.stats()

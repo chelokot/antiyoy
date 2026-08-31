@@ -4,9 +4,10 @@ import numpy as np
 import pytest
 import torch
 
-from antiyoy_rl import VectorEnv
+from antiyoy_rl import ProceduralConfig, VectorEnv
 from antiyoy_rl.puct import (
     PolicySearchConfig,
+    maxn_leaf_utilities,
     policy_search_actions,
     root_perspective_leaf_values,
 )
@@ -56,6 +57,81 @@ def test_root_perspective_values_reuse_active_evaluation_at_root() -> None:
     )
 
     assert result is values
+
+
+def test_maxn_utilities_batch_every_missing_player_perspective() -> None:
+    evaluated_players: list[int] = []
+
+    def evaluator(observation, _rules):
+        active_players = np.asarray(observation["active_players"])
+        evaluated_players.extend(active_players.tolist())
+        return torch.zeros(len(observation["action_kinds"])), torch.as_tensor(
+            active_players + 1, dtype=torch.float32
+        )
+
+    observation = {
+        "cell_offsets": np.array([0, 1, 2]),
+        "playable": np.ones(2, dtype=np.uint8),
+        "visible": np.ones(2, dtype=np.uint8),
+        "owners": np.array([0, 2], dtype=np.uint8),
+        "objects": np.zeros(2, dtype=np.uint8),
+        "unit_strengths": np.zeros(2, dtype=np.uint8),
+        "ready": np.zeros(2, dtype=np.uint8),
+        "defenses": np.zeros(2, dtype=np.uint8),
+        "province_ids": np.full(2, 65535, dtype=np.uint16),
+        "province_offsets": np.array([0, 0, 0]),
+        "province_owners": np.array([], dtype=np.uint8),
+        "province_money": np.array([], dtype=np.int64),
+        "province_profit": np.array([], dtype=np.int64),
+        "province_capitals": np.array([], dtype=np.uint16),
+        "province_sizes": np.array([], dtype=np.uint16),
+        "action_offsets": np.array([0, 1, 2]),
+        "action_kinds": np.zeros(2, dtype=np.uint8),
+        "action_sources": np.full(2, 65535, dtype=np.uint16),
+        "action_targets": np.full(2, 65535, dtype=np.uint16),
+        "action_parameters": np.zeros(2, dtype=np.uint8),
+        "relation_offsets": np.array([0, 0, 0]),
+        "relations": np.array([], dtype=np.uint8),
+        "proposals": np.array([], dtype=np.uint8),
+        "widths": np.array([1, 1], dtype=np.uint16),
+        "heights": np.array([1, 1], dtype=np.uint16),
+        "active_players": np.array([0, 2], dtype=np.uint8),
+        "player_counts": np.array([2, 3], dtype=np.uint8),
+        "rounds": np.array([1, 1], dtype=np.uint32),
+    }
+    utilities = maxn_leaf_utilities(
+        evaluator,
+        observation,
+        torch.zeros((2, 45)),
+        torch.tensor([10.0, 12.0]),
+    )
+
+    assert evaluated_players == [0, 1, 1]
+    assert utilities.tolist() == [10.0, 2.0, 1.0, 2.0, 12.0]
+
+
+def test_maxn_policy_search_runs_on_procedural_multiplayer() -> None:
+    environment = VectorEnv.procedural(
+        1,
+        ProceduralConfig(
+            width=9,
+            height=7,
+            players=3,
+            seed=317,
+            starting_province_size=3,
+        ),
+        profile="classic_generic_2022",
+    )
+    actions, metrics = policy_search_actions(
+        environment,
+        uniform_evaluator,
+        torch.zeros((1, 45)),
+        np.ones(1, dtype=np.uint8),
+        PolicySearchConfig(node_budget=8, leaf_batch_size=8, objective="maxn"),
+    )
+
+    assert actions.shape == (1,)
+    assert metrics["nodes"].tolist() == [8]
 
 
 def test_policy_search_is_deterministic_and_respects_active_mask() -> None:

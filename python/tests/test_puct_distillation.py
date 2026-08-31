@@ -164,6 +164,8 @@ def test_puct_distillation_routes_a_procedural_multiplayer_seat(
         PuctDistillationConfig(puct_nodes=1),
         PuctDistillationConfig(puct_value_perspective="unknown"),
         PuctDistillationConfig(puct_opponent_horizon="unknown"),
+        PuctDistillationConfig(puct_objective="unknown"),
+        PuctDistillationConfig(puct_objective="maxn", puct_value_perspective="root"),
         PuctDistillationConfig(training_seat=2),
         PuctDistillationConfig(generator="unknown"),
         PuctDistillationConfig(players=1),

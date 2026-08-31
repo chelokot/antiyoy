@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
-use antiyoy_agents::{Agent, GreedyAgent, PuctConfig, PuctSearch, SearchAgent, SearchConfig};
+use antiyoy_agents::{
+    Agent, GreedyAgent, PuctConfig, PuctSearch, PuctValueMode, SearchAgent, SearchConfig,
+};
 use antiyoy_core::{
     EconomyMetric, GeneratorConfig, Objective, PlayerId, Relation, Rules, VictoryCondition,
 };
@@ -78,6 +80,40 @@ struct PolicySearchBatch {
     observation: BatchObservation,
     pending_leaves: Vec<(usize, u64)>,
     fog: bool,
+}
+
+impl PolicySearchBatch {
+    fn validate_priors(&self, priors: &[f32]) -> PyResult<()> {
+        if priors.len() != self.observation.actions.len() {
+            return Err(PyValueError::new_err(format!(
+                "PUCT prior vector has length {}, expected {}",
+                priors.len(),
+                self.observation.actions.len()
+            )));
+        }
+        for boundaries in self.observation.action_offsets.windows(2) {
+            let leaf_priors = &priors[boundaries[0]..boundaries[1]];
+            let mass = leaf_priors.iter().copied().sum::<f32>();
+            if !mass.is_finite()
+                || mass <= 0.0
+                || leaf_priors
+                    .iter()
+                    .any(|prior| !prior.is_finite() || *prior < 0.0)
+            {
+                return Err(PyValueError::new_err(
+                    "PUCT priors must be finite with positive mass",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn leaf_priors(priors: &[f32], boundaries: &[usize]) -> Vec<f64> {
+        priors[boundaries[0]..boundaries[1]]
+            .iter()
+            .map(|prior| f64::from(*prior))
+            .collect()
+    }
 }
 
 #[pymethods]
@@ -174,13 +210,7 @@ impl PolicySearchBatch {
         let values = values
             .as_slice()
             .map_err(|error| PyValueError::new_err(error.to_string()))?;
-        if priors.len() != self.observation.actions.len() {
-            return Err(PyValueError::new_err(format!(
-                "PUCT prior vector has length {}, expected {}",
-                priors.len(),
-                self.observation.actions.len()
-            )));
-        }
+        self.validate_priors(priors)?;
         if values.len() != self.pending_leaves.len() {
             return Err(PyValueError::new_err(format!(
                 "PUCT value vector has length {}, expected {}",
@@ -188,38 +218,66 @@ impl PolicySearchBatch {
                 self.pending_leaves.len()
             )));
         }
-        for (leaf, boundaries) in self
-            .pending_leaves
-            .iter()
-            .enumerate()
-            .map(|(leaf, _)| (leaf, &self.observation.action_offsets[leaf..=leaf + 1]))
-        {
-            let leaf_priors = &priors[boundaries[0]..boundaries[1]];
-            let mass = leaf_priors.iter().copied().sum::<f32>();
-            if !values[leaf].is_finite()
-                || !mass.is_finite()
-                || mass <= 0.0
-                || leaf_priors
-                    .iter()
-                    .any(|prior| !prior.is_finite() || *prior < 0.0)
-            {
-                return Err(PyValueError::new_err(
-                    "PUCT priors and values must be finite with positive prior mass",
-                ));
-            }
+        if values.iter().any(|value| !value.is_finite()) {
+            return Err(PyValueError::new_err("PUCT values must be finite"));
         }
         for (leaf, (environment, token)) in self.pending_leaves.iter().copied().enumerate() {
-            let start = self.observation.action_offsets[leaf];
-            let end = self.observation.action_offsets[leaf + 1];
-            let leaf_priors = priors[start..end]
-                .iter()
-                .map(|prior| f64::from(*prior))
-                .collect::<Vec<_>>();
+            let leaf_priors =
+                Self::leaf_priors(priors, &self.observation.action_offsets[leaf..=leaf + 1]);
             self.searches[environment]
                 .as_mut()
                 .expect("pending PUCT leaves belong to active searches")
                 .complete_leaf(token, &leaf_priors, f64::from(values[leaf]))
                 .map_err(runtime_error)?;
+        }
+        self.pending_leaves.clear();
+        Ok(())
+    }
+
+    #[expect(clippy::needless_pass_by_value)]
+    fn complete_maxn_leaves(
+        &mut self,
+        priors: PyReadonlyArray1<'_, f32>,
+        utilities: PyReadonlyArray1<'_, f32>,
+    ) -> PyResult<()> {
+        let priors = priors
+            .as_slice()
+            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        let utilities = utilities
+            .as_slice()
+            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        self.validate_priors(priors)?;
+        let expected = self
+            .observation
+            .player_counts
+            .iter()
+            .map(|players| usize::from(*players))
+            .sum::<usize>();
+        if utilities.len() != expected {
+            return Err(PyValueError::new_err(format!(
+                "MaxN utility vector has length {}, expected {}",
+                utilities.len(),
+                expected
+            )));
+        }
+        if utilities.iter().any(|value| !value.is_finite()) {
+            return Err(PyValueError::new_err("MaxN utilities must be finite"));
+        }
+        let mut utility_start = 0;
+        for (leaf, (environment, token)) in self.pending_leaves.iter().copied().enumerate() {
+            let leaf_priors =
+                Self::leaf_priors(priors, &self.observation.action_offsets[leaf..=leaf + 1]);
+            let utility_end = utility_start + usize::from(self.observation.player_counts[leaf]);
+            let leaf_utilities = utilities[utility_start..utility_end]
+                .iter()
+                .map(|value| f64::from(*value))
+                .collect::<Vec<_>>();
+            self.searches[environment]
+                .as_mut()
+                .expect("pending PUCT leaves belong to active searches")
+                .complete_leaf_maxn(token, &leaf_priors, &leaf_utilities)
+                .map_err(runtime_error)?;
+            utility_start = utility_end;
         }
         self.pending_leaves.clear();
         Ok(())
@@ -651,7 +709,7 @@ impl VectorEnv {
     }
 
     #[expect(clippy::too_many_arguments)]
-    #[pyo3(signature = (node_budget=256, exploration=1.5, virtual_loss=1.0, maximum_depth=128, root_value_weight=None, search_opponent_turns=true, active_mask=None))]
+    #[pyo3(signature = (node_budget=256, exploration=1.5, virtual_loss=1.0, maximum_depth=128, root_value_weight=None, search_opponent_turns=true, maxn=false, active_mask=None))]
     fn policy_search(
         &self,
         node_budget: usize,
@@ -660,6 +718,7 @@ impl VectorEnv {
         maximum_depth: usize,
         root_value_weight: Option<f64>,
         search_opponent_turns: bool,
+        maxn: bool,
         active_mask: Option<PyReadonlyArray1<'_, u8>>,
     ) -> PyResult<PolicySearchBatch> {
         let active = active_mask_values(active_mask, self.batch.len())?;
@@ -670,6 +729,11 @@ impl VectorEnv {
             maximum_depth,
             root_value_weight,
             search_opponent_turns,
+            value_mode: if maxn {
+                PuctValueMode::MaxN
+            } else {
+                PuctValueMode::Scalar
+            },
         };
         let searches = (0..self.batch.len())
             .map(|index| {

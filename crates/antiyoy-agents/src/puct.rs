@@ -3,6 +3,16 @@ use std::collections::BTreeMap;
 use antiyoy_core::{Action, Game, PlayerId};
 use thiserror::Error;
 
+pub const MAXN_PLAYERS: usize = 8;
+type Utilities = [f64; MAXN_PLAYERS];
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum PuctValueMode {
+    #[default]
+    Scalar,
+    MaxN,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PuctConfig {
     pub node_budget: usize,
@@ -11,6 +21,7 @@ pub struct PuctConfig {
     pub maximum_depth: usize,
     pub root_value_weight: Option<f64>,
     pub search_opponent_turns: bool,
+    pub value_mode: PuctValueMode,
 }
 
 impl Default for PuctConfig {
@@ -22,6 +33,7 @@ impl Default for PuctConfig {
             maximum_depth: 128,
             root_value_weight: None,
             search_opponent_turns: true,
+            value_mode: PuctValueMode::Scalar,
         }
     }
 }
@@ -59,6 +71,12 @@ pub enum PuctError {
     Priors,
     #[error("PUCT value must be finite")]
     Value,
+    #[error("PUCT value input does not match the configured value mode")]
+    ValueMode,
+    #[error("MaxN PUCT supports at most {maximum} players, received {players}")]
+    MaxNPlayerCount { players: usize, maximum: usize },
+    #[error("MaxN PUCT expected {expected} utilities, received {actual}")]
+    UtilityCount { expected: usize, actual: usize },
     #[error("PUCT search has no visited root action")]
     NoRootAction,
 }
@@ -82,7 +100,7 @@ struct Edge {
 enum NodeState {
     Unexpanded,
     Expanded(Vec<Edge>),
-    Terminal(f64),
+    Terminal(Utilities),
 }
 
 #[derive(Clone, Debug)]
@@ -90,9 +108,10 @@ struct Node {
     game: Game,
     legal_actions: Vec<Action>,
     state: NodeState,
-    value_estimate: f64,
+    value_estimate: Utilities,
     pending: bool,
     expandable: bool,
+    maxn_value_sums: Option<Vec<Utilities>>,
 }
 
 #[derive(Clone, Debug)]
@@ -121,6 +140,13 @@ impl PuctSearch {
         config: PuctConfig,
     ) -> Result<Self, PuctError> {
         validate_config(config)?;
+        let players = usize::from(game.player_count());
+        if config.value_mode == PuctValueMode::MaxN && players > MAXN_PLAYERS {
+            return Err(PuctError::MaxNPlayerCount {
+                players,
+                maximum: MAXN_PLAYERS,
+            });
+        }
         if game.is_terminal() || legal_actions.is_empty() {
             return Err(PuctError::TerminalRoot);
         }
@@ -134,9 +160,10 @@ impl PuctSearch {
                 game: game.clone(),
                 legal_actions: legal_actions.to_vec(),
                 state: NodeState::Unexpanded,
-                value_estimate: 0.0,
+                value_estimate: [0.0; MAXN_PLAYERS],
                 pending: false,
                 expandable: true,
+                maxn_value_sums: None,
             }],
             pending: BTreeMap::new(),
             next_token: 0,
@@ -184,9 +211,51 @@ impl PuctSearch {
         priors: &[f64],
         value: f64,
     ) -> Result<(), PuctError> {
+        if self.config.value_mode != PuctValueMode::Scalar {
+            return Err(PuctError::ValueMode);
+        }
         if !value.is_finite() {
             return Err(PuctError::Value);
         }
+        let pending = self
+            .pending
+            .get(&token)
+            .ok_or(PuctError::LeafToken(token))?;
+        let mut utilities = [0.0; MAXN_PLAYERS];
+        utilities[self.root_player.index()] = self.root_value(pending.node, value);
+        self.complete_leaf_utilities(token, priors, utilities)
+    }
+
+    pub fn complete_leaf_maxn(
+        &mut self,
+        token: u64,
+        priors: &[f64],
+        values: &[f64],
+    ) -> Result<(), PuctError> {
+        if self.config.value_mode != PuctValueMode::MaxN {
+            return Err(PuctError::ValueMode);
+        }
+        let expected = usize::from(self.nodes[0].game.player_count());
+        if values.len() != expected {
+            return Err(PuctError::UtilityCount {
+                expected,
+                actual: values.len(),
+            });
+        }
+        if values.iter().any(|value| !value.is_finite()) {
+            return Err(PuctError::Value);
+        }
+        let mut utilities = [0.0; MAXN_PLAYERS];
+        utilities[..expected].copy_from_slice(values);
+        self.complete_leaf_utilities(token, priors, utilities)
+    }
+
+    fn complete_leaf_utilities(
+        &mut self,
+        token: u64,
+        priors: &[f64],
+        utilities: Utilities,
+    ) -> Result<(), PuctError> {
         let pending = self
             .pending
             .remove(&token)
@@ -209,10 +278,9 @@ impl PuctSearch {
             self.pending.insert(token, pending);
             return Err(PuctError::Priors);
         }
-        let root_value = self.root_value(pending.node, value);
         let node = &mut self.nodes[pending.node];
         node.pending = false;
-        node.value_estimate = value;
+        node.value_estimate = utilities;
         node.state = if node.expandable {
             NodeState::Expanded(
                 node.legal_actions
@@ -230,10 +298,12 @@ impl PuctSearch {
                     .collect(),
             )
         } else {
-            NodeState::Terminal(root_value)
+            NodeState::Terminal(utilities)
         };
+        node.maxn_value_sums = (self.config.value_mode == PuctValueMode::MaxN && node.expandable)
+            .then(|| vec![[0.0; MAXN_PLAYERS]; node.legal_actions.len()]);
         self.remove_virtual_visits(&pending.path);
-        self.backup(&pending.path, root_value);
+        self.backup(&pending.path, utilities);
         self.completed_simulations += 1;
         self.maximum_depth = self.maximum_depth.max(pending.depth);
         Ok(())
@@ -348,7 +418,7 @@ impl PuctSearch {
                     return Some(PuctLeaf { token });
                 }
                 NodeState::Expanded(_) if depth >= self.config.maximum_depth => {
-                    let value = self.root_value(node_index, self.nodes[node_index].value_estimate);
+                    let value = self.nodes[node_index].value_estimate;
                     self.backup(&path, value);
                     self.completed_simulations += 1;
                     self.maximum_depth = self.maximum_depth.max(depth);
@@ -372,6 +442,7 @@ impl PuctSearch {
             .iter()
             .map(|edge| edge.visits + edge.virtual_visits)
             .sum::<u32>();
+        let maxn_value_sums = self.nodes[node_index].maxn_value_sums.as_deref();
         edges
             .iter()
             .enumerate()
@@ -381,13 +452,17 @@ impl PuctSearch {
                     first,
                     parent_visits,
                     self.config,
-                    self.nodes[node_index].game.active_player() == self.root_player,
+                    self.root_player,
+                    self.nodes[node_index].game.active_player(),
+                    maxn_value_sums.map(|values| &values[*first_index]),
                 )
                 .total_cmp(&edge_score(
                     second,
                     parent_visits,
                     self.config,
-                    self.nodes[node_index].game.active_player() == self.root_player,
+                    self.root_player,
+                    self.nodes[node_index].game.active_player(),
+                    maxn_value_sums.map(|values| &values[*second_index]),
                 ))
                 .then_with(|| second_index.cmp(first_index))
             })
@@ -412,7 +487,7 @@ impl PuctSearch {
         let mut legal_actions = Vec::new();
         let terminal = game.is_terminal();
         let state = if terminal {
-            NodeState::Terminal(terminal_value(&game, self.root_player))
+            NodeState::Terminal(terminal_utilities(&game))
         } else {
             game.legal_actions(&mut legal_actions);
             NodeState::Unexpanded
@@ -424,9 +499,10 @@ impl PuctSearch {
             game,
             legal_actions,
             state,
-            value_estimate: 0.0,
+            value_estimate: [0.0; MAXN_PLAYERS],
             pending: false,
             expandable,
+            maxn_value_sums: None,
         });
         let NodeState::Expanded(edges) = &mut self.nodes[node_index].state else {
             unreachable!();
@@ -461,13 +537,23 @@ impl PuctSearch {
         }
     }
 
-    fn backup(&mut self, path: &[(usize, usize)], value: f64) {
+    fn backup(&mut self, path: &[(usize, usize)], values: Utilities) {
+        let players = usize::from(self.nodes[0].game.player_count());
         for &(node, edge) in path.iter().rev() {
-            let NodeState::Expanded(edges) = &mut self.nodes[node].state else {
+            let node = &mut self.nodes[node];
+            let NodeState::Expanded(edges) = &mut node.state else {
                 unreachable!();
             };
             edges[edge].visits += 1;
-            edges[edge].value_sum += value;
+            edges[edge].value_sum += values[self.root_player.index()];
+            if let Some(maxn_value_sums) = &mut node.maxn_value_sums {
+                for (sum, value) in maxn_value_sums[edge][..players]
+                    .iter_mut()
+                    .zip(values[..players].iter().copied())
+                {
+                    *sum += value;
+                }
+            }
         }
     }
 }
@@ -497,9 +583,17 @@ fn validate_config(config: PuctConfig) -> Result<(), PuctError> {
     Ok(())
 }
 
-fn terminal_value(game: &Game, root_player: PlayerId) -> f64 {
-    game.winner()
-        .map_or(0.0, |winner| if winner == root_player { 1.0 } else { -1.0 })
+fn terminal_utilities(game: &Game) -> Utilities {
+    let mut utilities = [0.0; MAXN_PLAYERS];
+    if let Some(winner) = game.winner() {
+        for (player, utility) in utilities[..usize::from(game.player_count())]
+            .iter_mut()
+            .enumerate()
+        {
+            *utility = if player == winner.index() { 1.0 } else { -1.0 };
+        }
+    }
+    utilities
 }
 
 fn mean_value(edge: &Edge) -> f64 {
@@ -514,16 +608,24 @@ fn root_policy_value_score(edge: &Edge, value_weight: f64) -> f64 {
     edge.prior.ln() + value_weight * mean_value(edge)
 }
 
-fn edge_score(edge: &Edge, parent_visits: u32, config: PuctConfig, maximizing: bool) -> f64 {
+fn edge_score(
+    edge: &Edge,
+    parent_visits: u32,
+    config: PuctConfig,
+    root_player: PlayerId,
+    active_player: PlayerId,
+    maxn_value_sums: Option<&Utilities>,
+) -> f64 {
     let visits = edge.visits + edge.virtual_visits;
     let virtual_penalty = config.virtual_loss * f64::from(edge.virtual_visits);
     let quality = if visits == 0 {
         0.0
     } else {
-        let directed_value_sum = if maximizing {
-            edge.value_sum
-        } else {
-            -edge.value_sum
+        let directed_value_sum = match config.value_mode {
+            PuctValueMode::Scalar if active_player == root_player => edge.value_sum,
+            PuctValueMode::Scalar => -edge.value_sum,
+            PuctValueMode::MaxN => maxn_value_sums
+                .expect("MaxN nodes contain one utility sum per edge")[active_player.index()],
         };
         (directed_value_sum - virtual_penalty) / f64::from(visits)
     };
@@ -534,9 +636,9 @@ fn edge_score(edge: &Edge, parent_visits: u32, config: PuctConfig, maximizing: b
 
 #[cfg(test)]
 mod tests {
-    use antiyoy_core::{Game, Rules, Scenario};
+    use antiyoy_core::{Game, PlayerId, Rules, Scenario};
 
-    use super::{Edge, NodeState, PuctConfig, PuctError, PuctSearch, edge_score};
+    use super::{Edge, NodeState, PuctConfig, PuctError, PuctSearch, PuctValueMode, edge_score};
 
     fn search_with_uniform_evaluation(config: PuctConfig) -> PuctSearch {
         let scenario = Scenario::symmetric_duel(7, 5, 211).expect("valid duel");
@@ -629,6 +731,38 @@ mod tests {
             Err(PuctError::Priors)
         ));
         assert!(search.leaf(leaf.token).is_some());
+    }
+
+    #[test]
+    fn maxn_search_requires_one_utility_per_player() {
+        let scenario = Scenario::symmetric_duel(7, 5, 228).expect("valid duel");
+        let game = Game::new(Rules::classic_generic(), scenario).expect("valid game");
+        let mut actions = Vec::new();
+        game.legal_actions(&mut actions);
+        let mut search = PuctSearch::new(
+            &game,
+            &actions,
+            PuctConfig {
+                value_mode: PuctValueMode::MaxN,
+                ..PuctConfig::default()
+            },
+        )
+        .expect("valid search");
+        let leaf = search.select_leaves(1)[0];
+        assert_eq!(
+            search.complete_leaf(leaf.token, &vec![1.0; actions.len()], 0.0),
+            Err(PuctError::ValueMode)
+        );
+        assert_eq!(
+            search.complete_leaf_maxn(leaf.token, &vec![1.0; actions.len()], &[0.0]),
+            Err(PuctError::UtilityCount {
+                expected: 2,
+                actual: 1
+            })
+        );
+        search
+            .complete_leaf_maxn(leaf.token, &vec![1.0; actions.len()], &[0.25, -0.5])
+            .expect("valid MaxN evaluation");
     }
 
     #[test]
@@ -750,7 +884,67 @@ mod tests {
         };
         let mut reserved = edge.clone();
         reserved.virtual_visits = 1;
-        assert!(edge_score(&reserved, 1, config, true) < edge_score(&edge, 1, config, true));
-        assert!(edge_score(&reserved, 1, config, false) < edge_score(&edge, 1, config, false));
+        assert!(
+            edge_score(&reserved, 1, config, PlayerId(0), PlayerId(0), None)
+                < edge_score(&edge, 1, config, PlayerId(0), PlayerId(0), None)
+        );
+        assert!(
+            edge_score(&reserved, 1, config, PlayerId(0), PlayerId(1), None)
+                < edge_score(&edge, 1, config, PlayerId(0), PlayerId(1), None)
+        );
+    }
+
+    #[test]
+    fn maxn_selection_uses_the_active_players_utility() {
+        let config = PuctConfig {
+            exploration: 1.0,
+            value_mode: PuctValueMode::MaxN,
+            ..PuctConfig::default()
+        };
+        let maxn_values = [0.75, -0.25, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0];
+        let edge = Edge {
+            action: antiyoy_core::Action::EndTurn,
+            prior: 0.0,
+            visits: 1,
+            value_sum: 0.75,
+            virtual_visits: 0,
+            child: None,
+        };
+        assert!(
+            (edge_score(
+                &edge,
+                1,
+                config,
+                PlayerId(0),
+                PlayerId(0),
+                Some(&maxn_values)
+            ) - 0.75)
+                .abs()
+                < f64::EPSILON
+        );
+        assert!(
+            (edge_score(
+                &edge,
+                1,
+                config,
+                PlayerId(0),
+                PlayerId(1),
+                Some(&maxn_values)
+            ) + 0.25)
+                .abs()
+                < f64::EPSILON
+        );
+        assert!(
+            (edge_score(
+                &edge,
+                1,
+                config,
+                PlayerId(0),
+                PlayerId(2),
+                Some(&maxn_values)
+            ) - 0.5)
+                .abs()
+                < f64::EPSILON
+        );
     }
 }
