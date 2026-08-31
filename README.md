@@ -207,6 +207,10 @@ is 55 wins in 364 games against search-256, with 132 action-limit truncations.
 Neither result is an absolute human Elo or a claim of universal superhuman play.
 Exact results and training provenance live under
 [`benchmarks/`](benchmarks/).
+Fixed-seat evaluations separately report baseline-adjusted Elo and an exact
+matched-seed method comparison: improved maps, regressed maps, unchanged maps,
+net flips, and a two-sided sign-test p-value. Absolute multiplayer Elo remains
+a seat-strength measurement and is not presented as method uplift.
 
 The first policy-guided PUCT loop is measured separately from that search-2048
 pool. A frozen-policy value specialist trained on sparse plausible deviations

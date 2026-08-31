@@ -46,6 +46,7 @@ class BaselineSelfPlay(TypedDict):
     draws: int
     terminal_draws: int
     truncations: int
+    winners: list[int]
 
 
 def paired_elo(score: float, games: int) -> float:
@@ -66,6 +67,39 @@ def baseline_adjusted_elo_delta(
     candidate_odds = candidate / (1 - candidate)
     baseline_odds = baseline / (1 - baseline)
     return 400 * math.log10(candidate_odds / baseline_odds)
+
+
+def winner_score(winner: int, seat: int) -> float:
+    if winner == 255:
+        return 0.5
+    return 1.0 if winner == seat else 0.0
+
+
+def paired_method_comparison(
+    candidate_scores: np.ndarray, baseline_scores: np.ndarray
+) -> dict[str, float | int]:
+    if candidate_scores.shape != baseline_scores.shape or candidate_scores.ndim != 1:
+        raise ValueError("paired method comparison requires equal score vectors")
+    candidate_better = int(np.count_nonzero(candidate_scores > baseline_scores))
+    baseline_better = int(np.count_nonzero(candidate_scores < baseline_scores))
+    same = int(candidate_scores.size - candidate_better - baseline_better)
+    discordant = candidate_better + baseline_better
+    if discordant == 0:
+        p_value = 1.0
+    else:
+        tail = sum(
+            math.comb(discordant, outcome)
+            for outcome in range(min(candidate_better, baseline_better) + 1)
+        )
+        p_value = min(1.0, 2 * tail / (2**discordant))
+    return {
+        "candidate_better": candidate_better,
+        "baseline_better": baseline_better,
+        "same": same,
+        "discordant": discordant,
+        "net_improvements": candidate_better - baseline_better,
+        "exact_two_sided_sign_test_p": p_value,
+    }
 
 
 def paired_seeds(games: int, seed: int) -> np.ndarray:
@@ -440,6 +474,7 @@ def evaluate(
             reference_environment.reset(index, seed + index)
         reference_finished = np.zeros(reference_games, dtype=np.bool_)
         reference_wins = np.zeros(players, dtype=np.int64)
+        reference_winners = np.full(reference_games, 255, dtype=np.uint8)
         reference_draws = 0
         reference_terminal_draws = 0
         reference_truncations = 0
@@ -482,6 +517,7 @@ def evaluate(
                             reference_terminal_draws += 1
                     else:
                         reference_wins[winner] += 1
+                    reference_winners[index] = winner
                     reference_finished[index] = True
                 reference_environment.reset(int(index), reference_reset_seed)
                 reference_reset_seed += 1
@@ -491,6 +527,7 @@ def evaluate(
             "draws": reference_draws,
             "terminal_draws": reference_terminal_draws,
             "truncations": reference_truncations,
+            "winners": reference_winners.tolist(),
         }
 
     baseline_reference = evaluate_baseline_reference()
@@ -501,6 +538,7 @@ def evaluate(
     seat_truncations = np.zeros(players, dtype=np.int64)
     seat_adjudications = np.zeros(players, dtype=np.int64)
     seat_losses = np.zeros(players, dtype=np.int64)
+    game_scores = np.zeros(games, dtype=np.float64)
     reset_seed = seed + games // players
     random = np.random.default_rng(seed)
     transitions = 0
@@ -593,6 +631,7 @@ def evaluate(
                     seat_wins[game_model_seat] += 1
                 else:
                     seat_losses[game_model_seat] += 1
+                game_scores[index] = winner_score(winner, game_model_seat)
                 finished[index] = True
             environment.reset(int(index), reset_seed)
             reset_seed += 1
@@ -617,6 +656,20 @@ def evaluate(
         reference_wins,
         int(baseline_reference["draws"]) * reference_replication,
         int(baseline_reference["truncations"]) * reference_replication,
+    )
+    baseline_scores = np.asarray(
+        [
+            winner_score(
+                int(
+                    baseline_reference["winners"][
+                        index if model_seat is not None else index // players
+                    ]
+                ),
+                int(model_seats[index]),
+            )
+            for index in range(games)
+        ],
+        dtype=np.float64,
     )
     reported_seats = range(players) if model_seat is None else (model_seat,)
     games_per_reported_seat = games // players if model_seat is None else games
@@ -683,6 +736,9 @@ def evaluate(
         ),
         "model_seat": model_seat,
         "baseline_self_play": baseline_reference,
+        "paired_method_comparison": paired_method_comparison(
+            game_scores, baseline_scores
+        ),
         "seed": seed,
         "generator": generator_name,
         "domain": evaluation_domain,

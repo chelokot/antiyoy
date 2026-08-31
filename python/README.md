@@ -358,6 +358,11 @@ equal-player win expectation, and `baseline_adjusted_elo_delta`, the edge-correc
 log-odds improvement over the source policy at the same seat. Method comparisons
 must use the latter or the raw `score_delta`; a weak starting seat can improve
 while its absolute multiplayer rating remains negative.
+`paired_method_comparison` additionally compares candidate and baseline outcome
+on every identical seed and seat. It reports maps improved, maps regressed,
+unchanged maps, net improvements, and an exact two-sided sign-test p-value over
+discordant maps. This distinguishes a method that flips specific failures from
+two agents whose aggregate win counts happen to differ on unrelated maps.
 
 Arena dimensions and action limits otherwise inherit the training checkpoint.
 Cross-checkpoint comparisons must pass the same explicit `--width`, `--height`,

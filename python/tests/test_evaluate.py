@@ -12,6 +12,7 @@ from python.evaluate import (
     evaluation_schedule,
     named_action_counts,
     outcome_summary,
+    paired_method_comparison,
     paired_elo,
     paired_seeds,
     reference_adjusted_outcome,
@@ -259,6 +260,22 @@ def test_baseline_adjusted_elo_reports_method_uplift_at_a_fixed_seat() -> None:
     assert adjusted["baseline_adjusted_elo_delta"] == pytest.approx(
         baseline_adjusted_elo_delta(17 / 128, 15 / 128, 128)
     )
+
+
+def test_paired_method_comparison_counts_discordant_maps() -> None:
+    comparison = paired_method_comparison(
+        np.array([1.0, 1.0, 0.0, 0.5, 0.0]),
+        np.array([0.0, 1.0, 1.0, 0.0, 0.0]),
+    )
+
+    assert comparison == {
+        "candidate_better": 2,
+        "baseline_better": 1,
+        "same": 2,
+        "discordant": 3,
+        "net_improvements": 1,
+        "exact_two_sided_sign_test_p": 1.0,
+    }
 
 
 def test_suite_aggregate_counts_draws_and_truncations() -> None:
