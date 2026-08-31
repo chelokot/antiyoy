@@ -154,6 +154,7 @@ def train_action_advantage(
     retention_weight: float,
     validation_fraction: float,
     seed: int,
+    training_seat: int | None = None,
 ) -> dict[str, object]:
     if epochs < 1 or batch_size < 1 or learning_rate <= 0:
         raise ValueError("advantage optimization values must be positive")
@@ -161,12 +162,25 @@ def train_action_advantage(
         raise ValueError("advantage and retention weights are invalid")
     datasets = [load_action_q_dataset(path) for path in dataset_paths]
     examples, sources = concatenate_datasets(datasets)
+    if training_seat is not None:
+        if training_seat < 0:
+            raise ValueError("training seat must be non-negative")
+        selected = examples["seats"].to(torch.long) == training_seat
+        if not selected.any():
+            raise ValueError("training seat has no action-Q examples")
+        examples = {name: values[selected] for name, values in examples.items()}
     checkpoint_sha256 = digest(checkpoint_path)
     if any(str(source["sha256"]) != checkpoint_sha256 for source in sources):
         raise ValueError("action-Q dataset source does not match the checkpoint")
     checkpoint = load_policy_checkpoint(checkpoint_path, torch.device("cpu"))
     feature_expert = str(sources[0]["feature_expert"])
-    state = feature_expert_state(checkpoint, feature_expert)
+    seat_experts = tuple(str(expert) for expert in sources[0]["seat_experts"])
+    if training_seat is not None and training_seat >= len(seat_experts):
+        raise ValueError("training seat has no source expert")
+    output_expert = (
+        seat_experts[training_seat] if training_seat is not None else feature_expert
+    )
+    state = feature_expert_state(checkpoint, output_expert)
     hidden = int(datasets[0]["model"]["hidden"])
     layers = int(datasets[0]["model"]["layers"])
     model = UniversalPolicy(hidden, layers)
@@ -298,6 +312,7 @@ def train_action_advantage(
             "path": str(checkpoint_path),
             "sha256": checkpoint_sha256,
             "feature_expert": feature_expert,
+            "output_expert": output_expert,
         },
         "datasets": [
             {
@@ -313,6 +328,7 @@ def train_action_advantage(
         "validation_examples": int(validation_mask.sum()),
         "validation_fraction": validation_fraction,
         "seed": seed,
+        "training_seat": training_seat,
         "epochs": epochs,
         "batch_size": batch_size,
         "learning_rate": learning_rate,
@@ -363,6 +379,7 @@ def main() -> None:
     parser.add_argument("--retention-weight", type=float, default=1.0)
     parser.add_argument("--validation-fraction", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=1_400_000)
+    parser.add_argument("--training-seat", type=int)
     arguments = parser.parse_args()
     report = train_action_advantage(
         arguments.checkpoint,
@@ -376,6 +393,7 @@ def main() -> None:
         arguments.retention_weight,
         arguments.validation_fraction,
         arguments.seed,
+        arguments.training_seat,
     )
     print(json.dumps(report, sort_keys=True), flush=True)
 

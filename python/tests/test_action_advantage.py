@@ -167,9 +167,12 @@ def test_offline_advantage_training_improves_game_disjoint_pairs(
         retention_weight=0.01,
         validation_fraction=0.2,
         seed=92,
+        training_seat=1,
     )
 
     assert report["validation_after"]["mae"] < report["validation_before"]["mae"]
+    assert report["examples"] == 20
+    assert report["training_seat"] == 1
     assert report["frozen_parameters_preserved"] is True
     assert report["changed_action_parameters"] > 0
     assert output.is_file()
