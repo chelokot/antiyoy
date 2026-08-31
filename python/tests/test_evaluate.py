@@ -22,6 +22,7 @@ from python.evaluate import (
 )
 from python.tests.test_bundle import write_checkpoint
 from python.evaluate_suite import (
+    aggregate_outcomes,
     aggregate_results,
     minimum_profile_seat_slice,
     minimum_seat_slice,
@@ -430,6 +431,50 @@ def test_suite_aggregate_preserves_self_play_calibration() -> None:
     assert aggregate["baseline_score"] == pytest.approx(1 / 3)
     assert aggregate["score_delta"] == pytest.approx(1 / 6)
     assert aggregate["seats"][2]["score_delta"] == pytest.approx(0.0)
+
+
+def test_suite_aggregate_pools_matched_map_comparisons() -> None:
+    outcomes = [
+        {
+            "players": 5,
+            "games": 4,
+            "wins": 2,
+            "draws": 0,
+            "losses": 2,
+            "truncations": 0,
+            "terminal_draws": 0,
+            "paired_method_comparison": {
+                "candidate_better": 2,
+                "baseline_better": 1,
+                "same": 1,
+            },
+        },
+        {
+            "players": 5,
+            "games": 4,
+            "wins": 1,
+            "draws": 0,
+            "losses": 3,
+            "truncations": 0,
+            "terminal_draws": 0,
+            "paired_method_comparison": {
+                "candidate_better": 1,
+                "baseline_better": 2,
+                "same": 1,
+            },
+        },
+    ]
+
+    aggregate = aggregate_outcomes(outcomes)
+
+    assert aggregate["paired_method_comparison"] == {
+        "candidate_better": 3,
+        "baseline_better": 3,
+        "same": 2,
+        "discordant": 6,
+        "net_improvements": 0,
+        "exact_two_sided_sign_test_p": 1.0,
+    }
 
 
 def test_minimum_seat_slice_preserves_profile_and_seed() -> None:

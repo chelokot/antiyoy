@@ -83,6 +83,14 @@ def paired_method_comparison(
     candidate_better = int(np.count_nonzero(candidate_scores > baseline_scores))
     baseline_better = int(np.count_nonzero(candidate_scores < baseline_scores))
     same = int(candidate_scores.size - candidate_better - baseline_better)
+    return paired_comparison_summary(candidate_better, baseline_better, same)
+
+
+def paired_comparison_summary(
+    candidate_better: int, baseline_better: int, same: int
+) -> dict[str, float | int]:
+    if candidate_better < 0 or baseline_better < 0 or same < 0:
+        raise ValueError("paired comparison counts must be non-negative")
     discordant = candidate_better + baseline_better
     if discordant == 0:
         p_value = 1.0
@@ -673,28 +681,33 @@ def evaluate(
     )
     reported_seats = range(players) if model_seat is None else (model_seat,)
     games_per_reported_seat = games // players if model_seat is None else games
-    seats = [
-        {
-            "seat": seat,
-            **reference_adjusted_outcome(
-                outcome_summary(
+    seats = []
+    for seat in reported_seats:
+        seat_mask = model_seats == seat
+        seats.append(
+            {
+                "seat": seat,
+                **reference_adjusted_outcome(
+                    outcome_summary(
+                        games_per_reported_seat,
+                        int(seat_wins[seat]),
+                        int(seat_draws[seat]),
+                        int(seat_losses[seat]),
+                        int(seat_terminal_draws[seat]),
+                        int(seat_truncations[seat]),
+                        players,
+                        int(seat_adjudications[seat]),
+                    ),
                     games_per_reported_seat,
-                    int(seat_wins[seat]),
-                    int(seat_draws[seat]),
-                    int(seat_losses[seat]),
-                    int(seat_terminal_draws[seat]),
-                    int(seat_truncations[seat]),
-                    players,
-                    int(seat_adjudications[seat]),
+                    int(baseline_reference["wins_by_seat"][seat]),
+                    int(baseline_reference["draws"]),
+                    int(baseline_reference["truncations"]),
                 ),
-                games_per_reported_seat,
-                int(baseline_reference["wins_by_seat"][seat]),
-                int(baseline_reference["draws"]),
-                int(baseline_reference["truncations"]),
-            ),
-        }
-        for seat in reported_seats
-    ]
+                "paired_method_comparison": paired_method_comparison(
+                    game_scores[seat_mask], baseline_scores[seat_mask]
+                ),
+            }
+        )
     return {
         "checkpoint": str(checkpoint_path),
         "baseline": baseline,

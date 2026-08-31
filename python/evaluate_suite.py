@@ -15,6 +15,7 @@ try:
         SEAT_ROTATION_SCHEME,
         baseline_adjusted_elo_delta,
         evaluate,
+        paired_comparison_summary,
         relative_skill_delta,
     )
 except ImportError:
@@ -23,6 +24,7 @@ except ImportError:
         SEAT_ROTATION_SCHEME,
         baseline_adjusted_elo_delta,
         evaluate,
+        paired_comparison_summary,
         relative_skill_delta,
     )
 
@@ -92,6 +94,21 @@ def aggregate_outcomes(
                     truncations / games - baseline_truncation_rate
                 ),
             }
+        )
+    paired_outcomes = ["paired_method_comparison" in result for result in outcomes]
+    if any(paired_outcomes) and not all(paired_outcomes):
+        raise ValueError("cannot mix paired and unpaired method comparisons")
+    if all(paired_outcomes):
+        aggregate["paired_method_comparison"] = paired_comparison_summary(
+            sum(
+                int(result["paired_method_comparison"]["candidate_better"])
+                for result in outcomes
+            ),
+            sum(
+                int(result["paired_method_comparison"]["baseline_better"])
+                for result in outcomes
+            ),
+            sum(int(result["paired_method_comparison"]["same"]) for result in outcomes),
         )
     return aggregate
 
