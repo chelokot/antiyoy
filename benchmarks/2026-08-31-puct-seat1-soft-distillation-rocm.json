@@ -1,0 +1,186 @@
+{
+  "schema_version": 3,
+  "kind": "policy_guided_puct_exact_seat_soft_distillation",
+  "engine_version": 6,
+  "implementation_commit": "3010d45",
+  "training_commit": "3010d45",
+  "evaluation_commit": "3010d45",
+  "system": {
+    "allocated_cpu_threads": 8,
+    "cpu": "Intel Core i9-11900K",
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "process_priority": "nice 10",
+    "pytorch": "2.9.1+rocm6.4"
+  },
+  "source": {
+    "artifact": "classic-generic-duel-value-v3-2026-08-31.pt",
+    "sha256": "04bca34ac15301908e3c65db33730e99355247df72ff044dcd4745553c07251c",
+    "profile": "classic_generic_2022",
+    "generator": "symmetric_duel_v1",
+    "players": 2,
+    "width": 11,
+    "height": 9,
+    "action_limit": 1000,
+    "target_seat": 1
+  },
+  "teacher": {
+    "algorithm": "native asynchronous policy-guided PUCT",
+    "node_budget": 8,
+    "exploration": 1.5,
+    "virtual_loss": 1.0,
+    "maximum_depth": 128,
+    "root_value_weight": 1.0,
+    "leaf_batch_size": 512,
+    "root_target": "normalize(prior * exp(searched_mean_value))",
+    "training_argmax_disagreement_on_target_seat": 0.0
+  },
+  "training": {
+    "seed_first": 812000,
+    "maximum_reset_seed": 812639,
+    "environments": 64,
+    "updates": 1500,
+    "visited_states": 96000,
+    "seat_1_examples": 34890,
+    "optimization_updates": 1412,
+    "completed_teacher_games": 576,
+    "target_mode": "root_distribution",
+    "rollin": "teacher",
+    "symmetry_augmentation": true,
+    "trainable_parameters": "action_head_only",
+    "frozen_encoder_rules_and_value_parameters_preserved_bitwise": true,
+    "learning_rate": 0.00005,
+    "retention_kl_weight": 8.0,
+    "mean_retention_kl": 0.007480581712965336,
+    "mean_root_target_kl_from_direct_policy": 0.014209823370670964,
+    "seconds": 121.75679711200064,
+    "search_decisions": 96000,
+    "evaluated_leaves": 760242,
+    "total_nodes": 761849,
+    "training_log_sha256": "6a2778ad448aed86ebf56aa173c4705cf3bfbe762af3a8103aa9d389e642c5b8"
+  },
+  "student": {
+    "specialist_sha256": "63e578ea51a754335050229f162fc60a5df45881b51bd508534583c1ddd75ac7",
+    "specialist_size_bytes": 3700727,
+    "bundle_artifact": "classic-generic-duel-puct-distilled-v2-2026-08-31.pt",
+    "bundle_url": "https://github.com/chelokot/antiyoy/releases/download/model-v0.5.0-beta.1/classic-generic-duel-puct-distilled-v2-2026-08-31.pt",
+    "bundle_sha256": "97fdc4ab365c6275a29fedd96bf67315f14c70629aae323e8307fec0088403b7",
+    "bundle_size_bytes": 11093809,
+    "routing": {
+      "seat_0": "previously accepted soft-PUCT specialist 50f9b366d1c2e949",
+      "seat_1": "exact-seat soft-PUCT specialist 63e578ea51a75433"
+    }
+  },
+  "browser_exports": {
+    "routing_fix_commit": "fb1eb6c",
+    "generator": "symmetric_duel_v1",
+    "seat_0": {
+      "artifact": "browser-classic-generic-puct-seat0-v2.onnx",
+      "expert": "context:50f9b366d1c2e949",
+      "sha256": "02af43e8f76cc9c894ba5adde1f688984180cc5317a6d4d77fe27b20dec63698",
+      "size_bytes": 3751563,
+      "actions_compared": 188,
+      "maximum_logit_error": 0.0000095367431640625,
+      "maximum_value_error": 0.000001430511474609375
+    },
+    "seat_1": {
+      "artifact": "browser-classic-generic-puct-seat1-v2.onnx",
+      "expert": "context:63e578ea51a75433",
+      "sha256": "1858f5da66d21a5ae874963cd737dc75e251a0a24a9ab1fcfc6308879f3654f5",
+      "size_bytes": 3751563,
+      "actions_compared": 176,
+      "maximum_logit_error": 0.0000133514404296875,
+      "maximum_value_error": 0.0000015497207641601562
+    }
+  },
+  "selection_scout": {
+    "seed_first": 832000,
+    "seed_last": 832127,
+    "games": 128,
+    "model_seat": 1,
+    "record": "111-0-17",
+    "baseline_self_play_seat_1_wins": 15,
+    "score": 0.8671875,
+    "baseline_score": 0.1171875,
+    "score_delta": 0.75,
+    "relative_elo": 325.94962296335336,
+    "truncations": 0,
+    "raw_result_sha256": "248d4a10cc4a6b6a4076f49939e915789be405a0b57b736a3c54997c6413429b"
+  },
+  "preceding_confirmations": [
+    {
+      "seed_first": 840000,
+      "games": 128,
+      "record": "112-0-16",
+      "baseline_self_play_seat_1_wins": 11,
+      "score_delta": 0.7890625,
+      "raw_result_sha256": "51e4e8a2e6e6431087bbed5f2632cbbdaa2fe5ea38f21409a737ee0e836f3ec5"
+    },
+    {
+      "seed_first": 860000,
+      "games": 128,
+      "record": "120-0-8",
+      "baseline_self_play_seat_1_wins": 14,
+      "score_delta": 0.828125,
+      "raw_result_sha256": "d20b78dccf54832987b6f00c8c2a6b7199519c887d5415ef7e3886046fbd1d3d"
+    },
+    {
+      "seed_first": 870000,
+      "games": 128,
+      "record": "120-0-8",
+      "baseline_self_play_seat_1_wins": 18,
+      "score_delta": 0.796875,
+      "raw_result_sha256": "b8383c5a5aa961bdea3d6e13701f342ca4bfc9a8dc6fb2925f7b6986ceb4f3ab"
+    }
+  ],
+  "heldout_confirmation": {
+    "disjoint_from_training_and_selection": true,
+    "seed_first": 880000,
+    "seed_last": 880511,
+    "unique_maps": 512,
+    "games": 512,
+    "model_seat": 1,
+    "record": "470-0-42",
+    "baseline_self_play_record_for_seat_1": "48-0-464",
+    "score": 0.91796875,
+    "baseline_score": 0.09375,
+    "score_delta": 0.82421875,
+    "relative_elo": 419.53942701512676,
+    "wilson_95_score_interval": [
+      0.8909718133445638,
+      0.938740480387089
+    ],
+    "truncations": 0,
+    "adjudications": 0,
+    "raw_result_sha256": "d616bca05177e42e2c8a40e73c657ef44c954a239b92d40d7fd38ec88499a4f4"
+  },
+  "all_seat_no_regression_gate": {
+    "baseline": "previously accepted seat-0 bundle",
+    "seed_first": 850000,
+    "seed_last": 850255,
+    "unique_maps": 256,
+    "games": 512,
+    "record": "256-0-256",
+    "score_delta": 0.0,
+    "truncations": 0,
+    "adjudications": 0,
+    "interpretation": "Both old and new seat-1 routes lost every game to the already promoted seat-0 specialist on this window; the gate proves no aggregate regression but cannot rank the two seat-1 policies.",
+    "raw_result_sha256": "f242ad3540729ea19ed0640ece37b73f249cbddc51c24add8284025a94d07e6e"
+  },
+  "rejected_attempts": [
+    {
+      "training_seed": 810000,
+      "learning_rate": 0.0001,
+      "retention_kl_weight": 1.0,
+      "mean_retention_kl": 0.07639635403072673,
+      "specialist_sha256": "b1515afc5bbae0b6162b5cccf4a113cfa3c638c2696a6f3c3664c649ddb0ea6f",
+      "scout_seed": 830000,
+      "scout_record": "0-0-128",
+      "baseline_self_play_seat_1_wins": 21,
+      "score_delta": -0.1640625,
+      "decision": "rejected for catastrophic seat-1 regression",
+      "training_log_sha256": "520a2428e5714d4f4ec3e41f93552afc2f04c3036e4a5f1deed58773ba5ef2ae",
+      "raw_result_sha256": "836f7e80619030619fdc609ffbb6e2ae15ef6d85ef02f74b4c31cb328a11c6dd"
+    }
+  ],
+  "conclusion": "Exact-seat soft-target distillation converted weak seat-1 source play into a policy that won 470 of 512 fresh fixed-seat games against the unchanged source opponent, versus 48 baseline self-play wins on the same seeds. The accepted high-retention student passed four earlier disjoint windows, a final 512-game holdout, and an all-seat no-regression gate. It still lost every heldout game to the previously promoted seat-0 specialist, so this is a route-specific improvement rather than a claim that turn-order imbalance is solved."
+}

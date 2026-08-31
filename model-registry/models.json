@@ -2,6 +2,58 @@
   "schema_version": 1,
   "models": [
     {
+      "id": "classic-generic-duel-puct-distilled-v2-2026-08-31",
+      "asset": "classic-generic-duel-puct-distilled-v2-2026-08-31.pt",
+      "url": "https://github.com/chelokot/antiyoy/releases/download/model-v0.5.0-beta.1/classic-generic-duel-puct-distilled-v2-2026-08-31.pt",
+      "sha256": "97fdc4ab365c6275a29fedd96bf67315f14c70629aae323e8307fec0088403b7",
+      "size_bytes": 11093809,
+      "checkpoint_version": 5,
+      "engine_version": 6,
+      "observation_version": 7,
+      "bundle_version": 4,
+      "experts": 3,
+      "profile_routes": 7,
+      "seat_context_routes": 2,
+      "status": "experimental-policy-specialist",
+      "source_model": "classic-generic-duel-value-v3-2026-08-31",
+      "routes": [
+        {
+          "profile": "classic_generic_2022",
+          "generator": "symmetric_duel_v1",
+          "players": 2,
+          "seat": 0
+        },
+        {
+          "profile": "classic_generic_2022",
+          "generator": "symmetric_duel_v1",
+          "players": 2,
+          "seat": 1
+        }
+      ],
+      "seat_1_distillation": {
+        "teacher": "policy-guided PUCT-8",
+        "target": "complete soft root distribution",
+        "examples": 34890,
+        "trainable_parameters": "action_head_only",
+        "retention_kl_weight": 8.0,
+        "frozen_parameters_preserved": true
+      },
+      "seat_1_vs_frozen_source_seat_0": {
+        "protocol": "schema-v3 fixed-seat same-map",
+        "games": 512,
+        "record": "470-0-42",
+        "baseline_self_play_seat_1_record": "48-0-464",
+        "score_delta": 0.82421875,
+        "relative_elo": 419.53942701512676,
+        "truncations": 0,
+        "wilson_95_score_interval": [
+          0.8909718133445638,
+          0.938740480387089
+        ],
+        "benchmark": "benchmarks/2026-08-31-puct-seat1-soft-distillation-rocm.json"
+      }
+    },
+    {
       "id": "universal-routed-2to8p-engine-v6-2026-08-31",
       "asset": "universal-routed-2to8p-engine-v6-2026-08-31.pt",
       "url": "https://github.com/chelokot/antiyoy/releases/download/model-v0.5.0-beta.1/universal-routed-2to8p-engine-v6-2026-08-31.pt",
@@ -70,7 +122,8 @@
       "experts": 2,
       "profile_routes": 7,
       "seat_context_routes": 1,
-      "status": "experimental-policy-specialist",
+      "status": "superseded-experimental-policy-specialist",
+      "superseded_by": "classic-generic-duel-puct-distilled-v2-2026-08-31",
       "source_model": "classic-generic-duel-value-v3-2026-08-31",
       "route": {
         "profile": "classic_generic_2022",

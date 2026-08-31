@@ -96,10 +96,10 @@ land density. Human mode derives every destination action from the core's legal
 mask and offers both measured search opponents and the exported neural beta.
 The neural route consumes the authoritative Rust observation and legal-action
 list in ONNX Runtime Web. The arena loads only the two seat routes relevant to
-the current match. Its side selector can place the human second; the promoted
-zero-search Soft-PUCT student then plays Cyan and completes its opening turn
-before control passes to Amber. Other profiles retain their accepted routed
-experts. Rated placement uses the Classic Generic arena, alternates the human
+the current match. Both Classic Generic seats now use independently gated
+zero-search Soft-PUCT students, so the side selector can place the human first
+or second without falling back to the source policy. Other profiles retain
+their accepted routed experts. Rated placement uses the Classic Generic arena, alternates the human
 between both seats, assigns a fresh deterministic seed to every attempt, and
 stores a device-local Elo relative to the fixed 2048-node search opponent.
 This local calibration is explicitly separate from the verified multiplayer
@@ -229,6 +229,18 @@ reproduced its source result exactly. Four hard-target variants were rejected;
 the complete record is in
 [`benchmarks/2026-08-31-puct-soft-distillation-rocm.json`](benchmarks/2026-08-31-puct-soft-distillation-rocm.json).
 
+The second loop targets only the previously weak seat 1 route and adds a strong
+retention constraint. On a disjoint 512-map fixed-seat gate it won 470 games
+against the unchanged source opponent; the source policy won only 48 games from
+seat 1 on those same maps. That is a +0.824 score delta and +419.54 observed
+relative Elo within this deliberately seat-specific pool, with a 89.10–93.87%
+Wilson score interval and no truncations. The combined v2 bundle preserves the
+accepted seat 0 specialist and routes this new student only to seat 1. It does
+not remove the underlying first-move advantage: the seat 0 specialist still won
+every direct cross-seat game in the aggregate no-regression gate. Full training,
+rejected-candidate, holdout, routing, and browser-parity evidence is in
+[`benchmarks/2026-08-31-puct-seat1-soft-distillation-rocm.json`](benchmarks/2026-08-31-puct-seat1-soft-distillation-rocm.json).
+
 Reproduce the accepted direct-policy comparison with the small specialist:
 
 ```bash
@@ -244,9 +256,9 @@ Reproduce the zero-search distilled-policy comparison:
 
 ```bash
 python python/fetch_model.py classic-generic-duel-value-v3-2026-08-31
-python python/fetch_model.py classic-generic-duel-puct-distilled-v1-2026-08-31
+python python/fetch_model.py classic-generic-duel-puct-distilled-v2-2026-08-31
 PYTHONPATH=python python python/evaluate.py \
-  models/classic-generic-duel-puct-distilled-v1-2026-08-31.pt \
+  models/classic-generic-duel-puct-distilled-v2-2026-08-31.pt \
   --games 64 --seed 920000 --device cuda --baseline policy \
   --baseline-checkpoint models/classic-generic-duel-value-v3-2026-08-31.pt \
   --profile classic_generic_2022 --width 11 --height 9 --action-limit 1000
@@ -279,13 +291,21 @@ PYTHONPATH=python python python/export_browser_policy.py \
   web/public/browser-experimental-v2.onnx \
   --profile online_experimental_v2_260801
 PYTHONPATH=python python python/export_browser_policy.py \
-  models/classic-generic-duel-puct-distilled-v1-2026-08-31.pt \
-  web/public/browser-classic-generic-puct-seat0-v1.onnx \
+  models/classic-generic-duel-puct-distilled-v2-2026-08-31.pt \
+  web/public/browser-classic-generic-puct-seat0-v2.onnx \
   --profile classic_generic_2022 --seat 0
 PYTHONPATH=python python python/verify_browser_policy.py \
-  models/classic-generic-duel-puct-distilled-v1-2026-08-31.pt \
-  web/public/browser-classic-generic-puct-seat0-v1.onnx \
+  models/classic-generic-duel-puct-distilled-v2-2026-08-31.pt \
+  web/public/browser-classic-generic-puct-seat0-v2.onnx \
   --profile classic_generic_2022 --seat 0
+PYTHONPATH=python python python/export_browser_policy.py \
+  models/classic-generic-duel-puct-distilled-v2-2026-08-31.pt \
+  web/public/browser-classic-generic-puct-seat1-v2.onnx \
+  --profile classic_generic_2022 --seat 1
+PYTHONPATH=python python python/verify_browser_policy.py \
+  models/classic-generic-duel-puct-distilled-v2-2026-08-31.pt \
+  web/public/browser-classic-generic-puct-seat1-v2.onnx \
+  --profile classic_generic_2022 --seat 1
 ```
 
 Run the verifier once per routed profile. It drives an entire game through both
