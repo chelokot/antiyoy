@@ -262,7 +262,7 @@ Pairwise value ranking produced the strongest diagnostic metrics and a combined
 45 wins versus 39 source wins over three PUCT windows (`+28.61`
 baseline-adjusted Elo). The windows were 17–13, 12–13, and 16–13. On the third
 window it flipped seven maps positively and four negatively, but the exact
-two-sided sign test was only p=0.549. It remains promising but unconfirmed and
+two-sided sign test across all 320 matched maps was only p=0.377. It remains promising but unconfirmed and
 was not distilled.
 
 Reproduce the accepted direct-policy comparison with the small specialist:

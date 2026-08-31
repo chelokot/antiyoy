@@ -81,6 +81,24 @@ def test_policy_self_match_is_an_exact_zero_delta(tmp_path: Path) -> None:
     assert result["baseline_adjusted_elo_delta"] == pytest.approx(0.0)
     assert result["elo_delta"] == pytest.approx(0.0)
     assert result["policy_search"]["decisions"] == 0
+    assert [seat["paired_method_comparison"] for seat in result["seats"]] == [
+        {
+            "candidate_better": 0,
+            "baseline_better": 0,
+            "same": 1,
+            "discordant": 0,
+            "net_improvements": 0,
+            "exact_two_sided_sign_test_p": 1.0,
+        },
+        {
+            "candidate_better": 0,
+            "baseline_better": 0,
+            "same": 1,
+            "discordant": 0,
+            "net_improvements": 0,
+            "exact_two_sided_sign_test_p": 1.0,
+        },
+    ]
 
 
 def test_policy_pair_uses_an_independent_baseline_checkpoint(tmp_path: Path) -> None:
@@ -475,6 +493,29 @@ def test_suite_aggregate_pools_matched_map_comparisons() -> None:
         "net_improvements": 0,
         "exact_two_sided_sign_test_p": 1.0,
     }
+
+
+def test_suite_aggregate_rejects_partial_matched_map_evidence() -> None:
+    paired = {
+        "players": 2,
+        "games": 2,
+        "wins": 1,
+        "draws": 0,
+        "losses": 1,
+        "truncations": 0,
+        "terminal_draws": 0,
+        "paired_method_comparison": {
+            "candidate_better": 1,
+            "baseline_better": 0,
+            "same": 1,
+        },
+    }
+    unpaired = {
+        key: value for key, value in paired.items() if key != "paired_method_comparison"
+    }
+
+    with pytest.raises(ValueError, match="cannot mix paired and unpaired"):
+        aggregate_outcomes([paired, unpaired])
 
 
 def test_minimum_seat_slice_preserves_profile_and_seed() -> None:

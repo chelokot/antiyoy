@@ -110,7 +110,7 @@ const experiments = [
     method: "Procedural multiplayer PUCT",
     status: "not promoted",
     description: "Calibrate one five-player seat, verify online PUCT twice, then distill only that route with strong KL retention.",
-    result: "Binary-value PUCT repeated +2 wins but its student tied 19–19. Zero-sum lost 16–18. Ranking value leads 45–39 over three windows, but matched-map p=0.549; none is promoted.",
+    result: "Binary-value PUCT repeated +2 wins but its student tied 19–19. Zero-sum lost 16–18. Ranking value leads 45–39 over three windows, but the 320-map paired sign test is p=0.377; none is promoted.",
   },
 ] as const;
 

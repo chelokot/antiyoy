@@ -160,7 +160,15 @@
         "baseline_adjusted_elo_delta": 52.752172255356555,
         "truncations": 1,
         "baseline_truncations": 1,
-        "raw_result_sha256": "582ccf96578c23693da5a340a94bc308b22bb3a8718111be3ebd7ea93c587246"
+        "paired_method_comparison": {
+          "candidate_better": 9,
+          "baseline_better": 5,
+          "same": 114,
+          "discordant": 14,
+          "net_improvements": 4,
+          "exact_two_sided_sign_test_p": 0.4239501953125
+        },
+        "raw_result_sha256": "5ade5d12e7b444ebb0c69349fa819731e38c400d0f2eca6c478a40a0bb8a47b7"
       },
       {
         "seed_first": 1020000,
@@ -171,7 +179,15 @@
         "baseline_adjusted_elo_delta": -15.408902053007493,
         "truncations": 1,
         "baseline_truncations": 1,
-        "raw_result_sha256": "efdeb8b76649ae262f3d5e60f489c8450d9f31a6201566d3a41074ed3212ddc5"
+        "paired_method_comparison": {
+          "candidate_better": 3,
+          "baseline_better": 4,
+          "same": 121,
+          "discordant": 7,
+          "net_improvements": -1,
+          "exact_two_sided_sign_test_p": 1.0
+        },
+        "raw_result_sha256": "651995b8fd2fc716831b18cc85d61ee963f9c40254155458eb07289b68fae3ca"
       },
       {
         "seed_first": 1030000,
@@ -198,9 +214,17 @@
       "candidate_wins": 45,
       "baseline_seat_3_wins": 39,
       "score_delta": 0.01875,
-      "baseline_adjusted_elo_delta": 28.6086131294647
+      "baseline_adjusted_elo_delta": 28.6086131294647,
+      "paired_method_comparison": {
+        "candidate_better": 19,
+        "baseline_better": 13,
+        "same": 288,
+        "discordant": 32,
+        "net_improvements": 6,
+        "exact_two_sided_sign_test_p": 0.37708558747544885
+      }
     },
-    "decision": "promising but unconfirmed: two of three windows positive, one negative, matched-map p=0.549 on the third window, no distillation authorized"
+    "decision": "promising but unconfirmed: two of three windows positive, one negative, all-window matched-map p=0.377, no distillation authorized"
   },
   "calibrated_puct_confirmations": [
     {
@@ -263,5 +287,5 @@
     "raw_result_sha256": "009444f9c053803457aaf22f44b288810a05b6af2e36c0cc9badfce4757290c4",
     "decision": "rejected: the repeated online PUCT signal did not survive zero-search distillation"
   },
-  "conclusion": "Procedural exact-seat binary calibration materially improved held-out value MAE, RMSE, and correlation, and PUCT-8 repeated a small +2-win uplift on each of two disjoint windows. A high-retention student nevertheless matched the source exactly on a fresh 128-game zero-search gate. A zero-sum multiplayer target improved regression metrics but lost two held-out PUCT wins and was rejected. Pairwise ranking produced the best value metrics and a combined +28.61 baseline-adjusted Elo over 320 PUCT games, but one of three windows was negative and the new matched-map window had p=0.549, so it remains unconfirmed and was not distilled. No artifact was promoted. More data or a larger teacher is required before another procedural PUCT distillation attempt."
+  "conclusion": "Procedural exact-seat binary calibration materially improved held-out value MAE, RMSE, and correlation, and PUCT-8 repeated a small +2-win uplift on each of two disjoint windows. A high-retention student nevertheless matched the source exactly on a fresh 128-game zero-search gate. A zero-sum multiplayer target improved regression metrics but lost two held-out PUCT wins and was rejected. Pairwise ranking produced the best value metrics and a combined +28.61 baseline-adjusted Elo over 320 PUCT games, but one of three windows was negative and the all-window matched-map sign test had p=0.377, so it remains unconfirmed and was not distilled. No artifact was promoted. More data or a larger teacher is required before another procedural PUCT distillation attempt."
 }
