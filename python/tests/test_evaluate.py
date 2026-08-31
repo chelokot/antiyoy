@@ -620,6 +620,28 @@ def test_vector_maxn_report_preserves_speed_fidelity_and_rejection_gates() -> No
     assert report["decision"]["agent_promotion"].startswith("rejected")
 
 
+def test_outcome_vector_report_preserves_matched_teacher_comparison() -> None:
+    report = json.loads(
+        Path("benchmarks/2026-08-31-outcome-vector-value-rocm.json").read_text()
+    )
+    combined = report["combined"]
+
+    assert combined["games"] == sum(
+        window["games"] for window in report["matched_windows"]
+    )
+    assert combined["outcome_head"]["wins"] == 42
+    assert combined["scalar_teacher_head"]["wins"] == 42
+    assert combined["outcome_against_scalar"] == {
+        "outcome_better": 5,
+        "scalar_better": 5,
+        "same": 246,
+        "discordant": 10,
+        "net_improvements": 0,
+        "exact_two_sided_sign_test_p": 1.0,
+    }
+    assert report["decision"]["agent_promotion"].startswith("rejected")
+
+
 def test_minimum_seat_slice_preserves_profile_and_seed() -> None:
     results = [
         {

@@ -292,6 +292,18 @@ or regret-aware utility targets rather than more scalar-teacher MSE training.
 Full evidence is in
 [`benchmarks/2026-08-31-one-pass-maxn-vector-distillation-rocm.json`](benchmarks/2026-08-31-one-pass-maxn-vector-distillation-rocm.json).
 
+An outcome-grounded follow-up replaces scalar-teacher labels with the actual
+winner of complete exploratory self-play games. Its game-disjoint holdout sign
+accuracy rose from 51.7% to 85.5% across 38,196 opponent-utility labels. That
+large prediction gain still did not improve move selection: over two fresh
+128-game windows both the outcome head and scalar-teacher head won 42 games
+against 40 baseline-policy wins, and their direct matched comparison was an
+exact 5–5 tie with 246 unchanged maps. The collector and trainer are retained,
+but the artifact is not promoted. This rules out terminal-outcome accuracy alone
+as the missing ingredient and motivates action-conditioned regret or advantage
+targets. See
+[`benchmarks/2026-08-31-outcome-vector-value-rocm.json`](benchmarks/2026-08-31-outcome-vector-value-rocm.json).
+
 Create and evaluate a checkpoint-bound vector head with:
 
 ```bash
@@ -309,6 +321,19 @@ PYTHONPATH=python python python/evaluate.py \
   --model-agent puct --puct-nodes 8 --puct-root-value-weight 1 \
   --puct-opponent-horizon leaf --puct-objective maxn \
   --maxn-value-head models/maxn-vector-value.pt
+```
+
+Collect complete games and calibrate the same vector-head contract from their
+terminal outcomes with:
+
+```bash
+PYTHONPATH=python python python/calibrate_vector_value.py \
+  models/universal-routed-2to8p-engine-v6-2026-08-31.pt \
+  models/maxn-outcome-vector-value.pt \
+  --players 5 --games 320 --validation-games 64 \
+  --width 19 --height 15 --action-limit 1000 \
+  --sample-stride 4 --epochs 16 --batch-size 512 \
+  --seed 1110000 --device cuda
 ```
 
 Reproduce the accepted direct-policy comparison with the small specialist:
