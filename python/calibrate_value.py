@@ -108,11 +108,14 @@ def train_value_head(
     batch_size: int,
     learning_rate: float,
     seed: int,
+    loss_mode: str = "mse",
 ) -> dict[str, object]:
     if not training or not validation:
         raise ValueError("value calibration requires training and validation samples")
     if epochs < 1 or batch_size < 1 or learning_rate <= 0:
         raise ValueError("value calibration hyperparameters must be positive")
+    if loss_mode not in ("mse", "ranking"):
+        raise ValueError("unsupported value calibration loss mode")
     preserved = {
         key: value.detach().cpu().clone()
         for key, value in model.state_dict().items()
@@ -152,7 +155,18 @@ def train_value_head(
                 device=rule_features.device,
             )
             _, values = model(observation, rule_features)
-            loss = torch.nn.functional.mse_loss(values, targets)
+            mean_squared_error = torch.nn.functional.mse_loss(values, targets)
+            if loss_mode == "ranking":
+                winner_values = values[targets > 0]
+                loser_values = values[targets < 0]
+                if winner_values.numel() > 0 and loser_values.numel() > 0:
+                    margins = winner_values[:, None] - loser_values[None, :]
+                    loss = torch.nn.functional.softplus(-margins).mean()
+                    loss = loss + 0.25 * mean_squared_error
+                else:
+                    loss = mean_squared_error
+            else:
+                loss = mean_squared_error
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
             optimizer.step()
@@ -177,6 +191,7 @@ def train_value_head(
             np.asarray([sample.target for sample in validation]),
         ),
         "epoch_losses": losses,
+        "loss_mode": loss_mode,
     }
 
 
@@ -327,6 +342,7 @@ def calibrate_value(
     grave_density_per_million: int = 15_000,
     training_seat: int | None = None,
     target_mode: str = "binary",
+    loss_mode: str = "mse",
 ) -> dict[str, object]:
     if games < 2 or validation_games < 1 or validation_games >= games:
         raise ValueError("validation games must be a non-empty strict subset")
@@ -340,6 +356,8 @@ def calibrate_value(
         raise ValueError("value calibration training seat is outside the player range")
     if target_mode not in ("binary", "zero_sum"):
         raise ValueError("unsupported value calibration target mode")
+    if loss_mode not in ("mse", "ranking"):
+        raise ValueError("unsupported value calibration loss mode")
     device = torch.device(device_name)
     checkpoint = load_policy_checkpoint(checkpoint_path, device)
     config = dict(checkpoint["config"])
@@ -445,6 +463,7 @@ def calibrate_value(
         batch_size,
         learning_rate,
         seed,
+        loss_mode,
     )
     output_config = dict(selected_config or config)
     output_config.pop("selected_expert", None)
@@ -472,6 +491,7 @@ def calibrate_value(
         "learning_rate": learning_rate,
         "training_seat": training_seat,
         "target_mode": target_mode,
+        "loss_mode": loss_mode,
         "exploration_probability": exploration_probability,
         "exploration_top_k": exploration_top_k,
         "collection": collection,
@@ -533,6 +553,7 @@ def main() -> None:
     parser.add_argument(
         "--target-mode", choices=("binary", "zero_sum"), default="binary"
     )
+    parser.add_argument("--loss-mode", choices=("mse", "ranking"), default="mse")
     parser.add_argument("--sample-stride", type=int, default=4)
     parser.add_argument("--epochs", type=int, default=12)
     parser.add_argument("--batch-size", type=int, default=128)
@@ -568,6 +589,7 @@ def main() -> None:
         arguments.grave_density_per_million,
         arguments.training_seat,
         arguments.target_mode,
+        arguments.loss_mode,
     )
     print(json.dumps(report, sort_keys=True))
 

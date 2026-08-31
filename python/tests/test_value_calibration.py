@@ -13,6 +13,7 @@ from python.calibrate_value import (
     ValueSample,
     calibrate_value,
     outcome_target,
+    predict_values,
     train_value_head,
     value_metrics,
 )
@@ -72,6 +73,33 @@ def test_value_training_changes_only_the_value_head() -> None:
         for key, value in before.items()
         if not key.startswith("value_head.")
     )
+
+
+def test_ranking_value_training_separates_wins_from_losses() -> None:
+    environment = VectorEnv(2, width=7, height=5, seed=705, action_limit=8)
+    observation = environment.observe()
+    model = UniversalPolicy(hidden=16, layers=1)
+    winner = ValueSample(select_environments(observation, [0]), 1.0)
+    environment.step(np.zeros(2, dtype=np.uint64))
+    loser = ValueSample(select_environments(environment.observe(), [0]), -1.0)
+    rules = encode_rules(environment.rules_jsons()[0], torch.device("cpu"))
+
+    before = predict_values(model, [winner, loser], rules, batch_size=2)
+    report = train_value_head(
+        model,
+        [winner, loser],
+        [winner, loser],
+        rules,
+        epochs=8,
+        batch_size=2,
+        learning_rate=1e-2,
+        seed=707,
+        loss_mode="ranking",
+    )
+    after = predict_values(model, [winner, loser], rules, batch_size=2)
+
+    assert report["loss_mode"] == "ranking"
+    assert after[0] - after[1] > before[0] - before[1]
 
 
 def test_calibration_writes_an_overlay_compatible_checkpoint(tmp_path: Path) -> None:
@@ -149,6 +177,7 @@ def test_calibration_supports_procedural_multiplayer(tmp_path: Path) -> None:
         starting_province_size=3,
         training_seat=2,
         target_mode="zero_sum",
+        loss_mode="ranking",
     )
 
     assert report["generator"] == "procedural_v1"
@@ -156,6 +185,7 @@ def test_calibration_supports_procedural_multiplayer(tmp_path: Path) -> None:
     assert report["collection"]["games"] == 3
     assert report["training_seat"] == 2
     assert report["target_mode"] == "zero_sum"
+    assert report["loss_mode"] == "ranking"
     assert report["source"]["expert"] == report["source"]["seat_experts"][2]
     assert len(report["collection"]["wins_by_seat"]) == 3
     assert output.is_file()

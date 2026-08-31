@@ -280,6 +280,13 @@ instead of making four of five targets `-1` in a five-player game. The legacy
 `binary` target remains the default for exact reproduction; compare target modes
 on disjoint value and outcome gates before routing either checkpoint.
 
+`--loss-mode ranking` optimizes pairwise logistic separation between winning
+and losing states in each batch, with a quarter-weight MSE term anchoring value
+magnitude. This objective is intended for PUCT, where ordering successor values
+can matter more than absolute calibration error. `mse` remains the default;
+ranking checkpoints still require the same held-out value report and direct
+outcome gate.
+
 ```bash
 python build_bundle.py ../models/universal-routed.pt \
   ../models/universal-routed-value.pt --overlay \
