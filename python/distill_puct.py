@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from antiyoy_rl import VectorEnv
+from antiyoy_rl import ProceduralConfig, VectorEnv
 from antiyoy_rl.model import (
     UniversalPolicy,
     action_distribution,
@@ -40,6 +40,8 @@ except ImportError:
 @dataclass(frozen=True)
 class PuctDistillationConfig:
     profile: str = "classic_generic_2022"
+    generator: str = "symmetric_duel_v1"
+    players: int = 2
     environments: int = 64
     updates: int = 1_000
     seed: int = 800_000
@@ -47,6 +49,13 @@ class PuctDistillationConfig:
     width: int = 11
     height: int = 9
     action_limit: int = 1_000
+    land_density_per_million: int = 650_000
+    starting_province_size: int = 5
+    starting_money: int = 10
+    tree_density_per_million: int = 150_000
+    neutral_tower_density_per_million: int = 20_000
+    neutral_capital_density_per_million: int = 10_000
+    grave_density_per_million: int = 15_000
     learning_rate: float = 1e-4
     retention_weight: float = 1.0
     rollin: str = "teacher"
@@ -66,6 +75,25 @@ def validate_config(config: PuctDistillationConfig) -> None:
         raise ValueError("distillation environments and updates must be positive")
     if config.width < 3 or config.height < 3 or config.action_limit < 1:
         raise ValueError("distillation arena dimensions and action limit are invalid")
+    if config.generator not in ("symmetric_duel_v1", "procedural_v1"):
+        raise ValueError("unsupported distillation map generator")
+    if config.players < 2 or config.players > 8:
+        raise ValueError("distillation player count must be between two and eight")
+    if config.generator == "symmetric_duel_v1" and config.players != 2:
+        raise ValueError("symmetric duel distillation requires two players")
+    procedural_densities = (
+        config.land_density_per_million,
+        config.tree_density_per_million,
+        config.neutral_tower_density_per_million,
+        config.neutral_capital_density_per_million,
+        config.grave_density_per_million,
+    )
+    if config.generator == "procedural_v1" and (
+        any(density < 0 or density > 1_000_000 for density in procedural_densities)
+        or config.starting_province_size < 1
+        or config.starting_money < 0
+    ):
+        raise ValueError("distillation procedural generator values are invalid")
     if config.learning_rate <= 0 or config.retention_weight < 0:
         raise ValueError("distillation optimization values are invalid")
     if config.rollin not in ("teacher", "student"):
@@ -84,8 +112,74 @@ def validate_config(config: PuctDistillationConfig) -> None:
         raise ValueError("distillation PUCT maximum depth must be positive")
     if config.puct_root_value_weight is not None and config.puct_root_value_weight < 0:
         raise ValueError("distillation PUCT root value weight must be non-negative")
-    if config.training_seat is not None and config.training_seat not in (0, 1):
-        raise ValueError("distillation training seat must be zero or one")
+    if (
+        config.training_seat is not None
+        and not 0 <= config.training_seat < config.players
+    ):
+        raise ValueError("distillation training seat is outside the player range")
+
+
+def domain_descriptor(
+    config: PuctDistillationConfig, checkpoint_config: dict[str, object]
+) -> dict[str, object]:
+    descriptor: dict[str, object] = {
+        "width": config.width,
+        "height": config.height,
+        "players": config.players,
+        "action_limit": config.action_limit,
+        "fog": checkpoint_config["fog"],
+        "diplomacy": checkpoint_config.get("diplomacy", False),
+        "initial_relation": checkpoint_config.get("initial_relation", "neutral"),
+    }
+    if config.generator == "procedural_v1":
+        descriptor.update(
+            {
+                "land_density_per_million": config.land_density_per_million,
+                "starting_province_size": config.starting_province_size,
+                "starting_money": config.starting_money,
+                "tree_density_per_million": config.tree_density_per_million,
+                "neutral_tower_density_per_million": config.neutral_tower_density_per_million,
+                "neutral_capital_density_per_million": config.neutral_capital_density_per_million,
+                "grave_density_per_million": config.grave_density_per_million,
+            }
+        )
+    return descriptor
+
+
+def create_environment(
+    config: PuctDistillationConfig, checkpoint_config: dict[str, object]
+) -> VectorEnv:
+    environment_arguments = {
+        "action_limit": config.action_limit,
+        "profile": config.profile,
+        "fog": bool(checkpoint_config["fog"]),
+        "diplomacy": bool(checkpoint_config.get("diplomacy", False)),
+        "initial_relation": str(checkpoint_config.get("initial_relation", "neutral")),
+    }
+    if config.generator == "procedural_v1":
+        generator = ProceduralConfig(
+            width=config.width,
+            height=config.height,
+            players=config.players,
+            seed=config.seed,
+            land_density_per_million=config.land_density_per_million,
+            starting_province_size=config.starting_province_size,
+            starting_money=config.starting_money,
+            tree_density_per_million=config.tree_density_per_million,
+            neutral_tower_density_per_million=config.neutral_tower_density_per_million,
+            neutral_capital_density_per_million=config.neutral_capital_density_per_million,
+            grave_density_per_million=config.grave_density_per_million,
+        )
+        return VectorEnv.procedural(
+            config.environments, generator, **environment_arguments
+        )
+    return VectorEnv(
+        config.environments,
+        width=config.width,
+        height=config.height,
+        seed=config.seed,
+        **environment_arguments,
+    )
 
 
 def frozen_policy_parameters(model: UniversalPolicy) -> dict[str, torch.Tensor]:
@@ -124,33 +218,25 @@ def distill_puct(
     device = torch.device(config.device)
     checkpoint = load_policy_checkpoint(checkpoint_path, device)
     checkpoint_config = dict(checkpoint["config"])
-    descriptor = {
-        "width": config.width,
-        "height": config.height,
-        "players": 2,
-        "action_limit": config.action_limit,
-        "fog": checkpoint_config["fog"],
-        "diplomacy": checkpoint_config.get("diplomacy", False),
-        "initial_relation": checkpoint_config.get("initial_relation", "neutral"),
-    }
-    evaluation_domain = domain_key("symmetric_duel_v1", descriptor)
+    descriptor = domain_descriptor(config, checkpoint_config)
+    evaluation_domain = domain_key(config.generator, descriptor)
     selected_states: list[dict[str, torch.Tensor]] = []
     selected_configs: list[dict[str, object]] = []
     selected_experts: list[str] = []
-    for seat in range(2):
+    for seat in range(config.players):
         state, selected_config = select_policy_state(
             checkpoint,
             config.profile,
-            "symmetric_duel_v1",
-            2,
+            config.generator,
+            config.players,
             seat,
             evaluation_domain,
         )
         selected_states.append(state)
         selected_configs.append(selected_config)
         selected_experts.append(str(selected_config["selected_expert"]))
-    if config.training_seat is None and selected_experts[0] != selected_experts[1]:
-        raise ValueError("PUCT distillation requires one shared expert for both seats")
+    if config.training_seat is None and len(set(selected_experts)) != 1:
+        raise ValueError("all-seat PUCT distillation requires one shared expert")
     student_seat = config.training_seat if config.training_seat is not None else 0
     teacher_models: dict[str, UniversalPolicy] = {}
     for expert, state, selected_config in zip(
@@ -163,6 +249,17 @@ def distill_puct(
     teacher = teacher_models[selected_experts[student_seat]]
     teacher.requires_grad_(False)
     student = copy.deepcopy(teacher)
+    student_expert = "__distilled_student__"
+    student_rollin_models = {**teacher_models, student_expert: student}
+    student_rollin_experts = (
+        [student_expert] * config.players
+        if config.training_seat is None
+        else [
+            student_expert if seat == config.training_seat else expert
+            for seat, expert in enumerate(selected_experts)
+        ]
+    )
+    student_rollin_policy = RoutedPolicy(student_rollin_models, student_rollin_experts)
     preserved = frozen_policy_parameters(student)
     initial_action_head = {
         key: value.detach().cpu().clone()
@@ -174,17 +271,7 @@ def distill_puct(
         lr=config.learning_rate,
         weight_decay=0.0,
     )
-    environment = VectorEnv(
-        config.environments,
-        width=config.width,
-        height=config.height,
-        seed=config.seed,
-        action_limit=config.action_limit,
-        profile=config.profile,
-        fog=bool(checkpoint_config["fog"]),
-        diplomacy=bool(checkpoint_config.get("diplomacy", False)),
-        initial_relation=str(checkpoint_config.get("initial_relation", "neutral")),
-    )
+    environment = create_environment(config, checkpoint_config)
     for environment_index in range(config.environments):
         environment.reset(environment_index, config.seed + environment_index)
     rules = encode_rules_batch(environment.rules_jsons(), device)
@@ -201,7 +288,7 @@ def distill_puct(
     completed_games = 0
     truncations = 0
     draws = 0
-    wins_by_seat = np.zeros(2, dtype=np.int64)
+    wins_by_seat = np.zeros(config.players, dtype=np.int64)
     imitation_loss_average = 0.0
     retention_average = 0.0
     accuracy_average = 0.0
@@ -394,7 +481,7 @@ def distill_puct(
         else:
             student.eval()
             with torch.no_grad():
-                rollin_logits, _ = student(observation, rules)
+                rollin_logits, _ = student_rollin_policy(observation, rules)
                 rollin_distribution = action_distribution(
                     rollin_logits, observation["action_offsets"]
                 )
@@ -460,7 +547,7 @@ def distill_puct(
             "seat_experts": selected_experts,
         },
         "profile": config.profile,
-        "generator": "symmetric_duel_v1",
+        "generator": config.generator,
         "domain": evaluation_domain,
         "domain_descriptor": descriptor,
         "seed": config.seed,
@@ -535,6 +622,12 @@ def main() -> None:
     parser.add_argument("checkpoint", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--profile", default="classic_generic_2022")
+    parser.add_argument(
+        "--generator",
+        choices=("symmetric_duel_v1", "procedural_v1"),
+        default="symmetric_duel_v1",
+    )
+    parser.add_argument("--players", type=int, default=2)
     parser.add_argument("--environments", type=int, default=64)
     parser.add_argument("--updates", type=int, default=1_000)
     parser.add_argument("--seed", type=int, default=800_000)
@@ -544,6 +637,15 @@ def main() -> None:
     parser.add_argument("--width", type=int, default=11)
     parser.add_argument("--height", type=int, default=9)
     parser.add_argument("--action-limit", type=int, default=1_000)
+    parser.add_argument("--land-density-per-million", type=int, default=650_000)
+    parser.add_argument("--starting-province-size", type=int, default=5)
+    parser.add_argument("--starting-money", type=int, default=10)
+    parser.add_argument("--tree-density-per-million", type=int, default=150_000)
+    parser.add_argument("--neutral-tower-density-per-million", type=int, default=20_000)
+    parser.add_argument(
+        "--neutral-capital-density-per-million", type=int, default=10_000
+    )
+    parser.add_argument("--grave-density-per-million", type=int, default=15_000)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--retention-weight", type=float, default=1.0)
     parser.add_argument("--rollin", choices=("teacher", "student"), default="teacher")
@@ -563,13 +665,15 @@ def main() -> None:
     parser.add_argument("--puct-maximum-depth", type=int, default=128)
     parser.add_argument("--puct-root-value-weight", type=float, default=1.0)
     parser.add_argument("--puct-leaf-batch-size", type=int, default=512)
-    parser.add_argument("--training-seat", type=int, choices=(0, 1))
+    parser.add_argument("--training-seat", type=int)
     arguments = parser.parse_args()
     report = distill_puct(
         arguments.checkpoint,
         arguments.output,
         PuctDistillationConfig(
             profile=arguments.profile,
+            generator=arguments.generator,
+            players=arguments.players,
             environments=arguments.environments,
             updates=arguments.updates,
             seed=arguments.seed,
@@ -577,6 +681,17 @@ def main() -> None:
             width=arguments.width,
             height=arguments.height,
             action_limit=arguments.action_limit,
+            land_density_per_million=arguments.land_density_per_million,
+            starting_province_size=arguments.starting_province_size,
+            starting_money=arguments.starting_money,
+            tree_density_per_million=arguments.tree_density_per_million,
+            neutral_tower_density_per_million=(
+                arguments.neutral_tower_density_per_million
+            ),
+            neutral_capital_density_per_million=(
+                arguments.neutral_capital_density_per_million
+            ),
+            grave_density_per_million=arguments.grave_density_per_million,
             learning_rate=arguments.learning_rate,
             retention_weight=arguments.retention_weight,
             rollin=arguments.rollin,

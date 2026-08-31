@@ -305,6 +305,15 @@ only the requested specialist states. The report separates all visited states,
 actual labeled examples, and optimizer updates. Without this option, both seats
 must resolve to one shared source expert so the legacy all-seat protocol remains
 exactly reproducible.
+
+The same command supports procedural multiplayer curricula. Select the exact
+player-count route with `--generator procedural_v1 --players 5`, provide the
+generator dimensions and densities, and use `--training-seat` for the specialist
+being improved. Procedural resets regenerate topology from every recorded seed.
+Teacher roll-in preserves each opponent's routed expert; student roll-in
+substitutes the student only for its target seat. Two-to-eight-player runs thus
+train and report one explicit route without silently replacing other seats.
+
 Compare the cheap student against the exact frozen source on disjoint seeds:
 
 ```bash

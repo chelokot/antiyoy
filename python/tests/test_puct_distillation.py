@@ -100,6 +100,54 @@ def test_puct_distillation_can_target_one_seat(tmp_path: Path) -> None:
     assert torch.all(distilled["model"]["missing_source"] == 7.0)
 
 
+def test_puct_distillation_routes_a_procedural_multiplayer_seat(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "primary.pt"
+    third_seat = tmp_path / "third-seat.pt"
+    source = tmp_path / "procedural-bundle.pt"
+    output = tmp_path / "seat-two.pt"
+    write_checkpoint(primary, 1.0)
+    write_checkpoint(third_seat, 8.0)
+    build_bundle(
+        primary,
+        {},
+        source,
+        seat_context_route_paths={
+            ("classic_generic_2022", "procedural_v1", 3, 2): third_seat
+        },
+    )
+
+    report = distill_puct(
+        source,
+        output,
+        PuctDistillationConfig(
+            generator="procedural_v1",
+            players=3,
+            environments=3,
+            updates=24,
+            seed=814_000,
+            device="cpu",
+            width=9,
+            height=7,
+            starting_province_size=3,
+            action_limit=18,
+            puct_nodes=4,
+            puct_leaf_batch_size=12,
+            training_seat=2,
+        ),
+    )
+
+    assert report["generator"] == "procedural_v1"
+    assert report["domain_descriptor"]["players"] == 3
+    assert report["domain_descriptor"]["starting_province_size"] == 3
+    assert report["source"]["expert"] == report["source"]["seat_experts"][2]
+    assert len(report["source"]["seat_experts"]) == 3
+    assert 0 < report["examples"] < report["visited_states"]
+    distilled = torch.load(output, map_location="cpu", weights_only=False)
+    assert torch.all(distilled["model"]["missing_source"] == 8.0)
+
+
 @pytest.mark.parametrize(
     "config",
     [
@@ -111,6 +159,13 @@ def test_puct_distillation_can_target_one_seat(tmp_path: Path) -> None:
         PuctDistillationConfig(target_mode="unknown"),
         PuctDistillationConfig(puct_nodes=1),
         PuctDistillationConfig(training_seat=2),
+        PuctDistillationConfig(generator="unknown"),
+        PuctDistillationConfig(players=1),
+        PuctDistillationConfig(players=3),
+        PuctDistillationConfig(generator="procedural_v1", players=3, training_seat=3),
+        PuctDistillationConfig(
+            generator="procedural_v1", land_density_per_million=1_000_001
+        ),
     ],
 )
 def test_puct_distillation_rejects_invalid_configuration(
