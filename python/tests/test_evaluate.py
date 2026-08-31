@@ -603,6 +603,23 @@ def test_procedural_puct_report_combines_every_matched_map_window() -> None:
     )
 
 
+def test_vector_maxn_report_preserves_speed_fidelity_and_rejection_gates() -> None:
+    report = json.loads(
+        Path(
+            "benchmarks/2026-08-31-one-pass-maxn-vector-distillation-rocm.json"
+        ).read_text()
+    )
+
+    assert report["distillation"]["validation"]["mse_reduction_fraction"] > 0.87
+    assert report["latency_and_fidelity_control"]["speedup"] > 4
+    assert report["heldout_exact_fidelity"]["one_pass_maxn"]["same_model_score"] == 63
+    assert (
+        report["heldout_strength_gate"]["paired_method_comparison"]["net_improvements"]
+        == -3
+    )
+    assert report["decision"]["agent_promotion"].startswith("rejected")
+
+
 def test_minimum_seat_slice_preserves_profile_and_seed() -> None:
     results = [
         {

@@ -278,6 +278,39 @@ windows it improved only one net map over scalar PUCT (18 versus 17 wins across
 128 games, sign-test p=1.0) while requiring five perspective predictions per
 leaf. It remains an experimental objective and was not distilled.
 
+MaxN now also has an optional one-pass vector-value path. A separate 140 KB
+artifact predicts all relative player utilities from one shared encoder result,
+keeps the active player's original scalar value exact, and is SHA-256-bound to
+its source checkpoint. Distilling 960,000 scalar-teacher labels reduced deep
+held-out MSE by 87.7% and MAE by 63.5%. On a matched 64-game control it tracked
+exact MaxN on 63 maps while reducing end-to-end time from 143.3 to 32.1 seconds,
+a 4.47× speedup. It was not promoted as a stronger agent: on a fresh 128-game
+gate it lost three net maps to the direct policy, and exact MaxN also regressed
+on the corresponding 64-game slice. The runtime and reproducible distillation
+pipeline are retained; the next multiplayer experiment needs outcome-grounded
+or regret-aware utility targets rather than more scalar-teacher MSE training.
+Full evidence is in
+[`benchmarks/2026-08-31-one-pass-maxn-vector-distillation-rocm.json`](benchmarks/2026-08-31-one-pass-maxn-vector-distillation-rocm.json).
+
+Create and evaluate a checkpoint-bound vector head with:
+
+```bash
+PYTHONPATH=python python python/distill_vector_value.py \
+  models/universal-routed-2to8p-engine-v6-2026-08-31.pt \
+  models/maxn-vector-value.pt \
+  --players 5 --environments 64 --updates 3000 \
+  --validation-environments 32 --validation-steps 256 \
+  --width 19 --height 15 --seed 1080000 --device cuda
+PYTHONPATH=python python python/evaluate.py \
+  models/universal-routed-2to8p-engine-v6-2026-08-31.pt \
+  --games 64 --seed 1090000 --device cuda --baseline policy \
+  --profile classic_generic_2022 --procedural --players 5 \
+  --model-seat 3 --width 19 --height 15 --action-limit 2400 \
+  --model-agent puct --puct-nodes 8 --puct-root-value-weight 1 \
+  --puct-opponent-horizon leaf --puct-objective maxn \
+  --maxn-value-head models/maxn-vector-value.pt
+```
+
 Reproduce the accepted direct-policy comparison with the small specialist:
 
 ```bash

@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "kind": "one_pass_maxn_vector_value_distillation",
+  "implementation_commits": {
+    "one_pass_runtime": "d447353",
+    "distillation_pipeline": "c1802c9",
+    "rocm_and_exact_active_value": "4e81b79"
+  },
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 8,
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "gpu_index": 0,
+    "pytorch": "2.9.1+rocm6.4",
+    "process_priority": "nice 10"
+  },
+  "source": {
+    "artifact": "universal-routed-2to8p-engine-v6-2026-08-31.pt",
+    "sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "selected_expert": "context:ea1a83a813d1f57f"
+  },
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v1",
+    "players": 5,
+    "width": 19,
+    "height": 15,
+    "land_density_per_million": 650000,
+    "model_seat": 3
+  },
+  "artifact_contract": {
+    "kind": "relative_vector_value_head",
+    "artifact_version": 1,
+    "maximum_players": 8,
+    "perspective": "relative_to_active_player",
+    "source_checkpoint_sha256_required": true,
+    "exact_active_player_scalar_value_preserved": true,
+    "size_bytes": 139925,
+    "sha256": "c22016f9d80081953790837283cc7f761548c3302a28d74840bff5318ac49362"
+  },
+  "distillation": {
+    "seed": 1080000,
+    "environments": 64,
+    "updates": 3000,
+    "completed_games": 283,
+    "labels": 960000,
+    "seconds": 98.35666940902593,
+    "labels_per_second": 9760.39556613843,
+    "learning_rate": 0.0001,
+    "teacher": "repeated_scalar_player_perspectives",
+    "student": "shared_encoder_relative_vector_head",
+    "training_action_limit": 1000,
+    "validation_environments": 32,
+    "validation_steps": 256,
+    "validation_labels": 40960,
+    "validation": {
+      "mse_before": 0.007894384270593946,
+      "mse_after": 0.0009692961636915242,
+      "mse_reduction_fraction": 0.8772170025593905,
+      "mae_before": 0.05226589018275263,
+      "mae_after": 0.019078047675429845,
+      "mae_reduction_fraction": 0.6349809099448676
+    }
+  },
+  "search": {
+    "node_budget": 8,
+    "root_value_weight": 1.0,
+    "leaf_batch_size": 512,
+    "opponent_horizon": "leaf",
+    "objective": "maxn",
+    "evaluation_action_limit": 2400
+  },
+  "latency_and_fidelity_control": {
+    "seed_first": 1060000,
+    "games": 64,
+    "artifact_generation": "500-update predecessor with the identical one-pass architecture",
+    "exact_maxn": {
+      "wins": 7,
+      "evaluated_leaves": 46344,
+      "elapsed_seconds": 143.3,
+      "maximum_rss_kb": 3608148,
+      "raw_result_sha256": "a82f0539a6afd5624a3ec6f06c4587ee50d6b12138e49cfd281d1626ca955875"
+    },
+    "one_pass_maxn": {
+      "wins": 8,
+      "evaluated_leaves": 45986,
+      "elapsed_seconds": 32.09,
+      "maximum_rss_kb": 3573048,
+      "raw_result_sha256": "45fe369a5b08936b5459bd1acc2aca01a9c37294d410ec1326eee3bbabf9fc86"
+    },
+    "speedup": 4.465565596759115,
+    "same_model_score": 63,
+    "one_pass_better": 1,
+    "exact_better": 0
+  },
+  "heldout_exact_fidelity": {
+    "seed_first": 1090000,
+    "games": 64,
+    "exact_maxn": {
+      "wins": 8,
+      "baseline_policy_wins": 9,
+      "evaluated_leaves": 50817,
+      "elapsed_seconds": 109.74,
+      "maximum_rss_kb": 3627420,
+      "raw_result_sha256": "7c218079c08dbf97048763bc7b5698de07daac772319d71cf69b39c1781812b2"
+    },
+    "one_pass_maxn": {
+      "wins": 7,
+      "baseline_policy_wins": 9,
+      "same_model_score": 63,
+      "one_pass_better": 0,
+      "exact_better": 1
+    }
+  },
+  "heldout_strength_gate": {
+    "seed_first": 1090000,
+    "games": 128,
+    "one_pass_maxn_wins": 22,
+    "baseline_policy_wins": 25,
+    "score_delta": -0.0234375,
+    "baseline_adjusted_elo_delta": -27.194387363771742,
+    "evaluated_leaves": 100702,
+    "elapsed_seconds": 54.88,
+    "maximum_rss_kb": 3606652,
+    "paired_method_comparison": {
+      "candidate_better": 1,
+      "baseline_better": 4,
+      "same": 123,
+      "discordant": 5,
+      "net_improvements": -3,
+      "exact_two_sided_sign_test_p": 0.375
+    },
+    "raw_result_sha256": "187052e8f0064237c93aea07c1f93fe53e54948afd8c9b739d518956d6744c34"
+  },
+  "decision": {
+    "runtime": "accepted: the optional vector-value path reduces five trunk passes to one and measured a 4.47x end-to-end speedup",
+    "fidelity": "accepted: distilled and exact MaxN matched the model score on 63 of 64 held-out maps",
+    "agent_promotion": "rejected: both exact and one-pass MaxN regressed against the direct policy on the held-out window",
+    "artifact_publication": "not authorized: retain the reproducible pipeline and benchmark, but do not add the head to the model registry or browser default",
+    "next_experiment": "train outcome-grounded or regret-aware multiplayer utilities instead of further scalar-teacher MSE optimization"
+  }
+}
