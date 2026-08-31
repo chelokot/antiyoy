@@ -67,6 +67,7 @@ class PuctDistillationConfig:
     rollin: str = "teacher"
     symmetry_augmentation: bool = True
     target_mode: str = "root_distribution"
+    minimum_regret: float = 0.05
     puct_nodes: int = 8
     puct_exploration: float = 1.5
     puct_virtual_loss: float = 1.0
@@ -109,10 +110,13 @@ def validate_config(config: PuctDistillationConfig) -> None:
         raise ValueError("distillation roll-in must be teacher or student")
     if config.target_mode not in (
         "root_distribution",
+        "positive_regret",
         "selected_disagreements",
         "selected_all",
     ):
         raise ValueError("unsupported PUCT distillation target mode")
+    if not np.isfinite(config.minimum_regret) or config.minimum_regret < 0:
+        raise ValueError("distillation minimum regret must be finite and non-negative")
     if config.puct_nodes < 2 or config.puct_leaf_batch_size < 1:
         raise ValueError("distillation PUCT budgets are invalid")
     if config.puct_exploration <= 0 or config.puct_virtual_loss < 0:
@@ -224,6 +228,25 @@ def verify_frozen_policy_parameters(
             raise RuntimeError(f"PUCT distillation changed frozen parameter: {key}")
 
 
+def positive_regret_weights(
+    root_values: torch.Tensor,
+    root_offsets: np.ndarray,
+    search_actions: torch.Tensor,
+    direct_actions: torch.Tensor,
+    training_mask: torch.Tensor,
+    minimum_regret: float,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    offsets = torch.as_tensor(
+        root_offsets[:-1], dtype=torch.long, device=root_values.device
+    )
+    search_values = root_values[offsets + search_actions]
+    direct_values = root_values[offsets + direct_actions]
+    regrets = search_values - direct_values
+    selected = torch.logical_and(search_actions != direct_actions, training_mask)
+    selected = torch.logical_and(selected, regrets > minimum_regret)
+    return selected, regrets
+
+
 def distill_puct(
     checkpoint_path: Path,
     output_path: Path,
@@ -315,6 +338,9 @@ def distill_puct(
     disagreement_accuracy_average = 0.0
     disagreement_average = 0.0
     root_target_kl_average = 0.0
+    positive_regret_sum = 0.0
+    maximum_positive_regret = 0.0
+    regret_candidates = 0
     labeled_examples = 0
     disagreement_updates = 0
     optimization_updates = 0
@@ -351,6 +377,9 @@ def distill_puct(
             search_metrics["root_probabilities"],
             dtype=torch.float32,
             device=device,
+        )
+        root_values = torch.as_tensor(
+            search_metrics["root_values"], dtype=torch.float32, device=device
         )
         with torch.no_grad():
             direct_logits, _ = teacher_policy(observation, rules)
@@ -414,6 +443,31 @@ def distill_puct(
                 else 0.0
             )
             labeled_examples += training_examples
+        elif config.target_mode == "positive_regret":
+            regret_mask, action_regrets = positive_regret_weights(
+                root_values,
+                root_offsets,
+                targets,
+                direct_actions,
+                training_mask,
+                config.minimum_regret,
+            )
+            positive_regrets = action_regrets[regret_mask]
+            regret_examples = int(regret_mask.sum().item())
+            imitation_loss = (
+                (teacher_losses[regret_mask] * positive_regrets).sum()
+                / positive_regrets.sum()
+                if regret_examples > 0
+                else student_logits.sum() * 0
+            )
+            root_target_kl = 0.0
+            labeled_examples += regret_examples
+            regret_candidates += disagreements
+            positive_regret_sum += float(positive_regrets.sum().item())
+            maximum_positive_regret = max(
+                maximum_positive_regret,
+                float(positive_regrets.max().item()) if regret_examples > 0 else 0.0,
+            )
         elif config.target_mode == "selected_disagreements":
             imitation_loss = (
                 teacher_losses[disagreement_mask].mean()
@@ -581,6 +635,7 @@ def distill_puct(
         "rollin": config.rollin,
         "symmetry_augmentation": config.symmetry_augmentation,
         "target_mode": config.target_mode,
+        "minimum_regret": config.minimum_regret,
         "policy_parameters": "action_head_only",
         "frozen_parameters_preserved": True,
         "changed_action_parameters": changed_action_parameters,
@@ -592,6 +647,11 @@ def distill_puct(
             "disagreement_accuracy": disagreement_accuracy_average,
             "teacher_direct_disagreement": disagreement_average,
             "root_target_kl": root_target_kl_average,
+            "mean_positive_regret": (
+                positive_regret_sum / labeled_examples if labeled_examples > 0 else 0.0
+            ),
+            "maximum_positive_regret": maximum_positive_regret,
+            "regret_candidates": regret_candidates,
             "labeled_examples": labeled_examples,
             "optimization_updates": optimization_updates,
             "disagreement_updates": disagreement_updates,
@@ -679,9 +739,15 @@ def main() -> None:
     )
     parser.add_argument(
         "--target-mode",
-        choices=("root_distribution", "selected_disagreements", "selected_all"),
+        choices=(
+            "root_distribution",
+            "positive_regret",
+            "selected_disagreements",
+            "selected_all",
+        ),
         default="root_distribution",
     )
+    parser.add_argument("--minimum-regret", type=float, default=0.05)
     parser.add_argument("--puct-nodes", type=int, default=8)
     parser.add_argument("--puct-exploration", type=float, default=1.5)
     parser.add_argument("--puct-virtual-loss", type=float, default=1.0)
@@ -729,6 +795,7 @@ def main() -> None:
             rollin=arguments.rollin,
             symmetry_augmentation=arguments.symmetry_augmentation,
             target_mode=arguments.target_mode,
+            minimum_regret=arguments.minimum_regret,
             puct_nodes=arguments.puct_nodes,
             puct_exploration=arguments.puct_exploration,
             puct_virtual_loss=arguments.puct_virtual_loss,

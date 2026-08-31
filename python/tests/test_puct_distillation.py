@@ -4,11 +4,13 @@ import pytest
 
 pytest.importorskip("torch")
 
+import numpy as np
 import torch
 
 from python.distill_puct import (
     PuctDistillationConfig,
     distill_puct,
+    positive_regret_weights,
     validate_config,
 )
 from python.build_bundle import build_bundle
@@ -152,6 +154,20 @@ def test_puct_distillation_routes_a_procedural_multiplayer_seat(
     assert torch.all(distilled["model"]["missing_source"] == 8.0)
 
 
+def test_positive_regret_targets_only_proven_search_improvements() -> None:
+    selected, regrets = positive_regret_weights(
+        torch.tensor([0.1, 0.6, -0.2, 0.3, 0.32]),
+        np.array([0, 3, 5], dtype=np.uint64),
+        torch.tensor([1, 1]),
+        torch.tensor([0, 0]),
+        torch.tensor([True, True]),
+        0.05,
+    )
+
+    assert regrets.tolist() == pytest.approx([0.5, 0.02])
+    assert selected.tolist() == [True, False]
+
+
 @pytest.mark.parametrize(
     "config",
     [
@@ -161,6 +177,7 @@ def test_puct_distillation_routes_a_procedural_multiplayer_seat(
         PuctDistillationConfig(retention_weight=-1),
         PuctDistillationConfig(rollin="unknown"),
         PuctDistillationConfig(target_mode="unknown"),
+        PuctDistillationConfig(minimum_regret=-1),
         PuctDistillationConfig(puct_nodes=1),
         PuctDistillationConfig(puct_value_perspective="unknown"),
         PuctDistillationConfig(puct_opponent_horizon="unknown"),
