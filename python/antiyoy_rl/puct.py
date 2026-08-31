@@ -22,6 +22,7 @@ class PolicySearchMetrics(TypedDict):
     root_action_offsets: NotRequired[np.ndarray]
     root_probabilities: NotRequired[np.ndarray]
     root_values: NotRequired[np.ndarray]
+    root_action_visits: NotRequired[np.ndarray]
 
 
 ValuePerspective = Literal["active", "root"]
@@ -243,4 +244,7 @@ def policy_search_actions(
             root_targets["probabilities"], dtype=np.float32
         )
         metrics["root_values"] = np.asarray(root_targets["values"], dtype=np.float32)
+        metrics["root_action_visits"] = np.asarray(
+            root_targets["visits"], dtype=np.uint32
+        )
     return np.asarray(search.action_indices(), dtype=np.uint64), metrics

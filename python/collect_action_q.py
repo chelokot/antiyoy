@@ -394,10 +394,7 @@ def collect_action_q(
     return report
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("checkpoint", type=Path)
-    parser.add_argument("output", type=Path)
+def add_collection_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--profile", default="classic_generic_2022")
     parser.add_argument(
         "--generator",
@@ -430,40 +427,49 @@ def main() -> None:
     parser.add_argument("--puct-maximum-depth", type=int, default=128)
     parser.add_argument("--puct-root-value-weight", type=float, default=1.0)
     parser.add_argument("--puct-leaf-batch-size", type=int, default=512)
+
+
+def collection_config(arguments: argparse.Namespace) -> PuctDistillationConfig:
+    return PuctDistillationConfig(
+        profile=arguments.profile,
+        generator=arguments.generator,
+        players=arguments.players,
+        environments=arguments.environments,
+        updates=arguments.updates,
+        seed=arguments.seed,
+        device=arguments.device,
+        width=arguments.width,
+        height=arguments.height,
+        action_limit=arguments.action_limit,
+        land_density_per_million=arguments.land_density_per_million,
+        starting_province_size=arguments.starting_province_size,
+        starting_money=arguments.starting_money,
+        tree_density_per_million=arguments.tree_density_per_million,
+        neutral_tower_density_per_million=(arguments.neutral_tower_density_per_million),
+        neutral_capital_density_per_million=(
+            arguments.neutral_capital_density_per_million
+        ),
+        grave_density_per_million=arguments.grave_density_per_million,
+        rollin=arguments.rollin,
+        puct_nodes=arguments.puct_nodes,
+        puct_exploration=arguments.puct_exploration,
+        puct_virtual_loss=arguments.puct_virtual_loss,
+        puct_maximum_depth=arguments.puct_maximum_depth,
+        puct_root_value_weight=arguments.puct_root_value_weight,
+        puct_leaf_batch_size=arguments.puct_leaf_batch_size,
+    )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("checkpoint", type=Path)
+    parser.add_argument("output", type=Path)
+    add_collection_arguments(parser)
     arguments = parser.parse_args()
     report = collect_action_q(
         arguments.checkpoint,
         arguments.output,
-        PuctDistillationConfig(
-            profile=arguments.profile,
-            generator=arguments.generator,
-            players=arguments.players,
-            environments=arguments.environments,
-            updates=arguments.updates,
-            seed=arguments.seed,
-            device=arguments.device,
-            width=arguments.width,
-            height=arguments.height,
-            action_limit=arguments.action_limit,
-            land_density_per_million=arguments.land_density_per_million,
-            starting_province_size=arguments.starting_province_size,
-            starting_money=arguments.starting_money,
-            tree_density_per_million=arguments.tree_density_per_million,
-            neutral_tower_density_per_million=(
-                arguments.neutral_tower_density_per_million
-            ),
-            neutral_capital_density_per_million=(
-                arguments.neutral_capital_density_per_million
-            ),
-            grave_density_per_million=arguments.grave_density_per_million,
-            rollin=arguments.rollin,
-            puct_nodes=arguments.puct_nodes,
-            puct_exploration=arguments.puct_exploration,
-            puct_virtual_loss=arguments.puct_virtual_loss,
-            puct_maximum_depth=arguments.puct_maximum_depth,
-            puct_root_value_weight=arguments.puct_root_value_weight,
-            puct_leaf_batch_size=arguments.puct_leaf_batch_size,
-        ),
+        collection_config(arguments),
     )
     print(json.dumps(report, sort_keys=True), flush=True)
 

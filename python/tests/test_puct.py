@@ -208,6 +208,9 @@ def test_policy_search_is_deterministic_and_respects_active_mask() -> None:
             pytest.approx(1)
         )
         assert np.isfinite(first_metrics["root_values"][int(start) : int(end)]).all()
+        action_visits = first_metrics["root_action_visits"][int(start) : int(end)]
+        assert action_visits.sum() == first_metrics["root_visits"][environment]
+        assert np.count_nonzero(action_visits) > 0
 
 
 def test_policy_search_rejects_malformed_active_mask() -> None:

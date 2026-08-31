@@ -362,6 +362,36 @@ Teacher roll-in preserves each opponent's routed expert; student roll-in
 substitutes the student only for its target seat. Two-to-eight-player runs thus
 train and report one explicit route without silently replacing other seats.
 
+For offline counterfactual work, capture every legal root action rather than
+only the selected search move:
+
+```bash
+python collect_action_slate.py ../models/universal-routed-value.pt \
+  ../datasets/action-slates.pt --generator procedural_v1 --players 5 \
+  --environments 64 --updates 400 --seed 2500000 --device cuda \
+  --width 19 --height 15 --action-limit 2400 --puct-nodes 32
+
+python train_action_slate.py ../models/universal-routed-value.pt \
+  ../models/action-slate-seat-0.pt ../datasets/action-slates.pt \
+  --device cuda --training-seat 0 --advantage-scale 0.5 \
+  --visit-prior 4 --retention-weight 4
+```
+
+The versioned slate artifact stores exact action-head inputs, source logits,
+search probabilities, mean Q-values, and visit counts. Visits distinguish an
+unmeasured action from a measured action whose value is zero. State replay is
+normalized by episode: one action log is stored per seed, while each labeled
+state references an exact step and state fingerprint. Sampled states must
+replay bit-for-bit through the Rust engine before the dataset is saved.
+
+The conservative target starts from the source logits and adds only
+visit-confidence-weighted, within-state centered Q advantages. Unvisited
+actions retain their source score, and a full-slate KL term holds the learned
+distribution close to the source on every state, including states with no
+action ranking signal. Training and validation split by complete episode.
+Offline KL or ranking accuracy never promotes a model; compose each trained
+seat checkpoint into an exact route and run fresh paired full-game gates.
+
 Compare the cheap student against the exact frozen source on disjoint seeds:
 
 ```bash
