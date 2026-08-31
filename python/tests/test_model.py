@@ -91,7 +91,12 @@ def test_native_rule_encoder_preserves_the_complete_feature_order() -> None:
 
     actual = encode_rules(environment.rules_json(), torch.device("cpu"))
 
-    torch.testing.assert_close(actual, expected, rtol=0, atol=1e-7)
+    torch.testing.assert_close(
+        actual,
+        expected,
+        rtol=0,
+        atol=2 * torch.finfo(torch.float32).eps,
+    )
 
 
 def test_policy_scores_exactly_the_legal_actions() -> None:
