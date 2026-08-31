@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 import numpy as np
 import torch
 from torch import Tensor, nn
 
 
 MAX_PLAYERS = 8
+VECTOR_VALUE_ARTIFACT_KIND = "relative_vector_value_head"
+VECTOR_VALUE_ARTIFACT_VERSION = 1
 
 
 class RelativeValueHead(nn.Module):
@@ -19,6 +23,45 @@ class RelativeValueHead(nn.Module):
 
     def forward(self, value_features: Tensor) -> Tensor:
         return self.network(value_features)
+
+
+def initialize_from_scalar_value_head(
+    vector_head: RelativeValueHead, scalar_head: nn.Sequential
+) -> None:
+    scalar_input = scalar_head[0]
+    scalar_output = scalar_head[2]
+    if not isinstance(scalar_input, nn.Linear) or not isinstance(
+        scalar_output, nn.Linear
+    ):
+        raise ValueError("scalar value head has an unsupported architecture")
+    with torch.no_grad():
+        vector_head.network[0].weight.copy_(scalar_input.weight)
+        vector_head.network[0].bias.copy_(scalar_input.bias)
+        vector_head.network[2].weight.copy_(
+            scalar_output.weight.expand(MAX_PLAYERS, -1)
+        )
+        vector_head.network[2].bias.copy_(scalar_output.bias.expand(MAX_PLAYERS))
+
+
+def load_relative_value_head(
+    artifact: Mapping[str, object],
+    hidden: int,
+    device: torch.device,
+) -> RelativeValueHead:
+    if artifact.get("kind") != VECTOR_VALUE_ARTIFACT_KIND:
+        raise ValueError("artifact is not a relative vector-value head")
+    if artifact.get("artifact_version") != VECTOR_VALUE_ARTIFACT_VERSION:
+        raise ValueError("vector-value artifact version is unsupported")
+    architecture = artifact.get("architecture")
+    if not isinstance(architecture, Mapping) or architecture.get("hidden") != hidden:
+        raise ValueError("vector-value architecture does not match the policy")
+    state = artifact.get("model")
+    if not isinstance(state, Mapping):
+        raise ValueError("vector-value artifact has no model weights")
+    head = RelativeValueHead(hidden).to(device)
+    head.load_state_dict(state)
+    head.eval()
+    return head
 
 
 def relative_to_absolute_utilities(
@@ -37,19 +80,12 @@ def relative_to_absolute_utilities(
     relative_indices = torch.as_tensor(
         np.concatenate(
             [
-                np.remainder(np.arange(count), count) - active_player
+                np.remainder(np.arange(count) - active_player, count)
                 for active_player, count in zip(active, counts, strict=True)
             ]
         ),
         dtype=torch.long,
         device=relative_utilities.device,
-    )
-    relative_indices.remainder_(
-        torch.as_tensor(
-            np.repeat(counts, counts),
-            dtype=torch.long,
-            device=relative_utilities.device,
-        )
     )
     rows = torch.arange(
         counts.size, device=relative_utilities.device

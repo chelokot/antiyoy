@@ -26,11 +26,12 @@ from antiyoy_rl.puct import (
     policy_search_actions,
 )
 from antiyoy_rl.routed import RoutedPolicy
+from antiyoy_rl.vector_value import load_relative_value_head
 
 try:
-    from .build_bundle import BUNDLE_KIND, SUPPORTED_BUNDLE_VERSIONS
+    from .build_bundle import BUNDLE_KIND, SUPPORTED_BUNDLE_VERSIONS, digest
 except ImportError:
-    from build_bundle import BUNDLE_KIND, SUPPORTED_BUNDLE_VERSIONS
+    from build_bundle import BUNDLE_KIND, SUPPORTED_BUNDLE_VERSIONS, digest
 try:
     from .routes import select_bundle_expert
 except ImportError:
@@ -348,11 +349,16 @@ def evaluate(
     puct_value_perspective: ValuePerspective = "active",
     puct_opponent_horizon: OpponentHorizon = "search",
     puct_objective: SearchObjective = "scalar",
+    maxn_value_head_path: Path | None = None,
 ) -> dict[str, object]:
     if model_agent not in ("policy", "puct"):
         raise ValueError(f"unsupported model agent: {model_agent}")
     if baseline_checkpoint_path is not None and baseline != "policy":
         raise ValueError("a baseline checkpoint requires the policy baseline")
+    if maxn_value_head_path is not None and (
+        model_agent != "puct" or puct_objective != "maxn"
+    ):
+        raise ValueError("a MaxN value head requires the MaxN PUCT agent")
     evaluation_seeds, model_seats = evaluation_schedule(
         games, seed, players, model_seat
     )
@@ -448,6 +454,26 @@ def evaluate(
     rules = encode_rules_batch(environment.rules_jsons(), device)
 
     routed_policy = RoutedPolicy(models, selected_experts)
+    maxn_value_head = None
+    if maxn_value_head_path is not None:
+        artifact = torch.load(
+            maxn_value_head_path, map_location=device, weights_only=False
+        )
+        source = artifact.get("source")
+        if not isinstance(source, dict) or source.get("sha256") != digest(
+            checkpoint_path
+        ):
+            raise ValueError("vector-value head was trained for another checkpoint")
+        maxn_value_head = load_relative_value_head(
+            artifact, int(config["hidden"]), device
+        )
+    fast_maxn_evaluator = (
+        None
+        if maxn_value_head is None
+        else lambda selected_observation, selected_rules: routed_policy.maxn(
+            selected_observation, selected_rules, maxn_value_head
+        )
+    )
     baseline_policy = routed_policy
     baseline_selected_experts = selected_experts
     if baseline_checkpoint_path is not None:
@@ -591,6 +617,7 @@ def evaluate(
                 rules,
                 model_turns,
                 puct_config,
+                maxn_evaluator=fast_maxn_evaluator,
             )
             puct_decisions += int(model_turns.sum())
             puct_evaluated_leaves += puct_metrics["evaluated_leaves"]
@@ -809,6 +836,9 @@ def evaluate(
                 puct_opponent_horizon if model_agent == "puct" else None
             ),
             "objective": puct_objective if model_agent == "puct" else None,
+            "vector_value_head": (
+                str(maxn_value_head_path) if maxn_value_head_path is not None else None
+            ),
             "decisions": puct_decisions,
             "evaluated_leaves": puct_evaluated_leaves,
             "leaf_batches": puct_leaf_batches,
@@ -866,6 +896,7 @@ def main() -> None:
     parser.add_argument(
         "--puct-objective", choices=("scalar", "maxn"), default="scalar"
     )
+    parser.add_argument("--maxn-value-head", type=Path)
     parser.add_argument("--land-density-per-million", type=int, default=650_000)
     parser.add_argument("--starting-province-size", type=int, default=5)
     parser.add_argument("--starting-money", type=int, default=10)
@@ -929,6 +960,7 @@ def main() -> None:
                 arguments.puct_value_perspective,
                 arguments.puct_opponent_horizon,
                 arguments.puct_objective,
+                arguments.maxn_value_head,
             ),
             sort_keys=True,
         )

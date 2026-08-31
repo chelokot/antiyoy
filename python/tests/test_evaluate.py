@@ -6,6 +6,16 @@ import pytest
 
 pytest.importorskip("torch")
 
+import torch
+
+from antiyoy_rl.model import UniversalPolicy
+from antiyoy_rl.vector_value import (
+    VECTOR_VALUE_ARTIFACT_KIND,
+    VECTOR_VALUE_ARTIFACT_VERSION,
+    RelativeValueHead,
+    initialize_from_scalar_value_head,
+)
+from python.build_bundle import digest
 from python.evaluate import (
     FIXED_SEAT_SCHEME,
     baseline_adjusted_elo_delta,
@@ -194,6 +204,57 @@ def test_policy_search_runs_the_native_tree_for_every_model_decision(
     assert search["opponent_horizon"] == "search"
     assert search["objective"] == "scalar"
     assert result["score_delta"] == pytest.approx(0.0)
+
+
+def test_maxn_policy_search_loads_a_matching_one_pass_value_head(
+    tmp_path: Path,
+) -> None:
+    checkpoint = tmp_path / "policy.pt"
+    value_head_path = tmp_path / "vector-value.pt"
+    write_checkpoint(checkpoint, 1.0)
+    policy = UniversalPolicy(hidden=16, layers=1)
+    source = torch.load(checkpoint, map_location="cpu", weights_only=False)
+    policy.load_state_dict(source["model"])
+    value_head = RelativeValueHead(hidden=16)
+    initialize_from_scalar_value_head(value_head, policy.value_head)
+    torch.save(
+        {
+            "kind": VECTOR_VALUE_ARTIFACT_KIND,
+            "artifact_version": VECTOR_VALUE_ARTIFACT_VERSION,
+            "source": {"sha256": digest(checkpoint)},
+            "architecture": {"hidden": 16},
+            "model": value_head.state_dict(),
+        },
+        value_head_path,
+    )
+
+    result = evaluate(
+        checkpoint,
+        games=3,
+        seed=91_125,
+        device_name="cpu",
+        baseline="policy",
+        profile="classic_generic_2022",
+        search_nodes=4,
+        search_beam_width=2,
+        search_branch_width=2,
+        search_maximum_actions_per_turn=2,
+        width=9,
+        height=7,
+        action_limit=10,
+        procedural=True,
+        players=3,
+        starting_province_size=3,
+        model_agent="puct",
+        puct_nodes=2,
+        puct_leaf_batch_size=8,
+        puct_objective="maxn",
+        maxn_value_head_path=value_head_path,
+    )
+
+    assert result["policy_search"]["objective"] == "maxn"
+    assert result["policy_search"]["vector_value_head"] == str(value_head_path)
+    assert result["policy_search"]["evaluated_leaves"] > 0
 
 
 def test_paired_seeds_repeat_each_map_for_opposite_seats() -> None:
