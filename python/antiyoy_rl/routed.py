@@ -7,6 +7,7 @@ import torch
 from torch import Tensor
 
 from .model import UniversalPolicy, action_distribution, select_environments
+from .vector_value import RelativeValueHead, relative_to_absolute_utilities
 
 
 class RoutedPolicy:
@@ -30,13 +31,7 @@ class RoutedPolicy:
         observation: Mapping[str, np.ndarray],
         rule_features: Tensor,
     ) -> tuple[Tensor, Tensor]:
-        environments_by_expert: dict[str, list[int]] = {}
-        for environment, active_player in enumerate(observation["active_players"]):
-            player = int(active_player)
-            if player >= len(self.seat_experts):
-                raise ValueError("active player has no routed expert")
-            expert = self.seat_experts[player]
-            environments_by_expert.setdefault(expert, []).append(environment)
+        environments_by_expert = self._environments_by_expert(observation)
         action_logits: dict[int, Tensor] = {}
         values: dict[int, Tensor] = {}
         for expert, environments in environments_by_expert.items():
@@ -46,9 +41,7 @@ class RoutedPolicy:
                 if rule_features.ndim == 1
                 else rule_features[environments]
             )
-            expert_logits, expert_values = self.models[expert](
-                selected, selected_rules
-            )
+            expert_logits, expert_values = self.models[expert](selected, selected_rules)
             offsets = np.asarray(selected["action_offsets"], dtype=np.int64)
             for selected_index, environment in enumerate(environments):
                 start, end = offsets[selected_index : selected_index + 2]
@@ -69,3 +62,53 @@ class RoutedPolicy:
             logits, _ = self(observation, rule_features)
             distribution = action_distribution(logits, observation["action_offsets"])
         return distribution.logits.argmax(dim=1).cpu().numpy().astype(np.uint64)
+
+    def maxn(
+        self,
+        observation: Mapping[str, np.ndarray],
+        rule_features: Tensor,
+        value_head: RelativeValueHead,
+    ) -> tuple[Tensor, Tensor]:
+        environments_by_expert = self._environments_by_expert(observation)
+        action_logits: dict[int, Tensor] = {}
+        relative_values: dict[int, Tensor] = {}
+        for expert, environments in environments_by_expert.items():
+            selected = select_environments(observation, environments)
+            selected_rules = (
+                rule_features
+                if rule_features.ndim == 1
+                else rule_features[environments]
+            )
+            expert_logits, _, features = self.models[
+                expert
+            ].forward_with_value_features(selected, selected_rules)
+            expert_relative_values = value_head(features)
+            offsets = np.asarray(selected["action_offsets"], dtype=np.int64)
+            for selected_index, environment in enumerate(environments):
+                start, end = offsets[selected_index : selected_index + 2]
+                action_logits[environment] = expert_logits[start:end]
+                relative_values[environment] = expert_relative_values[selected_index]
+        environment_count = len(observation["widths"])
+        relative = torch.stack(
+            [relative_values[index] for index in range(environment_count)]
+        )
+        return (
+            torch.cat([action_logits[index] for index in range(environment_count)]),
+            relative_to_absolute_utilities(
+                relative,
+                observation["active_players"],
+                observation["player_counts"],
+            ),
+        )
+
+    def _environments_by_expert(
+        self, observation: Mapping[str, np.ndarray]
+    ) -> dict[str, list[int]]:
+        environments_by_expert: dict[str, list[int]] = {}
+        for environment, active_player in enumerate(observation["active_players"]):
+            player = int(active_player)
+            if player >= len(self.seat_experts):
+                raise ValueError("active player has no routed expert")
+            expert = self.seat_experts[player]
+            environments_by_expert.setdefault(expert, []).append(environment)
+        return environments_by_expert

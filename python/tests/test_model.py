@@ -114,6 +114,21 @@ def test_policy_scores_exactly_the_legal_actions() -> None:
     assert result["actors"].shape == (4,)
 
 
+def test_policy_exposes_the_exact_features_used_by_the_value_head() -> None:
+    environment = VectorEnv(3, width=7, height=5, seed=48)
+    observation = environment.observe()
+    policy = UniversalPolicy(hidden=16, layers=1)
+    rules = encode_rules(environment.rules_json(), torch.device("cpu"))
+
+    logits, values, features = policy.forward_with_value_features(observation, rules)
+    plain_logits, plain_values = policy(observation, rules)
+
+    assert features.shape == (3, 32)
+    assert torch.equal(logits, plain_logits)
+    assert torch.equal(values, plain_values)
+    assert torch.equal(values, policy.value_head(features).squeeze(1))
+
+
 def test_policy_conditions_each_environment_on_its_own_rules() -> None:
     environment = VectorEnv.mixed(
         [

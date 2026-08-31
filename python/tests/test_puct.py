@@ -134,6 +134,43 @@ def test_maxn_policy_search_runs_on_procedural_multiplayer() -> None:
     assert metrics["nodes"].tolist() == [8]
 
 
+def test_maxn_policy_search_accepts_one_pass_vector_utilities() -> None:
+    environment = VectorEnv.procedural(
+        1,
+        ProceduralConfig(
+            width=9,
+            height=7,
+            players=3,
+            seed=319,
+            starting_province_size=3,
+        ),
+        profile="classic_generic_2022",
+    )
+    vector_calls = 0
+
+    def scalar_evaluator(_observation, _rules):
+        raise AssertionError("the scalar evaluator must not run for one-pass MaxN")
+
+    def vector_evaluator(observation, _rules):
+        nonlocal vector_calls
+        vector_calls += 1
+        return torch.zeros(len(observation["action_kinds"])), torch.zeros(
+            int(np.asarray(observation["player_counts"]).sum())
+        )
+
+    actions, metrics = policy_search_actions(
+        environment,
+        scalar_evaluator,
+        torch.zeros((1, 45)),
+        np.ones(1, dtype=np.uint8),
+        PolicySearchConfig(node_budget=8, leaf_batch_size=8, objective="maxn"),
+        maxn_evaluator=vector_evaluator,
+    )
+
+    assert actions.shape == (1,)
+    assert vector_calls == metrics["leaf_batches"]
+
+
 def test_policy_search_is_deterministic_and_respects_active_mask() -> None:
     environment = VectorEnv(3, width=7, height=5, seed=311)
     rules = torch.zeros((3, 45))

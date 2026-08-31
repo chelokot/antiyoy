@@ -43,6 +43,7 @@ class PolicySearchConfig:
 
 
 PolicyEvaluator = Callable[[Mapping[str, np.ndarray], Tensor], tuple[Tensor, Tensor]]
+MaxNEvaluator = Callable[[Mapping[str, np.ndarray], Tensor], tuple[Tensor, Tensor]]
 
 
 def root_perspective_leaf_values(
@@ -138,6 +139,7 @@ def policy_search_actions(
     active_mask: np.ndarray,
     config: PolicySearchConfig,
     include_root_targets: bool = False,
+    maxn_evaluator: MaxNEvaluator | None = None,
 ) -> tuple[np.ndarray, PolicySearchMetrics]:
     active = np.asarray(active_mask, dtype=np.uint8)
     if active.shape != (environment.environments,):
@@ -174,7 +176,12 @@ def policy_search_actions(
             continue
         selected_rules = rule_features[search_environments]
         with torch.no_grad():
-            logits, values = evaluator(observation, selected_rules)
+            if config.objective == "maxn" and maxn_evaluator is not None:
+                logits, bounded_utilities = maxn_evaluator(observation, selected_rules)
+                bounded_utilities = bounded_utilities.clamp(-1, 1)
+                values = None
+            else:
+                logits, values = evaluator(observation, selected_rules)
             distribution = action_distribution(logits, observation["action_offsets"])
             action_counts = np.diff(observation["action_offsets"])
             flat_priors = torch.cat(
@@ -183,11 +190,13 @@ def policy_search_actions(
                     for index, count in enumerate(action_counts)
                 ]
             )
-            if config.objective == "maxn":
+            if config.objective == "maxn" and maxn_evaluator is None:
+                assert values is not None
                 bounded_utilities = maxn_leaf_utilities(
                     evaluator, observation, selected_rules, values
                 ).clamp(-1, 1)
-            else:
+            elif config.objective == "scalar":
+                assert values is not None
                 leaf_values = (
                     root_perspective_leaf_values(
                         evaluator,
