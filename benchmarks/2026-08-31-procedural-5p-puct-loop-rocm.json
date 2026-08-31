@@ -4,7 +4,9 @@
   "implementation_commits": {
     "procedural_distillation": "c6d686b",
     "procedural_value_calibration": "151645e",
-    "exact_seat_value_calibration": "027d3df"
+    "exact_seat_value_calibration": "027d3df",
+    "matched_map_evaluation": "8ebf947",
+    "matched_map_suite_aggregation": "2ca60ac"
   },
   "system": {
     "allocated_cpu_threads": 8,

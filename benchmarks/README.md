@@ -108,3 +108,10 @@ and final held-out seeds are part of the protocol. A routed specialist passes
 only when every unchanged seat reproduces its source result and the aggregate
 gain survives a disjoint confirmation; rejected hard-target variants remain in
 the same report.
+
+Method comparisons reuse every map seed and model seat for candidate and
+baseline self-play. Reports count improved, regressed, and unchanged map
+outcomes and apply an exact two-sided sign test only to discordant maps. Suites
+pool those raw counts before recomputing significance; per-window p-values are
+never averaged. Aggregate Elo without this matched-map evidence is diagnostic,
+not sufficient for promotion.
