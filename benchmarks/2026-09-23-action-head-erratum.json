@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "kind": "benchmark_interpretation_erratum",
+  "recorded_at": "2026-09-23",
+  "source_report": "2026-08-31-conservative-action-slate-distillation-rocm.json",
+  "source_report_sha256": "87efd43a016af7b4c2383f1c03d58c905137bbe467514e3da12e816e028aa8da",
+  "correction": "The source policy action head was already a three-layer GELU MLP. The historical next_experiment phrase 'globally linear action head update' was inaccurate. The rejected candidates' measured match outcomes remain unchanged, but their failure cannot be attributed to a linear source action head.",
+  "revised_hypothesis": "An explicitly multiplicative, zero-initialized state-action residual may make source-target interactions easier to fit while preserving source logits at initialization. Its benefit remains unproven until phase-spread teacher data, game-disjoint offline tests, and fresh paired full-game gates agree.",
+  "implementation_commit": "2a7b4afe34914556d9efb77218e81e4a2da0931d"
+}

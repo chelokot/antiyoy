@@ -185,12 +185,13 @@ export default function ModelsPage() {
       <section className="models-section">
         <div className="section-heading"><div><p>Research loop</p><h2>Intuition, amplification, distillation</h2></div><p>The loop is viable, but each arrow needs a paired outcome test. Imitation accuracy alone has already produced rejected regressions in this project.</p></div>
         <ol className="experiment-ledger">{experiments.map((experiment, index) => <li key={experiment.method}><span>{String(index + 1).padStart(2, "0")}</span><div><div className="experiment-title"><h3>{experiment.method}</h3><b>{experiment.status}</b></div><p>{experiment.description}</p><strong>{experiment.result}</strong></div></li>)}</ol>
+        <p className="method-note">Correction: the source action head was already nonlinear. The full-slate failure does not prove a linear-head limitation. <EvidenceLink file="2026-09-23-action-head-erratum.json" /></p>
       </section>
 
       <section className="models-section report-section">
         <div className="section-heading"><div><p>Promotion gate</p><h2>How a model earns the top row</h2></div></div>
         <div className="promotion-flow"><div><b>AMPLIFY</b><span>Search or PUCT labels policy-visited states.</span></div><i>→</i><div><b>DISTILL</b><span>A compact policy learns priors and values.</span></div><i>→</i><div><b>ATTACK</b><span>Fresh seeds, both seats, every rules profile.</span></div><i>→</i><div><b>PROMOTE</b><span>Only if the weakest slice does not regress.</span></div></div>
-        <footer><span>Next controlled experiment</span><strong>Train a nonlinear state-action residual scorer from calibrated deeper-search returns; first require game-disjoint ranking gains, then a paired outcome scout.</strong></footer>
+        <footer><span>Next controlled experiment</span><strong>Calibrate multiplayer values, label complete games at spaced PUCT roots, then test the interaction residual offline and in fresh paired matches.</strong></footer>
       </section>
     </main>
   );

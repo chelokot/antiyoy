@@ -147,7 +147,9 @@ test("renders the benchmark-backed model arena", async () => {
   assert.match(html, /Conservative full-action slates/);
   assert.match(html, /4\.96M actions reduced held-out target KL/);
   assert.match(html, /Full-slate conservative · scale 2/);
-  assert.match(html, /nonlinear state-action residual scorer/);
+  assert.match(html, /source action head was already nonlinear/);
+  assert.match(html, /2026-09-23-action-head-erratum\.json/);
+  assert.match(html, /Calibrate multiplayer values, label complete games/);
   assert.match(html, /Play either promoted Soft-PUCT seat now/);
   assert.match(html, /280–0–232/);
   assert.match(html, /\+32\.67 relative Elo/);
