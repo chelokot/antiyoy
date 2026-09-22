@@ -108,6 +108,6 @@ class BrowserPolicy(nn.Module):
             ),
             dim=1,
         )
-        logits = self.policy.action_head(action_features).squeeze(1)
+        logits = self.policy.score_actions(action_features).squeeze(1)
         value = self.policy.value_head(torch.cat((pooled, context), dim=1)).squeeze(1)
         return logits, value

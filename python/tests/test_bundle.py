@@ -71,9 +71,7 @@ def test_bundle_routes_profiles_to_verified_experts(tmp_path: Path) -> None:
     assert bundle["kind"] == BUNDLE_KIND
     assert bundle["routes"] == {
         "classic_generic_2022": "primary",
-        "online_experimental_v2_260801": (
-            "specialist:online_experimental_v2_260801"
-        ),
+        "online_experimental_v2_260801": ("specialist:online_experimental_v2_260801"),
     }
     assert bundle_path.is_file()
     primary_model, primary_config = load_policy(
@@ -123,9 +121,7 @@ def test_bundle_accepts_a_verified_specialist_only_profile(tmp_path: Path) -> No
         "classic_generic_2022",
         "online_experimental_v2_260801",
     ]
-    assert bundle["routes"]["online_experimental_v2_260801"].startswith(
-        "specialist:"
-    )
+    assert bundle["routes"]["online_experimental_v2_260801"].startswith("specialist:")
 
 
 def test_bundle_rejects_a_route_outside_specialist_curriculum(tmp_path: Path) -> None:
@@ -227,6 +223,55 @@ def test_bundle_routes_exact_multiplayer_seat(tmp_path: Path) -> None:
     assert len(bundle["seat_context_routes"]) == 1
 
 
+def test_bundle_loads_residual_only_for_its_selected_seat(tmp_path: Path) -> None:
+    primary_path = tmp_path / "primary.pt"
+    specialist_path = tmp_path / "residual.pt"
+    bundle_path = tmp_path / "bundle.pt"
+    write_checkpoint(primary_path, 1.0, profiles=["classic_generic_2022"])
+    specialist = torch.load(primary_path, map_location="cpu", weights_only=False)
+    residual_policy = UniversalPolicy(hidden=16, layers=1, action_residual_hidden=12)
+    residual_state = dict(specialist["model"])
+    residual_state.update(
+        {
+            name: value
+            for name, value in residual_policy.state_dict().items()
+            if name.startswith("action_residual.")
+        }
+    )
+    specialist["model"] = residual_state
+    torch.save(specialist, specialist_path)
+    build_bundle(
+        primary_path,
+        {},
+        bundle_path,
+        seat_context_route_paths={
+            ("classic_generic_2022", "procedural_v1", 5, 4): specialist_path
+        },
+    )
+
+    default_policy, default_config = load_policy(
+        bundle_path,
+        torch.device("cpu"),
+        "classic_generic_2022",
+        "procedural_v1",
+        5,
+        3,
+    )
+    selected_policy, selected_config = load_policy(
+        bundle_path,
+        torch.device("cpu"),
+        "classic_generic_2022",
+        "procedural_v1",
+        5,
+        4,
+    )
+
+    assert default_config["action_residual_hidden"] == 0
+    assert default_policy.action_residual is None
+    assert selected_config["action_residual_hidden"] == 12
+    assert selected_policy.action_residual is not None
+
+
 def test_seat_context_route_parser_validates_seat_range() -> None:
     route = "classic_generic_2022:procedural_v1:3:3=expert.pt"
     with pytest.raises(ValueError, match="player range"):
@@ -289,9 +334,7 @@ def test_bundle_routes_an_exact_arena_domain(tmp_path: Path) -> None:
         primary,
         {},
         bundle_path,
-        domain_route_paths={
-            (profile, "procedural_v1", 4, 2, domain): specialist
-        },
+        domain_route_paths={(profile, "procedural_v1", 4, 2, domain): specialist},
     )
 
     fallback, _ = load_policy(

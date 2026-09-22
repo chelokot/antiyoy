@@ -304,7 +304,7 @@ def slate_metrics(
         for start in range(0, action_indices.numel(), 65_536):
             batch = action_indices[start : start + 65_536]
             predictions.append(
-                model.action_head(
+                model.score_actions(
                     examples["features"][batch].to(device, dtype=torch.float32)
                 )
                 .squeeze(1)
@@ -395,6 +395,7 @@ def train_action_slate(
     validation_fraction: float,
     seed: int,
     training_seat: int | None = None,
+    action_residual_hidden: int = 0,
 ) -> dict[str, object]:
     if epochs < 1 or batch_size < 1 or learning_rate <= 0:
         raise ValueError("action-slate optimization values must be positive")
@@ -402,6 +403,8 @@ def train_action_slate(
         raise ValueError("action-slate target values must be positive")
     if retention_weight < 0:
         raise ValueError("action-slate retention weight must be non-negative")
+    if action_residual_hidden < 0:
+        raise ValueError("action residual width must be non-negative")
     datasets = [load_action_slate_dataset(path) for path in dataset_paths]
     dataset_summaries = [
         {
@@ -432,17 +435,29 @@ def train_action_slate(
     state = feature_expert_state(checkpoint, output_expert)
     hidden = int(datasets[0]["model"]["hidden"])
     layers = int(datasets[0]["model"]["layers"])
-    model = UniversalPolicy(hidden, layers)
-    load_policy_state(model, state)
+    model = UniversalPolicy(hidden, layers, action_residual_hidden)
+    initialized_state = dict(state)
+    if action_residual_hidden > 0:
+        for name, value in model.state_dict().items():
+            if name.startswith("action_residual.") and name not in initialized_state:
+                initialized_state[name] = value
+    load_policy_state(model, initialized_state)
     device = torch.device(device_name)
     model.to(device)
-    preserved = frozen_parameters(model)
-    initial_action_head = {
+    trainable_prefix = (
+        "action_residual." if action_residual_hidden > 0 else "action_head."
+    )
+    trainable_module = (
+        model.action_residual if action_residual_hidden > 0 else model.action_head
+    )
+    assert trainable_module is not None
+    preserved = frozen_parameters(model, trainable_prefix)
+    initial_trainable_state = {
         name: value.detach().clone()
-        for name, value in model.action_head.state_dict().items()
+        for name, value in trainable_module.state_dict().items()
     }
     model.requires_grad_(False)
-    for parameter in model.action_head.parameters():
+    for parameter in trainable_module.parameters():
         parameter.requires_grad_(True)
     target_logits = conservative_target_logits(
         examples["baseline_logits"],
@@ -465,7 +480,7 @@ def train_action_slate(
         model, examples, validation_states, target_logits, device
     )
     optimizer = torch.optim.AdamW(
-        model.action_head.parameters(), learning_rate, weight_decay=0.0
+        trainable_module.parameters(), learning_rate, weight_decay=0.0
     )
     random = torch.Generator().manual_seed(seed)
     epoch_losses = []
@@ -484,7 +499,7 @@ def train_action_slate(
             segments = segments.to(device)
             selected_targets = target_logits[action_indices].to(device)
             selected_baseline = examples["baseline_logits"][action_indices].to(device)
-            predicted = model.action_head(
+            predicted = model.score_actions(
                 examples["features"][action_indices].to(device, dtype=torch.float32)
             ).squeeze(1)
             segment_count = int(selected_states.numel())
@@ -512,7 +527,7 @@ def train_action_slate(
             loss = fit.mean() + retention_weight * retention.mean()
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.action_head.parameters(), 1.0)
+            torch.nn.utils.clip_grad_norm_(trainable_module.parameters(), 1.0)
             optimizer.step()
             batches += 1
             epoch_loss += (float(loss.item()) - epoch_loss) / batches
@@ -530,11 +545,11 @@ def train_action_slate(
                 f"action-slate training changed frozen parameter: {name}"
             )
     changed_action_parameters = sum(
-        not torch.equal(value.detach(), initial_action_head[name])
-        for name, value in model.action_head.state_dict().items()
+        not torch.equal(value.detach(), initial_trainable_state[name])
+        for name, value in trainable_module.state_dict().items()
     )
     if changed_action_parameters == 0:
-        raise RuntimeError("action-slate training did not change the action head")
+        raise RuntimeError("action-slate training did not change the policy scorer")
     output_config = copy.deepcopy(checkpoint["config"])
     for name in (
         "profiles",
@@ -544,6 +559,7 @@ def train_action_slate(
         "domain_routes",
         "selected_expert",
         "policy_kind",
+        "action_residual_hidden",
     ):
         output_config.pop(name, None)
     output_config.update(
@@ -553,6 +569,8 @@ def train_action_slate(
             "profile": datasets[0]["config"]["profile"],
         }
     )
+    if action_residual_hidden > 0:
+        output_config["action_residual_hidden"] = action_residual_hidden
     report: dict[str, object] = {
         "schema_version": 1,
         "kind": "conservative_action_slate_distillation",
@@ -583,6 +601,8 @@ def train_action_slate(
         "validation_before": validation_before,
         "validation_after": validation_after,
         "changed_action_parameters": changed_action_parameters,
+        "trainable_scope": trainable_prefix.removesuffix("."),
+        "action_residual_hidden": action_residual_hidden,
         "frozen_parameters_preserved": True,
     }
     output = {
@@ -625,6 +645,7 @@ def main() -> None:
     parser.add_argument("--validation-fraction", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=2_500_000)
     parser.add_argument("--training-seat", type=int)
+    parser.add_argument("--action-residual-hidden", type=int, default=0)
     arguments = parser.parse_args()
     report = train_action_slate(
         arguments.checkpoint,
@@ -641,6 +662,7 @@ def main() -> None:
         arguments.validation_fraction,
         arguments.seed,
         arguments.training_seat,
+        arguments.action_residual_hidden,
     )
     print(json.dumps(report, sort_keys=True), flush=True)
 

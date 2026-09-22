@@ -281,6 +281,10 @@ def select_policy_state(
         state = checkpoint["experts"][selected_expert]
     if state is None:
         raise ValueError("checkpoint has no policy weights")
+    residual_weight = state.get("action_residual.network.0.weight")
+    config["action_residual_hidden"] = (
+        int(residual_weight.shape[0]) if residual_weight is not None else 0
+    )
     config["policy_kind"] = checkpoint.get("kind", "single_policy")
     config["selected_expert"] = selected_expert
     return state, config
@@ -291,7 +295,11 @@ def instantiate_policy(
     config: dict[str, object],
     device: torch.device,
 ) -> UniversalPolicy:
-    model = UniversalPolicy(config["hidden"], config["layers"]).to(device)
+    model = UniversalPolicy(
+        int(config["hidden"]),
+        int(config["layers"]),
+        int(config["action_residual_hidden"]),
+    ).to(device)
     load_policy_state(model, state)
     model.eval()
     return model

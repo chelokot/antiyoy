@@ -374,7 +374,7 @@ python collect_action_slate.py ../models/universal-routed-value.pt \
 python train_action_slate.py ../models/universal-routed-value.pt \
   ../models/action-slate-seat-0.pt ../datasets/action-slates.pt \
   --device cuda --training-seat 0 --advantage-scale 0.5 \
-  --visit-prior 4 --retention-weight 4
+  --visit-prior 4 --retention-weight 4 --action-residual-hidden 64
 ```
 
 The versioned slate artifact stores exact action-head inputs, source logits,
@@ -388,9 +388,14 @@ The conservative target starts from the source logits and adds only
 visit-confidence-weighted, within-state centered Q advantages. Unvisited
 actions retain their source score, and a full-slate KL term holds the learned
 distribution close to the source on every state, including states with no
-action ranking signal. Training and validation split by complete episode.
+measured preference. Training and validation split by complete episode.
 Offline KL or ranking accuracy never promotes a model; compose each trained
 seat checkpoint into an exact route and run fresh paired full-game gates.
+
+With `--action-residual-hidden`, training updates only a
+zero-initialized scorer that combines source, target, and global features with
+their pairwise products. The frozen source policy scores exactly the same
+actions before optimization; older checkpoints still use their original head.
 
 Compare the cheap student against the exact frozen source on disjoint seeds:
 

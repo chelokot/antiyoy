@@ -144,6 +144,31 @@ def test_policy_exposes_the_exact_features_used_by_the_action_head() -> None:
     assert torch.equal(logits, policy.action_head(features).squeeze(1))
 
 
+def test_action_residual_starts_at_the_exact_source_policy() -> None:
+    environment = VectorEnv(1, width=7, height=5, seed=53)
+    observation = environment.observe()
+    rules = encode_rules(environment.rules_json(), torch.device("cpu"))
+    source = UniversalPolicy(hidden=16, layers=1)
+    candidate = UniversalPolicy(hidden=16, layers=1, action_residual_hidden=16)
+    candidate_state = dict(source.state_dict())
+    candidate_state.update(
+        {
+            name: value
+            for name, value in candidate.state_dict().items()
+            if name.startswith("action_residual.")
+        }
+    )
+    load_policy_state(candidate, candidate_state)
+
+    source_logits, source_values = source(observation, rules)
+    candidate_logits, candidate_values = candidate(observation, rules)
+
+    assert torch.equal(candidate_logits, source_logits)
+    assert torch.equal(candidate_values, source_values)
+    assert candidate.action_residual is not None
+    assert torch.count_nonzero(candidate.action_residual.network[-1].weight) == 0
+
+
 def test_policy_conditions_each_environment_on_its_own_rules() -> None:
     environment = VectorEnv.mixed(
         [

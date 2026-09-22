@@ -9,17 +9,22 @@ import onnxruntime
 import torch
 
 from antiyoy_rl import VectorEnv
-from antiyoy_rl.model import UniversalPolicy, encode_rules, load_policy_state
-from export_browser_policy import (
-    INPUT_NAMES,
-    browser_inputs,
-    select_browser_policy_state,
-)
+from antiyoy_rl.model import encode_rules
 
 try:
-    from .evaluate import load_policy_checkpoint
+    from .evaluate import instantiate_policy, load_policy_checkpoint
+    from .export_browser_policy import (
+        INPUT_NAMES,
+        browser_inputs,
+        select_browser_policy_state,
+    )
 except ImportError:
-    from evaluate import load_policy_checkpoint
+    from evaluate import instantiate_policy, load_policy_checkpoint
+    from export_browser_policy import (
+        INPUT_NAMES,
+        browser_inputs,
+        select_browser_policy_state,
+    )
 
 
 def verify_policy(
@@ -35,9 +40,7 @@ def verify_policy(
     device = torch.device("cpu")
     checkpoint = load_policy_checkpoint(checkpoint_path, device)
     state, config = select_browser_policy_state(checkpoint, profile, seat)
-    policy = UniversalPolicy(int(config["hidden"]), int(config["layers"]))
-    load_policy_state(policy, state)
-    policy.eval()
+    policy = instantiate_policy(state, config, device)
     environment = VectorEnv(
         profile=profile,
         environments=1,

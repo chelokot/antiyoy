@@ -136,8 +136,44 @@ class HexBlock(nn.Module):
         return functional.gelu(self.normalization(cells + mixed)) * playable
 
 
+class ActionResidualScorer(nn.Module):
+    def __init__(self, feature_width: int, hidden: int) -> None:
+        super().__init__()
+        self.feature_width = feature_width
+        self.network = nn.Sequential(
+            nn.Linear(feature_width * 5, hidden),
+            nn.GELU(),
+            nn.Linear(hidden, hidden),
+            nn.GELU(),
+            nn.Linear(hidden, 1),
+        )
+        nn.init.zeros_(self.network[-1].weight)
+        nn.init.zeros_(self.network[-1].bias)
+
+    def forward(self, action_features: Tensor) -> Tensor:
+        source, target, global_features, action_kind, action_parameter = (
+            action_features.split(self.feature_width, dim=1)
+        )
+        interactions = torch.cat(
+            (
+                source * target,
+                source * global_features,
+                target * global_features,
+                action_kind,
+                action_parameter,
+            ),
+            dim=1,
+        )
+        return self.network(interactions)
+
+
 class UniversalPolicy(nn.Module):
-    def __init__(self, hidden: int = 128, layers: int = 4) -> None:
+    def __init__(
+        self,
+        hidden: int = 128,
+        layers: int = 4,
+        action_residual_hidden: int = 0,
+    ) -> None:
         super().__init__()
         self.hidden = hidden
         self.owner_embedding = nn.Embedding(3, hidden)
@@ -169,6 +205,11 @@ class UniversalPolicy(nn.Module):
             nn.GELU(),
             nn.Linear(hidden, 1),
         )
+        self.action_residual = (
+            ActionResidualScorer(hidden, action_residual_hidden)
+            if action_residual_hidden > 0
+            else None
+        )
         self.value_head = nn.Sequential(
             nn.Linear(hidden * 2, hidden),
             nn.GELU(),
@@ -178,6 +219,12 @@ class UniversalPolicy(nn.Module):
         nn.init.zeros_(self.cell_relation_embedding.weight)
         nn.init.zeros_(self.player_count_embedding.weight)
         nn.init.zeros_(self.round_projection.weight)
+
+    def score_actions(self, action_features: Tensor) -> Tensor:
+        logits = self.action_head(action_features)
+        if self.action_residual is not None:
+            logits = logits + self.action_residual(action_features)
+        return logits
 
     def forward(
         self,
@@ -343,7 +390,7 @@ class UniversalPolicy(nn.Module):
         action_features = self._action_features(
             observation, flat_cells, global_features, cell_count, device
         )
-        logits = self.action_head(action_features).squeeze(1)
+        logits = self.score_actions(action_features).squeeze(1)
         value_features = torch.cat((pooled, context), dim=1)
         values = self.value_head(value_features).squeeze(1)
         return logits, values, value_features, action_features

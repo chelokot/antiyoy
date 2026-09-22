@@ -88,11 +88,13 @@ def pair_metrics(
     }
 
 
-def frozen_parameters(model: UniversalPolicy) -> dict[str, Tensor]:
+def frozen_parameters(
+    model: UniversalPolicy, trainable_prefix: str = "action_head."
+) -> dict[str, Tensor]:
     return {
         name: value.detach().cpu().clone()
         for name, value in model.state_dict().items()
-        if not name.startswith("action_head.")
+        if not name.startswith(trainable_prefix)
     }
 
 

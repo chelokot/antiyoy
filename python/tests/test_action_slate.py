@@ -16,7 +16,7 @@ from python.collect_action_slate import (
     informative_states,
     replay_slate_state,
 )
-from python.evaluate import load_policy_checkpoint
+from python.evaluate import instantiate_policy, load_policy_checkpoint
 from python.tests.test_bundle import write_checkpoint
 from python.train_action_slate import (
     conservative_target_logits,
@@ -214,3 +214,46 @@ def test_conservative_slate_training_improves_game_disjoint_targets(
     assert report["states"] == 20
     assert report["training_seat"] == 1
     assert output.is_file()
+
+
+def test_residual_slate_training_preserves_source_and_loads_candidate(
+    tmp_path: Path,
+) -> None:
+    checkpoint_path = tmp_path / "source.pt"
+    dataset_path = tmp_path / "slates.pt"
+    output_path = tmp_path / "residual.pt"
+    write_checkpoint(checkpoint_path, 1.0)
+    write_action_slate_dataset(dataset_path, checkpoint_path)
+
+    report = train_action_slate(
+        checkpoint_path,
+        [dataset_path],
+        output_path,
+        "cpu",
+        epochs=24,
+        batch_size=8,
+        learning_rate=1e-3,
+        advantage_scale=1.0,
+        visit_prior=1.0,
+        advantage_clip=2.0,
+        retention_weight=0.1,
+        validation_fraction=0.2,
+        seed=212,
+        training_seat=1,
+        action_residual_hidden=16,
+    )
+
+    assert report["trainable_scope"] == "action_residual"
+    assert report["changed_action_parameters"] > 0
+    assert report["frozen_parameters_preserved"] is True
+    assert (
+        report["validation_after"]["target_kl"]
+        < report["validation_before"]["target_kl"]
+    )
+    checkpoint = load_policy_checkpoint(output_path, torch.device("cpu"))
+    candidate = instantiate_policy(
+        checkpoint["model"], checkpoint["config"], torch.device("cpu")
+    )
+    source = load_policy_checkpoint(checkpoint_path, torch.device("cpu"))
+    for name, value in source["model"].items():
+        assert torch.equal(candidate.state_dict()[name], value), name
