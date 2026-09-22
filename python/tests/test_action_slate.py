@@ -13,9 +13,11 @@ from python.collect_action_q import observation_fingerprint
 from python.collect_action_slate import (
     DATASET_KIND,
     DATASET_SCHEMA_VERSION,
+    collect_action_slates,
     informative_states,
     replay_slate_state,
 )
+from python.distill_puct import PuctDistillationConfig
 from python.evaluate import instantiate_policy, load_policy_checkpoint
 from python.tests.test_bundle import write_checkpoint
 from python.train_action_slate import (
@@ -138,6 +140,49 @@ def test_action_slate_replay_reconstructs_normalized_episode_prefix() -> None:
     }
 
     assert replay_slate_state(dataset, 0) == fingerprint
+
+
+def test_sparse_action_slates_replay_unlabelled_rollin_steps(tmp_path: Path) -> None:
+    checkpoint_path = tmp_path / "source.pt"
+    dataset_path = tmp_path / "slates.pt"
+    write_checkpoint(checkpoint_path, 1.0)
+    report = collect_action_slates(
+        checkpoint_path,
+        dataset_path,
+        PuctDistillationConfig(
+            environments=2,
+            updates=14,
+            seed=614,
+            device="cpu",
+            width=7,
+            height=5,
+            action_limit=12,
+            puct_nodes=4,
+            puct_leaf_batch_size=8,
+            rollin="student",
+        ),
+        label_stride=3,
+    )
+    dataset = load_action_slate_dataset(dataset_path)
+
+    assert report["states"] == 10
+    assert report["config"]["labelled_updates"] == 5
+    assert report["config"]["label_stride"] == 3
+    assert report["maximum_episode_step"] >= 6
+    assert report["completed_games"] >= 2
+    assert report["verified_replays"] == 10
+    assert len(dataset["states"]["fingerprints"]) == 10
+    for state in range(report["states"]):
+        assert (
+            replay_slate_state(dataset, state)
+            == dataset["states"]["fingerprints"][state]
+        )
+
+
+def test_sparse_action_slates_require_student_rollin(tmp_path: Path) -> None:
+    config = PuctDistillationConfig(rollin="teacher")
+    with pytest.raises(ValueError, match="student roll-in"):
+        collect_action_slates(tmp_path / "source.pt", tmp_path / "slates.pt", config, 2)
 
 
 def test_action_slate_selection_rebuilds_flat_offsets(tmp_path: Path) -> None:

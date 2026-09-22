@@ -368,7 +368,8 @@ only the selected search move:
 ```bash
 python collect_action_slate.py ../models/universal-routed-value.pt \
   ../datasets/action-slates.pt --generator procedural_v1 --players 5 \
-  --environments 64 --updates 400 --seed 2500000 --device cuda \
+  --environments 64 --updates 3200 --label-stride 8 --rollin student \
+  --seed 2500000 --device cuda \
   --width 19 --height 15 --action-limit 2400 --puct-nodes 32
 
 python train_action_slate.py ../models/universal-routed-value.pt \
@@ -383,6 +384,12 @@ unmeasured action from a measured action whose value is zero. State replay is
 normalized by episode: one action log is stored per seed, while each labeled
 state references an exact step and state fingerprint. Sampled states must
 replay bit-for-bit through the Rust engine before the dataset is saved.
+`--label-stride 8` advances the frozen policy through seven unlabelled steps
+between PUCT roots, retaining every intervening action in the replay. It
+spreads the same 400 labels per environment across 3,200 steps, including
+later rounds and episode resets. Sparse labels require student roll-in; the
+report records the stride, labelled updates, completed games, and sampled
+episode-step coverage.
 
 The conservative target starts from the source logits and adds only
 visit-confidence-weighted, within-state centered Q advantages. Unvisited

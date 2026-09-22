@@ -128,8 +128,13 @@ def collect_action_slates(
     checkpoint_path: Path,
     output_path: Path,
     config: PuctDistillationConfig,
+    label_stride: int = 1,
 ) -> dict[str, object]:
     validate_config(config)
+    if label_stride < 1:
+        raise ValueError("action-slate label stride must be positive")
+    if label_stride > 1 and config.rollin != "student":
+        raise ValueError("sparse action-slate labels require student roll-in")
     np.random.seed(config.seed)
     torch.manual_seed(config.seed)
     device = torch.device(config.device)
@@ -183,49 +188,63 @@ def collect_action_slates(
     leaf_batches = 0
     started = time.perf_counter()
     feature_model.eval()
-    for _ in range(config.updates):
+    for update in range(config.updates):
         observation = environment.observe()
-        selected_actions, metrics = policy_search_actions(
-            environment,
-            policy,
-            rules,
-            active_mask,
-            search_config,
-            include_root_targets=True,
-        )
-        root_offsets = np.asarray(metrics["root_action_offsets"], dtype=np.int64)
-        observation_offsets = np.asarray(observation["action_offsets"], dtype=np.int64)
-        if not np.array_equal(root_offsets, observation_offsets):
-            raise RuntimeError("PUCT root actions do not match policy action features")
-        with torch.no_grad():
-            logits, _, features = feature_model.forward_with_action_features(
-                observation, rules
+        label = update % label_stride == 0
+        if label:
+            selected_actions, metrics = policy_search_actions(
+                environment,
+                policy,
+                rules,
+                active_mask,
+                search_config,
+                include_root_targets=True,
             )
+            root_offsets = np.asarray(metrics["root_action_offsets"], dtype=np.int64)
+            observation_offsets = np.asarray(
+                observation["action_offsets"], dtype=np.int64
+            )
+            if not np.array_equal(root_offsets, observation_offsets):
+                raise RuntimeError(
+                    "PUCT root actions do not match policy action features"
+                )
+        with torch.no_grad():
+            if label:
+                logits, _, features = feature_model.forward_with_action_features(
+                    observation, rules
+                )
+            else:
+                logits, _ = feature_model(observation, rules)
             distribution = action_distribution(logits, observation["action_offsets"])
             direct = distribution.logits.argmax(dim=1)
-        action_features.append(features.detach().cpu().to(torch.float16))
-        baseline_logits.append(logits.detach().cpu().to(torch.float16))
-        root_probabilities.append(
-            torch.as_tensor(metrics["root_probabilities"], dtype=torch.float32)
-        )
-        root_values.append(torch.as_tensor(metrics["root_values"], dtype=torch.float32))
-        root_visits.append(
-            torch.as_tensor(metrics["root_action_visits"], dtype=torch.int32)
-        )
-        for environment_index, (start, end) in enumerate(
-            zip(root_offsets[:-1], root_offsets[1:], strict=True)
-        ):
-            slate_offsets.append(slate_offsets[-1] + int(end - start))
-            episode_seed = int(episode_seeds[environment_index])
-            sample_seeds.append(episode_seed)
-            sample_steps.append(len(episode_actions[episode_seed]))
-            sample_seats.append(int(observation["active_players"][environment_index]))
-            sample_rounds.append(int(observation["rounds"][environment_index]))
-            search_actions.append(int(selected_actions[environment_index]))
-            direct_actions.append(int(direct[environment_index].item()))
-            state_fingerprints.append(
-                observation_fingerprint(observation, environment_index)
+        if label:
+            action_features.append(features.detach().cpu().to(torch.float16))
+            baseline_logits.append(logits.detach().cpu().to(torch.float16))
+            root_probabilities.append(
+                torch.as_tensor(metrics["root_probabilities"], dtype=torch.float32)
             )
+            root_values.append(
+                torch.as_tensor(metrics["root_values"], dtype=torch.float32)
+            )
+            root_visits.append(
+                torch.as_tensor(metrics["root_action_visits"], dtype=torch.int32)
+            )
+            for environment_index, (start, end) in enumerate(
+                zip(root_offsets[:-1], root_offsets[1:], strict=True)
+            ):
+                slate_offsets.append(slate_offsets[-1] + int(end - start))
+                episode_seed = int(episode_seeds[environment_index])
+                sample_seeds.append(episode_seed)
+                sample_steps.append(len(episode_actions[episode_seed]))
+                sample_seats.append(
+                    int(observation["active_players"][environment_index])
+                )
+                sample_rounds.append(int(observation["rounds"][environment_index]))
+                search_actions.append(int(selected_actions[environment_index]))
+                direct_actions.append(int(direct[environment_index].item()))
+                state_fingerprints.append(
+                    observation_fingerprint(observation, environment_index)
+                )
         rollin_actions = (
             selected_actions
             if config.rollin == "teacher"
@@ -242,8 +261,9 @@ def collect_action_slates(
             episode_seeds[environment_index] = next_reset_seed
             episode_actions[next_reset_seed] = []
             next_reset_seed += 1
-        evaluated_leaves += int(metrics["evaluated_leaves"])
-        leaf_batches += int(metrics["leaf_batches"])
+        if label:
+            evaluated_leaves += int(metrics["evaluated_leaves"])
+            leaf_batches += int(metrics["leaf_batches"])
     features = torch.cat(action_features)
     logits = torch.cat(baseline_logits).to(torch.float32)
     probabilities = torch.cat(root_probabilities)
@@ -287,6 +307,8 @@ def collect_action_slates(
             "seed": config.seed,
             "environments": config.environments,
             "updates": config.updates,
+            "label_stride": label_stride,
+            "labelled_updates": len(action_features),
             "rollin": config.rollin,
             "puct": {
                 "node_budget": config.puct_nodes,
@@ -358,6 +380,8 @@ def collect_action_slates(
         "unique_episode_seeds": len(replay_episode_seeds),
         "replay_actions": len(replay_actions),
         "verified_replays": len(verification_indices),
+        "maximum_episode_step": max(sample_steps),
+        "median_episode_step": float(np.median(sample_steps)),
         "completed_games": completed_games,
         "truncations": truncations,
         "evaluated_leaves": evaluated_leaves,
@@ -372,11 +396,13 @@ def main() -> None:
     parser.add_argument("checkpoint", type=Path)
     parser.add_argument("output", type=Path)
     add_collection_arguments(parser)
+    parser.add_argument("--label-stride", type=int, default=1)
     arguments = parser.parse_args()
     report = collect_action_slates(
         arguments.checkpoint,
         arguments.output,
         collection_config(arguments),
+        arguments.label_stride,
     )
     print(json.dumps(report, sort_keys=True), flush=True)
 
