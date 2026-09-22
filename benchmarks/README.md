@@ -130,3 +130,9 @@ state. Split games rather than individual roots, leave unvisited alternatives
 at the source policy, and require a paired outcome scout before spending fresh
 confirmation seeds. Lower held-out listwise KL is diagnostic, not evidence of
 strategic improvement.
+
+Phase-spread slate pilots decouple rollout steps from expensive PUCT labels.
+They retain intervening actions in the exact replay, report completed games
+and sampled episode-step coverage, and compare search budgets on identical
+policy rollouts. A change in search-decision frequency is a teacher diagnostic,
+not evidence of stronger play.

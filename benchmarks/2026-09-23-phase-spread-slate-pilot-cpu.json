@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "kind": "phase_spread_action_slate_collection_pilot",
+  "implementation_commit": "64fc15961ac012457bcf51b5b921b5fe2078423c",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 2,
+    "process_priority": "nice 19",
+    "gpu_used": false
+  },
+  "source": {
+    "artifact": "universal-routed-2to8p-engine-v6-2026-08-31.pt",
+    "sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "selected_expert": "context:ea1a83a813d1f57f"
+  },
+  "protocol": {
+    "command_template": "OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 RAYON_NUM_THREADS=2 nice -n 19 python -m python.collect_action_slate universal-routed.pt {output_file} --profile classic_generic_2022 --generator procedural_v1 --players 5 --environments 4 --updates 2400 --label-stride 16 --rollin student --seed 3700000 --device cpu --width 19 --height 15 --action-limit 2400 --land-density-per-million 650000 --tree-density-per-million 150000 --puct-nodes {nodes} --puct-leaf-batch-size 32",
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v1",
+    "players": 5,
+    "width": 19,
+    "height": 15,
+    "action_limit": 2400,
+    "land_density_per_million": 650000,
+    "tree_density_per_million": 150000,
+    "starting_province_size": 5,
+    "starting_money": 10,
+    "neutral_tower_density_per_million": 20000,
+    "neutral_capital_density_per_million": 10000,
+    "grave_density_per_million": 15000,
+    "fog": false,
+    "diplomacy": false,
+    "initial_relation": "neutral",
+    "seed": 3700000,
+    "environments": 4,
+    "rollout_steps_per_environment": 2400,
+    "label_stride": 16,
+    "rollin": "student",
+    "puct_exploration": 1.5,
+    "puct_virtual_loss": 1.0,
+    "puct_maximum_depth": 128,
+    "puct_root_value_weight": 1.0,
+    "puct_leaf_batch_size": 32,
+    "puct_value_perspective": "active",
+    "puct_opponent_horizon": "search",
+    "puct_objective": "scalar",
+    "rollout_and_state_fingerprints_identical_between_budgets": true
+  },
+  "coverage": {
+    "states": 600,
+    "legal_actions": 83799,
+    "completed_games": 13,
+    "truncations": 0,
+    "unique_episode_seeds": 17,
+    "replay_actions": 9600,
+    "verified_replay_states_per_dataset": 16,
+    "median_episode_step": 276,
+    "maximum_episode_step": 825,
+    "seats": [149, 122, 144, 104, 81]
+  },
+  "budgets": [
+    {
+      "puct_nodes": 8,
+      "output_file": "sparse-pilot.pt",
+      "evaluated_leaves": 4800,
+      "leaf_batches": 408,
+      "visited_actions": 3457,
+      "informative_states": 478,
+      "search_direct_disagreements": 7,
+      "seconds": 34.43782328767702,
+      "dataset_sha256": "b193599df07daddbc82d62900c27b87c6febe0e24c85fcd057014ffa421c3882",
+      "dataset_size_bytes": 108712755
+    },
+    {
+      "puct_nodes": 32,
+      "output_file": "sparse-pilot-32.pt",
+      "evaluated_leaves": 19200,
+      "leaf_batches": 810,
+      "visited_actions": 6216,
+      "informative_states": 478,
+      "search_direct_disagreements": 5,
+      "seconds": 65.98936358187348,
+      "dataset_sha256": "8aacb01894f72ead5508b9566ce5d531df0da816478f98c2ec5db8e3b2ec852a",
+      "dataset_size_bytes": 108712818
+    }
+  ],
+  "paired_search_decisions": {
+    "puct8_versus_puct32_disagreements": 6,
+    "changed_only_by_puct8": 4,
+    "changed_only_by_puct32": 2,
+    "changed_by_both": 3
+  },
+  "decision": "collection contract accepted; neither search budget is promoted as a teacher from this pilot",
+  "conclusion": "Sparse labels and complete replay prefixes cover late episode states without scaling PUCT cost with every rollout step. Increasing the node budget from 8 to 32 roughly doubled measured collection time and increased visited actions, but did not increase the frequency of corrections to the frozen policy on these 600 identical states. Search-decision frequency is not an outcome-strength measurement; value calibration and fresh paired games remain required."
+}
