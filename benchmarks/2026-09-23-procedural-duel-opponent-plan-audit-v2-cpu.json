@@ -1,0 +1,59 @@
+{
+  "kind": "procedural_duel_opponent_plan_diagnostic",
+  "protocol": "benchmarks/protocols/2026-09-23-duel-opponent-plan-audit-v1.json",
+  "arena": "classic_generic_2022 procedural_v2 11x9 two-player reply-search-256/8/64 self-play, action limit1000, sample rounds divisible by four",
+  "collector": "Opt-in opponent full-turn actions exported from the exact search used to compute each native reply score; ordinary agent and previous dataset output are unchanged",
+  "first_seed": 6316000,
+  "maps": 32,
+  "completed_maps": 32,
+  "truncated_maps": 0,
+  "sampled_positions": 318,
+  "teacher_overrides_of_static_rank_zero": 56,
+  "slates_with_distinct_opponent_action_sequences": 219,
+  "frozen_student_model_overrides_of_static_rank_zero": 75,
+  "student_selected_native_reply_better": 22,
+  "student_selected_native_reply_worse": 42,
+  "student_selected_native_reply_same": 11,
+  "independent_maps_student_better": 7,
+  "independent_maps_static_better": 13,
+  "independent_maps_same": 12,
+  "independent_map_sign_test_p": 0.26317596435546875,
+  "seat_0_better": 10,
+  "seat_0_worse": 19,
+  "seat_1_better": 12,
+  "seat_1_worse": 23,
+  "student_overrides_with_identical_opponent_action_sequence": {
+    "positions": 31,
+    "better": 1,
+    "worse": 20,
+    "same": 10
+  },
+  "student_overrides_with_changed_opponent_action_sequence": {
+    "positions": 44,
+    "better": 21,
+    "worse": 22,
+    "same": 1
+  },
+  "student_overrides_with_changed_opponent_first_action_kind": {
+    "positions": 9,
+    "better": 6,
+    "worse": 3,
+    "same": 0
+  },
+  "remote_dataset": {
+    "name": "procedural-v2-duel-opponent-plans-6316000-32.json.gz",
+    "compressed_bytes": 2842542,
+    "sha256": "c0d444105b6248885f41bfe5a9f0fd83a9c89a891d4f37dc13a1e1b33cf7afbd"
+  },
+  "remote_audit": {
+    "name": "procedural-v2-duel-opponent-plan-audit-6316000-32.json",
+    "sha256": "e1c0c18502203fbb0e40a1920ccf80edfb396f99e80ae9cbd599938587503b70"
+  },
+  "validation": [
+    "Rust search-reply tests replay the exported action sequence to exactly the root-perspective score and preserve reply-search agent selection",
+    "Opt-in CLI tests align opponent actions with every candidate and verify the previous JSON output omits them",
+    "313 Python tests and 39 targeted Rust tests passed on SSH server, with Rust formatting and Python Ruff checks passing"
+  ],
+  "interpretation": "The frozen scorer failed again on this small fresh diagnostic window. Different opponent plans are common, but identical serialized opponent action sequences occurred in 31 of its 75 overrides and 20 of those replacements were worse. Therefore missing opponent-plan identity alone cannot explain the student error; valuing the root post-turn state and the consequences of a fixed opponent sequence also matter. An identical action sequence can have different effects on different board states. These are descriptive conditional native reply-score associations, not full-game causal effects or Elo.",
+  "decision": "No retraining, threshold tuning, complete-game gate, rating, or deployment. Keep seed6300000 final full-game gate and seed6315000 selective validation untouched; design a later predeclared response-outcome representation experiment rather than another scalar margin threshold."
+}
