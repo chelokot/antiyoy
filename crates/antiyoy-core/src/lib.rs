@@ -16,7 +16,9 @@ pub use action::{Action, Transition};
 pub use adjudication::adjudicate;
 pub use error::{ActionError, ConfigError};
 pub use game::Game;
-pub use generator::{GENERATOR_SCHEMA_VERSION, GenerationError, GeneratorConfig};
+pub use generator::{
+    GENERATOR_ROTATED_SCHEMA_VERSION, GENERATOR_SCHEMA_VERSION, GenerationError, GeneratorConfig,
+};
 pub use objective::{
     EconomyMetric, OBJECTIVE_SCHEMA_VERSION, Objective, ObjectiveError, ObjectiveStatus,
     VictoryCondition,

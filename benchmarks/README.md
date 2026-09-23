@@ -49,12 +49,22 @@ cargo run --release -p antiyoy-cli -- seat-audit \
 The same deterministic greedy agent controls every seat. Each map is replayed
 once per cyclic relabelling of the starting provinces. `wins_by_seat` therefore
 measures the remaining seat effect, including turn order and first-round economy
-balancing, while `wins_by_original_start`
-holds the map geometry fixed and measures starting-position differences.
+balancing, while `wins_by_original_start` holds the map geometry fixed and
+measures starting-position differences.
 Truncated games are adjudicated and counted separately. This is a fairness
 diagnostic, not an Elo estimate. For the initial Voronoi-region sizes on the
 unrotated maps, run `python -m python.benchmark_seat_balance`; its per-seed
 records can be compared with the Rust audit by using the same generator inputs.
+
+Generator schema 2 is an opt-in experiment (`--generator-schema-version 2` in
+`seat-audit`, `rl-bench`, and `benchmark_seat_balance`). For a given seed, it
+preserves schema-1 land, capital locations, and neutral objects, then cyclically
+assigns the generated starting positions to player IDs by `seed % players`.
+This can remove the persistent link between a strong or weak generated
+position and one seat over a seed window; it does not make each individual map
+symmetric. Schema 1 remains the default, so existing replays and model domains
+do not silently change. Compare both versions on fresh, identical seed
+windows before using schema 2 for training or a rated queue.
 
 Training smoke tests are also checked in as metadata-only records. They include
 the model hash and held-out results but never commit checkpoints. A smoke test

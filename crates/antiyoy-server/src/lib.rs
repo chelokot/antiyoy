@@ -914,7 +914,10 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use antiyoy_core::{Action, GENERATOR_SCHEMA_VERSION, GeneratorConfig, RulesProfile};
+    use antiyoy_core::{
+        Action, GENERATOR_ROTATED_SCHEMA_VERSION, GENERATOR_SCHEMA_VERSION, GeneratorConfig,
+        RulesProfile,
+    };
     use antiyoy_protocol::{
         ClaimSeatRequest, CreateMatchRequest, MatchScenario, MatchStatus, NETWORK_SCHEMA_VERSION,
         RatingStatus, Replay, SeatKind, SeatRequest, SubmitAction,
@@ -1189,6 +1192,21 @@ mod tests {
             assert_eq!(created.snapshot.rules_profile, profile);
             assert_eq!(created.snapshot.scenario.players(), 4);
         }
+    }
+
+    #[test]
+    fn rotated_generator_schema_creates_an_authoritative_room() {
+        let service = MatchService::new();
+        let mut request = four_player_procedural();
+        let MatchScenario::Procedural(config) = &mut request.scenario else {
+            panic!("expected procedural scenario");
+        };
+        config.schema_version = GENERATOR_ROTATED_SCHEMA_VERSION;
+        let created = service
+            .create_match(&request)
+            .expect("rotated schema creates a multiplayer room");
+        assert_eq!(created.snapshot.scenario, request.scenario);
+        assert_eq!(created.snapshot.game.provinces.len(), 4);
     }
 
     #[test]

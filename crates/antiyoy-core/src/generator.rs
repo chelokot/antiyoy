@@ -7,6 +7,7 @@ use crate::rng::DeterministicRng;
 use crate::{ConfigError, HexId, InitialCell, Object, PlayerId, Scenario, Topology, Treasury};
 
 pub const GENERATOR_SCHEMA_VERSION: u16 = 1;
+pub const GENERATOR_ROTATED_SCHEMA_VERSION: u16 = 2;
 const MAXIMUM_PLACEMENT_ATTEMPTS: usize = 64;
 const PER_MILLION: u64 = 1_000_000;
 
@@ -28,8 +29,8 @@ pub struct GeneratorConfig {
 
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum GenerationError {
-    #[error("generator schema {actual} is unsupported, expected {expected}")]
-    UnsupportedSchema { actual: u16, expected: u16 },
+    #[error("generator schema {actual} is unsupported, expected 1 or 2")]
+    UnsupportedSchema { actual: u16 },
     #[error("map configuration failed: {0}")]
     Config(#[from] ConfigError),
     #[error("at least two players are required")]
@@ -93,7 +94,18 @@ impl GeneratorConfig {
             &mut random,
         )?;
         let mut scenario = Scenario::empty(topology.clone(), self.players, self.seed);
-        for (owner, cluster) in (0..self.players).map(PlayerId).zip(&starts) {
+        let owner_offset = if self.schema_version == GENERATOR_ROTATED_SCHEMA_VERSION {
+            u8::try_from(self.seed % u64::from(self.players))
+                .map_err(|_| GenerationError::PlacementFailed)?
+        } else {
+            0
+        };
+        for (position, cluster) in starts.iter().enumerate() {
+            let owner = (u16::try_from(position).map_err(|_| GenerationError::PlacementFailed)?
+                + u16::from(owner_offset))
+                % u16::from(self.players);
+            let owner =
+                PlayerId(u8::try_from(owner).map_err(|_| GenerationError::PlacementFailed)?);
             for hex in cluster.iter().copied() {
                 scenario.cells[hex.index()] = InitialCell::owned(owner);
             }
@@ -112,10 +124,11 @@ impl GeneratorConfig {
     }
 
     fn validate(&self) -> Result<(), GenerationError> {
-        if self.schema_version != GENERATOR_SCHEMA_VERSION {
+        if ![GENERATOR_SCHEMA_VERSION, GENERATOR_ROTATED_SCHEMA_VERSION]
+            .contains(&self.schema_version)
+        {
             return Err(GenerationError::UnsupportedSchema {
                 actual: self.schema_version,
-                expected: GENERATOR_SCHEMA_VERSION,
             });
         }
         if self.players < 2 {
@@ -383,7 +396,7 @@ mod tests {
 
     use crate::{Game, Object, PlayerId, Rules, RulesProfile};
 
-    use super::{GenerationError, GeneratorConfig};
+    use super::{GENERATOR_ROTATED_SCHEMA_VERSION, GenerationError, GeneratorConfig};
 
     #[test]
     fn equal_configuration_produces_equal_connected_scenarios() {
@@ -425,6 +438,57 @@ mod tests {
                 .playable_hexes()
                 .iter()
                 .all(|hex| visited[hex.index()])
+        );
+    }
+
+    #[test]
+    fn rotated_schema_preserves_legacy_map_and_relabels_starting_positions() {
+        let config = GeneratorConfig {
+            width: 19,
+            height: 15,
+            players: 5,
+            seed: 47,
+            ..GeneratorConfig::default()
+        };
+        let legacy = config.generate().expect("valid legacy map");
+        let rotated = GeneratorConfig {
+            schema_version: GENERATOR_ROTATED_SCHEMA_VERSION,
+            ..config
+        }
+        .generate()
+        .expect("valid rotated map");
+        assert_eq!(legacy.topology, rotated.topology);
+        assert_eq!(legacy.treasuries, rotated.treasuries);
+        let legacy_capitals = [54, 284, 231, 238, 9];
+        for (owner, capital) in legacy_capitals.into_iter().enumerate() {
+            assert_eq!(
+                legacy.cells[capital].owner,
+                PlayerId(u8::try_from(owner).expect("known player"))
+            );
+            assert_eq!(legacy.cells[capital].object, Object::Capital);
+        }
+        for (original, selected) in legacy.cells.iter().zip(&rotated.cells) {
+            assert_eq!(original.object, selected.object);
+            assert_eq!(original.unit_strength, selected.unit_strength);
+            let owner = if original.owner.is_neutral() {
+                original.owner
+            } else {
+                PlayerId((original.owner.0 + 2) % 5)
+            };
+            assert_eq!(selected.owner, owner);
+        }
+        Game::new(Rules::classic_generic(), rotated).expect("rotated map is valid");
+    }
+
+    #[test]
+    fn generator_rejects_unknown_schema() {
+        let invalid = GeneratorConfig {
+            schema_version: 3,
+            ..GeneratorConfig::default()
+        };
+        assert_eq!(
+            invalid.generate(),
+            Err(GenerationError::UnsupportedSchema { actual: 3 })
         );
     }
 

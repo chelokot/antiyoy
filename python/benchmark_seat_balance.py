@@ -8,11 +8,16 @@ from collections.abc import Mapping
 
 import numpy as np
 
-from antiyoy_rl import ProceduralConfig, VectorEnv
+from antiyoy_rl import (
+    GENERATOR_ROTATED_SCHEMA_VERSION,
+    GENERATOR_SCHEMA_VERSION,
+    ProceduralConfig,
+    VectorEnv,
+)
 
 
 def initial_region_sizes(
-    observation: Mapping[str, np.ndarray], environment: int
+    observation: Mapping[str, np.ndarray], environment: int, owner_offset: int = 0
 ) -> np.ndarray:
     width = int(observation["widths"][environment])
     height = int(observation["heights"][environment])
@@ -31,9 +36,10 @@ def initial_region_sizes(
         seeds[int(owner)] = int(capital)
     regions = np.full(width * height, -1, dtype=np.int16)
     queue: deque[int] = deque()
-    for player, seed in enumerate(seeds):
-        regions[seed] = player
-        queue.append(int(seed))
+    for position in range(players):
+        owner = (position + owner_offset) % players
+        regions[seeds[owner]] = owner
+        queue.append(int(seeds[owner]))
     directions = ((1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1), (1, -1))
     while queue:
         hex_index = queue.popleft()
@@ -64,6 +70,9 @@ def benchmark_seat_balance(
     generator_config = json.loads(generator.to_json())
     first_seed = int(generator_config["seed"])
     players = int(generator_config["players"])
+    rotated = (
+        int(generator_config["schema_version"]) == GENERATOR_ROTATED_SCHEMA_VERSION
+    )
     environments = min(games, batch_size)
     environment = VectorEnv.procedural(
         environments, generator, profile=profile, action_limit=action_limit
@@ -77,7 +86,8 @@ def benchmark_seat_balance(
     regions = np.empty((games, players), dtype=np.int32)
     observation = environment.observe()
     for index in range(environments):
-        regions[index] = initial_region_sizes(observation, index)
+        owner_offset = (first_seed + index) % players if rotated else 0
+        regions[index] = initial_region_sizes(observation, index, owner_offset)
     draws = 0
     truncations = 0
     started = environments
@@ -102,9 +112,11 @@ def benchmark_seat_balance(
                 truncations += int(truncated)
                 completed += 1
             if started < games:
-                environment.reset(int(index), first_seed + started)
+                next_seed = first_seed + started
+                environment.reset(int(index), next_seed)
+                owner_offset = next_seed % players if rotated else 0
                 regions[started] = initial_region_sizes(
-                    environment.observe(), int(index)
+                    environment.observe(), int(index), owner_offset
                 )
                 game_ids[index] = started
                 started += 1
@@ -151,6 +163,9 @@ def main() -> None:
     parser.add_argument("--width", type=int, default=19)
     parser.add_argument("--height", type=int, default=15)
     parser.add_argument("--players", type=int, default=5)
+    parser.add_argument(
+        "--generator-schema-version", type=int, default=GENERATOR_SCHEMA_VERSION
+    )
     parser.add_argument("--action-limit", type=int, default=2_400)
     parser.add_argument("--land-density-per-million", type=int, default=650_000)
     parser.add_argument("--starting-province-size", type=int, default=5)
@@ -174,6 +189,7 @@ def main() -> None:
         neutral_tower_density_per_million=arguments.neutral_tower_density_per_million,
         neutral_capital_density_per_million=arguments.neutral_capital_density_per_million,
         grave_density_per_million=arguments.grave_density_per_million,
+        schema_version=arguments.generator_schema_version,
     )
     report = benchmark_seat_balance(
         generator,

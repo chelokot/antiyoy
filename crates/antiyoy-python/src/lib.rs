@@ -31,7 +31,7 @@ struct ProceduralConfig {
 #[pymethods]
 impl ProceduralConfig {
     #[new]
-    #[pyo3(signature = (width=31, height=21, players=2, seed=1, land_density_per_million=650_000, starting_province_size=5, starting_money=10, tree_density_per_million=150_000, neutral_tower_density_per_million=20_000, neutral_capital_density_per_million=10_000, grave_density_per_million=15_000))]
+    #[pyo3(signature = (width=31, height=21, players=2, seed=1, land_density_per_million=650_000, starting_province_size=5, starting_money=10, tree_density_per_million=150_000, neutral_tower_density_per_million=20_000, neutral_capital_density_per_million=10_000, grave_density_per_million=15_000, schema_version=antiyoy_core::GENERATOR_SCHEMA_VERSION))]
     #[expect(clippy::too_many_arguments)]
     fn new(
         width: u16,
@@ -45,10 +45,11 @@ impl ProceduralConfig {
         neutral_tower_density_per_million: u32,
         neutral_capital_density_per_million: u32,
         grave_density_per_million: u32,
+        schema_version: u16,
     ) -> Self {
         Self {
             inner: GeneratorConfig {
-                schema_version: antiyoy_core::GENERATOR_SCHEMA_VERSION,
+                schema_version,
                 width,
                 height,
                 players,
@@ -1215,6 +1216,10 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add(
         "GENERATOR_SCHEMA_VERSION",
         antiyoy_core::GENERATOR_SCHEMA_VERSION,
+    )?;
+    module.add(
+        "GENERATOR_ROTATED_SCHEMA_VERSION",
+        antiyoy_core::GENERATOR_ROTATED_SCHEMA_VERSION,
     )?;
     module.add(
         "OBJECTIVE_SCHEMA_VERSION",

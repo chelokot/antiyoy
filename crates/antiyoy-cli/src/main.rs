@@ -167,6 +167,8 @@ enum RlMapKind {
 struct RlMapArgs {
     #[arg(long, value_enum, default_value_t = RlMapKind::Symmetric)]
     map: RlMapKind,
+    #[arg(long, default_value_t = antiyoy_core::GENERATOR_SCHEMA_VERSION)]
+    generator_schema_version: u16,
     #[arg(long, default_value_t = 11)]
     width: u16,
     #[arg(long, default_value_t = 9)]
@@ -217,7 +219,7 @@ impl RlMapArgs {
 
     fn generator_config(&self, seed: u64) -> GeneratorConfig {
         GeneratorConfig {
-            schema_version: antiyoy_core::GENERATOR_SCHEMA_VERSION,
+            schema_version: self.generator_schema_version,
             width: self.width,
             height: self.height,
             players: self.players,
@@ -235,7 +237,13 @@ impl RlMapArgs {
     const fn name(&self) -> &'static str {
         match self.map {
             RlMapKind::Symmetric => "symmetric_duel_v1",
-            RlMapKind::Procedural => "procedural_v1",
+            RlMapKind::Procedural => {
+                if self.generator_schema_version == antiyoy_core::GENERATOR_ROTATED_SCHEMA_VERSION {
+                    "procedural_v2"
+                } else {
+                    "procedural_v1"
+                }
+            }
         }
     }
 }

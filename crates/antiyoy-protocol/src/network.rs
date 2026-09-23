@@ -417,45 +417,53 @@ impl MatchSnapshot {
 
 #[cfg(test)]
 mod tests {
-    use antiyoy_core::{GENERATOR_SCHEMA_VERSION, GeneratorConfig, RulesProfile};
+    use antiyoy_core::{
+        GENERATOR_ROTATED_SCHEMA_VERSION, GENERATOR_SCHEMA_VERSION, GeneratorConfig, RulesProfile,
+    };
 
     use super::{CreateMatchRequest, MatchScenario, NETWORK_SCHEMA_VERSION, SeatKind, SeatRequest};
 
     #[test]
     fn procedural_match_request_round_trips_every_seat() {
-        let request = CreateMatchRequest {
-            schema_version: NETWORK_SCHEMA_VERSION,
-            rules_profile: RulesProfile::OnlineDefaultV1,
-            scenario: MatchScenario::Procedural(GeneratorConfig {
-                schema_version: GENERATOR_SCHEMA_VERSION,
-                width: 21,
-                height: 15,
-                players: 4,
-                seed: u64::MAX,
-                ..GeneratorConfig::default()
-            }),
-            seats: (0..4)
-                .map(|seat| SeatRequest {
-                    name: format!("player-{seat}"),
-                    kind: SeatKind::Human,
-                })
-                .collect(),
-            action_limit: 2_000,
-        };
-        let encoded = serde_json::to_vec(&request).expect("serializable request");
-        let json: serde_json::Value = serde_json::from_slice(&encoded).expect("json request");
-        assert_eq!(json["scenario"]["Procedural"]["seed"], u64::MAX.to_string());
-        let decoded: CreateMatchRequest =
-            serde_json::from_slice(&encoded).expect("deserializable request");
-        assert_eq!(decoded, request);
-        let binary = postcard::to_allocvec(&request).expect("binary request");
-        assert_eq!(
-            postcard::from_bytes::<CreateMatchRequest>(&binary).expect("binary round trip"),
-            request
-        );
-        assert_eq!(request.scenario.players(), 4);
-        assert_eq!(request.scenario.width(), 21);
-        assert_eq!(request.scenario.height(), 15);
-        assert_eq!(request.scenario.seed(), u64::MAX);
+        for schema_version in [GENERATOR_SCHEMA_VERSION, GENERATOR_ROTATED_SCHEMA_VERSION] {
+            let request = CreateMatchRequest {
+                schema_version: NETWORK_SCHEMA_VERSION,
+                rules_profile: RulesProfile::OnlineDefaultV1,
+                scenario: MatchScenario::Procedural(GeneratorConfig {
+                    schema_version,
+                    width: 21,
+                    height: 15,
+                    players: 4,
+                    seed: u64::MAX,
+                    ..GeneratorConfig::default()
+                }),
+                seats: (0..4)
+                    .map(|seat| SeatRequest {
+                        name: format!("player-{seat}"),
+                        kind: SeatKind::Human,
+                    })
+                    .collect(),
+                action_limit: 2_000,
+            };
+            let encoded = serde_json::to_vec(&request).expect("serializable request");
+            let json: serde_json::Value = serde_json::from_slice(&encoded).expect("json request");
+            assert_eq!(json["scenario"]["Procedural"]["seed"], u64::MAX.to_string());
+            assert_eq!(
+                json["scenario"]["Procedural"]["schema_version"],
+                schema_version
+            );
+            let decoded: CreateMatchRequest =
+                serde_json::from_slice(&encoded).expect("deserializable request");
+            assert_eq!(decoded, request);
+            let binary = postcard::to_allocvec(&request).expect("binary request");
+            assert_eq!(
+                postcard::from_bytes::<CreateMatchRequest>(&binary).expect("binary round trip"),
+                request
+            );
+            assert_eq!(request.scenario.players(), 4);
+            assert_eq!(request.scenario.width(), 21);
+            assert_eq!(request.scenario.height(), 15);
+            assert_eq!(request.scenario.seed(), u64::MAX);
+        }
     }
 }
