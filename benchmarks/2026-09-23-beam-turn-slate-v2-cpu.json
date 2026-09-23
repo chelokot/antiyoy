@@ -1,0 +1,175 @@
+{
+  "schema_version": 1,
+  "kind": "outcome_labeled_distinct_completed_turn_slate",
+  "implementation_commit": "e81486436abb09e2b55e504651aa488e34473487",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 1,
+    "process_priority": "nice 19",
+    "gpu_used": false,
+    "temporary_filesystem_free_gib": 19,
+    "persistent_filesystem_free_gib": 16
+  },
+  "arena": {
+    "generator_schema_version": 2,
+    "rules": "classic_generic_2022",
+    "width": 19,
+    "height": 15,
+    "players": 5,
+    "sample": "first whole-turn search-256 divergence from greedy on each search-visited seat trajectory",
+    "target_round": 100,
+    "rollout_limit_per_branch": 2400,
+    "search_nodes": 256,
+    "beam_slate_size": 8,
+    "maximum_actions_per_turn": 24,
+    "continuation_policy": "deterministic greedy for every player",
+    "command_template": "nice -n 19 target/release/antiyoy turn-credit --map procedural --generator-schema-version 2 --width 19 --height 15 --players 5 --maps {maps} --seed {first_seed} --rollin-seat {seat} --target-round 100 --rollout-limit 2400 --search-nodes 256 --beam-slate-size 8 --json"
+  },
+  "policy_preservation_check": {
+    "baseline_binary": "pre-change release CLI from main 23298de",
+    "new_binary": "release CLI built from e814864",
+    "maps": 16,
+    "first_seed": 5200700,
+    "seat": 0,
+    "sampled_positions": 10,
+    "result": "After removing only new schema fields and elapsed time, all original output fields matched exactly, including action sequences, node expansions, static scores, and terminal continuations."
+  },
+  "pilot": {
+    "maps": 16,
+    "first_seed": 5200800,
+    "seat_trials": 80,
+    "sampled_positions": 47,
+    "complete_slates": 47,
+    "censored_slates": 0,
+    "beam_candidates": 313,
+    "distinct_end_states": 368,
+    "baseline_end_states": 94,
+    "extra_distinct_end_states": 274,
+    "positions_with_distinct_root_outcome_labels": 10,
+    "positions_with_beam_candidate_better_than_selected_search": 7,
+    "positions_with_beam_candidate_better_than_both_greedy_and_search": 6,
+    "maps_with_distinct_root_outcome_labels": 9,
+    "maps_with_beam_candidate_better_than_selected_search": 7,
+    "elapsed_seconds": 147.229809563,
+    "raw_result_sha256_by_seat": [
+      "70c7b13c9b017cd625c6695810905bfb30364c5245322563d5740f00b9645954",
+      "067e5bb5fe2520b29768e408350a0eea939323f61c34df1265bba1a370590351",
+      "fb1988ebace8f9762e1ca5b687aa79b45d40c21bbb05bebf09be7dd862ddd147",
+      "d92ec0455152be3b431ef5cff379d08a50206b79f51da06112a87fc4cee73162",
+      "3f64e8769c9849db9279f61bb13badfbb671cadfa7e8f31309fe5e2e09954502"
+    ]
+  },
+  "confirmation": {
+    "maps": 64,
+    "first_seed": 5200900,
+    "seat_trials": 320,
+    "sampled_positions": 174,
+    "maps_with_samples": 64,
+    "complete_slates": 171,
+    "censored_slates": 3,
+    "truncated_branch_continuations": 4,
+    "greedy_search_pair_censored_positions": 0,
+    "beam_candidates": 1152,
+    "distinct_end_states": 1356,
+    "baseline_end_states": 348,
+    "extra_distinct_end_states": 1008,
+    "positions_with_distinct_root_outcome_labels": 35,
+    "positions_with_beam_candidate_better_than_selected_search": 20,
+    "positions_with_beam_candidate_better_than_both_greedy_and_search": 13,
+    "maps_with_distinct_root_outcome_labels": 27,
+    "maps_with_beam_candidate_better_than_selected_search": 18,
+    "selected_search_vs_greedy": {
+      "better": 10,
+      "worse": 7,
+      "same": 157,
+      "censored": 0,
+      "independent_map_better": 8,
+      "independent_map_worse": 7,
+      "independent_map_same": 49
+    },
+    "per_seat": [
+      {
+        "seat": 0,
+        "sampled_positions": 30,
+        "complete_slates": 30,
+        "distinct_end_states": 230,
+        "extra_distinct_end_states": 170,
+        "positions_with_distinct_root_outcome_labels": 8,
+        "positions_with_beam_candidate_better_than_selected_search": 3,
+        "elapsed_seconds": 112.628237931,
+        "raw_result_sha256": "7b9c891b89cef3d2ac41887b5ab54d4bce904fbb99195b8e25eb4a762d8bfb1e"
+      },
+      {
+        "seat": 1,
+        "sampled_positions": 29,
+        "complete_slates": 27,
+        "distinct_end_states": 228,
+        "extra_distinct_end_states": 170,
+        "positions_with_distinct_root_outcome_labels": 3,
+        "positions_with_beam_candidate_better_than_selected_search": 1,
+        "elapsed_seconds": 120.632463209,
+        "raw_result_sha256": "5e8bd65323814acd6182948f20d198b43432547d21d96668470925124508eb9e"
+      },
+      {
+        "seat": 2,
+        "sampled_positions": 28,
+        "complete_slates": 28,
+        "distinct_end_states": 223,
+        "extra_distinct_end_states": 167,
+        "positions_with_distinct_root_outcome_labels": 6,
+        "positions_with_beam_candidate_better_than_selected_search": 3,
+        "elapsed_seconds": 110.970866949,
+        "raw_result_sha256": "ea20e7988610375e864bc2a3d117ad3356f8de8a45c7ed2db3c50c6890e2e06a"
+      },
+      {
+        "seat": 3,
+        "sampled_positions": 35,
+        "complete_slates": 35,
+        "distinct_end_states": 278,
+        "extra_distinct_end_states": 208,
+        "positions_with_distinct_root_outcome_labels": 5,
+        "positions_with_beam_candidate_better_than_selected_search": 2,
+        "elapsed_seconds": 149.58843908,
+        "raw_result_sha256": "4d1e39577fc02125d735b67aa933a3b40bb69956927749cd1084d2a44cdfccf0"
+      },
+      {
+        "seat": 4,
+        "sampled_positions": 52,
+        "complete_slates": 51,
+        "distinct_end_states": 397,
+        "extra_distinct_end_states": 293,
+        "positions_with_distinct_root_outcome_labels": 13,
+        "positions_with_beam_candidate_better_than_selected_search": 11,
+        "elapsed_seconds": 184.636386949,
+        "raw_result_sha256": "dc40c406892e5199bbc514bb9bb503df7c45737891c190bea27cbb40e95f8dc8"
+      }
+    ],
+    "elapsed_seconds": 678.456394118
+  },
+  "prechosen_rank_one_equal_score_tie_break": {
+    "selection_window": {
+      "maps": 16,
+      "chosen_positions": 24,
+      "outcome_better": 4,
+      "outcome_worse": 2,
+      "outcome_same": 18,
+      "independent_map_better": 4,
+      "independent_map_worse": 2,
+      "independent_map_same": 6
+    },
+    "fresh_confirmation_window": {
+      "maps": 64,
+      "chosen_positions": 78,
+      "outcome_better": 1,
+      "outcome_worse": 5,
+      "outcome_same": 72,
+      "independent_map_better": 1,
+      "independent_map_worse": 4,
+      "independent_map_same": 45
+    },
+    "decision": "Reject. The pilot tie-break reverses on fresh maps, and this offline first-divergence result would not itself be a full-game promotion gate."
+  },
+  "interpretation": "Completed-turn beam candidates provide materially more outcome-label diversity than changing search node budgets: 1008 extra exact end states and 35 distinct-label positions on 64 fresh maps. An outcome-aware selector has a measurable oracle opportunity, but no deployable selector or strength gain has been demonstrated. The simple equal-static-score rank-one tie-break failed validation. Keep the rated search policy unchanged.",
+  "next_step": "Export exact post-turn observations for deduplicated slate candidates, train an outcome-grounded value or pairwise reranker with map-disjoint validation and explicit censoring, then require fresh matched complete games across every seat and independent-map grouping before any promotion. Do not train only on the 16-map pilot or use its terminal oracle online.",
+  "limitations": "First-divergence positions are selected on search-controlled trajectories and are not every decision encountered in play. All branch outcomes use one deterministic greedy continuation, not a distribution of opponents. Oracle coverage is not achievable agent performance. Seat samples on a map are correlated; seat 4 supplies 11 of 20 favorable beam positions in the confirmation window. Three slates have censored beam continuations and are excluded from outcome-diversity counts. No Elo or universal multiplayer strength claim follows."
+}

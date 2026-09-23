@@ -126,6 +126,10 @@ candidates and leaves the search policy unchanged.
 `censored_positions` still describes the original greedy-versus-selected
 comparison; `slate_censored_positions` counts a position if any recorded
 branch has an action-limited continuation.
+The [beam-slate study](2026-09-23-beam-turn-slate-v2-cpu.json) found informative
+terminal labels among distinct completed turns, while a simple equal-score
+rank-one tie-break failed on fresh maps. This supports collecting training
+examples, not promoting a new policy.
 
 An offline minimum-score-gain gate can be audited from these records by keeping
 only search turns whose `search.static_score - greedy.static_score` reaches a
