@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "kind": "post_rejection_model_reply_vs_native_teacher_diagnostic",
+  "question": "Does the frozen model-simulated opponent-reply hybrid offer enough full-game strength over the already validated, much faster native reply-search teacher to justify a future implementation optimization?",
+  "status": "exploratory_after_predeclared_hybrid_promotion_gate_failure",
+  "arena": "Classic Generic procedural_v2 11x9 two players, action limit 2400, all seats, 32 independent matched maps",
+  "first_seed": 6358000,
+  "maps": 32,
+  "candidate": "Frozen model reply search from code commit8fca981: root beam256/top8, autonomous frozen routed-v6 opponent complete-turn argmax, native root score; route_generator procedural_v1; no parameter changes",
+  "reference": "Validated native reply search: root beam256/top8, opponent beam64; same map, seat, rules and action limit",
+  "predeclared_readout": "Complete-game wins/draws, map-grouped paired better/worse/same exact sign, both seat strata, action-limit adjudications, candidate root-decision latency and total elapsed time. Compare with reference native teacher latency measured on pilot maps, disclosing that positions differ.",
+  "interpretation_limit": "This is a diagnostic after the hybrid already failed its all-seat and runtime promotion gate. Regardless of outcome, do not rate, deploy, tune on these maps, or run reserved confirmation seed6357000 or final seed6300000. If the hybrid is not better than native teacher, stop optimizing this particular opponent-model rollout scheme; if better, define a new exact-move-preserving runtime optimization and fresh independent gates before considering promotion.",
+  "resource_limit": "SSH server only, inspect aggregate load/memory/disk first, single nice19 CPU process, hard timeout 30 minutes, tiny JSON output, no GPU or interference with other workloads."
+}
