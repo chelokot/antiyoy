@@ -52,3 +52,50 @@ def test_model_reply_search_skips_inactive_games() -> None:
     assert actions[0] == 0
     assert agent.root_turns == 1
     assert len(agent.pending) <= 1
+
+
+def test_native_reply_audit_preserves_hybrid_turn() -> None:
+    plain_environment = VectorEnv(1, width=7, height=5, seed=29)
+    audited_environment = VectorEnv(1, width=7, height=5, seed=29)
+    plain = ModelReplySearch(node_budget=64, slate_size=4)
+    audited = ModelReplySearch(
+        node_budget=64,
+        slate_size=4,
+        audit_native_replies=True,
+        audit_reply_nodes=64,
+        audit_round_modulus=1,
+    )
+    root = int(plain_environment.observe()["active_players"][0])
+    active = np.asarray([True], dtype=np.bool_)
+    rules = torch.zeros((1, 45))
+
+    while int(plain_environment.observe()["active_players"][0]) == root:
+        chosen = plain.actions(plain_environment, EndTurnPolicy(), rules, active)
+        audited_chosen = audited.actions(
+            audited_environment, EndTurnPolicy(), rules, active
+        )
+        np.testing.assert_array_equal(chosen, audited_chosen)
+        plain_environment.step(chosen)
+        audited_environment.step(audited_chosen)
+        if plain_environment.done()[0]:
+            break
+
+    assert len(audited.native_reply_records) == 1
+    record = audited.native_reply_records[0]
+    assert record["autonomous_selected_index"] == max(
+        range(len(record["autonomous_reply_scores"])),
+        key=lambda index: (
+            record["autonomous_reply_scores"][index],
+            record["static_scores"][index],
+            -index,
+        ),
+    )
+    assert record["native_selected_index"] == max(
+        range(len(record["native_reply_scores"])),
+        key=lambda index: (
+            record["native_reply_scores"][index],
+            record["static_scores"][index],
+            -index,
+        ),
+    )
+    assert not plain.native_reply_records
