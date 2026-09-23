@@ -36,6 +36,7 @@ def training_config() -> TrainingConfig:
         environments=1,
         updates=1,
         procedural=False,
+        generator_schema_version=1,
         width=7,
         height=5,
         players=2,
@@ -138,6 +139,31 @@ def test_training_environment_uses_procedural_domain_randomization() -> None:
         torch.from_numpy(observation["playable"][:221]),
         torch.from_numpy(observation["playable"][221:]),
     )
+
+
+def test_training_rotated_schema_preserves_map_and_changes_seat_assignment() -> None:
+    base = replace(
+        training_config(),
+        procedural=True,
+        width=19,
+        height=15,
+        players=5,
+        seed=47,
+    )
+    legacy = make_environment(base).observe()
+    rotated_environment = make_environment(replace(base, generator_schema_version=2))
+    rotated = rotated_environment.observe()
+    assert legacy["playable"].tolist() == rotated["playable"].tolist()
+    assert legacy["objects"].tolist() == rotated["objects"].tolist()
+    assert rotated["owners"].tolist() == [
+        255 if owner == 255 else (owner + 2) % 5 for owner in legacy["owners"]
+    ]
+    assert json.loads(rotated_environment.generator_jsons()[0])["schema_version"] == 2
+
+
+def test_training_rejects_rotated_schema_on_symmetric_map() -> None:
+    with pytest.raises(ValueError, match="requires procedural maps"):
+        validate_config(replace(training_config(), generator_schema_version=2))
 
 
 def test_training_environment_cycles_land_density_schedule() -> None:

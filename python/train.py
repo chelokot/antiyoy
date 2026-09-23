@@ -15,6 +15,8 @@ import torch
 from torch import Tensor
 
 from antiyoy_rl import (
+    GENERATOR_ROTATED_SCHEMA_VERSION,
+    GENERATOR_SCHEMA_VERSION,
     OBSERVATION_VERSION,
     ProceduralConfig,
     ScenarioObjective,
@@ -50,6 +52,7 @@ class TrainingConfig:
     environments: int
     updates: int
     procedural: bool
+    generator_schema_version: int
     width: int
     height: int
     players: int
@@ -185,6 +188,7 @@ def procedural_config(
         neutral_tower_density_per_million=config.neutral_tower_density_per_million,
         neutral_capital_density_per_million=config.neutral_capital_density_per_million,
         grave_density_per_million=config.grave_density_per_million,
+        schema_version=config.generator_schema_version,
     )
 
 
@@ -463,6 +467,16 @@ def validate_config(config: TrainingConfig) -> None:
             )
     if config.profiles is not None and not config.profiles:
         raise ValueError("profiles must not be empty")
+    if config.generator_schema_version not in (
+        GENERATOR_SCHEMA_VERSION,
+        GENERATOR_ROTATED_SCHEMA_VERSION,
+    ):
+        raise ValueError("unsupported procedural generator schema")
+    if (
+        not config.procedural
+        and config.generator_schema_version != GENERATOR_SCHEMA_VERSION
+    ):
+        raise ValueError("generator schema 2 requires procedural maps")
     if config.procedural and (config.players < 2 or config.players > 8):
         raise ValueError("procedural maps require between two and eight players")
     if config.players_schedule is not None:
@@ -1401,7 +1415,11 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "algorithm": algorithm,
         "updates": config.updates,
         "environments": config.environments,
-        "map_generator": "procedural_v1" if config.procedural else "symmetric_duel_v1",
+        "map_generator": (
+            f"procedural_v{config.generator_schema_version}"
+            if config.procedural
+            else "symmetric_duel_v1"
+        ),
         "players_schedule": ",".join(
             str(players) for players in config.players_schedule or []
         ),
@@ -1488,6 +1506,12 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--environments", type=int, default=64)
     parser.add_argument("--updates", type=int, default=1000)
     parser.add_argument("--procedural", action="store_true")
+    parser.add_argument(
+        "--generator-schema-version",
+        type=int,
+        choices=(GENERATOR_SCHEMA_VERSION, GENERATOR_ROTATED_SCHEMA_VERSION),
+        default=GENERATOR_SCHEMA_VERSION,
+    )
     parser.add_argument("--width", type=int, default=11)
     parser.add_argument("--height", type=int, default=9)
     parser.add_argument("--players", type=int, default=2)

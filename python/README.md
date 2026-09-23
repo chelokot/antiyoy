@@ -39,6 +39,13 @@ Each action index is local to its environment's half-open range in
 `observation["action_offsets"]`. Select a legal action, step the complete batch,
 and reset every environment whose terminal or truncated value is one.
 
+The default generator is replay-compatible schema 1. Pass
+`ProceduralConfig(..., schema_version=2)` or train with
+`train.py --procedural --generator-schema-version 2` to rotate which player ID
+inherits each generated starting position across seeds. The training summary
+records `procedural_v2`; it does not silently relabel old checkpoints or
+eliminate asymmetry inside one map.
+
 ## Exact counterfactual branches
 
 `VectorEnv.fork(np.array([source_index, ...], dtype=np.uint64))` copies live Rust
