@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_reply_search_rollin_ablation",
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "action_limit": 1000,
+    "pairing": "identical independent map with both candidate seats",
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867"
+  },
+  "shared_training": {
+    "teacher": "reply-search, 256 root nodes, eight complete-turn candidates, 64 opponent reply nodes",
+    "initialization": "routed-v6 context:b02423ddd2f8cdf9",
+    "updates": 512,
+    "environments": 32,
+    "teacher_action_labels": 16384,
+    "reset_interval": 64,
+    "reference_kl_weight": 0.1,
+    "learning_rate": 0.0001,
+    "cpu_threads": 1,
+    "process_priority": 19
+  },
+  "prior_policy_rollin": {
+    "training_seed": 6231000,
+    "checkpoint_sha256": "95f57060eb1ba56c9a35088e8c2d5c3f43cf9b8eed702bc142e165fd15b6a22b",
+    "training_action_accuracy": 0.7307128906250003,
+    "reference": "2026-09-23-procedural-duel-reply-distillation-v2-cpu.json"
+  },
+  "exploratory_teacher_rollin": {
+    "training_seed": 6255000,
+    "checkpoint_sha256": "733e564c71a7201099e9ecc30e6c5781cd13786b47b39c61e9a3177ae3622f71",
+    "training_log_sha256": "3dd190d52c9da8d1da8a1afc07c9d3e17d9805d966b3fec88360c5af03509f11",
+    "training_action_accuracy": 0.7489013671875,
+    "training_seconds": 242.08656689617783,
+    "versus_source": {
+      "heldout_seed_first": 6256000,
+      "maps": 64,
+      "candidate_wins": 61,
+      "source_match_wins": 67,
+      "source_self_play_reference_wins": 64,
+      "independent_maps_candidate_better": 10,
+      "independent_maps_source_better": 13,
+      "independent_maps_same": 41,
+      "exact_two_sided_sign_test_p": 0.6776394844055176,
+      "candidate_seat_0_wins": 38,
+      "source_self_play_seat_0_reference_wins": 39,
+      "candidate_seat_1_wins": 23,
+      "source_self_play_seat_1_reference_wins": 25,
+      "raw_result_sha256": "a778ac818aa4334b31c34725d4a71dd9a8d95647dcacab31f9c0a886ade4dcc0"
+    },
+    "versus_prior_policy_rollin": {
+      "heldout_seed_first": 6257000,
+      "maps": 64,
+      "candidate_wins": 68,
+      "prior_student_wins": 60,
+      "independent_maps_candidate_better": 12,
+      "independent_maps_prior_student_better": 8,
+      "independent_maps_same": 44,
+      "exact_two_sided_sign_test_p": 0.5034446716308594,
+      "candidate_seat_0_wins": 36,
+      "prior_student_match_wins_against_candidate_seat_0": 28,
+      "prior_student_self_play_seat_0_reference_wins": 40,
+      "candidate_seat_1_wins": 32,
+      "prior_student_match_wins_against_candidate_seat_1": 32,
+      "prior_student_self_play_seat_1_reference_wins": 24,
+      "raw_result_sha256": "a4a43fd1175ca46115499f2784cedaf91f30166a81e37e5c2eed345d73cdfa62"
+    },
+    "caveat": "The training seed differs from the prior policy-rollin run, so the direct comparison cannot isolate the roll-in effect."
+  },
+  "matched_seed_teacher_rollin": {
+    "training_seed": 6231000,
+    "checkpoint_sha256": "7fd14fc28676c33b0f3f2b017c8bdc61100648ce0efb73421a6c1d47262e0a8f",
+    "training_log_sha256": "beb241e28448f666944c0e4a14af11c1210cc77adfc91705ff4fb0a6e57d436d",
+    "training_action_accuracy": 0.7516479492187493,
+    "training_seconds": 247.17707858327776,
+    "versus_prior_policy_rollin": {
+      "heldout_seed_first": 6258000,
+      "maps": 64,
+      "candidate_wins": 61,
+      "prior_student_wins": 67,
+      "independent_maps_candidate_better": 10,
+      "independent_maps_prior_student_better": 13,
+      "independent_maps_same": 41,
+      "exact_two_sided_sign_test_p": 0.6776394844055176,
+      "map_bootstrap_95_score_delta": [-0.09375, 0.046875],
+      "candidate_seat_0_wins": 39,
+      "prior_student_match_wins_against_candidate_seat_0": 25,
+      "prior_student_self_play_seat_0_reference_wins": 40,
+      "candidate_seat_1_wins": 22,
+      "prior_student_match_wins_against_candidate_seat_1": 42,
+      "prior_student_self_play_seat_1_reference_wins": 24,
+      "candidate_truncations": 0,
+      "prior_student_truncations": 0,
+      "raw_result_sha256": "54303515661212a33784e625174bf3c2d0771fdd3f82fdea48f940810f090643"
+    }
+  },
+  "interpretation": "An exploratory teacher-rollin checkpoint was below the frozen source and inconclusively above the older policy-rollin checkpoint, but its training seed differed. Repeating teacher-rollin with the identical training seed and all other matched settings eliminated that apparent advantage: the held-out paired all-seat comparison slightly favored policy-rollin, with uncertainty spanning both directions. The higher teacher-rollin training action accuracy did not imply better play. Neither teacher-rollin checkpoint is promoted or rated; this ablation does not justify scaling the same behavioral-cloning objective without a more informative target or stronger evidence."
+}
