@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_teacher_choice_scout",
+  "teacher": "Native reply-search-256/8/64 on Classic Generic procedural_v2 11x9 two-player maps",
+  "training_first_seed": 6265000,
+  "training_maps": 256,
+  "offline_validation_first_seed": 6268000,
+  "offline_validation_maps": 128,
+  "full_game_gate_first_seed": 6273000,
+  "full_game_gate_maps": 256,
+  "question": "Can root-conditioned post-turn material and economy features predict which distinct completed-turn candidate the reply-search teacher actually selects, especially when it overrides static rank zero?",
+  "fit": "Map-disjoint pairwise logistic ranking of the teacher-selected candidate against each other slate candidate. Balance static and override positions in training because the teacher overrides static rank zero on only about one in eight sampled positions. Fixed 200-step linear head, no validation-seed coefficient tuning.",
+  "offline_checks": "Report exact teacher-choice agreement against the rank-zero baseline, override precision and recall, first-action agreement, and conditional persistent-teacher terminal outcomes. Keep both seats and independent maps separate. An offline match is not a strength claim.",
+  "promotion": "Do not integrate, rate, or publish unless the frozen candidate passes fresh full games from both seats against plain beam-256 and the reply-search teacher, grouped by independent map with runtime measured. The 6273000 gate remains untouched until the model and selection rule are frozen."
+}
