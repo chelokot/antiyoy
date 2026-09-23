@@ -62,6 +62,7 @@ def test_teacher_slate_loader_aligns_selection_and_observations(tmp_path: Path) 
     )
     assert position.opponent_actions is None
     assert position.post_reply is None
+    assert position.opponent_decisions is None
 
 
 def test_teacher_slate_loader_aligns_opponent_actions(tmp_path: Path) -> None:
@@ -91,6 +92,45 @@ def test_teacher_slate_loader_aligns_post_reply_observations(tmp_path: Path) -> 
 
     assert position.post_reply is not None
     np.testing.assert_array_equal(position.post_reply["active_players"], [1, 1])
+
+
+def test_teacher_slate_loader_aligns_opponent_decisions(tmp_path: Path) -> None:
+    value = report()
+    value["records"][0]["opponent_actions"] = [["EndTurn"], ["EndTurn"]]
+    value["records"][0]["opponent_decisions"] = {
+        "observation": value["records"][0]["post_turn"],
+        "candidate_offsets": [0, 1, 2],
+        "action_indices": [0, 0],
+    }
+    path = tmp_path / "opponent-decisions.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+
+    [position] = load_teacher_slates(path)
+
+    assert position.opponent_decisions is not None
+    np.testing.assert_array_equal(
+        position.opponent_decisions.candidate_offsets, [0, 1, 2]
+    )
+    np.testing.assert_array_equal(position.opponent_decisions.action_indices, [0, 0])
+    np.testing.assert_array_equal(
+        position.opponent_decisions.observation["widths"], [7, 7]
+    )
+
+
+def test_teacher_slate_loader_rejects_illegal_opponent_decision(
+    tmp_path: Path,
+) -> None:
+    value = report()
+    value["records"][0]["opponent_decisions"] = {
+        "observation": value["records"][0]["post_turn"],
+        "candidate_offsets": [0, 1, 2],
+        "action_indices": [0, 1],
+    }
+    path = tmp_path / "illegal-opponent-decisions.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="action is not legal"):
+        load_teacher_slates(path)
 
 
 def test_teacher_slate_loader_rejects_misaligned_post_reply_observations(

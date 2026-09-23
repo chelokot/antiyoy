@@ -12,6 +12,14 @@ from .turn_credit import model_observation
 
 
 @dataclass(frozen=True)
+class OpponentDecisions:
+    observation: dict[str, np.ndarray]
+    rules_json: tuple[str, ...]
+    candidate_offsets: np.ndarray
+    action_indices: np.ndarray
+
+
+@dataclass(frozen=True)
 class TeacherSlatePosition:
     seed: int
     seat: int
@@ -25,6 +33,7 @@ class TeacherSlatePosition:
     slate_first_actions: tuple[str, ...]
     opponent_actions: tuple[tuple[str, ...], ...] | None
     post_reply: dict[str, np.ndarray] | None
+    opponent_decisions: OpponentDecisions | None = None
 
 
 def load_teacher_slates(path: Path) -> list[TeacherSlatePosition]:
@@ -62,6 +71,43 @@ def load_teacher_slates(path: Path) -> list[TeacherSlatePosition]:
                 raise ValueError("teacher slate opponent observation counts differ")
             if reply_rules != rules:
                 raise ValueError("teacher slate opponent observation rules differ")
+        exported_decisions = cast(
+            dict[str, object] | None, record.get("opponent_decisions")
+        )
+        decisions = None
+        if exported_decisions is not None:
+            decision_observation, decision_rules = model_observation(
+                cast(dict[str, object], exported_decisions["observation"])
+            )
+            offsets = np.asarray(
+                exported_decisions["candidate_offsets"], dtype=np.int64
+            )
+            indices = np.asarray(exported_decisions["action_indices"], dtype=np.int64)
+            decision_count = len(decision_observation["widths"])
+            if (
+                len(offsets) != count + 1
+                or offsets[0] != 0
+                or offsets[-1] != decision_count
+                or np.any(np.diff(offsets) < 0)
+                or len(indices) != decision_count
+                or len(decision_rules) != decision_count
+                or len(decision_observation["action_offsets"]) != decision_count + 1
+            ):
+                raise ValueError("teacher slate opponent decision counts differ")
+            action_counts = np.diff(decision_observation["action_offsets"])
+            if np.any(indices < 0) or np.any(indices >= action_counts):
+                raise ValueError("teacher slate opponent decision action is not legal")
+            if opponent_actions is not None and any(
+                offsets[index + 1] - offsets[index] != len(plan)
+                for index, plan in enumerate(opponent_actions)
+            ):
+                raise ValueError("teacher slate opponent plan and decisions differ")
+            decisions = OpponentDecisions(
+                observation=decision_observation,
+                rules_json=decision_rules,
+                candidate_offsets=offsets,
+                action_indices=indices,
+            )
         chosen = max(
             range(count),
             key=lambda index: (reply[index], static[index], -index),
@@ -93,6 +139,7 @@ def load_teacher_slates(path: Path) -> list[TeacherSlatePosition]:
                     else None
                 ),
                 post_reply=reply_observation,
+                opponent_decisions=decisions,
             )
         )
     if len(positions) != report["positions"]:
