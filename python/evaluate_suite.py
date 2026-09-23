@@ -9,6 +9,8 @@ from pathlib import Path
 
 import torch
 
+from antiyoy_rl import GENERATOR_ROTATED_SCHEMA_VERSION, GENERATOR_SCHEMA_VERSION
+
 try:
     from .evaluate import (
         PAIRING_SCHEME,
@@ -197,6 +199,16 @@ def main() -> None:
     parser.add_argument("--height", type=int, default=9)
     parser.add_argument("--action-limit", type=int, default=1000)
     parser.add_argument("--procedural", action="store_true")
+    parser.add_argument(
+        "--generator-schema-version",
+        type=int,
+        choices=(GENERATOR_SCHEMA_VERSION, GENERATOR_ROTATED_SCHEMA_VERSION),
+        default=GENERATOR_SCHEMA_VERSION,
+    )
+    parser.add_argument(
+        "--route-generator",
+        choices=("symmetric_duel_v1", "procedural_v1", "procedural_v2"),
+    )
     parser.add_argument("--players", type=int, default=2)
     parser.add_argument("--land-density-per-million", type=int, default=650_000)
     parser.add_argument("--starting-province-size", type=int, default=5)
@@ -218,6 +230,11 @@ def main() -> None:
         parser.error("games must be a positive multiple of players")
     if not arguments.procedural and arguments.players != 2:
         parser.error("symmetric duel evaluation requires exactly two players")
+    if (
+        not arguments.procedural
+        and arguments.generator_schema_version != GENERATOR_SCHEMA_VERSION
+    ):
+        parser.error("generator schema 2 requires --procedural")
     if arguments.minimum_aggregate_score is not None and not (
         0 <= arguments.minimum_aggregate_score <= 1
     ):
@@ -260,6 +277,8 @@ def main() -> None:
                     arguments.neutral_tower_density_per_million,
                     arguments.neutral_capital_density_per_million,
                     arguments.grave_density_per_million,
+                    generator_schema_version=arguments.generator_schema_version,
+                    route_generator=arguments.route_generator,
                 )
             )
     aggregate = aggregate_results(results)
@@ -290,8 +309,11 @@ def main() -> None:
         },
         "arena": {
             "generator": (
-                "procedural_v1" if arguments.procedural else "symmetric_duel_v1"
+                f"procedural_v{arguments.generator_schema_version}"
+                if arguments.procedural
+                else "symmetric_duel_v1"
             ),
+            "route_generator": results[0]["route_generator"],
             "width": arguments.width,
             "height": arguments.height,
             "players": arguments.players,
@@ -305,6 +327,7 @@ def main() -> None:
             "seeds": arguments.seeds,
             "generator_config": (
                 {
+                    "schema_version": arguments.generator_schema_version,
                     "land_density_per_million": arguments.land_density_per_million,
                     "starting_province_size": arguments.starting_province_size,
                     "starting_money": arguments.starting_money,

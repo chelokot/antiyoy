@@ -479,6 +479,8 @@ profile-level expert. To transfer an existing v1 exact-seat bundle without
 changing its expert selection, add `--route-generator procedural_v1`; the
 report records both the v2 environment domain and the distinct policy route
 domain. Inspect `selected_experts` before comparing models.
+`evaluate_suite.py` accepts the same two flags and records the environment
+generator and policy route separately across its all-seat gate.
 The same seed has the same land and capital locations under both versions, but
 assigns those starting positions to different seats. The generator fairness
 audit is in `benchmarks/2026-09-23-rotated-seat-generator-cpu.json`; it is not
