@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_turn_value_experiment",
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "sample_round": 8,
+    "rollin": "reply-search self-play",
+    "root_beam_nodes": 256,
+    "completed_turn_slate_size": 8,
+    "reply_nodes": 64,
+    "continuation_action_limit": 1000
+  },
+  "map_windows": {
+    "diagnostic_only_first_seed": 6264000,
+    "diagnostic_only_maps": 64,
+    "training_first_seed": 6265000,
+    "training_maps": 256,
+    "offline_validation_first_seed": 6268000,
+    "offline_validation_maps": 128,
+    "full_game_gate_first_seed": 6271000,
+    "full_game_gate_maps": 256
+  },
+  "candidate": "Map-balanced pairwise linear head on root-conditioned post-turn material and economy features, fitted to complete terminal outcomes under persistent reply-search on both seats. Candidate states outside the actual top-eight completed-turn slate are excluded. Censored labels are excluded from pairwise fitting and reported in evaluation.",
+  "decision": "Offline validation is exploratory. The full-game gate stays untouched until feature choice and weights are frozen. Compare the candidate against plain beam-256 and the reply-search teacher in complete games from both seats, grouped by independent map, with a wall-time benchmark. A stronger-than-plain-search claim requires a positive grouped-map result with two-sided exact sign-test p below 0.05 and no seat-specific significantly negative result. Claim cost-saving distillation only if the map-bootstrap 95 percent lower bound against the teacher is above minus 30 pool-relative Elo and median compute per move is less than half the teacher. Otherwise reject the candidate; do not rate or publish it."
+}
