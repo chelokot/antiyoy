@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_generator_seat_assignment_paired_cpu_gate",
+  "implementation_commit": "ae28e61ccbc59739109a956ad3488d06eaa63578",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 2,
+    "process_priority": "nice 19",
+    "gpu_used": false
+  },
+  "domain": {
+    "rules": "classic_generic_2022",
+    "policy": "native deterministic greedy on every seat",
+    "players": 5,
+    "width": 19,
+    "height": 15,
+    "action_limit": 2400,
+    "land_density_per_million": 650000,
+    "starting_province_size": 5,
+    "starting_money": 10,
+    "tree_density_per_million": 150000,
+    "neutral_tower_density_per_million": 20000,
+    "neutral_capital_density_per_million": 10000,
+    "grave_density_per_million": 15000
+  },
+  "command_template": "OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 RAYON_NUM_THREADS=2 nice -n 19 python -m python.benchmark_seat_balance --games 256 --batch-size 32 --seed {seed} --width 19 --height 15 --players 5 --action-limit 2400 --generator-schema-version {schema_version}",
+  "pairing": "Within each seed window, schema 1 and schema 2 use identical land, capital hexes, neutral objects, rules, agent, and action limit. Schema 2 assigns each generated starting province to player (original_position + seed % players) % players. Each reported game is a complete greedy self-play run; adjudicated truncations are included in wins and listed separately.",
+  "runs": [
+    {
+      "seed_first": 4700000,
+      "maps_per_schema": 256,
+      "schema_1": {
+        "wins_by_seat": [73, 82, 49, 34, 18],
+        "initial_voronoi_region_mean_by_seat": [69.65234375, 23.16015625, 29.56640625, 32.6015625, 31.01953125],
+        "truncations": 0,
+        "elapsed_seconds": 70.31778001599014,
+        "raw_result_sha256": "c6ab57dc344a69bc4e1f2bfcbf4ac1898698b0aea7e6fb1625e7534ebff31ae1"
+      },
+      "schema_2": {
+        "wins_by_seat": [66, 50, 47, 47, 46],
+        "initial_voronoi_region_mean_by_seat": [37.44921875, 36.67578125, 37.4296875, 36.78125, 37.6640625],
+        "truncations": 0,
+        "elapsed_seconds": 70.81435353774577,
+        "raw_result_sha256": "c92e33eb33eb5183cd380cd34da5582cff83d823a87dd6f92c9813f292106c4e"
+      }
+    },
+    {
+      "seed_first": 4800000,
+      "maps_per_schema": 256,
+      "schema_1": {
+        "wins_by_seat": [66, 79, 61, 29, 21],
+        "initial_voronoi_region_mean_by_seat": [69.77734375, 23.0234375, 28.1796875, 33.12890625, 31.890625],
+        "truncations": 0,
+        "elapsed_seconds": 76.59777100291103,
+        "raw_result_sha256": "1188749cac76ab6c49b898837395ccd36df70210add1c7ca8c6d750997fd317c"
+      },
+      "schema_2": {
+        "wins_by_seat": [60, 48, 50, 52, 46],
+        "initial_voronoi_region_mean_by_seat": [36.98046875, 34.44921875, 37.890625, 38.078125, 38.6015625],
+        "truncations": 1,
+        "elapsed_seconds": 68.16891256999224,
+        "raw_result_sha256": "cdeab5fdae6f78a6aebe0bf2b631d13b5df5b7e09c0888c371462666ab3cb664"
+      }
+    }
+  ],
+  "combined": {
+    "maps_per_schema": 512,
+    "schema_1": {
+      "wins_by_seat": [139, 161, 110, 63, 39],
+      "maximum_minus_minimum_wins": 122,
+      "initial_voronoi_region_mean_by_seat": [69.71484375, 23.091796875, 28.873046875, 32.865234375, 31.455078125]
+    },
+    "schema_2": {
+      "wins_by_seat": [126, 98, 97, 99, 92],
+      "maximum_minus_minimum_wins": 34,
+      "initial_voronoi_region_mean_by_seat": [37.21484375, 35.5625, 37.66015625, 37.4296875, 38.1328125]
+    }
+  },
+  "interpretation": "Across two fresh windows, the fixed link between generator insertion order and player ID produced 122 wins of spread between seats under schema 1. The opt-in seed rotation reduced that descriptive spread to 34 wins and equalized mean initial Voronoi allocations. Seat zero still won 126 of 512 schema-2 games, so turn order and first-round economy remain relevant. A single schema-2 map can still give unequal positions; these observations do not establish calibrated Elo, model strength, or fair rated matchmaking.",
+  "decision": "Accept schema 2 as a versioned, opt-in domain-randomization and evaluation candidate. Keep schema 1 as default for exact replay and checkpoint compatibility. Do not silently migrate training corpora, model routes, or rated multiplayer; validate those workflows separately before promotion."
+}
