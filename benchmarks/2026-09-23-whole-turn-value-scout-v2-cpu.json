@@ -49,6 +49,28 @@
   "training_maps_with_samples": 63,
   "validation_maps_with_samples": 63,
   "training_pairs": 411,
+  "training_observed_oracle_opportunities": {
+    "positions": 22,
+    "independent_maps": 17,
+    "by_seat": {
+      "0": 2,
+      "1": 4,
+      "2": 7,
+      "3": 4,
+      "4": 5
+    }
+  },
+  "validation_observed_oracle_opportunities": {
+    "positions": 23,
+    "independent_maps": 21,
+    "by_seat": {
+      "0": 4,
+      "1": 6,
+      "2": 5,
+      "3": 3,
+      "4": 5
+    }
+  },
   "training": {
     "positions": 170,
     "changed_choices": 150,

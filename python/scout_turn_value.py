@@ -98,6 +98,24 @@ def train_head(
     return weight.detach(), scales
 
 
+def observed_oracle_opportunities(positions: list[EmbeddedPosition]) -> dict[str, object]:
+    opportunities = [
+        position
+        for position in positions
+        if position.outcomes[position.search_index] >= 0
+        and max(position.outcomes[position.outcomes >= 0])
+        > position.outcomes[position.search_index]
+    ]
+    return {
+        "positions": len(opportunities),
+        "independent_maps": len({position.seed for position in opportunities}),
+        "by_seat": {
+            str(seat): sum(position.seat == seat for position in opportunities)
+            for seat in range(5)
+        },
+    }
+
+
 def evaluate_head(
     positions: list[EmbeddedPosition],
     weight: Tensor,
@@ -192,6 +210,8 @@ def scout(
         "training_maps_with_samples": len(training_seeds),
         "validation_maps_with_samples": len(validation_seeds),
         "training_pairs": differences.shape[0],
+        "training_observed_oracle_opportunities": observed_oracle_opportunities(training),
+        "validation_observed_oracle_opportunities": observed_oracle_opportunities(validation),
         "training": evaluate_head(training, weight, scales),
         "validation": evaluate_head(validation, weight, scales),
         "training_conservative": evaluate_head(training, weight, scales, 1.0),

@@ -8,6 +8,7 @@ from python.scout_turn_value import (
     EmbeddedPosition,
     embed_position,
     evaluate_head,
+    observed_oracle_opportunities,
     pairwise_examples,
     train_head,
 )
@@ -109,3 +110,9 @@ def test_outcome_scout_groups_seats_by_independent_map() -> None:
 
     assert conservative["changed_choices"] == 0
     assert conservative["censored"] == 0
+
+    assert observed_oracle_opportunities(positions) == {
+        "positions": 1,
+        "independent_maps": 1,
+        "by_seat": {"0": 1, "1": 0, "2": 0, "3": 0, "4": 0},
+    }
