@@ -273,6 +273,17 @@ actions; divergence invalidates the plan and triggers a new search. Imitation
 accuracy is only a training diagnostic. A student becomes a stronger model
 only after a fresh paired full-game comparison against the frozen source.
 
+If an imitation student loses despite a stronger teacher, run a paired
+evaluation with `--baseline policy`, `--baseline-checkpoint SOURCE`, and
+`--audit-reply-teacher`. The audit counts teacher/source disagreements and
+whether the student followed the teacher, stayed with the source, or invented
+a third action, separately by seat. `--imitation-disagreement-weight 4` is an
+opt-in follow-up that increases the teacher loss only on source/teacher
+disagreements; it requires `--initialize` so the source is frozen. The
+reference-policy KL remains weighted by the ordinary sample weights, not the
+correction multiplier. The multiplier is a training hypothesis, not a strength
+claim, and needs fresh complete-game gates.
+
 Policy-guided PUCT is a separate model-side amplifier. Rust owns the cloned
 search trees, exact legal transitions, virtual visits, and deterministic
 backup; Python batches pending leaves into a single policy/value inference.

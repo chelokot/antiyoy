@@ -13,6 +13,7 @@ import torch
 from python.train import (
     Rollout,
     TrainingConfig,
+    correction_weights,
     imitation_action_weights,
     imitation_weights,
     initialization_state,
@@ -68,6 +69,7 @@ def training_config() -> TrainingConfig:
         imitation_rollin="teacher",
         imitation_symmetry_augmentation=False,
         imitation_reference_weight=0.0,
+        imitation_disagreement_weight=1.0,
         imitation_slice_weights=[],
         imitation_action_weights=[],
         imitation_policy_rollin_slices=[],
@@ -599,6 +601,29 @@ def test_reply_search_teacher_requires_a_valid_duel_configuration() -> None:
         validate_config(replace(valid, fog=True))
     with pytest.raises(ValueError, match="requires the search teacher"):
         validate_config(replace(valid, imitation_search_replan=True))
+
+
+def test_imitation_disagreement_weight_requires_a_frozen_source() -> None:
+    with pytest.raises(ValueError, match="requires initialization"):
+        validate_config(replace(training_config(), imitation_disagreement_weight=4.0))
+    with pytest.raises(ValueError, match="finite and positive"):
+        validate_config(replace(training_config(), imitation_disagreement_weight=0.0))
+    validate_config(
+        replace(
+            training_config(),
+            imitation_disagreement_weight=4.0,
+            initialize=Path("source.pt"),
+        )
+    )
+
+
+def test_correction_weights_preserve_agreements_and_upweight_disagreements() -> None:
+    base = torch.tensor([1.0, 2.0, 3.0])
+    teacher = torch.tensor([0, 2, 3])
+    source = torch.tensor([0, 1, 3])
+
+    assert correction_weights(base, teacher, source, 4.0).tolist() == [1.0, 8.0, 3.0]
+    assert correction_weights(base, teacher, source, 1.0).tolist() == base.tolist()
 
 
 def test_training_rejects_initialize_with_resume() -> None:

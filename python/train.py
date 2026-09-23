@@ -84,6 +84,7 @@ class TrainingConfig:
     imitation_rollin: str
     imitation_symmetry_augmentation: bool
     imitation_reference_weight: float
+    imitation_disagreement_weight: float
     imitation_slice_weights: list[str]
     imitation_action_weights: list[str]
     imitation_policy_rollin_slices: list[str]
@@ -420,6 +421,17 @@ def imitation_action_weights(
     return torch.tensor(weights, dtype=torch.float32, device=device)
 
 
+def correction_weights(
+    weights: Tensor,
+    targets: Tensor,
+    reference_actions: Tensor,
+    disagreement_weight: float,
+) -> Tensor:
+    return weights * (
+        1.0 + (disagreement_weight - 1.0) * (targets != reference_actions).float()
+    )
+
+
 def policy_rollin_mask(
     config: TrainingConfig,
     observation: dict[str, np.ndarray],
@@ -526,6 +538,13 @@ def validate_config(config: TrainingConfig) -> None:
             raise ValueError("reply search teacher requires two-player games")
         if config.fog:
             raise ValueError("reply search teacher requires full information")
+    if (
+        not math.isfinite(config.imitation_disagreement_weight)
+        or config.imitation_disagreement_weight <= 0
+    ):
+        raise ValueError("imitation disagreement weight must be finite and positive")
+    if config.imitation_disagreement_weight != 1.0 and config.initialize is None:
+        raise ValueError("imitation disagreement weighting requires initialization")
     if config.imitation_rollin not in {"teacher", "policy"}:
         raise ValueError("imitation_rollin must be teacher or policy")
     if config.search_nodes < 2:
@@ -970,20 +989,31 @@ def pretrain_teacher(
         weights = imitation_weights(
             config, observation, device
         ) * imitation_action_weights(config, observation, selected, device)
-        weight_sum = weights.sum()
-        teacher_losses = -distribution.log_prob(targets)
-        loss = (teacher_losses * weights).sum() / weight_sum
-        retention_kl = 0.0
+        reference_distribution = None
         if reference_model is not None:
             with torch.no_grad():
                 reference_logits, _ = reference_model(model_observation, rules)
                 reference_distribution = action_distribution(
                     reference_logits, model_observation["action_offsets"]
                 )
+        teacher_weights = weights
+        if config.imitation_disagreement_weight != 1.0:
+            assert reference_distribution is not None
+            reference_actions = reference_distribution.logits.argmax(dim=1)
+            teacher_weights = correction_weights(
+                weights,
+                targets,
+                reference_actions,
+                config.imitation_disagreement_weight,
+            )
+        teacher_losses = -distribution.log_prob(targets)
+        loss = (teacher_losses * teacher_weights).sum() / teacher_weights.sum()
+        retention_kl = 0.0
+        if reference_distribution is not None:
             retention = torch.distributions.kl_divergence(
                 reference_distribution, distribution
             )
-            retention = (retention * weights).sum() / weight_sum
+            retention = (retention * weights).sum() / weights.sum()
             loss = loss + config.imitation_reference_weight * retention
             retention_kl = float(retention.item())
         optimizer.zero_grad(set_to_none=True)
@@ -1242,6 +1272,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     reference_model = None
     if (
         config.imitation_reference_weight > 0
+        or config.imitation_disagreement_weight != 1.0
         or config.opponent_reference_weight > 0
         or config.opponent_counterfactual_baseline
     ):
@@ -1418,6 +1449,8 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             algorithm += "_periodic_map_resets"
         if config.imitation_reference_weight > 0:
             algorithm += "_reference_regularized"
+        if config.imitation_disagreement_weight != 1.0:
+            algorithm += "_correction_weighted"
         if config.imitation_slice_weights:
             algorithm += "_slice_weighted"
         if config.imitation_action_weights:
@@ -1477,6 +1510,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "imitation_rollin": config.imitation_rollin,
         "imitation_symmetry_augmentation": config.imitation_symmetry_augmentation,
         "imitation_reference_weight": config.imitation_reference_weight,
+        "imitation_disagreement_weight": config.imitation_disagreement_weight,
         "imitation_slice_weights": ",".join(config.imitation_slice_weights),
         "imitation_action_weights": ",".join(config.imitation_action_weights),
         "imitation_policy_rollin_slices": ",".join(
@@ -1577,6 +1611,7 @@ def parse_args() -> TrainingConfig:
     )
     parser.add_argument("--imitation-symmetry-augmentation", action="store_true")
     parser.add_argument("--imitation-reference-weight", type=float, default=0.0)
+    parser.add_argument("--imitation-disagreement-weight", type=float, default=1.0)
     parser.add_argument(
         "--imitation-slice-weight",
         action="append",
