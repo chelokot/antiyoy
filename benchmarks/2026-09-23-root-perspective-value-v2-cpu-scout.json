@@ -1,0 +1,482 @@
+{
+  "kind": "whole_turn_outcome_value_scout",
+  "source_model_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "source_expert": "context:ea1a83a813d1f57f",
+  "training_files": [
+    {
+      "name": "train-v2-seat0.json.gz",
+      "sha256": "950c9ae64eca4544de152580d524ad180ab3ef794109aa83927b7234c4a03d8d"
+    },
+    {
+      "name": "train-v2-seat1.json.gz",
+      "sha256": "73da79034744890f1806d2f612418ba62ca51593b68e4fe356fc9deca3a21295"
+    },
+    {
+      "name": "train-v2-seat2.json.gz",
+      "sha256": "6aefdc87dceef2d78049d8528e656c662fba7f9732f976aa034147d5c19909f2"
+    },
+    {
+      "name": "train-v2-seat3.json.gz",
+      "sha256": "8b2361309aaf42ae479f8de150cb8654ccd3bec5277ac1f04a58be7bc4da993d"
+    },
+    {
+      "name": "train-v2-seat4.json.gz",
+      "sha256": "2c9d54bd7104c2d1473b66dda9aca5595901ebcd5b48b7d3937127a5a9fa1a75"
+    }
+  ],
+  "validation_files": [
+    {
+      "name": "root-validation-v2-seat0.json.gz",
+      "sha256": "121be10a638ef724615a5b5d0007275196518bdf850073580e00cabe0fcb2b49"
+    },
+    {
+      "name": "root-validation-v2-seat1.json.gz",
+      "sha256": "a080470894dd15bd129d4b4ea70324c1468ccc132d40494366723f0cfb7d2e07"
+    },
+    {
+      "name": "root-validation-v2-seat2.json.gz",
+      "sha256": "9f69faaef6fcaed812474a4e14b8f1f674a92fa11006c7740079467b23f25714"
+    },
+    {
+      "name": "root-validation-v2-seat3.json.gz",
+      "sha256": "856b72107de6645b63d4f853bcd7d4c92a8286f97b1737d88c37b71c35e7d1c5"
+    },
+    {
+      "name": "root-validation-v2-seat4.json.gz",
+      "sha256": "82b7542f3e05106b1a6d9f21b0d7eb6737083377f8b0e47fca4fe912dba1487c"
+    }
+  ],
+  "training_maps_with_samples": 63,
+  "validation_maps_with_samples": 64,
+  "training_pairs": 411,
+  "training_observed_oracle_opportunities": {
+    "positions": 22,
+    "independent_maps": 17,
+    "by_seat": {
+      "0": 2,
+      "1": 4,
+      "2": 7,
+      "3": 4,
+      "4": 5
+    }
+  },
+  "validation_observed_oracle_opportunities": {
+    "positions": 27,
+    "independent_maps": 21,
+    "by_seat": {
+      "0": 10,
+      "1": 4,
+      "2": 3,
+      "3": 3,
+      "4": 7
+    }
+  },
+  "training": {
+    "positions": 170,
+    "changed_choices": 55,
+    "better": 3,
+    "worse": 0,
+    "same": 166,
+    "censored": 1,
+    "by_seat": {
+      "0": {
+        "better": 1,
+        "worse": 0,
+        "same": 28,
+        "censored": 0
+      },
+      "1": {
+        "better": 1,
+        "worse": 0,
+        "same": 31,
+        "censored": 0
+      },
+      "2": {
+        "better": 1,
+        "worse": 0,
+        "same": 30,
+        "censored": 0
+      },
+      "3": {
+        "better": 0,
+        "worse": 0,
+        "same": 33,
+        "censored": 0
+      },
+      "4": {
+        "better": 0,
+        "worse": 0,
+        "same": 44,
+        "censored": 1
+      }
+    },
+    "independent_maps": {
+      "candidate_better": 3,
+      "baseline_better": 0,
+      "same": 59,
+      "discordant": 3,
+      "net_improvements": 3,
+      "exact_two_sided_sign_test_p": 0.25,
+      "censored": 1
+    }
+  },
+  "validation": {
+    "positions": 201,
+    "changed_choices": 65,
+    "better": 7,
+    "worse": 2,
+    "same": 191,
+    "censored": 1,
+    "by_seat": {
+      "0": {
+        "better": 2,
+        "worse": 0,
+        "same": 30,
+        "censored": 0
+      },
+      "1": {
+        "better": 1,
+        "worse": 0,
+        "same": 36,
+        "censored": 0
+      },
+      "2": {
+        "better": 1,
+        "worse": 1,
+        "same": 37,
+        "censored": 1
+      },
+      "3": {
+        "better": 1,
+        "worse": 1,
+        "same": 35,
+        "censored": 0
+      },
+      "4": {
+        "better": 2,
+        "worse": 0,
+        "same": 53,
+        "censored": 0
+      }
+    },
+    "independent_maps": {
+      "candidate_better": 7,
+      "baseline_better": 2,
+      "same": 54,
+      "discordant": 9,
+      "net_improvements": 5,
+      "exact_two_sided_sign_test_p": 0.1796875,
+      "censored": 1
+    }
+  },
+  "training_conservative": {
+    "positions": 170,
+    "changed_choices": 0,
+    "better": 0,
+    "worse": 0,
+    "same": 169,
+    "censored": 1,
+    "by_seat": {
+      "0": {
+        "better": 0,
+        "worse": 0,
+        "same": 29,
+        "censored": 0
+      },
+      "1": {
+        "better": 0,
+        "worse": 0,
+        "same": 32,
+        "censored": 0
+      },
+      "2": {
+        "better": 0,
+        "worse": 0,
+        "same": 31,
+        "censored": 0
+      },
+      "3": {
+        "better": 0,
+        "worse": 0,
+        "same": 33,
+        "censored": 0
+      },
+      "4": {
+        "better": 0,
+        "worse": 0,
+        "same": 44,
+        "censored": 1
+      }
+    },
+    "independent_maps": {
+      "candidate_better": 0,
+      "baseline_better": 0,
+      "same": 62,
+      "discordant": 0,
+      "net_improvements": 0,
+      "exact_two_sided_sign_test_p": 1.0,
+      "censored": 1
+    }
+  },
+  "validation_conservative": {
+    "positions": 201,
+    "changed_choices": 0,
+    "better": 0,
+    "worse": 0,
+    "same": 200,
+    "censored": 1,
+    "by_seat": {
+      "0": {
+        "better": 0,
+        "worse": 0,
+        "same": 32,
+        "censored": 0
+      },
+      "1": {
+        "better": 0,
+        "worse": 0,
+        "same": 37,
+        "censored": 0
+      },
+      "2": {
+        "better": 0,
+        "worse": 0,
+        "same": 39,
+        "censored": 1
+      },
+      "3": {
+        "better": 0,
+        "worse": 0,
+        "same": 37,
+        "censored": 0
+      },
+      "4": {
+        "better": 0,
+        "worse": 0,
+        "same": 55,
+        "censored": 0
+      }
+    },
+    "independent_maps": {
+      "candidate_better": 0,
+      "baseline_better": 0,
+      "same": 63,
+      "discordant": 0,
+      "net_improvements": 0,
+      "exact_two_sided_sign_test_p": 1.0,
+      "censored": 1
+    }
+  },
+  "qualification": "offline exact greedy continuation only; no policy promotion",
+  "representation": "root_value_static",
+  "fitted_head": {
+    "weight": [
+      0.05317453294992447,
+      0.32041308283805847
+    ],
+    "feature_scales": [
+      0.009999999776482582,
+      0.03623363748192787
+    ]
+  },
+  "root_critic_only": {
+    "training": {
+      "positions": 170,
+      "changed_choices": 150,
+      "better": 6,
+      "worse": 7,
+      "same": 155,
+      "censored": 2,
+      "by_seat": {
+        "0": {
+          "better": 1,
+          "worse": 3,
+          "same": 24,
+          "censored": 1
+        },
+        "1": {
+          "better": 0,
+          "worse": 2,
+          "same": 30,
+          "censored": 0
+        },
+        "2": {
+          "better": 1,
+          "worse": 0,
+          "same": 30,
+          "censored": 0
+        },
+        "3": {
+          "better": 2,
+          "worse": 1,
+          "same": 30,
+          "censored": 0
+        },
+        "4": {
+          "better": 2,
+          "worse": 1,
+          "same": 41,
+          "censored": 1
+        }
+      },
+      "independent_maps": {
+        "candidate_better": 4,
+        "baseline_better": 5,
+        "same": 52,
+        "discordant": 9,
+        "net_improvements": -1,
+        "exact_two_sided_sign_test_p": 1.0,
+        "censored": 2
+      }
+    },
+    "validation": {
+      "positions": 201,
+      "changed_choices": 174,
+      "better": 5,
+      "worse": 10,
+      "same": 185,
+      "censored": 1,
+      "by_seat": {
+        "0": {
+          "better": 2,
+          "worse": 1,
+          "same": 29,
+          "censored": 0
+        },
+        "1": {
+          "better": 0,
+          "worse": 3,
+          "same": 34,
+          "censored": 0
+        },
+        "2": {
+          "better": 0,
+          "worse": 2,
+          "same": 37,
+          "censored": 1
+        },
+        "3": {
+          "better": 2,
+          "worse": 1,
+          "same": 34,
+          "censored": 0
+        },
+        "4": {
+          "better": 1,
+          "worse": 3,
+          "same": 51,
+          "censored": 0
+        }
+      },
+      "independent_maps": {
+        "candidate_better": 4,
+        "baseline_better": 9,
+        "same": 50,
+        "discordant": 13,
+        "net_improvements": -5,
+        "exact_two_sided_sign_test_p": 0.266845703125,
+        "censored": 1
+      }
+    }
+  },
+  "static_only": {
+    "training": {
+      "positions": 170,
+      "changed_choices": 0,
+      "better": 0,
+      "worse": 0,
+      "same": 169,
+      "censored": 1,
+      "by_seat": {
+        "0": {
+          "better": 0,
+          "worse": 0,
+          "same": 29,
+          "censored": 0
+        },
+        "1": {
+          "better": 0,
+          "worse": 0,
+          "same": 32,
+          "censored": 0
+        },
+        "2": {
+          "better": 0,
+          "worse": 0,
+          "same": 31,
+          "censored": 0
+        },
+        "3": {
+          "better": 0,
+          "worse": 0,
+          "same": 33,
+          "censored": 0
+        },
+        "4": {
+          "better": 0,
+          "worse": 0,
+          "same": 44,
+          "censored": 1
+        }
+      },
+      "independent_maps": {
+        "candidate_better": 0,
+        "baseline_better": 0,
+        "same": 62,
+        "discordant": 0,
+        "net_improvements": 0,
+        "exact_two_sided_sign_test_p": 1.0,
+        "censored": 1
+      }
+    },
+    "validation": {
+      "positions": 201,
+      "changed_choices": 0,
+      "better": 0,
+      "worse": 0,
+      "same": 200,
+      "censored": 1,
+      "by_seat": {
+        "0": {
+          "better": 0,
+          "worse": 0,
+          "same": 32,
+          "censored": 0
+        },
+        "1": {
+          "better": 0,
+          "worse": 0,
+          "same": 37,
+          "censored": 0
+        },
+        "2": {
+          "better": 0,
+          "worse": 0,
+          "same": 39,
+          "censored": 1
+        },
+        "3": {
+          "better": 0,
+          "worse": 0,
+          "same": 37,
+          "censored": 0
+        },
+        "4": {
+          "better": 0,
+          "worse": 0,
+          "same": 55,
+          "censored": 0
+        }
+      },
+      "independent_maps": {
+        "candidate_better": 0,
+        "baseline_better": 0,
+        "same": 63,
+        "discordant": 0,
+        "net_improvements": 0,
+        "exact_two_sided_sign_test_p": 1.0,
+        "censored": 1
+      }
+    }
+  }
+}

@@ -153,6 +153,11 @@ outcome changes by seat and independent map. Its choices are evaluated offline
 under the recorded greedy continuations; a second, predeclared conservative
 comparison requires a learned pairwise log-odds margin above `1.0` before
 departing from search. No head is deployed on that evidence.
+`--representation root_value_static` evaluates each completed-turn state from
+the original actor's perspective, using only the frozen scalar critic and
+the root-oriented static score as pairwise features. It also reports both
+features alone as fixed baselines. The exported legal actions still belong
+to the next player, but they do not enter the model's value computation.
 The [first whole-turn value scout](2026-09-23-whole-turn-value-scout-v2-cpu.json)
 uses disjoint 64-map training and validation windows with all five seats. The
 frozen routed-v6 encoder plus pairwise head improved 20 and worsened zero
@@ -164,6 +169,21 @@ with a better complete-turn candidate under the same greedy continuation,
 but this head selected a better outcome only three times and harmed two other
 positions. This head is rejected as overfit and was not installed in a
 playable or rated agent.
+The [root-perspective two-feature scout](2026-09-23-root-perspective-value-v2-cpu-scout.json)
+uses the same 64 training maps and a new 64-map, all-seat validation window.
+The learned head changed 65 of 201 sampled choices and improved seven exact
+greedy-continuation outcomes while worsening two. These were seven better
+versus two worse independent maps (`p=0.180`), with one censored map. The
+unmodified critic alone was worse (five better, ten worse positions); the
+static score alone reproduced search's choice. This is a conditional offline
+lead, not a verified policy improvement, and no agent was changed.
+The [predeclared 128-map confirmation](2026-09-23-root-perspective-value-v2-cpu-confirmation.json)
+used the exact same fitted coefficients and scales on a disjoint seed window.
+Of 370 sampled positions across 126 maps, it changed 123 choices, improved
+four outcomes, and worsened nine. Grouping all five seats by independent map
+gave three better, eight worse, 112 unchanged, and three censored maps
+(`p=0.227`). The conservative margin changed no choices. The apparent scout
+gain did not replicate, so this reranker is rejected and remains undeployed.
 
 An offline minimum-score-gain gate can be audited from these records by keeping
 only search turns whose `search.static_score - greedy.static_score` reaches a
