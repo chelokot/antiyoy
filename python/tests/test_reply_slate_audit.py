@@ -82,6 +82,9 @@ def test_reply_slate_audit_distinguishes_score_from_outcome_preference() -> None
     assert report["independent_maps_selected_better"] == 1
     assert report["independent_maps_selected_worse"] == 1
     assert report["independent_map_sign_test_p"] == 1.0
+    assert report["independent_map_pairwise_alignment"]["candidate_better"] == 1
+    assert report["independent_map_pairwise_alignment"]["baseline_better"] == 1
+    assert report["independent_map_pairwise_alignment"]["same"] == 0
 
 
 def test_reply_slate_audit_does_not_infer_missing_reply_scores() -> None:
@@ -125,6 +128,7 @@ def test_reply_slate_audit_keeps_reply_selection_fixed_across_outcome_probes() -
     assert opponent["selected_outcome_better"] == 1
     assert teacher["selected_outcome_worse"] == 1
     assert teacher["pairwise_discordant"] == 1
+    assert teacher["independent_map_pairwise_alignment"]["baseline_better"] == 1
     assert compare_probes([position]) == {
         "paired_complete_states": 2,
         "censored_state_pairs": 0,

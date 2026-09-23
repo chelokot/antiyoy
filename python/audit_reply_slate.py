@@ -104,6 +104,7 @@ def summarize(
     seat_counts: dict[int, Counter[str]] = {}
     selected_ranks: Counter[int] = Counter()
     map_deltas: dict[int, int] = {}
+    map_pair_deltas: dict[int, int] = {}
     censored_maps: set[int] = set()
     reply_spans = []
     for record in records:
@@ -181,6 +182,10 @@ def summarize(
                 counts["pairwise_concordant"] += reply_preference == outcome_preference
                 counts["pairwise_discordant"] += reply_preference == -outcome_preference
                 counts["pairwise_tied_score"] += reply_preference == 0
+                map_pair_deltas[seed] = map_pair_deltas.get(seed, 0) + (
+                    int(reply_preference == outcome_preference)
+                    - int(reply_preference == -outcome_preference)
+                )
         if outcomes[0] < 0 or outcomes[selected] < 0:
             counts["selected_outcome_censored"] += 1
             censored_maps.add(seed)
@@ -200,6 +205,11 @@ def summarize(
     worse_maps = sum(delta < 0 for delta in complete_deltas)
     same_maps = sum(delta == 0 for delta in complete_deltas)
     paired_maps = paired_comparison_summary(better_maps, worse_maps, same_maps)
+    paired_preference_maps = paired_comparison_summary(
+        sum(delta > 0 for delta in map_pair_deltas.values()),
+        sum(delta < 0 for delta in map_pair_deltas.values()),
+        sum(delta == 0 for delta in map_pair_deltas.values()),
+    )
     return {
         "positions": len(records),
         "independent_maps": len({cast(int, record["seed"]) for record in records}),
@@ -220,6 +230,7 @@ def summarize(
         "independent_maps_selected_same": same_maps,
         "independent_maps_censored": len(censored_maps),
         "independent_map_sign_test_p": paired_maps["exact_two_sided_sign_test_p"],
+        "independent_map_pairwise_alignment": paired_preference_maps,
     }
 
 
