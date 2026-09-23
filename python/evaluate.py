@@ -456,6 +456,7 @@ def evaluate(
     puct_heuristic_scale: float = 2048.0,
     reply_search_nodes: int = 64,
     reply_slate_size: int = 8,
+    audit_reply_teacher: bool = False,
 ) -> dict[str, object]:
     if generator_schema_version not in (
         GENERATOR_SCHEMA_VERSION,
@@ -488,6 +489,15 @@ def evaluate(
         )
     if baseline == "reply_search" and players != 2:
         raise ValueError("reply search baseline requires two-player games")
+    if audit_reply_teacher and (
+        baseline != "policy"
+        or baseline_checkpoint_path is None
+        or model_agent != "policy"
+        or players != 2
+    ):
+        raise ValueError(
+            "reply teacher audit requires two-player direct policies with a frozen baseline checkpoint"
+        )
     if baseline_checkpoint_path is not None and baseline != "policy":
         raise ValueError("a baseline checkpoint requires the policy baseline")
     if maxn_value_head_path is not None and (
@@ -503,6 +513,8 @@ def evaluate(
     )
     checkpoint = load_policy_checkpoint(checkpoint_path, device)
     base_config = dict(checkpoint["config"])
+    if audit_reply_teacher and base_config["fog"]:
+        raise ValueError("reply teacher audit requires full information")
     evaluation_profile = profile or base_config["profile"] or base_config["profiles"][0]
     evaluation_width = base_config["width"] if width is None else width
     evaluation_height = base_config["height"] if height is None else height
@@ -744,6 +756,19 @@ def evaluate(
     puct_selected_unvisited_actions = 0
     model_baseline_action_disagreements = 0
     model_policy_decisions = 0
+    reply_teacher_agreement = [
+        {
+            "decisions": 0,
+            "source_matches_teacher": 0,
+            "student_matches_teacher": 0,
+            "teacher_source_disagreements": 0,
+            "student_matches_teacher_on_disagreements": 0,
+            "student_matches_source_on_disagreements": 0,
+            "student_matches_neither_on_disagreements": 0,
+            "student_deviates_when_teacher_matches_source": 0,
+        }
+        for _ in range(players)
+    ]
     intervened = np.zeros(games, dtype=np.bool_)
     puct_config = PolicySearchConfig(
         node_budget=puct_nodes,
@@ -849,6 +874,50 @@ def evaluate(
                     model_actions[model_turns] != baseline_actions[model_turns]
                 )
             )
+        if audit_reply_teacher:
+            teacher_actions = np.asarray(
+                environment.reply_search_actions(
+                    node_budget=search_nodes,
+                    reply_nodes=reply_search_nodes,
+                    slate_size=reply_slate_size,
+                    beam_width=search_beam_width,
+                    branch_width=search_branch_width,
+                    maximum_actions_per_turn=search_maximum_actions_per_turn,
+                    active_mask=model_turns.astype(np.uint8),
+                ),
+                dtype=np.uint64,
+            )
+            for seat, counts in enumerate(reply_teacher_agreement):
+                seat_turns = np.logical_and(model_turns, active_players == seat)
+                source = baseline_actions[seat_turns]
+                student = model_actions[seat_turns]
+                teacher = teacher_actions[seat_turns]
+                informative = teacher != source
+                counts["decisions"] += len(source)
+                counts["source_matches_teacher"] += int(np.count_nonzero(~informative))
+                counts["student_matches_teacher"] += int(
+                    np.count_nonzero(student == teacher)
+                )
+                counts["teacher_source_disagreements"] += int(
+                    np.count_nonzero(informative)
+                )
+                counts["student_matches_teacher_on_disagreements"] += int(
+                    np.count_nonzero(np.logical_and(informative, student == teacher))
+                )
+                counts["student_matches_source_on_disagreements"] += int(
+                    np.count_nonzero(np.logical_and(informative, student == source))
+                )
+                counts["student_matches_neither_on_disagreements"] += int(
+                    np.count_nonzero(
+                        np.logical_and(
+                            informative,
+                            np.logical_and(student != teacher, student != source),
+                        )
+                    )
+                )
+                counts["student_deviates_when_teacher_matches_source"] += int(
+                    np.count_nonzero(np.logical_and(~informative, student != source))
+                )
         action_kinds = selected_action_kinds(observation, actions)
         model_action_counts += np.bincount(
             action_kinds[model_turns], minlength=len(ACTION_KIND_NAMES)
@@ -1038,6 +1107,9 @@ def evaluate(
             if baseline == "policy"
             else None
         ),
+        "reply_teacher_agreement": (
+            {"by_seat": reply_teacher_agreement} if audit_reply_teacher else None
+        ),
         "model_agent": model_agent,
         "policy_search": {
             "node_budget": puct_nodes if model_agent == "puct" else 0,
@@ -1119,6 +1191,7 @@ def main() -> None:
     parser.add_argument("--search-maximum-actions-per-turn", type=int, default=24)
     parser.add_argument("--reply-search-nodes", type=int, default=64)
     parser.add_argument("--reply-slate-size", type=int, default=8)
+    parser.add_argument("--audit-reply-teacher", action="store_true")
     parser.add_argument("--width", type=int)
     parser.add_argument("--height", type=int)
     parser.add_argument("--action-limit", type=int)
@@ -1241,6 +1314,7 @@ def main() -> None:
                 arguments.puct_heuristic_scale,
                 arguments.reply_search_nodes,
                 arguments.reply_slate_size,
+                arguments.audit_reply_teacher,
             ),
             sort_keys=True,
         )

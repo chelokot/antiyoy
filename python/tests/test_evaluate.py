@@ -181,6 +181,79 @@ def test_reply_search_baseline_rejects_multiplayer(tmp_path: Path) -> None:
         )
 
 
+def test_reply_teacher_audit_partitions_policy_decisions(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "policy.pt"
+    source = tmp_path / "source.pt"
+    write_checkpoint(checkpoint, 1.0)
+    write_checkpoint(source, 1.5)
+
+    result = evaluate(
+        checkpoint,
+        games=2,
+        seed=91_006,
+        device_name="cpu",
+        baseline="policy",
+        baseline_checkpoint_path=source,
+        profile="classic_generic_2022",
+        search_nodes=32,
+        search_beam_width=12,
+        search_branch_width=20,
+        search_maximum_actions_per_turn=12,
+        reply_search_nodes=8,
+        reply_slate_size=4,
+        width=7,
+        height=5,
+        action_limit=24,
+        procedural=True,
+        generator_schema_version=2,
+        players=2,
+        audit_reply_teacher=True,
+    )
+
+    counts = result["reply_teacher_agreement"]["by_seat"]
+    assert len(counts) == 2
+    assert (
+        sum(seat["decisions"] for seat in counts)
+        == result["model_baseline_policy_actions"]["decisions"]
+    )
+    for seat in counts:
+        assert seat["decisions"] == (
+            seat["source_matches_teacher"] + seat["teacher_source_disagreements"]
+        )
+        assert seat["teacher_source_disagreements"] == (
+            seat["student_matches_teacher_on_disagreements"]
+            + seat["student_matches_source_on_disagreements"]
+            + seat["student_matches_neither_on_disagreements"]
+        )
+        assert seat["student_matches_teacher"] == (
+            seat["source_matches_teacher"]
+            - seat["student_deviates_when_teacher_matches_source"]
+            + seat["student_matches_teacher_on_disagreements"]
+        )
+
+
+def test_reply_teacher_audit_requires_a_frozen_direct_baseline(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "policy.pt"
+    write_checkpoint(checkpoint, 1.0)
+    with pytest.raises(ValueError, match="frozen baseline checkpoint"):
+        evaluate(
+            checkpoint,
+            games=2,
+            seed=91_007,
+            device_name="cpu",
+            baseline="policy",
+            profile="classic_generic_2022",
+            search_nodes=32,
+            search_beam_width=12,
+            search_branch_width=20,
+            search_maximum_actions_per_turn=12,
+            width=7,
+            height=5,
+            action_limit=24,
+            audit_reply_teacher=True,
+        )
+
+
 def test_rotated_procedural_evaluation_has_a_distinct_domain(tmp_path: Path) -> None:
     checkpoint = tmp_path / "policy.pt"
     write_checkpoint(checkpoint, 1.0)
