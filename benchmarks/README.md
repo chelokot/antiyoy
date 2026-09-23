@@ -109,6 +109,13 @@ Each branch also records `reply_score`, the unchanged static evaluator's score
 when the searched seat next gets a turn, after greedy opponent replies. It is
 absent if the game ends or that seat is eliminated first.
 
+An offline minimum-score-gain gate can be audited from these records by keeping
+only search turns whose `search.static_score - greedy.static_score` reaches a
+prechosen margin. Choose the margin on one seed window and validate it on a
+fresh window; group correlated seat results by map. This does not replay the
+trajectory of an actual gated agent, so a positive result would still require
+complete matched games before promotion.
+
 Training smoke tests are also checked in as metadata-only records. They include
 the model hash and held-out results but never commit checkpoints. A smoke test
 validates the learning path; it is not a release candidate or a calibrated

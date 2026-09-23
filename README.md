@@ -84,6 +84,9 @@ A [whole-turn counterfactual diagnostic](benchmarks/2026-09-23-whole-turn-credit
 shows why more nodes alone are not a reliable amplifier: higher immediate
 static score can either win or lose, and one cycle of greedy opponent replies
 still scores all five harmful decisive turns above their alternatives.
+A static-score margin filter chosen on those diagnostic maps also failed on
+128 fresh maps ([record](benchmarks/2026-09-23-static-margin-gate-v2-cpu.json));
+it was not added to the agent.
 
 ## Auditable leagues
 
