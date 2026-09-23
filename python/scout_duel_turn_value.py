@@ -41,6 +41,7 @@ FEATURE_NAMES = (
 class DuelEmbedding:
     position: EmbeddedPosition
     reply_index: int
+    first_actions: tuple[str, ...]
 
 
 def side_features(
@@ -81,7 +82,11 @@ def side_features(
 
 
 def embed_position(source: TurnCreditPosition) -> DuelEmbedding:
-    if not source.slate_indices or not np.all(source.post_turn["player_counts"] == 2):
+    if (
+        not source.slate_indices
+        or len(source.slate_indices) != len(source.slate_first_actions)
+        or not np.all(source.post_turn["player_counts"] == 2)
+    ):
         raise ValueError("duel scout requires two-player completed-turn slates")
     if source.opponent_reply_scores is None:
         raise ValueError("duel scout requires opponent reply scores")
@@ -115,6 +120,7 @@ def embed_position(source: TurnCreditPosition) -> DuelEmbedding:
             search_index=0,
         ),
         reply_index=reply_index,
+        first_actions=source.slate_first_actions,
     )
 
 

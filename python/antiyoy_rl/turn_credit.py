@@ -72,6 +72,7 @@ class TurnCreditPosition:
     opponent_search_nodes: int | None = None
     opponent_reply_scores: np.ndarray | None = None
     slate_indices: tuple[int, ...] = ()
+    slate_first_actions: tuple[str, ...] = ()
 
     @property
     def complete(self) -> np.ndarray:
@@ -232,6 +233,15 @@ def load_turn_credit_positions(
             if opponent_continuations is not None
             else None
         )
+        slate_branches = [search] + [
+            cast(dict[str, object], item["branch"]) for item in candidates
+        ]
+        slate_actions = {
+            cast(int, branch["state_index"]): json.dumps(
+                cast(list[object], branch["actions"])[0], sort_keys=True
+            )
+            for branch in slate_branches
+        }
         positions.append(
             TurnCreditPosition(
                 seed=cast(int, record["seed"]),
@@ -252,18 +262,8 @@ def load_turn_credit_positions(
                     int | None, report.get("opponent_search_nodes")
                 ),
                 opponent_reply_scores=opponent_reply_scores,
-                slate_indices=tuple(
-                    dict.fromkeys(
-                        [cast(int, search["state_index"])]
-                        + [
-                            cast(
-                                int,
-                                cast(dict[str, object], item["branch"])["state_index"],
-                            )
-                            for item in candidates
-                        ]
-                    )
-                ),
+                slate_indices=tuple(slate_actions),
+                slate_first_actions=tuple(slate_actions.values()),
             )
         )
     return positions

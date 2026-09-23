@@ -7,6 +7,7 @@ pytest.importorskip("torch")
 
 import torch
 from antiyoy_rl.turn_credit import TurnCreditPosition
+from python.scout_duel_teacher_choice import agreement, teacher_choice_examples
 from python.scout_duel_turn_value import (
     FEATURE_NAMES,
     compare_choices,
@@ -45,6 +46,7 @@ def duel_position() -> TurnCreditPosition:
         greedy_index=1,
         opponent_reply_scores=np.asarray([100, 200]),
         slate_indices=(0, 1),
+        slate_first_actions=("move", "recruit"),
     )
 
 
@@ -107,3 +109,24 @@ def test_identical_features_have_identical_prediction_scores() -> None:
     scores = prediction_scores(identical, weight, torch.ones_like(weight))
 
     assert scores[0] == scores[1]
+
+
+def test_teacher_choice_training_balances_static_and_override_positions() -> None:
+    override = embed_position(duel_position())
+    static = embed_position(
+        replace(duel_position(), opponent_reply_scores=np.asarray([200, 100]))
+    )
+
+    differences, weights = teacher_choice_examples([override, static])
+
+    assert differences.shape == (2, len(FEATURE_NAMES))
+    np.testing.assert_allclose(weights.numpy(), [0.5, 0.5])
+    static_weight = torch.zeros(len(FEATURE_NAMES))
+    static_weight[0] = 1
+    report = agreement(
+        [override, static], static_weight, torch.ones_like(static_weight)
+    )
+    assert report["teacher_matches"] == 1
+    assert report["static_matches"] == 1
+    assert report["teacher_overrides"] == 1
+    assert report["correct_overrides"] == 0

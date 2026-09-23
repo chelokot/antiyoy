@@ -36,6 +36,7 @@ def branch(
     return {
         "state_index": index,
         "static_score": 100 + index,
+        "actions": [{"Move": index}, "EndTurn"],
         "continuation": {"winner": winner, "truncated": truncated},
     }
 
@@ -76,6 +77,7 @@ def test_load_turn_credit_preserves_state_labels_and_censoring(tmp_path: Path) -
     np.testing.assert_array_equal(position.post_turn["action_kinds"], [0, 0, 0])
     np.testing.assert_array_equal(position.post_turn["action_offsets"], [0, 1, 2, 3])
     assert position.slate_indices == (1, 2)
+    assert position.slate_first_actions == ('{"Move": 1}', '{"Move": 2}')
     assert position.post_turn_rules_json == ('{"profile":"ClassicGeneric"}',) * 3
 
 
