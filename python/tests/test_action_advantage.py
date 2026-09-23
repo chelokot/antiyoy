@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -8,10 +9,12 @@ import torch
 
 from antiyoy_rl import ProceduralConfig, VectorEnv
 from antiyoy_rl.model import UniversalPolicy
+from python.audit_action_q import audit_action_q
 from python.build_bundle import digest
 from python.collect_action_q import (
     DATASET_KIND,
     DATASET_SCHEMA_VERSION,
+    create_replay_environment,
     observation_fingerprint,
     replay_dataset_example,
     verify_shared_action_representation,
@@ -159,6 +162,75 @@ def test_action_q_replay_preserves_rotated_procedural_seats() -> None:
     }
 
     assert replay_dataset_example(dataset, 0) == fingerprint
+
+
+def test_action_q_audit_replays_and_finishes_both_rotated_duel_branches(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.pt"
+    dataset_path = tmp_path / "pairs.pt"
+    write_checkpoint(source, 1.0)
+    config = {
+        "profile": "classic_generic_2022",
+        "generator": "procedural_v2",
+        "route_generator": "procedural_v2",
+        "players": 2,
+        "descriptor": {
+            "width": 11,
+            "height": 9,
+            "players": 2,
+            "action_limit": 8,
+            "fog": False,
+            "diplomacy": False,
+            "initial_relation": "neutral",
+            "land_density_per_million": 650_000,
+            "starting_province_size": 5,
+            "starting_money": 10,
+            "tree_density_per_million": 150_000,
+            "neutral_tower_density_per_million": 20_000,
+            "neutral_capital_density_per_million": 10_000,
+            "grave_density_per_million": 15_000,
+        },
+    }
+    environment = create_replay_environment(config, 607)
+    observation = environment.observe()
+    fingerprint = observation_fingerprint(observation, 0)
+    assert int(observation["action_offsets"][1]) > 1
+    torch.save(
+        {
+            "kind": DATASET_KIND,
+            "source": {"sha256": digest(source), "seat_experts": ["single", "single"]},
+            "config": config,
+            "examples": {
+                "episode_seeds": torch.tensor([607]),
+                "seats": torch.tensor(
+                    [int(observation["active_players"][0])], dtype=torch.uint8
+                ),
+                "rounds": torch.tensor([0]),
+                "state_fingerprints": [fingerprint],
+                "replay_offsets": torch.tensor([0, 0]),
+                "replay_actions": torch.empty(0, dtype=torch.int32),
+                "direct_actions": torch.tensor([0]),
+                "search_actions": torch.tensor([1]),
+                "direct_values": torch.tensor([-0.5]),
+                "search_values": torch.tensor([0.5]),
+                "baseline_margins": torch.tensor([-0.25]),
+            },
+        },
+        dataset_path,
+    )
+
+    report = audit_action_q(dataset_path, source, 1, None, "cpu")
+
+    assert report["sampled_positions"] == 1
+    assert report["complete_positions"] == 1
+    assert report["censored_positions"] == 0
+    assert (
+        report["search_better"] + report["direct_better"] + report["same_outcome"] == 1
+    )
+    assert report["records"][0]["root_value_delta"] == pytest.approx(1.0)
+    assert report["records"][0]["policy_logit_margin"] == pytest.approx(-0.25)
+    assert json.loads(json.dumps(report))["sampled_positions"] == 1
 
 
 def test_episode_split_never_leaks_one_game_between_sets() -> None:

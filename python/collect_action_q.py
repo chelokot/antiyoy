@@ -233,6 +233,8 @@ def collect_action_q(
     search_values: list[torch.Tensor] = []
     direct_values: list[torch.Tensor] = []
     baseline_margins: list[torch.Tensor] = []
+    search_action_indices: list[int] = []
+    direct_action_indices: list[int] = []
     sample_seeds: list[int] = []
     sample_seats: list[int] = []
     sample_rounds: list[int] = []
@@ -289,6 +291,8 @@ def collect_action_q(
             baseline_margins.append(
                 (logits[search_index] - logits[direct_index]).detach().cpu()
             )
+            search_action_indices.append(int(search_actions[environment_index]))
+            direct_action_indices.append(int(direct_actions_tensor[environment_index]))
             sample_seeds.append(int(episode_seeds[environment_index]))
             sample_seats.append(int(observation["active_players"][environment_index]))
             sample_rounds.append(int(observation["rounds"][environment_index]))
@@ -363,6 +367,8 @@ def collect_action_q(
             "direct_values": stacked_direct_values,
             "regrets": regrets,
             "baseline_margins": torch.stack(baseline_margins).to(torch.float32),
+            "search_actions": torch.tensor(search_action_indices, dtype=torch.int32),
+            "direct_actions": torch.tensor(direct_action_indices, dtype=torch.int32),
             "episode_seeds": torch.tensor(sample_seeds, dtype=torch.int64),
             "seats": torch.tensor(sample_seats, dtype=torch.uint8),
             "rounds": torch.tensor(sample_rounds, dtype=torch.int32),

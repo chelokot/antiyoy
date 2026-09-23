@@ -451,6 +451,25 @@ zero-initialized scorer that combines source, target, and global features with
 their pairwise products. The frozen source policy scores exactly the same
 actions before optimization; older checkpoints still use their original head.
 
+To diagnose a procedural-duel amplifier before distilling it, collect only
+PUCT-versus-direct disagreements and replay both legal actions:
+
+```bash
+python collect_action_q.py ../models/procedural-duel-value-bundle.pt \
+  ../datasets/duel-action-pairs.pt --generator procedural_v2 \
+  --route-generator procedural_v1 --players 2 --width 11 --height 9 \
+  --environments 16 --updates 256 --rollin student --puct-nodes 8 --device cpu
+python audit_action_q.py ../datasets/duel-action-pairs.pt \
+  ../models/procedural-duel-value-bundle.pt --max-examples 64 --device cpu
+```
+
+The collector stores exact local action indices, episode prefixes, and state
+fingerprints. The audit forks each replayed state, applies both actions, and
+reports terminal or adjudicated outcomes under the same frozen direct-policy
+continuation. It reports censored branches separately if a horizon is set.
+These conditional pair labels diagnose search-value ranking; they are not an
+online strength rating and should not be promoted without fresh paired games.
+
 Compare the cheap student against the exact frozen source on disjoint seeds:
 
 ```bash
