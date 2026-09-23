@@ -24,6 +24,11 @@
     "paired_learner_better": 75,
     "paired_control_better": 96,
     "paired_same": 341,
+    "nonzero_episode_credit": 171,
+    "zero_episode_credit": 341,
+    "sampled_policy_decisions": 35882,
+    "mean_policy_decisions_per_learner_game": 70.08203125,
+    "all_zero_credit_update_batches": 24,
     "successive_128_game_blocks": [
       {"learner_wins": 30, "control_wins": 40, "paired_learner_better": 17, "paired_control_better": 27, "paired_same": 84},
       {"learner_wins": 32, "control_wins": 36, "paired_learner_better": 19, "paired_control_better": 23, "paired_same": 86},
@@ -63,5 +68,5 @@
     "source_raw_report_sha256": "ced4389d436a9581a9441aa4719eba91e99c5b9e2784256d95329671abb9c6bd",
     "paired_comparison_sha256": "79d2e9a1d3ec6a629135a9b8a49973486047ffc768827d55cb9ea387cb847a4e"
   },
-  "interpretation": "The fourfold larger terminal-PPO run did not improve consistently during training and its final checkpoint was worse than the frozen source on fresh paired seat-1 maps against the same fixed search opponent. One source game reached the action limit and was adjudicated, so this is not a fully terminal complete-game gate; the negative independent-map sign remains below 0.05 under an arbitrary single-map outcome relabel. The Elo delta is relative to this fixed opponent pool, not global Elo or evidence about both seats. Reject this student and stop scaling the same terminal-PPO setup; investigate credit assignment or representation before another training loop. No rated or browser agent changed."
+  "interpretation": "The fourfold larger terminal-PPO run did not improve consistently during training and its final checkpoint was worse than the frozen source on fresh paired seat-1 maps against the same fixed search opponent. Only 171 of 512 paired games supplied nonzero terminal-difference credit across 35882 sampled policy decisions, suggesting a sparse whole-trajectory credit problem but not proving its cause. One source game reached the action limit and was adjudicated, so this is not a fully terminal complete-game gate; the negative independent-map sign remains below 0.05 under an arbitrary single-map outcome relabel. The Elo delta is relative to this fixed opponent pool, not global Elo or evidence about both seats. Reject this student and stop scaling the same terminal-PPO setup; investigate credit assignment or representation before another training loop. No rated or browser agent changed."
 }
