@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "kind": "exact_fork_counterfactual_cpu_scout",
+  "implementation_commit": "0365a4c43ecef797e566b5052cc811060aae4954",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 2,
+    "process_priority": "nice 19",
+    "gpu_used": false
+  },
+  "source": {
+    "artifact": "universal-routed-2to8p-engine-v6-2026-08-31.pt",
+    "sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "five_player_seat_expert": "context:ea1a83a813d1f57f"
+  },
+  "domain": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v1",
+    "players": 5,
+    "seat": 4,
+    "width": 19,
+    "height": 15,
+    "action_limit": 2400,
+    "land_density_per_million": 650000,
+    "tree_density_per_million": 150000,
+    "starting_province_size": 5,
+    "starting_money": 10,
+    "neutral_tower_density_per_million": 20000,
+    "neutral_capital_density_per_million": 10000,
+    "grave_density_per_million": 15000,
+    "fog": false,
+    "diplomacy": false
+  },
+  "state_scout": {
+    "command_template": "OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 RAYON_NUM_THREADS=2 nice -n 19 python -m python.benchmark_counterfactual universal-routed.pt --profile classic_generic_2022 --generator procedural_v1 --players 5 --environments 4 --updates 320 --label-stride 8 --candidate-count 3 --training-seat 4 {horizon} --seed 4000000 --device cpu --width 19 --height 15 --action-limit 2400 --land-density-per-million 650000 --tree-density-per-million 150000",
+    "horizon_argument": "--rollout-horizon 96",
+    "full_game_argument": "",
+    "seed_first": 4000000,
+    "independent_maps": 4,
+    "rollin_updates_per_environment": 320,
+    "sampled_states": 19,
+    "candidate_actions_per_state": 3,
+    "completed_rollin_games": 0,
+    "same_sampled_states_and_actions_in_both_runs": true,
+    "horizon_96": {
+      "completed_candidate_slates": 0,
+      "states_with_different_root_territory": 15,
+      "states_with_better_alternative_territory": 7,
+      "seconds": 16.744413019157946,
+      "raw_result_sha256": "2beaeb5c4354a14dd60035d49fc1b84fbbdba1d34c25f31124730b7e3e30c0df"
+    },
+    "frozen_policy_to_terminal": {
+      "completed_candidate_slates": 19,
+      "states_where_an_opponent_winner_changed": 10,
+      "root_seat_wins_across_all_57_branches": 0,
+      "states_with_different_root_territory": 0,
+      "seconds": 88.69598108204082,
+      "raw_result_sha256": "d63ccfbc2edeb0d851b084493f3b8587a57a461e1b70460df63594378a03817f"
+    }
+  },
+  "paired_single_intervention": {
+    "command_template": "OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 RAYON_NUM_THREADS=2 nice -n 19 python -m python.evaluate_counterfactual universal-routed.pt --profile classic_generic_2022 --generator procedural_v1 --players 5 --environments {games} --model-seat 4 --candidate-count 3 --rollout-horizon 96 --intervention-round 0 --seed {seed} --device cpu --width 19 --height 15 --action-limit 2400 --land-density-per-million 650000 --tree-density-per-million 150000",
+    "selection_rule": "at the first seat-4 decision, evaluate the policy top three legal actions through 96 further atomic actions under the frozen routed policy; prefer a known root win over a censored rollout, then larger root territory, breaking ties in favor of the direct policy; use the chosen action once and play the rest of the game with the frozen policy",
+    "smoke": {
+      "seed_first": 4100000,
+      "games": 8,
+      "changed_first_actions": 5,
+      "direct_policy_wins": 0,
+      "intervention_wins": 0,
+      "paired_better": 0,
+      "paired_worse": 0,
+      "paired_same": 8,
+      "seconds": 31.460347339045256,
+      "raw_result_sha256": "413152e4027f7bcf445a2ea229a35057b520d903a9a2b551e5a1deacb3dfca51"
+    },
+    "fresh_gate": {
+      "seed_first": 4200000,
+      "games": 64,
+      "interventions": 64,
+      "changed_first_actions": 29,
+      "changed_winning_player": 13,
+      "direct_policy_seat_4_wins": 7,
+      "intervention_seat_4_wins": 8,
+      "paired_better": 3,
+      "paired_worse": 2,
+      "paired_same": 59,
+      "exact_two_sided_sign_test_p": 1.0,
+      "truncations_each": 0,
+      "seconds": 366.9139280281961,
+      "raw_result_sha256": "69c16489dbff1b2f4b8a925e88e2fb7f33797650b0f2aa74b7c85f1ecc64908e"
+    }
+  },
+  "decision": "native exact-state forking and censored rollout instrumentation accepted; one-decision 96-action territory lookahead rejected as a strength claim and not promoted to a model or rating",
+  "conclusion": "One-step counterfactuals expose many short-horizon territory differences, but all 57 complete continuations on four sampled maps still lost for seat 4. A fresh 64-map intervention gate yielded only three paired improvements versus two regressions, p=1.0. This is no evidence of a useful universal amplifier; whole-turn decisions or outcome-grounded multi-action credit require a separate tested hypothesis."
+}
