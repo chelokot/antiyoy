@@ -1,0 +1,58 @@
+{
+  "kind": "procedural_duel_pairwise_response_scout",
+  "protocol": "benchmarks/protocols/2026-09-23-duel-pairwise-response-v1.json",
+  "arena": "Classic Generic procedural_v2 11x9 two-player reply-search-256/8/64 teacher self-play, sample every fourth round, action limit600",
+  "fit": {
+    "first_seed": 6280000,
+    "maps": 640,
+    "positions": 7247,
+    "candidate_pairs": 43708,
+    "strictly_beneficial_pairs": 4180,
+    "fixed_training_epochs": 20,
+    "first_epoch_weighted_loss": 0.6202699391852674,
+    "last_epoch_weighted_loss": 0.2163128753222961
+  },
+  "disjoint_calibration": {
+    "first_seed": 6280640,
+    "maps": 128,
+    "positions": 1385,
+    "candidate_pairs": 8225,
+    "strictly_beneficial_pairs": 662,
+    "thresholds_predeclared": [
+      {"probability": 0.5, "overrides": 231, "reply_better": 87, "reply_worse": 133, "independent_maps_better": 29, "independent_maps_worse": 47},
+      {"probability": 0.7, "overrides": 165, "reply_better": 67, "reply_worse": 90, "independent_maps_better": 28, "independent_maps_worse": 36},
+      {"probability": 0.9, "overrides": 55, "reply_better": 38, "reply_worse": 17, "seat_zero_better_worse": [15, 5], "seat_one_better_worse": [23, 12], "independent_maps_better": 26, "independent_maps_worse": 13, "independent_maps_same": 89, "exact_two_sided_sign_test_p": 0.05325191409792751}
+    ],
+    "selected_frozen_threshold": 0.9
+  },
+  "fresh_validation": {
+    "first_seed": 6318000,
+    "maps": 256,
+    "completed_teacher_rollin_maps": 252,
+    "truncated_teacher_rollin_maps": 4,
+    "sampled_positions": 2860,
+    "candidate_pairs": 17141,
+    "strictly_beneficial_pairs": 1420,
+    "frozen_threshold": 0.9,
+    "overrides": 186,
+    "native_reply_better": 93,
+    "native_reply_worse": 92,
+    "native_reply_same": 2675,
+    "seat_zero_better_worse": [36, 26],
+    "seat_one_better_worse": [57, 66],
+    "independent_maps_better": 55,
+    "independent_maps_worse": 36,
+    "independent_maps_same": 165,
+    "exact_two_sided_sign_test_p": 0.05857352841018888,
+    "teacher_choice_matches": 2391,
+    "static_teacher_choice_matches": 2426,
+    "predeclared_offline_gate_passed": false
+  },
+  "frozen_encoder_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "frozen_student_checkpoint_sha256": "0380bcaa7bb5041f54b321cf7edeec8e93918d1e6a8df8afe8dbd77301c62ab2",
+  "fresh_validation_dataset_sha256": "047055215f523623f5a1bbf172a48a358464a25f100439c94e8dffceb90fb179",
+  "remote_full_calibration_report_sha256": "5d584d8421b7a56b62cd6c20047b91364b4c4f4c8147859cabcceeb71a1ff081",
+  "remote_full_validation_report_sha256": "8d202b34a4e8f97479e6006add7a51ad93cf71fdcf34e5806652e07296f38c02",
+  "interpretation": "A direct pairwise target with transformed static score and explicit candidate-static feature difference did improve selectivity on disjoint calibration maps, but that signal did not transfer to the predeclared fresh window. On fresh maps, selected conditional native opponent-reply score was essentially even by position, seat one regressed, and teacher-choice agreement was below the static baseline. Calibration independent-map p was 0.053 and fresh p was 0.059; neither is a complete-game strength test.",
+  "decision": "Reject this student. Do not retune its threshold on seed6318000, collect the reserved seed6321000 confirmation or seed6315000 selective validation, run untouched final complete-game gate seed6300000, rate it, or deploy it. Any next student must address tactical response dynamics rather than reuse this scalar or pairwise head with a new threshold."
+}
