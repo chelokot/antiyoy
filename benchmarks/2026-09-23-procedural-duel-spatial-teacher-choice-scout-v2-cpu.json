@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_spatial_teacher_choice_scout",
+  "predeclared_protocol": "benchmarks/protocols/2026-09-23-duel-spatial-teacher-choice-v1.json",
+  "arena": "Classic Generic procedural_v2 11x9 two-player; root beam256, top8 completed turns, opponent beam64",
+  "frozen_encoder": {
+    "checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "selected_expert": "context:b02423ddd2f8cdf9",
+    "routing_generator": "procedural_v1",
+    "perspective": "sampled root seat in each post-turn observation"
+  },
+  "data": {
+    "training_first_seed": 6265000,
+    "training_maps": 256,
+    "training_positions": 512,
+    "training_pairs": 3114,
+    "validation_first_seed": 6268000,
+    "validation_maps": 128,
+    "validation_positions": 256,
+    "training_source_sha256": "b92df35695bb33a428dec4f287252f026a41270e2db8408556be7c35953617ef",
+    "validation_source_sha256": "e840fd985d4bfd59d004ae33e6a52b18334fd788f42365dfc2b5fb2c8c130898",
+    "raw_scout_report_sha256": "9332924bd685811272853d0c8891af15c97c1848e8c27bafab2369c205885f21"
+  },
+  "training_teacher_choice": {
+    "head_matches": 449,
+    "static_matches": 446,
+    "head_correct_overrides": 42,
+    "head_false_overrides": 50,
+    "independent_maps_head_better": 38,
+    "independent_maps_static_better": 33,
+    "independent_maps_same": 185,
+    "exact_two_sided_map_sign_test_p": 0.6353076420876662
+  },
+  "validation_teacher_choice": {
+    "head_matches": 207,
+    "static_matches": 225,
+    "teacher_overrides": 31,
+    "head_predicted_overrides": 38,
+    "head_correct_overrides": 7,
+    "head_false_overrides": 31,
+    "head_first_action_matches": 229,
+    "static_first_action_matches": 239,
+    "independent_maps_head_better": 6,
+    "independent_maps_static_better": 24,
+    "independent_maps_same": 98,
+    "exact_two_sided_map_sign_test_p": 0.001430906355381012
+  },
+  "validation_conditional_teacher_outcomes": {
+    "head_versus_static_better": 1,
+    "head_versus_static_worse": 4,
+    "head_versus_static_censored": 1,
+    "head_versus_reply_better": 5,
+    "head_versus_reply_worse": 7,
+    "head_versus_reply_censored": 1
+  },
+  "decision": "Reject the frozen-spatial linear head; do not integrate, rate, or publish it. The predeclared full-game seed window remains untouched.",
+  "interpretation": "Frozen spatial features recover more teacher overrides on training maps than the aggregate-feature head, but false overrides increase and held-out exact teacher imitation is significantly worse than static rank zero. The spatial representation alone does not solve the scarcity or conditional nature of the 66 training override positions. This is an offline negative result for this linear distillation setup, not evidence that the validated reply-search teacher is weak. Additional architecture tweaks on these validation seeds would be post-hoc; next inspect target stability and build a cheaper collector for many more map-disjoint whole-turn teacher decisions before further fitting."
+}
