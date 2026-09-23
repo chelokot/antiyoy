@@ -91,6 +91,19 @@ An [outcome-labeled turn-slate pilot](benchmarks/2026-09-23-whole-turn-budget-sl
 found only three new end states from two additional search budgets across 54
 positions, so changing node budgets alone does not provide useful training
 coverage for a turn selector.
+The larger [beam turn slate](benchmarks/2026-09-23-beam-turn-slate-v2-cpu.json)
+exposes outcome-diverse candidates, but a frozen-feature
+[reranker](benchmarks/2026-09-23-whole-turn-value-scout-v2-cpu.json) and a
+[root-perspective reranker](benchmarks/2026-09-23-root-perspective-value-v2-cpu-confirmation.json)
+both failed independent validation. Even the candidate labels can change when
+opponents switch from greedy to bounded search
+([audit](benchmarks/2026-09-23-opponent-response-label-stability-v2-cpu.json)).
+On 32 fresh matched five-player maps, collecting turn slates at round 8 instead
+of each seat's first search/greedy divergence yielded 52 versus 25 informative
+positions, but only 13 versus 7 candidates were strictly better under both
+opponent continuations; the latter difference was inconclusive
+([sampling study](benchmarks/2026-09-23-turn-credit-sampling-v2-cpu.json)).
+These conditional labels have not been used to change a rated agent.
 
 ## Auditable leagues
 

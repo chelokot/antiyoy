@@ -1,0 +1,142 @@
+{
+  "kind": "matched_whole_turn_credit_sampling_ablation",
+  "engine_commit": "2a39a7e",
+  "audit_commit": "4de154a",
+  "rules": "classic_generic_2022",
+  "map": {
+    "generator_schema_version": 2,
+    "width": 19,
+    "height": 15,
+    "players": 5,
+    "land_density_per_million": 650000,
+    "starting_province_size": 5,
+    "starting_money": 10,
+    "tree_density_per_million": 150000,
+    "neutral_tower_density_per_million": 20000,
+    "neutral_capital_density_per_million": 10000,
+    "grave_density_per_million": 15000
+  },
+  "search_nodes": 256,
+  "beam_slate_size": 8,
+  "maximum_actions_per_turn": 24,
+  "opponent_search_nodes": 32,
+  "rollout_action_limit": 2400,
+  "continuations": [
+    "greedy root and opponents",
+    "greedy root with search-32 opponents"
+  ],
+  "sampling": {
+    "fixed_round": "one all-greedy roll-in state per surviving seat on the named round",
+    "first_divergence": "one state per seat at the first distinct whole-turn end state for search-256 versus greedy, sampled through round 100"
+  },
+  "pilot": {
+    "seed_start": 5202300,
+    "maps": 8,
+    "fixed_round_8": {
+      "positions": 40,
+      "informative_positions": 14,
+      "changed_preference_positions": 8,
+      "robust_better_positions": 5,
+      "elapsed_seconds": 285.94,
+      "source_file": "fixed-round8-v2-maps8.json.gz",
+      "sha256": "ab0e9cf2a84148bd2bba393002f21ffe7ddc6232e3eaea9690ec94ed89b2cbd7"
+    },
+    "fixed_round_20": {
+      "positions": 31,
+      "informative_positions": 5,
+      "changed_preference_positions": 2,
+      "robust_better_positions": 1,
+      "elapsed_seconds": 107.34,
+      "source_file": "fixed-round20-v2-maps8.json.gz",
+      "sha256": "0723cfeafefb593e49a096851de8d167defc95ca4cf161592640f9cce43916c6"
+    }
+  },
+  "fresh_matched_comparison": {
+    "seed_start": 5202400,
+    "maps": 32,
+    "fixed_round_8": {
+      "positions": 160,
+      "distinct_states": 1164,
+      "informative_positions": 52,
+      "changed_preference_positions": 32,
+      "robust_better_positions": 13,
+      "maps_with_informative_position": 25,
+      "maps_with_robust_better_position": 10,
+      "paired_state_outcomes": {
+        "same": 1110,
+        "changed": 54,
+        "censored": 0
+      },
+      "elapsed_seconds": 1016.23,
+      "source_files": [
+        {
+          "name": "fixed-round8-v2-maps32.json.gz",
+          "sha256": "e1dc546cd37d8f949eca8d6946b03a53c31d1330f28c61213d5be1dfa1ed89f6"
+        }
+      ]
+    },
+    "first_divergence": {
+      "positions": 86,
+      "distinct_states": 681,
+      "informative_positions": 25,
+      "changed_preference_positions": 17,
+      "robust_better_positions": 7,
+      "maps_with_informative_position": 19,
+      "maps_with_robust_better_position": 7,
+      "paired_state_outcomes": {
+        "same": 634,
+        "changed": 40,
+        "censored": 7
+      },
+      "elapsed_seconds": 581.18,
+      "source_files": [
+        {
+          "name": "matched-divergence-v2-seat0.json.gz",
+          "sha256": "15a5cd7267b088704812a0efc5cdf9580602a11c1cdb3feea996e5f2bb83f451"
+        },
+        {
+          "name": "matched-divergence-v2-seat1.json.gz",
+          "sha256": "7de870ee4bb64f9a554c8aeb5b88e14cbd06489e77e61850bfc8292e94861b8e"
+        },
+        {
+          "name": "matched-divergence-v2-seat2.json.gz",
+          "sha256": "1d561fb6bb032c6a1e00bce79007697c92f99f499ad3dbc2a6296a97560fc246"
+        },
+        {
+          "name": "matched-divergence-v2-seat3.json.gz",
+          "sha256": "fe1b6de2766c3c0829d0e8b031a56697c0ead97f21d1f6094e716c0e8c22d51b"
+        },
+        {
+          "name": "matched-divergence-v2-seat4.json.gz",
+          "sha256": "d7bef6cb6975b9a7960ba734803b388d9441858a07f4a20b652050f98fe4dbd4"
+        }
+      ]
+    },
+    "paired_independent_maps": {
+      "informative_position_count": {
+        "fixed_round_more": 18,
+        "first_divergence_more": 4,
+        "same": 10,
+        "two_sided_sign_p": 0.004344
+      },
+      "robust_better_position_count": {
+        "fixed_round_more": 9,
+        "first_divergence_more": 5,
+        "same": 18,
+        "two_sided_sign_p": 0.42395
+      }
+    },
+    "positions_per_cpu_second": {
+      "informative_fixed_round": 0.0512,
+      "informative_first_divergence": 0.0430,
+      "robust_better_fixed_round": 0.0128,
+      "robust_better_first_divergence": 0.0120
+    }
+  },
+  "definition": {
+    "informative": "at least one complete candidate-versus-selected-search root outcome differs under either continuation",
+    "changed_preference": "at least one complete candidate-versus-selected-search preference differs between continuations",
+    "robust_better": "at least one candidate strictly beats selected search under both continuations"
+  },
+  "qualification": "CPU timings are load-dependent; candidates and seats within one map are correlated. This is an exploratory sampling comparison, not an agent-strength result. Two deterministic continuation policies do not establish a universal outcome target. No policy was trained, promoted, rated, or deployed."
+}

@@ -91,3 +91,10 @@ def test_audit_distinguishes_outcome_changes_from_preference_reversals() -> None
 def test_audit_requires_aligned_probe_labels() -> None:
     with pytest.raises(ValueError, match="align"):
         summarize([position(10, 0, [0, 2], None)])
+
+
+def test_audit_round_bucket_includes_uninformative_positions() -> None:
+    summary = summarize([position(12, 4, [0, 0], [0, 0], round_number=20)])
+
+    assert summary["by_round_decade"] == {"20-29": {"positions": 1}}
+    assert summary["positions_with_robust_better_candidate"] == 0
