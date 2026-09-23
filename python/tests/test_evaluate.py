@@ -428,6 +428,34 @@ def test_single_disagreement_requires_an_identical_direct_reference(
         )
 
 
+def test_heuristic_puct_evaluation_records_its_value_source(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "policy.pt"
+    write_checkpoint(checkpoint, 1.0)
+    result = evaluate(
+        checkpoint,
+        games=2,
+        seed=91_113,
+        device_name="cpu",
+        baseline="policy",
+        profile="classic_generic_2022",
+        search_nodes=8,
+        search_beam_width=4,
+        search_branch_width=4,
+        search_maximum_actions_per_turn=4,
+        width=7,
+        height=5,
+        action_limit=12,
+        model_agent="puct",
+        puct_nodes=4,
+        puct_leaf_batch_size=8,
+        puct_value_source="heuristic",
+    )
+
+    assert result["policy_search"]["value_source"] == "heuristic"
+    assert result["policy_search"]["heuristic_scale"] == 2048.0
+    assert result["policy_search"]["decisions"] > 0
+
+
 def test_maxn_policy_search_loads_a_matching_one_pass_value_head(
     tmp_path: Path,
 ) -> None:

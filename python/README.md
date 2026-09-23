@@ -261,6 +261,15 @@ nodes, root visits, and maximum reached depth. Compare it with the same seed,
 seat, baseline, and model using `--model-agent policy`; changing only the PUCT
 budget isolates the value of search from the value of the checkpoint.
 
+For a two-player full-information search ablation, `--puct-value-source heuristic`
+keeps the model's legal-action priors but replaces neural leaf values with the
+native territory/economy position score transformed by
+`tanh(score / --puct-heuristic-scale)`. The default scale is 2048. This mode
+rejects fog and multiplayer because the native full-state scorer would either
+leak hidden information or cease to be a two-player zero-sum value. It tests
+the search algorithm independently from value-head calibration; it is not a
+claim that PUCT is stronger.
+
 Canonical PUCT chooses the most visited root action. For a distilled policy
 whose value head is still being calibrated, use the continuous policy/value
 root blend instead:

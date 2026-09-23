@@ -2,6 +2,7 @@
 
 use antiyoy_agents::{
     Agent, GreedyAgent, PuctConfig, PuctSearch, PuctValueMode, SearchAgent, SearchConfig,
+    position_score,
 };
 use antiyoy_core::{
     EconomyMetric, GeneratorConfig, Objective, PlayerId, Relation, Rules, VictoryCondition,
@@ -121,6 +122,31 @@ impl PolicySearchBatch {
 impl PolicySearchBatch {
     fn is_complete(&self) -> bool {
         self.searches.iter().flatten().all(PuctSearch::is_complete)
+    }
+
+    fn heuristic_scores<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<i64>>> {
+        if self.fog {
+            return Err(PyValueError::new_err(
+                "full-state heuristic scores are unavailable in fog games",
+            ));
+        }
+        let scores = self
+            .pending_leaves
+            .iter()
+            .map(|(environment, token)| {
+                let (game, _) = self.searches[*environment]
+                    .as_ref()
+                    .and_then(|search| search.leaf(*token))
+                    .ok_or_else(|| PyRuntimeError::new_err("PUCT leaf disappeared"))?;
+                if game.player_count() != 2 {
+                    return Err(PyValueError::new_err(
+                        "full-state heuristic scores require two players",
+                    ));
+                }
+                Ok(position_score(game, game.active_player()))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(PyArray1::from_vec(py, scores))
     }
 
     fn select_leaves<'py>(

@@ -213,6 +213,58 @@ def test_policy_search_is_deterministic_and_respects_active_mask() -> None:
         assert np.count_nonzero(action_visits) > 0
 
 
+def test_two_player_search_can_use_exact_native_position_scores() -> None:
+    environment = VectorEnv(1, width=7, height=5, seed=312)
+    search = environment.policy_search(node_budget=8)
+    observation = search.select_leaves(8)
+    scores = search.heuristic_scores()
+    assert len(observation["widths"]) == 1
+    assert scores.shape == (1,)
+    assert scores.dtype == np.int64
+
+    def priors_without_model_value(observation, _rules):
+        return torch.zeros(len(observation["action_kinds"])), torch.full(
+            (len(observation["widths"]),), float("nan")
+        )
+
+    actions, metrics = policy_search_actions(
+        environment,
+        priors_without_model_value,
+        torch.zeros((1, 45)),
+        np.ones(1, dtype=np.uint8),
+        PolicySearchConfig(
+            node_budget=8,
+            leaf_batch_size=8,
+            value_source="heuristic",
+        ),
+    )
+    assert actions.shape == (1,)
+    assert metrics["nodes"].tolist() == [8]
+
+
+def test_native_heuristic_scores_do_not_leak_hidden_or_multiplayer_state() -> None:
+    fog = VectorEnv(1, width=7, height=5, seed=314, fog=True)
+    fog_search = fog.policy_search(node_budget=8)
+    fog_search.select_leaves(8)
+    with pytest.raises(ValueError, match="unavailable in fog games"):
+        fog_search.heuristic_scores()
+
+    multiplayer = VectorEnv.procedural(
+        1,
+        ProceduralConfig(
+            width=9,
+            height=7,
+            players=3,
+            seed=315,
+            starting_province_size=3,
+        ),
+    )
+    multiplayer_search = multiplayer.policy_search(node_budget=8)
+    multiplayer_search.select_leaves(8)
+    with pytest.raises(ValueError, match="require two players"):
+        multiplayer_search.heuristic_scores()
+
+
 def test_policy_search_rejects_malformed_active_mask() -> None:
     environment = VectorEnv(2, width=7, height=5, seed=313)
     with pytest.raises(ValueError, match="one value per environment"):

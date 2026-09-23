@@ -29,6 +29,7 @@ from antiyoy_rl.puct import (
     PolicySearchConfig,
     SearchObjective,
     ValuePerspective,
+    ValueSource,
     policy_search_actions,
 )
 from antiyoy_rl.routed import RoutedPolicy
@@ -436,6 +437,8 @@ def evaluate(
     generator_schema_version: int = GENERATOR_SCHEMA_VERSION,
     route_generator: str | None = None,
     single_disagreement: bool = False,
+    puct_value_source: ValueSource = "model",
+    puct_heuristic_scale: float = 2048.0,
 ) -> dict[str, object]:
     if generator_schema_version not in (
         GENERATOR_SCHEMA_VERSION,
@@ -460,6 +463,8 @@ def evaluate(
         raise ValueError(
             "single-disagreement intervention requires PUCT against its own direct policy"
         )
+    if puct_value_source == "heuristic" and (model_agent != "puct" or players != 2):
+        raise ValueError("heuristic PUCT requires a two-player PUCT model agent")
     if baseline_checkpoint_path is not None and baseline != "policy":
         raise ValueError("a baseline checkpoint requires the policy baseline")
     if maxn_value_head_path is not None and (
@@ -725,6 +730,8 @@ def evaluate(
         value_perspective=puct_value_perspective,
         opponent_horizon=puct_opponent_horizon,
         objective=puct_objective,
+        value_source=puct_value_source,
+        heuristic_scale=puct_heuristic_scale,
     )
     while not bool(finished.all()):
         observation = environment.observe()
@@ -1021,6 +1028,12 @@ def evaluate(
                 puct_opponent_horizon if model_agent == "puct" else None
             ),
             "objective": puct_objective if model_agent == "puct" else None,
+            "value_source": puct_value_source if model_agent == "puct" else None,
+            "heuristic_scale": (
+                puct_heuristic_scale
+                if model_agent == "puct" and puct_value_source == "heuristic"
+                else None
+            ),
             "vector_value_head": (
                 str(maxn_value_head_path) if maxn_value_head_path is not None else None
             ),
@@ -1102,6 +1115,10 @@ def main() -> None:
     parser.add_argument(
         "--puct-objective", choices=("scalar", "maxn"), default="scalar"
     )
+    parser.add_argument(
+        "--puct-value-source", choices=("model", "heuristic"), default="model"
+    )
+    parser.add_argument("--puct-heuristic-scale", type=float, default=2048.0)
     parser.add_argument("--maxn-value-head", type=Path)
     parser.add_argument("--land-density-per-million", type=int, default=650_000)
     parser.add_argument("--starting-province-size", type=int, default=5)
@@ -1183,6 +1200,8 @@ def main() -> None:
                 arguments.generator_schema_version,
                 arguments.route_generator,
                 arguments.single_disagreement,
+                arguments.puct_value_source,
+                arguments.puct_heuristic_scale,
             ),
             sort_keys=True,
         )

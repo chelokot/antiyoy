@@ -28,6 +28,7 @@ class PolicySearchMetrics(TypedDict):
 ValuePerspective = Literal["active", "root"]
 OpponentHorizon = Literal["search", "leaf"]
 SearchObjective = Literal["scalar", "maxn"]
+ValueSource = Literal["model", "heuristic"]
 MAXN_PLAYERS = 8
 
 
@@ -42,6 +43,8 @@ class PolicySearchConfig:
     value_perspective: ValuePerspective = "active"
     opponent_horizon: OpponentHorizon = "search"
     objective: SearchObjective = "scalar"
+    value_source: ValueSource = "model"
+    heuristic_scale: float = 2048.0
 
 
 PolicyEvaluator = Callable[[Mapping[str, np.ndarray], Tensor], tuple[Tensor, Tensor]]
@@ -152,6 +155,16 @@ def policy_search_actions(
         raise ValueError("PUCT opponent horizon must be search or leaf")
     if config.objective not in ("scalar", "maxn"):
         raise ValueError("PUCT objective must be scalar or maxn")
+    if config.value_source not in ("model", "heuristic"):
+        raise ValueError("PUCT value source must be model or heuristic")
+    if not np.isfinite(config.heuristic_scale) or config.heuristic_scale <= 0:
+        raise ValueError("PUCT heuristic scale must be finite and positive")
+    if config.value_source == "heuristic" and (
+        config.objective != "scalar" or config.value_perspective != "active"
+    ):
+        raise ValueError(
+            "heuristic PUCT requires an active-perspective scalar objective"
+        )
     if config.objective == "maxn" and config.value_perspective != "active":
         raise ValueError(
             "MaxN evaluates every player and requires active perspective mode"
@@ -198,19 +211,29 @@ def policy_search_actions(
                     evaluator, observation, selected_rules, values
                 ).clamp(-1, 1)
             elif config.objective == "scalar":
-                assert values is not None
-                leaf_values = (
-                    root_perspective_leaf_values(
-                        evaluator,
-                        observation,
-                        selected_rules,
-                        values,
-                        root_players[search_environments],
+                if config.value_source == "heuristic":
+                    heuristic_scores = np.asarray(
+                        search.heuristic_scores(), dtype=np.float64
                     )
-                    if config.value_perspective == "root"
-                    else values
-                )
-                bounded_values = leaf_values.clamp(-1, 1)
+                    bounded_values = torch.from_numpy(
+                        np.tanh(heuristic_scores / config.heuristic_scale).astype(
+                            np.float32
+                        )
+                    )
+                else:
+                    assert values is not None
+                    leaf_values = (
+                        root_perspective_leaf_values(
+                            evaluator,
+                            observation,
+                            selected_rules,
+                            values,
+                            root_players[search_environments],
+                        )
+                        if config.value_perspective == "root"
+                        else values
+                    )
+                    bounded_values = leaf_values.clamp(-1, 1)
         cpu_priors = flat_priors.to(device="cpu", dtype=torch.float32).numpy()
         if config.objective == "maxn":
             search.complete_maxn_leaves(
