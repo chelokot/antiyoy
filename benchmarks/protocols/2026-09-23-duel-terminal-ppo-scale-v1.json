@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_terminal_ppo_data_scale_audit",
+  "hypothesis": "The prior fixed reply-search opponent PPO run had only 128 learner/control map pairs, insufficient for a 919554-parameter policy with sparse terminal credit. Repeat its exact seed and hyperparameters for 128 instead of 32 updates to isolate the effect of four times more episodes, while reporting paired-credit density and a fresh map-disjoint gate.",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, action limit1000, learner seat1 against fixed reply-search-256/8/64",
+  "prior_run": "benchmarks/2026-09-23-procedural-duel-reply-ppo-v2-cpu.json: 32 updates, 128 learner plus128 matched frozen-control games, learner30 wins versus control40, heldout128 seat1 maps57 versus source59; no promotion",
+  "controlled_training": {
+    "seed": 6249000,
+    "initialization": "unchanged routed-v6 two-player classic_generic_2022 procedural_v1 seat1 expert, SHA256 68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "updates": 128,
+    "environments": 8,
+    "learner_episodes_per_update": 4,
+    "total_learner_episodes": 512,
+    "total_matched_frozen_control_episodes": 512,
+    "learning_rate": 0.00001,
+    "gamma": 0.997,
+    "ppo_epochs": 2,
+    "minibatch": 256,
+    "clip_ratio": 0.2,
+    "entropy_weight": 0,
+    "reference_kl_weight": 0.25,
+    "counterfactual_credit": "half terminal-outcome difference between sampled learner and greedy frozen source on the identical map and fixed opponent",
+    "checkpoint_every_updates": 8,
+    "first_32_updates": "Compare per-update episodes, wins, controls, mean credit and transitions with prior v2 log; any divergence invalidates a controlled scale interpretation. Logging-only commit542060c added explicit paired counts without changing optimizer behavior."
+  },
+  "analysis": "Report learning curve at updates32,64,96,128 and cumulative paired candidate-better/baseline-better/same game counts. Inspect whether benefit grows with episode count; do not select an intermediate checkpoint by looking at validation. If the job reaches its fixed one-hour cap, report incomplete and do not interpret it as a completed 512-pair comparison.",
+  "fresh_validation": "Only final update128 checkpoint; first seed6335000, 256 independent matched maps, learner seat1 versus frozen source against the same fixed reply-search opponent, with exact map-grouped sign test and map bootstrap. Do not use prior seed6251000 or the untouched full-game gate seed6300000. A positive seat1 result is still not a universal or all-seat claim; require later fresh both-seat complete-game gates before promotion.",
+  "resource_limit": "SSH server only after aggregate load check; one nice19 CPU process, one-hour timeout, OMP/BLAS/MKL thread limits, small checkpoint/log artifacts in /tmp/antiyoy-residual.n17QTu, no GPU or preemption of other workloads.",
+  "decision": "This is a bounded causal data-scale audit, not authorization to deploy, rate, or claim amplification-distillation convergence. If the final checkpoint fails, stop expanding the same terminal PPO setup and revisit credit assignment/representation."
+}
