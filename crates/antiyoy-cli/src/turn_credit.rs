@@ -67,6 +67,8 @@ struct CreditRecord {
     #[serde(skip_serializing_if = "Option::is_none")]
     opponent_search_continuations: Option<Vec<Continuation>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    teacher_continuations: Option<Vec<Continuation>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     observations: Option<ObservationRecord>,
 }
 
@@ -88,6 +90,7 @@ struct TurnCreditSummary {
     root_search_nodes: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     opponent_search_nodes: Option<usize>,
+    teacher_continuations: bool,
     maximum_actions_per_turn: usize,
     positions: usize,
     different_end_states: u32,
@@ -99,6 +102,8 @@ struct TurnCreditSummary {
     continuation_truncations: u32,
     slate_censored_positions: u32,
     slate_continuation_truncations: u32,
+    teacher_censored_positions: u32,
+    teacher_continuation_truncations: u32,
     elapsed_seconds: f64,
     records: Vec<CreditRecord>,
 }
@@ -114,11 +119,13 @@ struct CreditConfig {
     include_observations: bool,
     root_search_nodes: Option<usize>,
     opponent_search_nodes: Option<usize>,
+    teacher_continuations: bool,
 }
 
 struct ProbeContinuations {
     root: Option<Vec<Continuation>>,
     opponent: Option<Vec<Continuation>>,
+    teacher: Option<Vec<Continuation>>,
 }
 
 pub(super) fn run(arguments: &TurnCreditArgs) -> Result<()> {
@@ -146,6 +153,7 @@ pub(super) fn run(arguments: &TurnCreditArgs) -> Result<()> {
             include_observations: arguments.include_observations,
             root_search_nodes: arguments.root_search_nodes,
             opponent_search_nodes: arguments.opponent_search_nodes,
+            teacher_continuations: arguments.teacher_continuations,
         },
     )?;
     print_value(&summary, arguments.json)
@@ -170,6 +178,8 @@ fn diagnose(
     let mut continuation_truncations = 0;
     let mut slate_censored_positions = 0;
     let mut slate_continuation_truncations = 0;
+    let mut teacher_censored_positions = 0;
+    let mut teacher_continuation_truncations = 0;
     let started = Instant::now();
 
     for map_index in 0..maps {
@@ -189,6 +199,18 @@ fn diagnose(
             let extra_truncations = extra_truncations(&record)?;
             slate_continuation_truncations += pair_truncations + extra_truncations;
             slate_censored_positions += u32::from(pair_truncations + extra_truncations > 0);
+            let teacher_truncations =
+                record
+                    .teacher_continuations
+                    .as_ref()
+                    .map_or(0, |continuations| {
+                        continuations
+                            .iter()
+                            .filter(|continuation| continuation.truncated)
+                            .count()
+                    });
+            teacher_continuation_truncations += u32::try_from(teacher_truncations)?;
+            teacher_censored_positions += u32::from(teacher_truncations > 0);
             if record.greedy.continuation.truncated || record.search.continuation.truncated {
                 censored_positions += 1;
             } else {
@@ -219,6 +241,7 @@ fn diagnose(
         include_observations: config.include_observations,
         root_search_nodes: config.root_search_nodes,
         opponent_search_nodes: config.opponent_search_nodes,
+        teacher_continuations: config.teacher_continuations,
         maximum_actions_per_turn: config.search.maximum_actions_per_turn,
         positions: records.len(),
         different_end_states,
@@ -230,6 +253,8 @@ fn diagnose(
         continuation_truncations,
         slate_censored_positions,
         slate_continuation_truncations,
+        teacher_censored_positions,
+        teacher_continuation_truncations,
         elapsed_seconds: started.elapsed().as_secs_f64(),
         records,
     })
@@ -251,6 +276,14 @@ fn validate_credit_config(
         !config.reply_rollin
             || (config.beam_slate_size > 0 && config.opponent_search_nodes.is_some()),
         "reply roll-in requires a beam slate and opponent search nodes"
+    );
+    ensure!(
+        !config.teacher_continuations
+            || (generator.players == 2
+                && config.include_observations
+                && config.beam_slate_size > 0
+                && config.opponent_search_nodes.is_some()),
+        "teacher continuations require a two-player observed slate and opponent search nodes"
     );
     ensure!(
         config
@@ -425,6 +458,7 @@ fn analyze_turn(state: &Game, seed: u64, config: &CreditConfig) -> Result<Credit
         beam_candidates,
         root_search_continuations: probes.root,
         opponent_search_continuations: probes.opponent,
+        teacher_continuations: probes.teacher,
         observations,
     })
 }
@@ -443,6 +477,27 @@ fn probe_continuations(
             None,
             config.opponent_search_nodes,
         )?,
+        teacher: if config.teacher_continuations {
+            Some(
+                states
+                    .iter()
+                    .map(|(game, _)| {
+                        continue_with_reply_search(
+                            game.clone(),
+                            player,
+                            config.rollout_limit,
+                            config.search,
+                            config.beam_slate_size,
+                            config
+                                .opponent_search_nodes
+                                .expect("teacher continuations require opponent search nodes"),
+                        )
+                    })
+                    .collect::<Result<Vec<_>>>()?,
+            )
+        } else {
+            None
+        },
     })
 }
 
@@ -661,11 +716,60 @@ fn continue_with_greedy(game: Game, player: PlayerId, action_limit: u32) -> Resu
 }
 
 fn continue_with_policy(
-    mut game: Game,
+    game: Game,
     player: PlayerId,
     action_limit: u32,
     root_search: Option<SearchConfig>,
     opponent_search: Option<SearchConfig>,
+) -> Result<Continuation> {
+    let mut root: Box<dyn Agent> = match root_search {
+        Some(config) => Box::new(
+            SearchAgent::with_config("root-search-continuation", config)
+                .context("invalid root search configuration")?,
+        ),
+        None => Box::new(GreedyAgent::new("greedy-root-continuation")),
+    };
+    let mut opponent: Box<dyn Agent> = match opponent_search {
+        Some(config) => Box::new(
+            SearchAgent::with_config("opponent-search-continuation", config)
+                .context("invalid opponent search configuration")?,
+        ),
+        None => Box::new(GreedyAgent::new("greedy-opponent-continuation")),
+    };
+    continue_with_agents(game, player, action_limit, root.as_mut(), opponent.as_mut())
+}
+
+fn continue_with_reply_search(
+    game: Game,
+    player: PlayerId,
+    action_limit: u32,
+    root_config: SearchConfig,
+    slate_size: usize,
+    reply_nodes: usize,
+) -> Result<Continuation> {
+    let mut root = SearchAgent::with_reply_search(
+        "root-reply-continuation",
+        root_config,
+        slate_size,
+        reply_nodes,
+    )
+    .context("invalid root reply search configuration")?;
+    let mut opponent = SearchAgent::with_reply_search(
+        "opponent-reply-continuation",
+        root_config,
+        slate_size,
+        reply_nodes,
+    )
+    .context("invalid opponent reply search configuration")?;
+    continue_with_agents(game, player, action_limit, &mut root, &mut opponent)
+}
+
+fn continue_with_agents(
+    mut game: Game,
+    player: PlayerId,
+    action_limit: u32,
+    root: &mut dyn Agent,
+    opponent: &mut dyn Agent,
 ) -> Result<Continuation> {
     if game.is_terminal() {
         return Ok(Continuation {
@@ -675,29 +779,14 @@ fn continue_with_policy(
             reply_score: None,
         });
     }
-    let mut greedy = GreedyAgent::new("greedy-continuation");
-    let mut root_search = root_search
-        .map(|config| SearchAgent::with_config("root-search-continuation", config))
-        .transpose()
-        .context("invalid root search configuration")?;
-    let mut search = opponent_search
-        .map(|config| SearchAgent::with_config("opponent-search-continuation", config))
-        .transpose()
-        .context("invalid opponent search configuration")?;
     let mut legal_actions = Vec::new();
     let mut reply_score = None;
     for action_index in 0..action_limit {
         game.legal_actions(&mut legal_actions);
         let action = if game.active_player() == player {
-            if let Some(search) = root_search.as_mut() {
-                search.select_action(&game, &legal_actions)
-            } else {
-                greedy.select_action(&game, &legal_actions)
-            }
-        } else if let Some(search) = search.as_mut() {
-            search.select_action(&game, &legal_actions)
+            root.select_action(&game, &legal_actions)
         } else {
-            greedy.select_action(&game, &legal_actions)
+            opponent.select_action(&game, &legal_actions)
         };
         let transition = game.step(action)?;
         if transition.terminal {
@@ -764,7 +853,7 @@ mod tests {
                 width: 11,
                 height: 9,
                 players: 2,
-                seed: 6260000,
+                seed: 6_260_000,
                 ..GeneratorConfig::default()
             }
             .generate()
@@ -794,7 +883,7 @@ mod tests {
                 width: 11,
                 height: 9,
                 players: 2,
-                seed: 6260000,
+                seed: 6_260_000,
                 ..GeneratorConfig::default()
             },
             &Rules::classic_generic(),
@@ -815,12 +904,20 @@ mod tests {
                 include_observations: true,
                 root_search_nodes: None,
                 opponent_search_nodes: Some(8),
+                teacher_continuations: true,
             },
         )
         .expect("valid reply roll-in diagnostic");
         assert!(report.reply_rollin);
+        assert!(report.teacher_continuations);
         assert_eq!(report.positions, 2);
         assert!(report.records.iter().all(|record| record.round == 1));
+        assert!(report.records.iter().all(|record| {
+            record
+                .teacher_continuations
+                .as_ref()
+                .is_some_and(|continuations| continuations.len() == record.distinct_end_states)
+        }));
     }
 
     #[test]
@@ -891,6 +988,7 @@ mod tests {
                 include_observations: true,
                 root_search_nodes: Some(2),
                 opponent_search_nodes: Some(2),
+                teacher_continuations: false,
             },
         )
         .expect("valid diagnostic");
@@ -992,6 +1090,7 @@ mod tests {
                 include_observations: false,
                 root_search_nodes: None,
                 opponent_search_nodes: None,
+                teacher_continuations: false,
             },
         )
         .expect("valid diagnostic");
@@ -1053,6 +1152,7 @@ mod tests {
                 include_observations: false,
                 root_search_nodes: None,
                 opponent_search_nodes: None,
+                teacher_continuations: false,
             },
         );
         assert!(result.is_err());
@@ -1086,6 +1186,7 @@ mod tests {
                     include_observations: false,
                     root_search_nodes: None,
                     opponent_search_nodes: None,
+                    teacher_continuations: false,
                 },
             );
             assert!(result.is_err());
@@ -1122,6 +1223,7 @@ mod tests {
                 include_observations: false,
                 root_search_nodes: None,
                 opponent_search_nodes: None,
+                teacher_continuations: false,
             },
         )
         .expect("valid roll-in");

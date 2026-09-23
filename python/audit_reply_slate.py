@@ -6,7 +6,7 @@ import json
 from collections import Counter
 from pathlib import Path
 from statistics import median
-from typing import cast
+from typing import Literal, cast
 
 from antiyoy_rl.turn_credit import outcome_score
 
@@ -31,8 +31,73 @@ COUNT_FIELDS = (
     "pairwise_tied_score",
 )
 
+OutcomeProbe = Literal["opponent", "teacher"]
 
-def summarize(records: list[dict[str, object]]) -> dict[str, object]:
+
+def compare_probes(records: list[dict[str, object]]) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    changed_maps: set[int] = set()
+    reversed_maps: set[int] = set()
+    for record in records:
+        seed = cast(int, record["seed"])
+        seat = cast(int, record["seat"])
+        opponent = cast(
+            list[dict[str, object]], record["opponent_search_continuations"]
+        )
+        teacher = cast(list[dict[str, object]], record["teacher_continuations"])
+        if len(opponent) != len(teacher):
+            raise ValueError("continuation probes have different state counts")
+        opponent_scores = [outcome_score(result, seat) for result in opponent]
+        teacher_scores = [outcome_score(result, seat) for result in teacher]
+        changed = False
+        reversed_preference = False
+        for index, (opponent_score, teacher_score) in enumerate(
+            zip(opponent_scores, teacher_scores, strict=True)
+        ):
+            if min(opponent_score, teacher_score) < 0:
+                counts["censored_state_pairs"] += 1
+                continue
+            counts["paired_complete_states"] += 1
+            if opponent_score != teacher_score:
+                counts["changed_state_outcomes"] += 1
+                changed = True
+            for other in range(index + 1, len(opponent_scores)):
+                if min(opponent_scores[other], teacher_scores[other]) < 0:
+                    continue
+                opponent_preference = opponent_score - opponent_scores[other]
+                teacher_preference = teacher_score - teacher_scores[other]
+                if opponent_preference == 0 or teacher_preference == 0:
+                    continue
+                counts["strictly_informative_candidate_pairs_under_both"] += 1
+                if opponent_preference * teacher_preference < 0:
+                    counts["strict_pairwise_preference_reversals"] += 1
+                    reversed_preference = True
+        if changed:
+            counts["positions_with_changed_state_outcome"] += 1
+            changed_maps.add(seed)
+        if reversed_preference:
+            counts["positions_with_strict_preference_reversal"] += 1
+            reversed_maps.add(seed)
+    return {
+        field: counts[field]
+        for field in (
+            "paired_complete_states",
+            "censored_state_pairs",
+            "changed_state_outcomes",
+            "positions_with_changed_state_outcome",
+            "strictly_informative_candidate_pairs_under_both",
+            "strict_pairwise_preference_reversals",
+            "positions_with_strict_preference_reversal",
+        )
+    } | {
+        "independent_maps_with_changed_state_outcome": len(changed_maps),
+        "independent_maps_with_strict_preference_reversal": len(reversed_maps),
+    }
+
+
+def summarize(
+    records: list[dict[str, object]], outcome_probe: OutcomeProbe = "opponent"
+) -> dict[str, object]:
     if not records:
         raise ValueError("reply slate audit requires sampled positions")
     counts: Counter[str] = Counter()
@@ -48,15 +113,26 @@ def summarize(records: list[dict[str, object]]) -> dict[str, object]:
         search = cast(dict[str, object], record["search"])
         beam = cast(list[dict[str, object]], record["beam_candidates"])
         branches = [search] + [cast(dict[str, object], item["branch"]) for item in beam]
-        continuations = cast(
+        reply_continuations = cast(
             list[dict[str, object]], record["opponent_search_continuations"]
         )
+        outcome_continuations = cast(
+            list[dict[str, object]],
+            record[
+                "teacher_continuations"
+                if outcome_probe == "teacher"
+                else "opponent_search_continuations"
+            ],
+        )
         state_indices = [cast(int, branch["state_index"]) for branch in branches]
-        if any(index >= len(continuations) for index in state_indices):
+        if any(
+            index >= min(len(reply_continuations), len(outcome_continuations))
+            for index in state_indices
+        ):
             raise ValueError("candidate state index exceeds continuation count")
-        replies = [continuations[index]["reply_score"] for index in state_indices]
+        replies = [reply_continuations[index]["reply_score"] for index in state_indices]
         outcomes = [
-            outcome_score(continuations[index], seat) for index in state_indices
+            outcome_score(outcome_continuations[index], seat) for index in state_indices
         ]
         first_actions = [
             json.dumps(cast(list[object], branch["actions"])[0], sort_keys=True)
@@ -147,7 +223,9 @@ def summarize(records: list[dict[str, object]]) -> dict[str, object]:
     }
 
 
-def audit(paths: list[Path]) -> dict[str, object]:
+def audit(
+    paths: list[Path], outcome_probe: OutcomeProbe = "opponent"
+) -> dict[str, object]:
     reports = []
     for path in paths:
         source = (
@@ -170,23 +248,38 @@ def audit(paths: list[Path]) -> dict[str, object]:
             raise ValueError(
                 "reply slate audit requires observed multi-turn candidate slates"
             )
+        if (
+            outcome_probe == "teacher"
+            and report.get("teacher_continuations") is not True
+        ):
+            raise ValueError("teacher outcome audit requires teacher continuations")
     if len({report["opponent_search_nodes"] for report in reports}) != 1:
         raise ValueError("reply slate audit requires a shared opponent search budget")
     rollins = {report.get("reply_rollin", False) for report in reports}
     if len(rollins) != 1:
         raise ValueError("reply slate audit requires a shared roll-in policy")
+    records = [
+        cast(dict[str, object], record)
+        for report in reports
+        for record in cast(list[object], report["records"])
+    ]
     return {
         "kind": "procedural_duel_reply_slate_audit",
         "source_files": [{"name": path.name, "sha256": digest(path)} for path in paths],
         "opponent_search_nodes": reports[0]["opponent_search_nodes"],
         "rollin": "reply_search" if rollins.pop() else "greedy",
-        "qualification": "conditional continuation labels under greedy root and searched opponents; candidate pairs within maps are correlated",
-        **summarize(
-            [
-                cast(dict[str, object], record)
-                for report in reports
-                for record in cast(list[object], report["records"])
-            ]
+        "outcome_probe": outcome_probe,
+        "qualification": (
+            "conditional terminal labels under persistent reply-search on both seats"
+            if outcome_probe == "teacher"
+            else "conditional terminal labels under greedy root and searched opponents"
+        )
+        + "; candidate pairs within maps are correlated",
+        **summarize(records, outcome_probe),
+        **(
+            {"probe_disagreement": compare_probes(records)}
+            if outcome_probe == "teacher"
+            else {}
         ),
     }
 
@@ -194,8 +287,11 @@ def audit(paths: list[Path]) -> dict[str, object]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True, action="append", type=Path)
+    parser.add_argument(
+        "--outcome-probe", choices=("opponent", "teacher"), default="opponent"
+    )
     arguments = parser.parse_args()
-    print(json.dumps(audit(arguments.input), sort_keys=True))
+    print(json.dumps(audit(arguments.input, arguments.outcome_probe), sort_keys=True))
 
 
 if __name__ == "__main__":

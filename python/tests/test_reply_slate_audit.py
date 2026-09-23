@@ -2,7 +2,7 @@ import pytest
 
 pytest.importorskip("torch")
 
-from python.audit_reply_slate import summarize
+from python.audit_reply_slate import compare_probes, summarize
 
 
 def branch(score: int, state_index: int, action: object) -> dict[str, object]:
@@ -101,3 +101,38 @@ def test_reply_slate_audit_does_not_infer_missing_reply_scores() -> None:
     assert report["selected_rank_counts"] == {}
     assert report["independent_maps_selected_better"] == 0
     assert report["independent_maps_censored"] == 1
+
+
+def test_reply_slate_audit_keeps_reply_selection_fixed_across_outcome_probes() -> None:
+    position = record(
+        4,
+        0,
+        [
+            branch(300, 0, {"Move": {"target": 1}}),
+            branch(200, 1, {"Recruit": {"target": 2}}),
+        ],
+        [continuation(1, 100), continuation(0, 200)],
+    )
+    position["teacher_continuations"] = [
+        continuation(0, 50),
+        continuation(1, 300),
+    ]
+
+    opponent = summarize([position])
+    teacher = summarize([position], "teacher")
+
+    assert opponent["selected_rank_counts"] == teacher["selected_rank_counts"]
+    assert opponent["selected_outcome_better"] == 1
+    assert teacher["selected_outcome_worse"] == 1
+    assert teacher["pairwise_discordant"] == 1
+    assert compare_probes([position]) == {
+        "paired_complete_states": 2,
+        "censored_state_pairs": 0,
+        "changed_state_outcomes": 2,
+        "positions_with_changed_state_outcome": 1,
+        "strictly_informative_candidate_pairs_under_both": 1,
+        "strict_pairwise_preference_reversals": 1,
+        "positions_with_strict_preference_reversal": 1,
+        "independent_maps_with_changed_state_outcome": 1,
+        "independent_maps_with_strict_preference_reversal": 1,
+    }
