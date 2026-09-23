@@ -459,6 +459,7 @@ def evaluate(
     reply_slate_size: int = 8,
     audit_reply_teacher: bool = False,
     audit_model_replies: bool = False,
+    audit_model_reply_round_modulus: int = 8,
 ) -> dict[str, object]:
     if generator_schema_version not in (
         GENERATOR_SCHEMA_VERSION,
@@ -481,6 +482,8 @@ def evaluate(
         raise ValueError("model reply search requires a positive slate size")
     if audit_model_replies and model_agent != "model_reply_search":
         raise ValueError("native reply audit requires model reply search")
+    if audit_model_replies and audit_model_reply_round_modulus < 1:
+        raise ValueError("native reply audit requires a positive round modulus")
     if single_disagreement and (
         model_agent != "puct"
         or baseline != "policy"
@@ -627,6 +630,7 @@ def evaluate(
             maximum_actions_per_turn=search_maximum_actions_per_turn,
             audit_native_replies=audit_model_replies,
             audit_reply_nodes=reply_search_nodes,
+            audit_round_modulus=audit_model_reply_round_modulus,
         )
         if model_agent == "model_reply_search"
         else None
@@ -1262,6 +1266,7 @@ def evaluate(
         "reply_slate_size": reply_slate_size if baseline == "reply_search" else 0,
     }
     if audit_model_replies and model_reply_search is not None:
+        report["model_reply_audit_round_modulus"] = audit_model_reply_round_modulus
         report["model_reply_native_audit"] = [
             {
                 **record,
@@ -1295,6 +1300,7 @@ def main() -> None:
     parser.add_argument("--reply-slate-size", type=int, default=8)
     parser.add_argument("--audit-reply-teacher", action="store_true")
     parser.add_argument("--audit-model-replies", action="store_true")
+    parser.add_argument("--audit-model-reply-round-modulus", type=int, default=8)
     parser.add_argument("--width", type=int)
     parser.add_argument("--height", type=int)
     parser.add_argument("--action-limit", type=int)
@@ -1423,6 +1429,7 @@ def main() -> None:
                 arguments.reply_slate_size,
                 arguments.audit_reply_teacher,
                 arguments.audit_model_replies,
+                arguments.audit_model_reply_round_modulus,
             ),
             sort_keys=True,
         )
