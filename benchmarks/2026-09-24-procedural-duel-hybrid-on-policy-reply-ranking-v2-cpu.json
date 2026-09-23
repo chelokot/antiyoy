@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "kind": "post_rejection_hybrid_on_policy_reply_ranking_diagnostic",
+  "status": "completed_no_policy_promotion",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-hybrid-on-policy-reply-ranking-v1.json",
+  "arena": "Classic Generic procedural_v2 11x9 two players, 32 independent maps seed6360000, both model seats, action limit2400, route_generator procedural_v1",
+  "policies": "Frozen routed-v6 model reply hybrid root beam256/top8 versus fixed native reply-search root beam256/top8/opponent beam64",
+  "frozen_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "verification": "On an existing independent Rust-exported slate, the new Python native-reply replay exactly reproduced all 65 checked candidate scores. On two already-used pilot games, opt-in audit and ordinary hybrid selected identical moves, action counts, winners and 278 total transitions. All 376 Python tests and Ruff passed on SSH server, and code commit a5294bd passed Rust/Python/web/WASM CI. Native audit scores were computed after frozen hybrid candidate scoring and never used to choose an online action.",
+  "complete_games": {
+    "games": 64,
+    "hybrid_wins": 28,
+    "native_teacher_wins": 36,
+    "draws": 0,
+    "action_limit_adjudications": 0,
+    "hybrid_wins_by_model_seat": [17, 11],
+    "hybrid_root_turns": 1386,
+    "median_hybrid_root_decision_seconds": 0.064281313912943,
+    "qualification": "These are fresh diagnostic games for an already rejected hybrid, not an Elo rating or a promotion gate. Native teacher is the direct opponent; policy-induced states differ across agents."
+  },
+  "sampled_native_reply_ranking": {
+    "sampling": "Hybrid root turns with round modulo8 equal to zero",
+    "positions": 144,
+    "candidate_states": 970,
+    "censored_candidate_replies": 0,
+    "independent_maps": 32,
+    "exact_native_selected_index_matches": 130,
+    "native_nonstatic_choices": 27,
+    "exact_native_nonstatic_choice_matches": 16,
+    "strict_native_reply_score_regret_positions": 10,
+    "maps_with_strict_regret": 8,
+    "candidate_pair_rankings": {"concordant": 2426, "discordant": 241, "hybrid_tied": 42},
+    "by_root_seat": {
+      "0": {"positions": 67, "exact_native_selected_index_matches": 61, "native_nonstatic_choices": 11, "exact_native_nonstatic_choice_matches": 5, "strict_regret_positions": 5, "candidate_pairs_concordant": 1146, "candidate_pairs_discordant": 130},
+      "1": {"positions": 77, "exact_native_selected_index_matches": 69, "native_nonstatic_choices": 16, "exact_native_nonstatic_choice_matches": 11, "strict_regret_positions": 5, "candidate_pairs_concordant": 1280, "candidate_pairs_discordant": 111}
+    },
+    "paired_independent_map_seat_mean_transformed_regret": {"seat_one_higher": 5, "seat_zero_higher": 3, "same": 24, "exact_two_sided_sign_p": 0.7265625},
+    "descriptive_loss_overlap": "Only four of 15 lost seat-zero games and four of 21 lost seat-one games had a strict native-reply regret at a sampled hybrid root turn. The 1-in-8 round sampling cannot rule out errors on other turns."
+  },
+  "raw_evaluation_sha256": "6b8457db047c14e0a76b8d36230015d3f95a9ca3b149e57aa55242c6570bb035",
+  "raw_ranking_audit_sha256": "888673a35d3bdb638407e521d73a58e5fbf0c883371755633a26bbef24d903d0",
+  "interpretation": "A decisive seat-one-only candidate-ranking failure does not appear on these sampled hybrid-visited positions: each seat has five strict native-reply-regret positions, and the paired independent-map seat comparison is inconclusive. The hybrid's lower game win count and sampled score-ranking errors must not be causally equated. Earlier teacher-rollin positions had 22 strict-regret positions in154 and 19 affected maps in32, but those are different maps and state distributions, not a paired comparison. Sparse sampling leaves much of the actual game trajectory unobserved.",
+  "decision": "Keep the hybrid rejected and unrated. Do not tune on seed6360000, run reserved hybrid confirmation seed6357000 or final promotion seed6300000, or deploy it. If studying search-error credit further, predeclare a fresh full-turn-coverage or exact counterfactual outcome experiment rather than extrapolating from this 1-in-8 sample."
+}
