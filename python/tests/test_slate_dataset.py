@@ -1,0 +1,72 @@
+import gzip
+import json
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from antiyoy_rl.slate_dataset import load_teacher_slates
+from antiyoy_rl.turn_credit import OBSERVATION_FIELDS
+
+
+def report() -> dict[str, object]:
+    observation: dict[str, object] = {field: [] for field in OBSERVATION_FIELDS}
+    for field in ("cell_offsets", "province_offsets", "relation_offsets"):
+        observation[field] = [0, 0, 0]
+    observation["action_offsets"] = [0, 1, 2]
+    observation["widths"] = [7, 7]
+    observation["heights"] = [5, 5]
+    observation["active_players"] = [1, 1]
+    observation["player_counts"] = [2, 2]
+    observation["rounds"] = [4, 4]
+    observation["actions"] = [
+        {"kind": "EndTurn", "source": 65535, "target": 65535, "parameter": 0}
+    ] * 2
+    observation["rules"] = [{"profile": "ClassicGeneric"}] * 2
+    return {
+        "schema_version": 1,
+        "generator": {"players": 2},
+        "positions": 1,
+        "records": [
+            {
+                "seed": 71,
+                "seat": 0,
+                "round": 4,
+                "selected_index": 1,
+                "static_scores": [200, 100],
+                "reply_scores": [10, 20],
+                "actions": [
+                    [{"Move": {"source": 1, "target": 2}}, "EndTurn"],
+                    [{"Recruit": {"target": 3}}, "EndTurn"],
+                ],
+                "post_turn": observation,
+            }
+        ],
+    }
+
+
+def test_teacher_slate_loader_aligns_selection_and_observations(tmp_path: Path) -> None:
+    path = tmp_path / "slates.json.gz"
+    with gzip.open(path, "wt", encoding="utf-8") as destination:
+        json.dump(report(), destination)
+
+    [position] = load_teacher_slates(path)
+
+    np.testing.assert_array_equal(position.static_scores, [200, 100])
+    np.testing.assert_array_equal(position.opponent_reply_scores, [10, 20])
+    np.testing.assert_array_equal(position.outcome_scores, [-1, -1])
+    assert position.slate_indices == (0, 1)
+    assert position.slate_first_actions == (
+        '{"Move": {"source": 1, "target": 2}}',
+        '{"Recruit": {"target": 3}}',
+    )
+
+
+def test_teacher_slate_loader_rejects_inconsistent_selection(tmp_path: Path) -> None:
+    value = report()
+    value["records"][0]["selected_index"] = 0
+    path = tmp_path / "incorrect.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="selection disagrees"):
+        load_teacher_slates(path)

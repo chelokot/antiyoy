@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
+from antiyoy_rl.slate_dataset import TeacherSlatePosition
 from antiyoy_rl.turn_credit import TurnCreditPosition, load_turn_credit_positions
 
 from .build_bundle import digest
@@ -81,7 +82,7 @@ def side_features(
     )
 
 
-def embed_position(source: TurnCreditPosition) -> DuelEmbedding:
+def embed_position(source: TurnCreditPosition | TeacherSlatePosition) -> DuelEmbedding:
     if (
         not source.slate_indices
         or len(source.slate_indices) != len(source.slate_first_actions)

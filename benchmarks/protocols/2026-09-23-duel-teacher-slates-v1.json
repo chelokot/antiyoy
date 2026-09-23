@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_whole_turn_teacher_dataset",
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "action_limit": 600,
+    "rollin": "reply-search-256/8/64 self-play on both seats",
+    "sample_round_modulus": 4,
+    "sample_round_remainder": 0
+  },
+  "map_windows": {
+    "pilot_first_seed": 6277100,
+    "pilot_maps": 4,
+    "training_first_seed": 6280000,
+    "training_maps": 1024,
+    "training_shard_maps": 256,
+    "offline_validation_first_seed": 6292000,
+    "offline_validation_maps": 256,
+    "full_game_gate_first_seed": 6300000,
+    "full_game_gate_maps": 256
+  },
+  "dataset_contract": "For each sampled turn, store the deterministic top-eight distinct completed-turn states, native static and full-opponent-turn reply scores, full-turn actions, selected teacher index, root seat and post-turn BatchObservation. Do not run terminal continuations for every candidate. Record incomplete maps separately.",
+  "first_candidate": "Retrain the frozen routed-v6 two-player spatial encoder plus 17 root-conditioned features with the same fixed map-balanced and static-versus-override-balanced 200-step linear teacher-choice head. Compare to always selecting static rank zero on fresh map-disjoint validation; do not tune on final seeds.",
+  "promotion": "No rating or deployment without frozen inference code, fresh complete both-seat games grouped by independent map against plain beam-256 and the reply-search teacher, profile regression checks and measured runtime. The full-game seed window remains untouched during offline model selection.",
+  "resources": "Compute only on SSH server with a single nice-19 CPU process and compressed per-shard output. Recheck aggregate disk, memory and other user workloads before every larger run; no GPU unless safely free, no preemption or private-data inspection."
+}

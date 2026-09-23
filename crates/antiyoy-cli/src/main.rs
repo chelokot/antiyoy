@@ -14,7 +14,9 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde::Serialize;
 
 mod multi_compare;
+mod observe;
 mod seat_audit;
+mod slate_dataset;
 mod turn_credit;
 
 #[derive(Debug, Parser)]
@@ -126,6 +128,7 @@ enum Command {
     },
     SeatAudit(SeatAuditArgs),
     MultiCompare(MultiCompareArgs),
+    SlateDataset(SlateDatasetArgs),
     TurnCredit(TurnCreditArgs),
 }
 
@@ -205,6 +208,34 @@ struct TurnCreditArgs {
     root_search_nodes: Option<usize>,
     #[arg(long)]
     teacher_continuations: bool,
+    #[arg(long, default_value_t = 24)]
+    maximum_actions_per_turn: usize,
+    #[arg(long, value_enum, default_value_t = RulesKind::ClassicGeneric)]
+    rules: RulesKind,
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Clone, Debug, Args)]
+struct SlateDatasetArgs {
+    #[arg(long, default_value_t = 16)]
+    maps: u32,
+    #[arg(long, default_value_t = 1)]
+    seed: u64,
+    #[arg(long, default_value_t = 1_000)]
+    action_limit: u32,
+    #[command(flatten)]
+    map: RlMapArgs,
+    #[arg(long, default_value_t = 256)]
+    search_nodes: usize,
+    #[arg(long, default_value_t = 8)]
+    beam_slate_size: usize,
+    #[arg(long, default_value_t = 64)]
+    opponent_search_nodes: usize,
+    #[arg(long, default_value_t = 1)]
+    sample_round_modulus: u32,
+    #[arg(long, default_value_t = 0)]
+    sample_round_remainder: u32,
     #[arg(long, default_value_t = 24)]
     maximum_actions_per_turn: usize,
     #[arg(long, value_enum, default_value_t = RulesKind::ClassicGeneric)]
@@ -516,6 +547,7 @@ fn main() -> Result<()> {
         } => rl_bench(environments, transitions, action_limit, &map, json)?,
         Command::SeatAudit(arguments) => seat_audit::run(&arguments)?,
         Command::MultiCompare(arguments) => multi_compare::run(&arguments)?,
+        Command::SlateDataset(arguments) => slate_dataset::run(&arguments)?,
         Command::TurnCredit(arguments) => turn_credit::run(&arguments)?,
     }
     Ok(())

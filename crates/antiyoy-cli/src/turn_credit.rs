@@ -599,21 +599,8 @@ fn observe_states(root: &Game, states: &[(Game, Continuation)]) -> ObservationRe
     let mut root_observation = BatchObservation::default();
     root_observation.observe_game(root, &root_actions, false);
 
-    let legal_actions = states
-        .iter()
-        .map(|(game, _)| {
-            let mut actions = Vec::new();
-            game.legal_actions(&mut actions);
-            actions
-        })
-        .collect::<Vec<_>>();
-    let games = states
-        .iter()
-        .zip(&legal_actions)
-        .map(|((game, _), actions)| (game, actions.as_slice()))
-        .collect::<Vec<_>>();
-    let mut post_turn = BatchObservation::default();
-    post_turn.observe_games(&games, false);
+    let games = states.iter().map(|(game, _)| game).collect::<Vec<_>>();
+    let post_turn = crate::observe::observe_games(&games);
     ObservationRecord {
         root: root_observation,
         post_turn,

@@ -187,7 +187,7 @@ impl SearchAgent {
     }
 }
 
-fn reply_score(turn: &SearchTurn, root_player: PlayerId, reply_config: SearchConfig) -> i64 {
+pub fn reply_score(turn: &SearchTurn, root_player: PlayerId, reply_config: SearchConfig) -> i64 {
     if turn.game.is_terminal() {
         return position_score(&turn.game, root_player);
     }

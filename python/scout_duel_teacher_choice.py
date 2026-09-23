@@ -11,6 +11,7 @@ import torch
 from torch import Tensor
 
 from antiyoy_rl.model import UniversalPolicy, encode_rules_batch
+from antiyoy_rl.slate_dataset import TeacherSlatePosition, load_teacher_slates
 from antiyoy_rl.turn_credit import TurnCreditPosition, load_turn_credit_positions
 
 from .build_bundle import digest
@@ -135,7 +136,9 @@ def agreement(
     }
 
 
-def embed_spatial(source: TurnCreditPosition, model: UniversalPolicy) -> DuelEmbedding:
+def embed_spatial(
+    source: TurnCreditPosition | TeacherSlatePosition, model: UniversalPolicy
+) -> DuelEmbedding:
     base = embed_position(source)
     observation = {
         **source.post_turn,
@@ -158,6 +161,7 @@ def scout(
     training_paths: list[Path],
     validation_paths: list[Path],
     encoder_path: Path | None = None,
+    slate_dataset: bool = False,
 ) -> dict[str, object]:
     torch.set_num_threads(1)
     model = None
@@ -175,15 +179,14 @@ def scout(
     embed = (
         embed_position if model is None else lambda source: embed_spatial(source, model)
     )
-    training = [
-        embed(position)
-        for path in training_paths
-        for position in load_turn_credit_positions(path, "teacher")
-    ]
+    load = (
+        load_teacher_slates
+        if slate_dataset
+        else lambda path: load_turn_credit_positions(path, "teacher")
+    )
+    training = [embed(position) for path in training_paths for position in load(path)]
     validation = [
-        embed(position)
-        for path in validation_paths
-        for position in load_turn_credit_positions(path, "teacher")
+        embed(position) for path in validation_paths for position in load(path)
     ]
     training_maps = {position.position.seed for position in training}
     validation_maps = {position.position.seed for position in validation}
@@ -191,7 +194,7 @@ def scout(
         raise ValueError("teacher-choice training and validation maps overlap")
     differences, example_weights = teacher_choice_examples(training)
     weight, scales = train_head(differences, example_weights)
-    return {
+    report = {
         "kind": (
             "procedural_duel_spatial_teacher_choice_scout"
             if model is not None
@@ -211,6 +214,7 @@ def scout(
             if encoder_path is not None and encoder_config is not None
             else None
         ),
+        "dataset_format": "teacher_slates" if slate_dataset else "turn_credit",
         "training_files": [
             {"name": path.name, "sha256": digest(path)} for path in training_paths
         ],
@@ -224,10 +228,12 @@ def scout(
         "feature_scales": scales.tolist(),
         "training_agreement": agreement(training, weight, scales),
         "validation_agreement": agreement(validation, weight, scales),
-        "training_terminal_outcomes": evaluate(training, weight, scales),
-        "validation_terminal_outcomes": evaluate(validation, weight, scales),
-        "qualification": "Offline teacher-choice imitation and conditional outcomes only; no complete-game or policy-strength claim",
+        "qualification": "Offline teacher-choice imitation only; no complete-game or policy-strength claim",
     }
+    if not slate_dataset:
+        report["training_terminal_outcomes"] = evaluate(training, weight, scales)
+        report["validation_terminal_outcomes"] = evaluate(validation, weight, scales)
+    return report
 
 
 def main() -> None:
@@ -235,10 +241,16 @@ def main() -> None:
     parser.add_argument("--train", required=True, action="append", type=Path)
     parser.add_argument("--validation", required=True, action="append", type=Path)
     parser.add_argument("--encoder", type=Path)
+    parser.add_argument("--slate-dataset", action="store_true")
     arguments = parser.parse_args()
     print(
         json.dumps(
-            scout(arguments.train, arguments.validation, arguments.encoder),
+            scout(
+                arguments.train,
+                arguments.validation,
+                arguments.encoder,
+                arguments.slate_dataset,
+            ),
             sort_keys=True,
         )
     )
