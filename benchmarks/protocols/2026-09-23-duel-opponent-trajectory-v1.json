@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_opponent_trajectory_diagnostic",
+  "question": "Does the frozen routed-v6 policy reproduce the searched opponent's whole-turn action sequence on actual intermediate opponent decision states, and where is the first disagreement?",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, action limit1000, reply-search self-play root256/slate8/opponent64",
+  "data": {
+    "first_seed": 6345000,
+    "maps": 16,
+    "sample_round_modulus": 8,
+    "sample_round_remainder": 0,
+    "export": "Opt-in exact intermediate pre-action BatchObservations and locally indexed searched opponent actions, replayed from already searched plans with no new search. Also export full opponent plans to verify trace alignment.",
+    "map_disjointness": "Seed window is disjoint from prior train, calibration, validation, terminal-PPO, generator-shift and response-state audits and untouched full-game promotion seed6300000."
+  },
+  "frozen_policy": "routed-v6 checkpoint SHA256 68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867, selected Classic Generic procedural_v1 two-player expert, no training or weights change",
+  "measurements": "Count terminal root candidates with empty opponent plans. On every nonterminal candidate and every recorded opponent decision, report policy top-one/top-three searched-action agreement, mean searched-action probability, by root seat, selected versus unselected root candidate, beneficial alternative versus all, action kind, and decision depth. Count full teacher-forced plans for which argmax matches every action and first divergence depth. Record exact denominators, map count, completed versus truncated maps, wall time and gzip hash. These are correlated candidate observations, not independent games.",
+  "interpretation": "Teacher-forced whole-plan agreement is not autonomous rollout agreement: after a mismatch, the model would reach a different state. No policy strength, Elo, or deployment claim. If later actions are the main error, collect a training trajectory dataset and compare structured plan imitation on disjoint maps; do not reuse this diagnostic seed for validation.",
+  "resource_limit": "SSH server only after aggregate resource check; one nice19 CPU process, 15-minute hard cap, no GPU, compressed scratch output under100MB. Stop if other user workload or disk pressure makes this unsafe."
+}
