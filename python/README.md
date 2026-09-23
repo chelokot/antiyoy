@@ -277,7 +277,9 @@ If an imitation student loses despite a stronger teacher, run a paired
 evaluation with `--baseline policy`, `--baseline-checkpoint SOURCE`, and
 `--audit-reply-teacher`. The audit counts teacher/source disagreements and
 whether the student followed the teacher, stayed with the source, or invented
-a third action, separately by seat. `--imitation-disagreement-weight 4` is an
+a third action, separately by seat. It also records whether matching the first
+action persisted through the completed turn.
+`--imitation-disagreement-weight 4` is an
 opt-in follow-up that increases the teacher loss only on source/teacher
 disagreements; it requires `--initialize` so the source is frozen. The
 reference-policy KL remains weighted by the ordinary sample weights, not the

@@ -769,6 +769,18 @@ def evaluate(
         }
         for _ in range(players)
     ]
+    reply_teacher_turn_fidelity = [
+        {
+            "started": 0,
+            "completed": 0,
+            "first_action_matches": 0,
+            "whole_turn_matches": 0,
+        }
+        for _ in range(players)
+    ]
+    reply_teacher_turn_open = np.zeros(games, dtype=np.bool_)
+    reply_teacher_first_matches = np.zeros(games, dtype=np.bool_)
+    reply_teacher_whole_turn_matches = np.zeros(games, dtype=np.bool_)
     intervened = np.zeros(games, dtype=np.bool_)
     puct_config = PolicySearchConfig(
         node_budget=puct_nodes,
@@ -918,6 +930,16 @@ def evaluate(
                 counts["student_deviates_when_teacher_matches_source"] += int(
                     np.count_nonzero(np.logical_and(~informative, student != source))
                 )
+            for index in np.flatnonzero(model_turns):
+                seat = int(active_players[index])
+                matches = model_actions[index] == teacher_actions[index]
+                if not reply_teacher_turn_open[index]:
+                    reply_teacher_turn_open[index] = True
+                    reply_teacher_first_matches[index] = matches
+                    reply_teacher_whole_turn_matches[index] = matches
+                    reply_teacher_turn_fidelity[seat]["started"] += 1
+                else:
+                    reply_teacher_whole_turn_matches[index] &= matches
         action_kinds = selected_action_kinds(observation, actions)
         model_action_counts += np.bincount(
             action_kinds[model_turns], minlength=len(ACTION_KIND_NAMES)
@@ -928,6 +950,26 @@ def evaluate(
         result = environment.step(actions)
         transitions += games
         done = np.logical_or(result["terminal"], result["truncated"])
+        if audit_reply_teacher:
+            completed_turns = np.logical_and(
+                model_turns,
+                np.logical_or(
+                    action_kinds == ACTION_KIND_NAMES.index("end_turn"),
+                    result["terminal"],
+                ),
+            )
+            completed_turns = np.logical_and(completed_turns, ~result["truncated"])
+            for index in np.flatnonzero(completed_turns):
+                counts = reply_teacher_turn_fidelity[int(active_players[index])]
+                counts["completed"] += 1
+                counts["first_action_matches"] += int(
+                    reply_teacher_first_matches[index]
+                )
+                counts["whole_turn_matches"] += int(
+                    reply_teacher_whole_turn_matches[index]
+                )
+                reply_teacher_turn_open[index] = False
+            reply_teacher_turn_open[done] = False
         for index in np.flatnonzero(done):
             if not finished[index]:
                 game_model_seat = int(model_seats[index])
@@ -1108,7 +1150,12 @@ def evaluate(
             else None
         ),
         "reply_teacher_agreement": (
-            {"by_seat": reply_teacher_agreement} if audit_reply_teacher else None
+            {
+                "by_seat": reply_teacher_agreement,
+                "turn_fidelity_by_seat": reply_teacher_turn_fidelity,
+            }
+            if audit_reply_teacher
+            else None
         ),
         "model_agent": model_agent,
         "policy_search": {

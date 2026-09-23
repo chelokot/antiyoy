@@ -230,6 +230,10 @@ def test_reply_teacher_audit_partitions_policy_decisions(tmp_path: Path) -> None
             - seat["student_deviates_when_teacher_matches_source"]
             + seat["student_matches_teacher_on_disagreements"]
         )
+    for seat in result["reply_teacher_agreement"]["turn_fidelity_by_seat"]:
+        assert seat["whole_turn_matches"] <= seat["first_action_matches"]
+        assert seat["first_action_matches"] <= seat["completed"]
+        assert seat["completed"] <= seat["started"]
 
 
 def test_reply_teacher_audit_requires_a_frozen_direct_baseline(tmp_path: Path) -> None:
