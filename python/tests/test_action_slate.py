@@ -6,9 +6,9 @@ pytest.importorskip("torch")
 
 import torch
 
-from antiyoy_rl import VectorEnv
+from antiyoy_rl import ProceduralConfig, VectorEnv
 from antiyoy_rl.model import UniversalPolicy, load_policy_state
-from python.build_bundle import digest
+from python.build_bundle import build_bundle, digest
 from python.collect_action_q import observation_fingerprint
 from python.collect_action_slate import (
     DATASET_KIND,
@@ -142,6 +142,49 @@ def test_action_slate_replay_reconstructs_normalized_episode_prefix() -> None:
     assert replay_slate_state(dataset, 0) == fingerprint
 
 
+def test_action_slate_replay_preserves_rotated_procedural_seats() -> None:
+    seed = 617
+    environment = VectorEnv.procedural(
+        1,
+        ProceduralConfig(width=11, height=9, players=2, seed=seed, schema_version=2),
+    )
+    environment.reset(0, seed)
+    fingerprint = observation_fingerprint(environment.observe(), 0)
+    dataset = {
+        "config": {
+            "profile": "classic_generic_2022",
+            "generator": "procedural_v2",
+            "descriptor": {
+                "width": 11,
+                "height": 9,
+                "players": 2,
+                "action_limit": 1000,
+                "fog": False,
+                "diplomacy": False,
+                "initial_relation": "neutral",
+                "land_density_per_million": 650_000,
+                "starting_province_size": 5,
+                "starting_money": 10,
+                "tree_density_per_million": 150_000,
+                "neutral_tower_density_per_million": 20_000,
+                "neutral_capital_density_per_million": 10_000,
+                "grave_density_per_million": 15_000,
+            },
+        },
+        "states": {
+            "episode_seeds": torch.tensor([seed]),
+            "episode_steps": torch.tensor([0]),
+        },
+        "replay": {
+            "episode_seeds": torch.tensor([seed]),
+            "action_offsets": torch.tensor([0, 0]),
+            "actions": torch.empty(0, dtype=torch.int32),
+        },
+    }
+
+    assert replay_slate_state(dataset, 0) == fingerprint
+
+
 def test_sparse_action_slates_replay_unlabelled_rollin_steps(tmp_path: Path) -> None:
     checkpoint_path = tmp_path / "source.pt"
     dataset_path = tmp_path / "slates.pt"
@@ -172,6 +215,54 @@ def test_sparse_action_slates_replay_unlabelled_rollin_steps(tmp_path: Path) -> 
     assert report["completed_games"] >= 2
     assert report["verified_replays"] == 10
     assert len(dataset["states"]["fingerprints"]) == 10
+    for state in range(report["states"]):
+        assert (
+            replay_slate_state(dataset, state)
+            == dataset["states"]["fingerprints"][state]
+        )
+
+
+def test_rotated_duel_slates_replay_with_legacy_policy_route(tmp_path: Path) -> None:
+    primary = tmp_path / "primary.pt"
+    specialist = tmp_path / "specialist.pt"
+    source = tmp_path / "bundle.pt"
+    dataset_path = tmp_path / "rotated-slates.pt"
+    write_checkpoint(primary, 1.0)
+    write_checkpoint(specialist, 2.0)
+    build_bundle(
+        primary,
+        {},
+        source,
+        context_route_paths={("classic_generic_2022", "procedural_v1", 2): specialist},
+    )
+    report = collect_action_slates(
+        source,
+        dataset_path,
+        PuctDistillationConfig(
+            generator="procedural_v2",
+            route_generator="procedural_v1",
+            players=2,
+            environments=2,
+            updates=8,
+            seed=618,
+            device="cpu",
+            width=11,
+            height=9,
+            action_limit=16,
+            puct_nodes=4,
+            puct_leaf_batch_size=8,
+            rollin="student",
+        ),
+        label_stride=2,
+    )
+    dataset = load_action_slate_dataset(dataset_path)
+
+    assert report["config"]["generator"] == "procedural_v2"
+    assert report["config"]["route_generator"] == "procedural_v1"
+    assert all(
+        expert.startswith("context:") for expert in report["source"]["seat_experts"]
+    )
+    assert report["verified_replays"] == report["states"]
     for state in range(report["states"]):
         assert (
             replay_slate_state(dataset, state)

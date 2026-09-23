@@ -6,7 +6,7 @@ pytest.importorskip("torch")
 
 import torch
 
-from antiyoy_rl import VectorEnv
+from antiyoy_rl import ProceduralConfig, VectorEnv
 from antiyoy_rl.model import UniversalPolicy
 from python.build_bundle import digest
 from python.collect_action_q import (
@@ -114,6 +114,45 @@ def test_action_q_replay_reconstructs_the_labeled_state() -> None:
         },
         "examples": {
             "episode_seeds": torch.tensor([603]),
+            "replay_offsets": torch.tensor([0, 0]),
+            "replay_actions": torch.empty(0, dtype=torch.int32),
+        },
+    }
+
+    assert replay_dataset_example(dataset, 0) == fingerprint
+
+
+def test_action_q_replay_preserves_rotated_procedural_seats() -> None:
+    seed = 605
+    environment = VectorEnv.procedural(
+        1,
+        ProceduralConfig(width=11, height=9, players=2, seed=seed, schema_version=2),
+    )
+    environment.reset(0, seed)
+    fingerprint = observation_fingerprint(environment.observe(), 0)
+    dataset = {
+        "config": {
+            "profile": "classic_generic_2022",
+            "generator": "procedural_v2",
+            "descriptor": {
+                "width": 11,
+                "height": 9,
+                "players": 2,
+                "action_limit": 1000,
+                "fog": False,
+                "diplomacy": False,
+                "initial_relation": "neutral",
+                "land_density_per_million": 650_000,
+                "starting_province_size": 5,
+                "starting_money": 10,
+                "tree_density_per_million": 150_000,
+                "neutral_tower_density_per_million": 20_000,
+                "neutral_capital_density_per_million": 10_000,
+                "grave_density_per_million": 15_000,
+            },
+        },
+        "examples": {
+            "episode_seeds": torch.tensor([seed]),
             "replay_offsets": torch.tensor([0, 0]),
             "replay_actions": torch.empty(0, dtype=torch.int32),
         },

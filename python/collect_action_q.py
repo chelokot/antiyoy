@@ -10,7 +10,12 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from antiyoy_rl import ProceduralConfig, VectorEnv
+from antiyoy_rl import (
+    GENERATOR_ROTATED_SCHEMA_VERSION,
+    GENERATOR_SCHEMA_VERSION,
+    ProceduralConfig,
+    VectorEnv,
+)
 from antiyoy_rl.model import (
     action_distribution,
     domain_key,
@@ -86,7 +91,8 @@ def load_collection_policy(
     descriptor: dict[str, object],
     device: torch.device,
 ) -> tuple[RoutedPolicy, list[str], int, int]:
-    evaluation_domain = domain_key(config.generator, descriptor)
+    route_generator = config.route_generator or config.generator
+    route_domain = domain_key(route_generator, descriptor)
     models = {}
     experts = []
     hidden = 0
@@ -95,10 +101,10 @@ def load_collection_policy(
         state, selected_config = select_policy_state(
             checkpoint,
             config.profile,
-            config.generator,
+            route_generator,
             config.players,
             seat,
-            evaluation_domain,
+            route_domain,
         )
         expert = str(selected_config["selected_expert"])
         if expert not in models:
@@ -122,11 +128,10 @@ def save_dataset(dataset: dict[str, object], output_path: Path) -> None:
     temporary.replace(output_path)
 
 
-def replay_dataset_example(dataset: dict[str, object], example: int) -> str:
-    config = dataset["config"]
+def create_replay_environment(
+    config: dict[str, object], episode_seed: int
+) -> VectorEnv:
     descriptor = config["descriptor"]
-    examples = dataset["examples"]
-    episode_seed = int(examples["episode_seeds"][example])
     environment_arguments = {
         "action_limit": int(descriptor["action_limit"]),
         "profile": str(config["profile"]),
@@ -134,7 +139,8 @@ def replay_dataset_example(dataset: dict[str, object], example: int) -> str:
         "diplomacy": bool(descriptor["diplomacy"]),
         "initial_relation": str(descriptor["initial_relation"]),
     }
-    if config["generator"] == "procedural_v1":
+    generator_name = str(config["generator"])
+    if generator_name in ("procedural_v1", "procedural_v2"):
         generator = ProceduralConfig(
             width=int(descriptor["width"]),
             height=int(descriptor["height"]),
@@ -151,9 +157,14 @@ def replay_dataset_example(dataset: dict[str, object], example: int) -> str:
                 descriptor["neutral_capital_density_per_million"]
             ),
             grave_density_per_million=int(descriptor["grave_density_per_million"]),
+            schema_version=(
+                GENERATOR_ROTATED_SCHEMA_VERSION
+                if generator_name == "procedural_v2"
+                else GENERATOR_SCHEMA_VERSION
+            ),
         )
         environment = VectorEnv.procedural(1, generator, **environment_arguments)
-    else:
+    elif generator_name == "symmetric_duel_v1":
         environment = VectorEnv(
             1,
             width=int(descriptor["width"]),
@@ -161,7 +172,16 @@ def replay_dataset_example(dataset: dict[str, object], example: int) -> str:
             seed=episode_seed,
             **environment_arguments,
         )
+    else:
+        raise ValueError("unsupported replay generator")
     environment.reset(0, episode_seed)
+    return environment
+
+
+def replay_dataset_example(dataset: dict[str, object], example: int) -> str:
+    examples = dataset["examples"]
+    episode_seed = int(examples["episode_seeds"][example])
+    environment = create_replay_environment(dataset["config"], episode_seed)
     start = int(examples["replay_offsets"][example])
     end = int(examples["replay_offsets"][example + 1])
     for action in examples["replay_actions"][start:end]:
@@ -317,6 +337,7 @@ def collect_action_q(
         "config": {
             "profile": config.profile,
             "generator": config.generator,
+            "route_generator": config.route_generator or config.generator,
             "players": config.players,
             "descriptor": descriptor,
             "seed": config.seed,
@@ -398,8 +419,12 @@ def add_collection_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--profile", default="classic_generic_2022")
     parser.add_argument(
         "--generator",
-        choices=("symmetric_duel_v1", "procedural_v1"),
+        choices=("symmetric_duel_v1", "procedural_v1", "procedural_v2"),
         default="procedural_v1",
+    )
+    parser.add_argument(
+        "--route-generator",
+        choices=("symmetric_duel_v1", "procedural_v1", "procedural_v2"),
     )
     parser.add_argument("--players", type=int, default=5)
     parser.add_argument("--environments", type=int, default=64)
@@ -433,6 +458,7 @@ def collection_config(arguments: argparse.Namespace) -> PuctDistillationConfig:
     return PuctDistillationConfig(
         profile=arguments.profile,
         generator=arguments.generator,
+        route_generator=arguments.route_generator,
         players=arguments.players,
         environments=arguments.environments,
         updates=arguments.updates,

@@ -16,6 +16,7 @@ try:
     from .collect_action_q import (
         add_collection_arguments,
         collection_config,
+        create_replay_environment,
         load_collection_policy,
         observation_fingerprint,
         save_dataset,
@@ -33,6 +34,7 @@ except ImportError:
     from collect_action_q import (
         add_collection_arguments,
         collection_config,
+        create_replay_environment,
         load_collection_policy,
         observation_fingerprint,
         save_dataset,
@@ -53,7 +55,6 @@ DATASET_KIND = "puct_action_q_slate_dataset"
 
 def replay_slate_state(dataset: dict[str, object], state: int) -> str:
     config = dataset["config"]
-    descriptor = config["descriptor"]
     states = dataset["states"]
     replay = dataset["replay"]
     episode_seed = int(states["episode_seeds"][state])
@@ -67,43 +68,7 @@ def replay_slate_state(dataset: dict[str, object], state: int) -> str:
     end = start + episode_step
     if end > int(replay["action_offsets"][episode + 1]):
         raise ValueError("slate replay episode is shorter than the labeled state")
-    from antiyoy_rl import ProceduralConfig, VectorEnv
-
-    environment_arguments = {
-        "action_limit": int(descriptor["action_limit"]),
-        "profile": str(config["profile"]),
-        "fog": bool(descriptor["fog"]),
-        "diplomacy": bool(descriptor["diplomacy"]),
-        "initial_relation": str(descriptor["initial_relation"]),
-    }
-    if config["generator"] == "procedural_v1":
-        generator = ProceduralConfig(
-            width=int(descriptor["width"]),
-            height=int(descriptor["height"]),
-            players=int(descriptor["players"]),
-            seed=episode_seed,
-            land_density_per_million=int(descriptor["land_density_per_million"]),
-            starting_province_size=int(descriptor["starting_province_size"]),
-            starting_money=int(descriptor["starting_money"]),
-            tree_density_per_million=int(descriptor["tree_density_per_million"]),
-            neutral_tower_density_per_million=int(
-                descriptor["neutral_tower_density_per_million"]
-            ),
-            neutral_capital_density_per_million=int(
-                descriptor["neutral_capital_density_per_million"]
-            ),
-            grave_density_per_million=int(descriptor["grave_density_per_million"]),
-        )
-        environment = VectorEnv.procedural(1, generator, **environment_arguments)
-    else:
-        environment = VectorEnv(
-            1,
-            width=int(descriptor["width"]),
-            height=int(descriptor["height"]),
-            seed=episode_seed,
-            **environment_arguments,
-        )
-    environment.reset(0, episode_seed)
+    environment = create_replay_environment(config, episode_seed)
     for action in replay["actions"][start:end]:
         result = environment.step(np.asarray([int(action)], dtype=np.uint64))
         if bool(result["terminal"][0]) or bool(result["truncated"][0]):
@@ -302,6 +267,7 @@ def collect_action_slates(
         "config": {
             "profile": config.profile,
             "generator": config.generator,
+            "route_generator": config.route_generator or config.generator,
             "players": config.players,
             "descriptor": descriptor,
             "seed": config.seed,
