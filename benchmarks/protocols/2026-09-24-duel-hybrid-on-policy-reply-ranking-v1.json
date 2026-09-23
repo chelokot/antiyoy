@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "kind": "post_rejection_hybrid_on_policy_reply_ranking_diagnostic",
+  "question": "Do autonomous model-opponent replies misrank native-searched root-turn candidates specifically on states visited by the failed hybrid, and is the error concentrated in one root seat?",
+  "status": "predeclared_before_new_maps",
+  "arena": "Classic Generic procedural_v2 11x9 two players, action limit2400, route_generator procedural_v1",
+  "seed": 6360000,
+  "independent_maps": 32,
+  "seat_rotation": "Both model seats on each map, fixed native reply-search opponent; 64 complete games scheduled",
+  "frozen_model": "routed-v6 checkpoint SHA256 68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "hybrid": "Root whole-turn beam256/top8 distinct completed turns; frozen model autonomously plays complete opponent reply; native root-perspective score selects a turn",
+  "reference_reply": "On sampled hybrid root positions only, score the identical completed-turn slate via native full-opponent-turn beam64, without using these scores to select online moves",
+  "sampling": "Root turns with round modulo8 equal to zero, up to all root turns in the scheduled games; do not choose positions by outcome or score disagreement",
+  "verification": "Test native reply-score replay against an existing stored Rust slate, every candidate legal-index replay, opt-in audit leaves default hybrid moves/output unchanged, and report any action-limit censoring explicitly",
+  "predeclared_readout": "Hybrid-versus-reference complete-game winners and adjudications; sampled slates/candidates, exact native-selected index agreement, strict native reply-score regret and map counts, pairwise ranking concordance, root-seat breakdown, and independent-map paired seat comparison. Separately compare descriptively with the already-inspected teacher-rollin seed6351000 audit; different seed windows and policy-induced positions are not paired evidence.",
+  "interpretation_limit": "Post hoc diagnostic of an already rejected hybrid. Candidate pairs and repeated positions are correlated. Native one-turn searched score is not terminal outcome or Elo. Do not tune the hybrid on these maps, revive its failed runtime/seat promotion gate, deploy/rate it, or touch reserved confirmation seed6357000 or final full-game seed6300000.",
+  "resource_limit": "SSH server only after fresh aggregate CPU/memory/disk check; one bounded nice19 CPU process, no GPU, hard timeout45 minutes, compact JSON output, avoid other user workloads and private data."
+}
