@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_read_only_opponent_action_boundary_audit",
+  "question": "Can the existing routed-v6 policy recognize the first action of the exact searched opponent full-turn response from each candidate post-turn state? This localizes whether weak response-score students also face an opponent-policy information boundary.",
+  "data": "Already inspected 32 Classic Generic procedural_v2 11x9 two-player maps seed6316000, 318 sampled reply-search self-play positions, top-eight distinct completed-turn candidates with exact searched opponent plans. Dataset SHA256 c0d444105b6248885f41bfe5a9f0fd83a9c89a891d4f37dc13a1e1b33cf7afbd.",
+  "policy": "Frozen routed-v6 direct procedural_v1 two-player expert, SHA256 68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867; no learning or checkpoint output.",
+  "measurements": "For each nonterminal candidate, identify the searched opponent's first action exactly among legal actions in the same post-turn BatchObservation. Report direct-policy top-one and top-three agreement and probability assigned to that action, overall, by root seat, selected versus unselected root candidate, static versus alternative, action kind and beneficial native-reply-score alternatives. Count terminal candidates without an opponent action explicitly.",
+  "interpretation": "This is descriptive on correlated positions/candidates from only 32 previously inspected maps, not an independent validation, Elo, complete-game strength or proof of a failure mechanism. High agreement would weaken a simple missing-opponent-policy explanation; low agreement would identify a plausible input/policy boundary but not establish causality. Do not choose a threshold, train or promote an agent from this dataset.",
+  "resource_limit": "Read existing 2.84MB compressed dataset on SSH server only; one nice19 single-CPU process with five-minute cap, tiny JSON output, no GPU or competing heavy job."
+}
