@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "kind": "fit_only_procedural_duel_reply_margin_audit",
+  "checkpoint": "procedural-v2-duel-reply-score-768-audit.pt from predeclared score-target training; do not retrain or alter weights",
+  "fit_first_seed": 6280000,
+  "fit_maps": 768,
+  "excluded_from_audit": "All previously inspected validation windows and untouched full-game seed6300000 window",
+  "measurement": "For every fit position where frozen model selects a non-static turn, rank by predicted score margin versus static rank zero. Inspect top 10%, 25%, 50%, 75%, and 100% of these model overrides, ties resolved by map seed and root seat. For each prefix count better/worse/same native full-opponent-turn reply scores versus static rank zero, by seat and independent map. This is an in-sample diagnostic, not model strength.",
+  "decision": "If even high-margin prefixes fail to have a clear native better-than-worse signal across independent fit maps, do not attempt threshold tuning. If a promising prefix exists, predeclare new independent calibration and validation map windows before any selectable policy is evaluated; never tune on already-used seed6280768,6292000,6310000,6312000 or final6300000.",
+  "resources": "Read-only inference on SSH server only, one nice-19 CPU process, no GPU, inspect aggregate resources first."
+}

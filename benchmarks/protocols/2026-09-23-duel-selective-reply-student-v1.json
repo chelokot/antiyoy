@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_selective_reply_student",
+  "model": "Frozen procedural-v2-duel-reply-score-768-audit.pt; no retraining, no threshold search on new maps",
+  "candidate": "Generate the usual beam-256 ranked slate of up to eight distinct completed turns. Select the frozen model's highest-scored candidate only if its scalar score exceeds static rank zero by at least 0.06; otherwise keep static rank zero. The 0.06 threshold is the lower boundary of the top 25% of predicted overrides on fit maps seed6280000..6280767, where native reply outcomes were292 better/145 worse/41 same, grouped independent maps169 better/67 worse/55 same. This is in-sample selection, not a strength result.",
+  "arena": "classic_generic_2022 procedural_v2 11x9 two-player reply-search-256/8/64 self-play, sample every fourth round",
+  "calibration_first_seed": 6314000,
+  "calibration_maps": 128,
+  "fresh_offline_validation_first_seed": 6315000,
+  "fresh_offline_validation_maps": 256,
+  "untouched_full_game_gate_first_seed": 6300000,
+  "untouched_full_game_gate_maps": 256,
+  "used_windows_not_for_tuning": [6280768, 6292000, 6310000, 6312000],
+  "calibration_gate": "Evaluate native reply-score better/worse/same versus static rank zero grouped by independent map and by both root seats. Proceed to the fresh offline window only if candidate-better maps exceed baseline-better maps and both seats have more better than worse positions. Do not change threshold or weights based on this result.",
+  "validation_gate": "On the independent 256-map window require candidate-better maps > baseline-better maps with two-sided exact sign p<0.05, both seats more native better than worse positions, teacher-choice/first-action agreement not below static, and report changed-position count. This is only an offline conditional-opponent-score gate, not a complete-game or Elo claim.",
+  "promotion": "Only after offline success, implement frozen inference in Rust and test fresh complete both-seat matched games grouped by independent map against plain beam-256 and reply-search-256/8/64, measure runtime and profile regressions. Seed6300000 final map window remains untouched during all offline selection.",
+  "resources": "All compute on SSH server; inspect aggregate resources afresh, one bounded nice-19 CPU process, compressed per-shard outputs, no preemption or private data, GPU only if safely free."
+}
