@@ -60,6 +60,36 @@ def test_teacher_slate_loader_aligns_selection_and_observations(tmp_path: Path) 
         '{"Move": {"source": 1, "target": 2}}',
         '{"Recruit": {"target": 3}}',
     )
+    assert position.opponent_actions is None
+
+
+def test_teacher_slate_loader_aligns_opponent_actions(tmp_path: Path) -> None:
+    value = report()
+    value["records"][0]["opponent_actions"] = [
+        [{"Move": {"source": 4, "target": 5}}, "EndTurn"],
+        ["EndTurn"],
+    ]
+    path = tmp_path / "replies.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+
+    [position] = load_teacher_slates(path)
+
+    assert position.opponent_actions == (
+        ('{"Move": {"source": 4, "target": 5}}', '"EndTurn"'),
+        ('"EndTurn"',),
+    )
+
+
+def test_teacher_slate_loader_rejects_misaligned_opponent_actions(
+    tmp_path: Path,
+) -> None:
+    value = report()
+    value["records"][0]["opponent_actions"] = [["EndTurn"]]
+    path = tmp_path / "incorrect-replies.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="opponent action counts differ"):
+        load_teacher_slates(path)
 
 
 def test_teacher_slate_loader_rejects_inconsistent_selection(tmp_path: Path) -> None:

@@ -26,6 +26,7 @@ class ScoredTurn:
     reply_scores: np.ndarray
     target: Tensor
     terminal_magnitude_scores: int
+    opponent_actions: tuple[tuple[str, ...], ...] | None = None
 
 
 def load_scored_turns(paths: list[Path], encoder: torch.nn.Module) -> list[ScoredTurn]:
@@ -41,6 +42,7 @@ def load_scored_turns(paths: list[Path], encoder: torch.nn.Module) -> list[Score
                         np.arcsinh(scores / 1000), dtype=torch.float32
                     ),
                     terminal_magnitude_scores=int((np.abs(scores) >= 1e9).sum()),
+                    opponent_actions=source.opponent_actions,
                 )
             )
     return turns

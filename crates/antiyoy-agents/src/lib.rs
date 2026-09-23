@@ -10,8 +10,8 @@ use rand::{Rng, SeedableRng, rngs::SmallRng};
 pub use evaluation::position_score;
 pub use puct::{PuctConfig, PuctError, PuctLeaf, PuctSearch, PuctStats, PuctValueMode};
 pub use search::{
-    SearchAgent, SearchConfig, SearchConfigError, SearchStats, SearchTurn, SearchTurnSlate,
-    reply_score, search_turn_slate,
+    SearchAgent, SearchConfig, SearchConfigError, SearchReply, SearchStats, SearchTurn,
+    SearchTurnSlate, reply_score, search_reply, search_turn_slate,
 };
 
 pub trait Agent {
@@ -106,7 +106,7 @@ mod tests {
 
     use super::{
         Agent, GreedyAgent, SearchAgent, SearchConfig, SearchConfigError, position_score,
-        search_turn_slate,
+        reply_score, search_reply, search_turn_slate,
     };
 
     #[test]
@@ -282,6 +282,44 @@ mod tests {
         );
         assert_eq!(first.last_stats().nodes, slate.stats.nodes);
         assert_eq!(first.last_stats().selected_score, expected.1.score);
+    }
+
+    #[test]
+    fn reply_plan_replays_to_the_reported_root_score() {
+        let scenario = Scenario::symmetric_duel(7, 5, 109).expect("valid duel");
+        let game = antiyoy_core::Game::new(Rules::classic_generic(), scenario).expect("valid game");
+        let config = SearchConfig {
+            node_budget: 32,
+            maximum_actions_per_turn: 8,
+            ..SearchConfig::default()
+        };
+        let reply_config = SearchConfig {
+            node_budget: 8,
+            ..config
+        };
+        let slate = search_turn_slate(&game, config, 4).expect("valid slate");
+        for turn in &slate.turns {
+            let response = search_reply(turn, game.active_player(), reply_config);
+            let mut replay = turn.game.clone();
+            for action in &response.actions {
+                replay
+                    .step(*action)
+                    .expect("searched opponent action is legal");
+            }
+            assert_eq!(
+                response.score,
+                position_score(&replay, game.active_player())
+            );
+            assert_eq!(
+                response.score,
+                reply_score(turn, game.active_player(), reply_config)
+            );
+            assert!(
+                response.actions.is_empty()
+                    || replay.is_terminal()
+                    || replay.active_player() == game.active_player()
+            );
+        }
     }
 
     #[test]

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_opponent_plan_diagnostic",
+  "arena": "classic_generic_2022 procedural_v2 11x9 two-player reply-search-256/8/64 self-play, action limit1000, sample rounds divisible by four",
+  "first_seed": 6316000,
+  "maps": 32,
+  "collector": "slate-dataset --include-opponent-actions exports the exact full-turn opponent plan selected during the existing reply-score search for every distinct root-turn candidate; replay must reproduce each exported score",
+  "frozen_model": "procedural-v2-duel-reply-score-768-audit.pt, same weights and next-active-player encoder as the rejected reply-score student; no fitting or threshold selection",
+  "measurements": "For every sampled position, compute the frozen model's unthresholded highest-scoring candidate and compare its native reply score against static rank zero, grouped by seat and independent map. For changed choices, tabulate better/worse/same by whether opponent first action kind differs from the static candidate's opponent first action kind, whether the full opponent action sequence differs, and the length of both sequences. Report root candidate first-action kind, number of candidate slates with distinct opponent plans, and every denominator. These are descriptive associations, not causal explanations or strength gates.",
+  "excluded_windows": [6280000, 6280768, 6292000, 6300000, 6310000, 6312000, 6314000, 6315000],
+  "decision": "Use this small fresh map-disjoint sample only to localize the tactical-response representation gap and plan a later predeclared experiment. Do not train, tune, rate, deploy, or make complete-game/Elo claims from it. Keep full-game seed6300000 and selective validation seed6315000 untouched.",
+  "resources": "All compute through SSH server only; inspect aggregate resources first, use one bounded nice-19 CPU process, compressed small output, do not preempt other workloads or inspect private data."
+}

@@ -47,6 +47,12 @@ pub struct SearchTurnSlate {
     pub stats: SearchStats,
 }
 
+#[derive(Clone, Debug)]
+pub struct SearchReply {
+    pub score: i64,
+    pub actions: Vec<Action>,
+}
+
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum SearchConfigError {
     #[error("search node budget must be at least two")]
@@ -188,11 +194,26 @@ impl SearchAgent {
 }
 
 pub fn reply_score(turn: &SearchTurn, root_player: PlayerId, reply_config: SearchConfig) -> i64 {
+    search_reply(turn, root_player, reply_config).score
+}
+
+pub fn search_reply(
+    turn: &SearchTurn,
+    root_player: PlayerId,
+    reply_config: SearchConfig,
+) -> SearchReply {
     if turn.game.is_terminal() {
-        return position_score(&turn.game, root_player);
+        return SearchReply {
+            score: position_score(&turn.game, root_player),
+            actions: Vec::new(),
+        };
     }
-    let reply = build_search_turn_slate(&turn.game, reply_config, 1);
-    position_score(&reply.turns[0].game, root_player)
+    let mut reply = build_search_turn_slate(&turn.game, reply_config, 1);
+    let completed = reply.turns.remove(0);
+    SearchReply {
+        score: position_score(&completed.game, root_player),
+        actions: completed.actions,
+    }
 }
 
 pub fn search_turn_slate(

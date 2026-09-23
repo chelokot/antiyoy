@@ -23,6 +23,7 @@ class TeacherSlatePosition:
     opponent_reply_scores: np.ndarray
     slate_indices: tuple[int, ...]
     slate_first_actions: tuple[str, ...]
+    opponent_actions: tuple[tuple[str, ...], ...] | None
 
 
 def load_teacher_slates(path: Path) -> list[TeacherSlatePosition]:
@@ -47,6 +48,11 @@ def load_teacher_slates(path: Path) -> list[TeacherSlatePosition]:
         count = len(static)
         if not (count == len(reply) == len(actions) == len(observation["widths"])):
             raise ValueError("teacher slate candidate and observation counts differ")
+        opponent_actions = cast(
+            list[list[object]] | None, record.get("opponent_actions")
+        )
+        if opponent_actions is not None and len(opponent_actions) != count:
+            raise ValueError("teacher slate opponent action counts differ")
         chosen = max(
             range(count),
             key=lambda index: (reply[index], static[index], -index),
@@ -66,6 +72,16 @@ def load_teacher_slates(path: Path) -> list[TeacherSlatePosition]:
                 slate_indices=tuple(range(count)),
                 slate_first_actions=tuple(
                     json.dumps(candidate[0], sort_keys=True) for candidate in actions
+                ),
+                opponent_actions=(
+                    tuple(
+                        tuple(
+                            json.dumps(action, sort_keys=True) for action in candidate
+                        )
+                        for candidate in opponent_actions
+                    )
+                    if opponent_actions is not None
+                    else None
                 ),
             )
         )
