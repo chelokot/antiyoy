@@ -153,6 +153,14 @@ outcome changes by seat and independent map. Its choices are evaluated offline
 under the recorded greedy continuations; a second, predeclared conservative
 comparison requires a learned pairwise log-odds margin above `1.0` before
 departing from search. No head is deployed on that evidence.
+The [first whole-turn value scout](2026-09-23-whole-turn-value-scout-v2-cpu.json)
+uses disjoint 64-map training and validation windows with all five seats. The
+frozen routed-v6 encoder plus pairwise head improved 20 and worsened zero
+training positions, but on fresh maps improved only three and worsened two.
+Independent-map counts were 3 better, 2 worse, 58 equal (`p=1.0`); the
+predeclared conservative margin made fewer substitutions but changed none of
+those outcomes. This head is rejected as overfit and was not installed in a
+playable or rated agent.
 
 An offline minimum-score-gain gate can be audited from these records by keeping
 only search turns whose `search.static_score - greedy.static_score` reaches a
