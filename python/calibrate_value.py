@@ -9,7 +9,12 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from antiyoy_rl import ProceduralConfig, VectorEnv
+from antiyoy_rl import (
+    GENERATOR_ROTATED_SCHEMA_VERSION,
+    GENERATOR_SCHEMA_VERSION,
+    ProceduralConfig,
+    VectorEnv,
+)
 from antiyoy_rl.model import (
     UniversalPolicy,
     action_distribution,
@@ -329,7 +334,7 @@ def calibrate_value(
     epochs: int,
     batch_size: int,
     learning_rate: float,
-    exploration_probability: float = 0.15,
+    exploration_probability: float = 0.005,
     exploration_top_k: int = 4,
     generator: str = "symmetric_duel_v1",
     players: int = 2,
@@ -343,11 +348,18 @@ def calibrate_value(
     training_seat: int | None = None,
     target_mode: str = "binary",
     loss_mode: str = "mse",
+    route_generator: str | None = None,
 ) -> dict[str, object]:
     if games < 2 or validation_games < 1 or validation_games >= games:
         raise ValueError("validation games must be a non-empty strict subset")
-    if generator not in ("symmetric_duel_v1", "procedural_v1"):
+    if generator not in ("symmetric_duel_v1", "procedural_v1", "procedural_v2"):
         raise ValueError("unsupported value calibration map generator")
+    if route_generator is not None and route_generator not in (
+        "symmetric_duel_v1",
+        "procedural_v1",
+        "procedural_v2",
+    ):
+        raise ValueError("unsupported value calibration policy route generator")
     if players < 2 or players > 8:
         raise ValueError("value calibration player count must be between two and eight")
     if generator == "symmetric_duel_v1" and players != 2:
@@ -370,7 +382,7 @@ def calibrate_value(
         "diplomacy": config.get("diplomacy", False),
         "initial_relation": config.get("initial_relation", "neutral"),
     }
-    if generator == "procedural_v1":
+    if generator.startswith("procedural_"):
         descriptor.update(
             {
                 "land_density_per_million": land_density_per_million,
@@ -382,7 +394,8 @@ def calibrate_value(
                 "grave_density_per_million": grave_density_per_million,
             }
         )
-    evaluation_domain = domain_key(generator, descriptor)
+    selected_route_generator = route_generator or generator
+    route_domain = domain_key(selected_route_generator, descriptor)
     models: dict[str, UniversalPolicy] = {}
     selected_experts: list[str] = []
     selected_config: dict[str, object] | None = None
@@ -390,10 +403,10 @@ def calibrate_value(
         state, seat_config = select_policy_state(
             checkpoint,
             profile,
-            generator,
+            selected_route_generator,
             players,
             seat,
-            evaluation_domain,
+            route_domain,
         )
         expert = str(seat_config["selected_expert"])
         if expert not in models:
@@ -411,7 +424,7 @@ def calibrate_value(
         "diplomacy": bool(config.get("diplomacy", False)),
         "initial_relation": str(config.get("initial_relation", "neutral")),
     }
-    if generator == "procedural_v1":
+    if generator.startswith("procedural_"):
         procedural_config = ProceduralConfig(
             width=width,
             height=height,
@@ -424,6 +437,11 @@ def calibrate_value(
             neutral_tower_density_per_million=neutral_tower_density_per_million,
             neutral_capital_density_per_million=neutral_capital_density_per_million,
             grave_density_per_million=grave_density_per_million,
+            schema_version=(
+                GENERATOR_ROTATED_SCHEMA_VERSION
+                if generator == "procedural_v2"
+                else GENERATOR_SCHEMA_VERSION
+            ),
         )
         environment = VectorEnv.procedural(
             games, procedural_config, **environment_arguments
@@ -480,7 +498,10 @@ def calibrate_value(
         },
         "profile": profile,
         "generator": generator,
-        "domain": evaluation_domain,
+        "route_generator": selected_route_generator,
+        "domain": route_domain,
+        "environment_domain": domain_key(generator, descriptor),
+        "route_domain": route_domain,
         "domain_descriptor": descriptor,
         "seed": seed,
         "training_games": training_games,
@@ -527,12 +548,16 @@ def main() -> None:
     parser.add_argument("--profile", default="classic_generic_2022")
     parser.add_argument(
         "--generator",
-        choices=("symmetric_duel_v1", "procedural_v1"),
+        choices=("symmetric_duel_v1", "procedural_v1", "procedural_v2"),
         default="symmetric_duel_v1",
     )
+    parser.add_argument(
+        "--route-generator",
+        choices=("symmetric_duel_v1", "procedural_v1", "procedural_v2"),
+    )
     parser.add_argument("--players", type=int, default=2)
-    parser.add_argument("--games", type=int, default=64)
-    parser.add_argument("--validation-games", type=int, default=16)
+    parser.add_argument("--games", type=int, default=128)
+    parser.add_argument("--validation-games", type=int, default=32)
     parser.add_argument("--seed", type=int, default=600_000)
     parser.add_argument(
         "--device", default="cuda" if torch.cuda.is_available() else "cpu"
@@ -558,7 +583,7 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=12)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
-    parser.add_argument("--exploration-probability", type=float, default=0.15)
+    parser.add_argument("--exploration-probability", type=float, default=0.005)
     parser.add_argument("--exploration-top-k", type=int, default=4)
     arguments = parser.parse_args()
     report = calibrate_value(
@@ -590,6 +615,7 @@ def main() -> None:
         arguments.training_seat,
         arguments.target_mode,
         arguments.loss_mode,
+        arguments.route_generator,
     )
     print(json.dumps(report, sort_keys=True))
 

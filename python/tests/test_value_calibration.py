@@ -139,7 +139,10 @@ def test_calibration_writes_an_overlay_compatible_checkpoint(tmp_path: Path) -> 
     )
 
 
-def test_calibration_supports_procedural_multiplayer(tmp_path: Path) -> None:
+@pytest.mark.parametrize("generator", ["procedural_v1", "procedural_v2"])
+def test_calibration_supports_procedural_multiplayer(
+    tmp_path: Path, generator: str
+) -> None:
     primary = tmp_path / "primary.pt"
     third_seat = tmp_path / "third-seat.pt"
     source = tmp_path / "source-bundle.pt"
@@ -172,7 +175,8 @@ def test_calibration_supports_procedural_multiplayer(tmp_path: Path) -> None:
         learning_rate=1e-3,
         exploration_probability=0.5,
         exploration_top_k=3,
-        generator="procedural_v1",
+        generator=generator,
+        route_generator="procedural_v1",
         players=3,
         starting_province_size=3,
         training_seat=2,
@@ -180,7 +184,11 @@ def test_calibration_supports_procedural_multiplayer(tmp_path: Path) -> None:
         loss_mode="ranking",
     )
 
-    assert report["generator"] == "procedural_v1"
+    assert report["generator"] == generator
+    assert report["route_generator"] == "procedural_v1"
+    assert (report["environment_domain"] != report["route_domain"]) == (
+        generator == "procedural_v2"
+    )
     assert report["domain_descriptor"]["players"] == 3
     assert report["collection"]["games"] == 3
     assert report["training_seat"] == 2

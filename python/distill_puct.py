@@ -10,7 +10,12 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from antiyoy_rl import ProceduralConfig, VectorEnv
+from antiyoy_rl import (
+    GENERATOR_ROTATED_SCHEMA_VERSION,
+    GENERATOR_SCHEMA_VERSION,
+    ProceduralConfig,
+    VectorEnv,
+)
 from antiyoy_rl.model import (
     UniversalPolicy,
     action_distribution,
@@ -47,6 +52,7 @@ except ImportError:
 class PuctDistillationConfig:
     profile: str = "classic_generic_2022"
     generator: str = "symmetric_duel_v1"
+    route_generator: str | None = None
     players: int = 2
     environments: int = 64
     updates: int = 1_000
@@ -85,8 +91,18 @@ def validate_config(config: PuctDistillationConfig) -> None:
         raise ValueError("distillation environments and updates must be positive")
     if config.width < 3 or config.height < 3 or config.action_limit < 1:
         raise ValueError("distillation arena dimensions and action limit are invalid")
-    if config.generator not in ("symmetric_duel_v1", "procedural_v1"):
+    if config.generator not in (
+        "symmetric_duel_v1",
+        "procedural_v1",
+        "procedural_v2",
+    ):
         raise ValueError("unsupported distillation map generator")
+    if config.route_generator is not None and config.route_generator not in (
+        "symmetric_duel_v1",
+        "procedural_v1",
+        "procedural_v2",
+    ):
+        raise ValueError("unsupported distillation policy route generator")
     if config.players < 2 or config.players > 8:
         raise ValueError("distillation player count must be between two and eight")
     if config.generator == "symmetric_duel_v1" and config.players != 2:
@@ -98,7 +114,7 @@ def validate_config(config: PuctDistillationConfig) -> None:
         config.neutral_capital_density_per_million,
         config.grave_density_per_million,
     )
-    if config.generator == "procedural_v1" and (
+    if config.generator.startswith("procedural_") and (
         any(density < 0 or density > 1_000_000 for density in procedural_densities)
         or config.starting_province_size < 1
         or config.starting_money < 0
@@ -152,7 +168,7 @@ def domain_descriptor(
         "diplomacy": checkpoint_config.get("diplomacy", False),
         "initial_relation": checkpoint_config.get("initial_relation", "neutral"),
     }
-    if config.generator == "procedural_v1":
+    if config.generator.startswith("procedural_"):
         descriptor.update(
             {
                 "land_density_per_million": config.land_density_per_million,
@@ -177,7 +193,7 @@ def create_environment(
         "diplomacy": bool(checkpoint_config.get("diplomacy", False)),
         "initial_relation": str(checkpoint_config.get("initial_relation", "neutral")),
     }
-    if config.generator == "procedural_v1":
+    if config.generator.startswith("procedural_"):
         generator = ProceduralConfig(
             width=config.width,
             height=config.height,
@@ -190,6 +206,11 @@ def create_environment(
             neutral_tower_density_per_million=config.neutral_tower_density_per_million,
             neutral_capital_density_per_million=config.neutral_capital_density_per_million,
             grave_density_per_million=config.grave_density_per_million,
+            schema_version=(
+                GENERATOR_ROTATED_SCHEMA_VERSION
+                if config.generator == "procedural_v2"
+                else GENERATOR_SCHEMA_VERSION
+            ),
         )
         return VectorEnv.procedural(
             config.environments, generator, **environment_arguments
@@ -259,7 +280,8 @@ def distill_puct(
     checkpoint = load_policy_checkpoint(checkpoint_path, device)
     checkpoint_config = dict(checkpoint["config"])
     descriptor = domain_descriptor(config, checkpoint_config)
-    evaluation_domain = domain_key(config.generator, descriptor)
+    route_generator = config.route_generator or config.generator
+    route_domain = domain_key(route_generator, descriptor)
     selected_states: list[dict[str, torch.Tensor]] = []
     selected_configs: list[dict[str, object]] = []
     selected_experts: list[str] = []
@@ -267,10 +289,10 @@ def distill_puct(
         state, selected_config = select_policy_state(
             checkpoint,
             config.profile,
-            config.generator,
+            route_generator,
             config.players,
             seat,
-            evaluation_domain,
+            route_domain,
         )
         selected_states.append(state)
         selected_configs.append(selected_config)
@@ -622,7 +644,10 @@ def distill_puct(
         },
         "profile": config.profile,
         "generator": config.generator,
-        "domain": evaluation_domain,
+        "route_generator": route_generator,
+        "domain": route_domain,
+        "environment_domain": domain_key(config.generator, descriptor),
+        "route_domain": route_domain,
         "domain_descriptor": descriptor,
         "seed": config.seed,
         "environments": config.environments,
@@ -707,8 +732,12 @@ def main() -> None:
     parser.add_argument("--profile", default="classic_generic_2022")
     parser.add_argument(
         "--generator",
-        choices=("symmetric_duel_v1", "procedural_v1"),
+        choices=("symmetric_duel_v1", "procedural_v1", "procedural_v2"),
         default="symmetric_duel_v1",
+    )
+    parser.add_argument(
+        "--route-generator",
+        choices=("symmetric_duel_v1", "procedural_v1", "procedural_v2"),
     )
     parser.add_argument("--players", type=int, default=2)
     parser.add_argument("--environments", type=int, default=64)
@@ -771,6 +800,7 @@ def main() -> None:
         PuctDistillationConfig(
             profile=arguments.profile,
             generator=arguments.generator,
+            route_generator=arguments.route_generator,
             players=arguments.players,
             environments=arguments.environments,
             updates=arguments.updates,

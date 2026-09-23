@@ -102,8 +102,10 @@ def test_puct_distillation_can_target_one_seat(tmp_path: Path) -> None:
     assert torch.all(distilled["model"]["missing_source"] == 7.0)
 
 
+@pytest.mark.parametrize("generator", ["procedural_v1", "procedural_v2"])
 def test_puct_distillation_routes_a_procedural_multiplayer_seat(
     tmp_path: Path,
+    generator: str,
 ) -> None:
     primary = tmp_path / "primary.pt"
     third_seat = tmp_path / "third-seat.pt"
@@ -124,7 +126,8 @@ def test_puct_distillation_routes_a_procedural_multiplayer_seat(
         source,
         output,
         PuctDistillationConfig(
-            generator="procedural_v1",
+            generator=generator,
+            route_generator="procedural_v1",
             players=3,
             environments=3,
             updates=24,
@@ -142,7 +145,11 @@ def test_puct_distillation_routes_a_procedural_multiplayer_seat(
         ),
     )
 
-    assert report["generator"] == "procedural_v1"
+    assert report["generator"] == generator
+    assert report["route_generator"] == "procedural_v1"
+    assert (report["environment_domain"] != report["route_domain"]) == (
+        generator == "procedural_v2"
+    )
     assert report["domain_descriptor"]["players"] == 3
     assert report["domain_descriptor"]["starting_province_size"] == 3
     assert report["source"]["expert"] == report["source"]["seat_experts"][2]
