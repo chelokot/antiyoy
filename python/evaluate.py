@@ -9,7 +9,13 @@ from typing import TypedDict
 import numpy as np
 import torch
 
-from antiyoy_rl import OBSERVATION_VERSION, ProceduralConfig, VectorEnv
+from antiyoy_rl import (
+    GENERATOR_ROTATED_SCHEMA_VERSION,
+    GENERATOR_SCHEMA_VERSION,
+    OBSERVATION_VERSION,
+    ProceduralConfig,
+    VectorEnv,
+)
 from antiyoy_rl.model import (
     ACTION_KIND_NAMES,
     RULE_FEATURES,
@@ -358,7 +364,22 @@ def evaluate(
     puct_opponent_horizon: OpponentHorizon = "search",
     puct_objective: SearchObjective = "scalar",
     maxn_value_head_path: Path | None = None,
+    generator_schema_version: int = GENERATOR_SCHEMA_VERSION,
+    route_generator: str | None = None,
 ) -> dict[str, object]:
+    if generator_schema_version not in (
+        GENERATOR_SCHEMA_VERSION,
+        GENERATOR_ROTATED_SCHEMA_VERSION,
+    ):
+        raise ValueError("unsupported procedural generator schema")
+    if not procedural and generator_schema_version != GENERATOR_SCHEMA_VERSION:
+        raise ValueError("generator schema 2 requires a procedural map")
+    if route_generator is not None and route_generator not in (
+        "symmetric_duel_v1",
+        "procedural_v1",
+        "procedural_v2",
+    ):
+        raise ValueError("unsupported policy route generator")
     if model_agent not in ("policy", "puct"):
         raise ValueError(f"unsupported model agent: {model_agent}")
     if baseline_checkpoint_path is not None and baseline != "policy":
@@ -371,7 +392,9 @@ def evaluate(
         games, seed, players, model_seat
     )
     device = torch.device(device_name)
-    generator_name = "procedural_v1" if procedural else "symmetric_duel_v1"
+    generator_name = (
+        f"procedural_v{generator_schema_version}" if procedural else "symmetric_duel_v1"
+    )
     checkpoint = load_policy_checkpoint(checkpoint_path, device)
     base_config = dict(checkpoint["config"])
     evaluation_profile = profile or base_config["profile"] or base_config["profiles"][0]
@@ -402,6 +425,10 @@ def evaluate(
             }
         )
     evaluation_domain = domain_key(generator_name, domain_descriptor)
+    route_generator_name = (
+        generator_name if route_generator is None else route_generator
+    )
+    route_domain = domain_key(route_generator_name, domain_descriptor)
     models: dict[str, UniversalPolicy] = {}
     selected_experts: list[str] = []
     configs: list[dict[str, object]] = []
@@ -409,10 +436,10 @@ def evaluate(
         state, seat_config = select_policy_state(
             checkpoint,
             profile,
-            generator_name,
+            route_generator_name,
             players,
             seat,
-            evaluation_domain,
+            route_domain,
         )
         selected_expert = str(seat_config["selected_expert"])
         if selected_expert not in models:
@@ -442,6 +469,7 @@ def evaluate(
                 neutral_tower_density_per_million=neutral_tower_density_per_million,
                 neutral_capital_density_per_million=neutral_capital_density_per_million,
                 grave_density_per_million=grave_density_per_million,
+                schema_version=generator_schema_version,
             )
             return VectorEnv.procedural(
                 environments, generator, **environment_arguments
@@ -505,10 +533,10 @@ def evaluate(
             baseline_state, baseline_config = select_policy_state(
                 baseline_checkpoint,
                 evaluation_profile,
-                generator_name,
+                route_generator_name,
                 players,
                 seat,
-                evaluation_domain,
+                route_domain,
             )
             baseline_expert = str(baseline_config["selected_expert"])
             if baseline_expert not in baseline_models:
@@ -807,6 +835,8 @@ def evaluate(
         "seed": seed,
         "generator": generator_name,
         "domain": evaluation_domain,
+        "route_generator": route_generator_name,
+        "route_domain": route_domain,
         "domain_descriptor": domain_descriptor,
         "players": players,
         "arena_width": evaluation_width,
@@ -814,6 +844,7 @@ def evaluate(
         "action_limit": evaluation_action_limit,
         "generator_config": (
             {
+                "schema_version": generator_schema_version,
                 "land_density_per_million": land_density_per_million,
                 "starting_province_size": starting_province_size,
                 "starting_money": starting_money,
@@ -886,6 +917,16 @@ def main() -> None:
     parser.add_argument("--height", type=int)
     parser.add_argument("--action-limit", type=int)
     parser.add_argument("--procedural", action="store_true")
+    parser.add_argument(
+        "--generator-schema-version",
+        type=int,
+        choices=(GENERATOR_SCHEMA_VERSION, GENERATOR_ROTATED_SCHEMA_VERSION),
+        default=GENERATOR_SCHEMA_VERSION,
+    )
+    parser.add_argument(
+        "--route-generator",
+        choices=("symmetric_duel_v1", "procedural_v1", "procedural_v2"),
+    )
     parser.add_argument("--players", type=int, default=2)
     parser.add_argument("--model-seat", type=int)
     parser.add_argument("--model-agent", choices=("policy", "puct"), default="policy")
@@ -929,6 +970,11 @@ def main() -> None:
         parser.error("model seat must belong to the player range")
     if not arguments.procedural and arguments.players != 2:
         parser.error("symmetric duel evaluation requires exactly two players")
+    if (
+        not arguments.procedural
+        and arguments.generator_schema_version != GENERATOR_SCHEMA_VERSION
+    ):
+        parser.error("generator schema 2 requires --procedural")
     if arguments.baseline_checkpoint is not None and arguments.baseline != "policy":
         parser.error("--baseline-checkpoint requires --baseline policy")
     print(
@@ -969,6 +1015,8 @@ def main() -> None:
                 arguments.puct_opponent_horizon,
                 arguments.puct_objective,
                 arguments.maxn_value_head,
+                arguments.generator_schema_version,
+                arguments.route_generator,
             ),
             sort_keys=True,
         )

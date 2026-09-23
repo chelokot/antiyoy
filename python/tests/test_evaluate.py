@@ -15,7 +15,7 @@ from antiyoy_rl.vector_value import (
     RelativeValueHead,
     initialize_from_scalar_value_head,
 )
-from python.build_bundle import digest
+from python.build_bundle import build_bundle, digest
 from python.evaluate import (
     FIXED_SEAT_SCHEME,
     baseline_adjusted_elo_delta,
@@ -114,6 +114,108 @@ def test_policy_self_match_is_an_exact_zero_delta(tmp_path: Path) -> None:
             "exact_two_sided_sign_test_p": 1.0,
         },
     ]
+
+
+def test_rotated_procedural_evaluation_has_a_distinct_domain(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "policy.pt"
+    write_checkpoint(checkpoint, 1.0)
+    arguments = {
+        "games": 3,
+        "seed": 91_001,
+        "device_name": "cpu",
+        "baseline": "policy",
+        "profile": "classic_generic_2022",
+        "search_nodes": 8,
+        "search_beam_width": 4,
+        "search_branch_width": 4,
+        "search_maximum_actions_per_turn": 4,
+        "width": 9,
+        "height": 7,
+        "action_limit": 12,
+        "procedural": True,
+        "players": 3,
+        "starting_province_size": 3,
+    }
+    legacy = evaluate(checkpoint, **arguments)
+    rotated = evaluate(checkpoint, **arguments, generator_schema_version=2)
+    assert legacy["generator"] == "procedural_v1"
+    assert rotated["generator"] == "procedural_v2"
+    assert legacy["generator_config"]["schema_version"] == 1
+    assert rotated["generator_config"]["schema_version"] == 2
+    assert legacy["domain_descriptor"] == rotated["domain_descriptor"]
+    assert legacy["domain"] != rotated["domain"]
+    assert legacy["game_seeds"] == rotated["game_seeds"]
+    assert legacy["score_delta"] == pytest.approx(0.0)
+    assert rotated["score_delta"] == pytest.approx(0.0)
+
+
+def test_rotated_generator_requires_a_procedural_map(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "policy.pt"
+    write_checkpoint(checkpoint, 1.0)
+    with pytest.raises(ValueError, match="requires a procedural map"):
+        evaluate(
+            checkpoint,
+            games=2,
+            seed=91_002,
+            device_name="cpu",
+            baseline="policy",
+            profile="classic_generic_2022",
+            search_nodes=8,
+            search_beam_width=4,
+            search_branch_width=4,
+            search_maximum_actions_per_turn=4,
+            width=7,
+            height=5,
+            action_limit=12,
+            generator_schema_version=2,
+        )
+
+
+def test_rotated_map_can_explicitly_reuse_the_legacy_policy_route(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "primary.pt"
+    specialist = tmp_path / "specialist.pt"
+    bundle = tmp_path / "bundle.pt"
+    write_checkpoint(primary, 1.0, profiles=["classic_generic_2022"])
+    write_checkpoint(specialist, 7.0, profiles=["classic_generic_2022"])
+    build_bundle(
+        primary,
+        {},
+        bundle,
+        {("classic_generic_2022", "procedural_v1", 3): specialist},
+    )
+    arguments = {
+        "games": 3,
+        "seed": 91_003,
+        "device_name": "cpu",
+        "baseline": "policy",
+        "profile": "classic_generic_2022",
+        "search_nodes": 8,
+        "search_beam_width": 4,
+        "search_branch_width": 4,
+        "search_maximum_actions_per_turn": 4,
+        "width": 9,
+        "height": 7,
+        "action_limit": 12,
+        "procedural": True,
+        "players": 3,
+        "starting_province_size": 3,
+        "generator_schema_version": 2,
+    }
+    native_route = evaluate(bundle, **arguments)
+    reused_route = evaluate(bundle, **arguments, route_generator="procedural_v1")
+    assert native_route["generator"] == reused_route["generator"] == "procedural_v2"
+    assert native_route["domain"] == reused_route["domain"]
+    assert native_route["route_generator"] == "procedural_v2"
+    assert reused_route["route_generator"] == "procedural_v1"
+    assert native_route["route_domain"] != reused_route["route_domain"]
+    assert native_route["selected_experts"] == ["primary"] * 3
+    assert all(
+        expert.startswith("context:") for expert in reused_route["selected_experts"]
+    )
+    assert native_route["score_delta"] == pytest.approx(0.0)
+    assert reused_route["score_delta"] == pytest.approx(0.0)
 
 
 def test_policy_pair_uses_an_independent_baseline_checkpoint(tmp_path: Path) -> None:

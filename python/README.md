@@ -471,6 +471,19 @@ candidate `winners` vectors. Evaluations with different search settings can
 therefore be compared map by map when these schedules and the arena
 configuration are identical.
 
+Use `--procedural --generator-schema-version 2` to evaluate the opt-in
+rotated-seat map domain. The generator name becomes `procedural_v2` and gets a
+distinct domain digest; schema 1 remains the default and keeps its existing
+routes. A bundle without a v2 context or domain route falls back to its
+profile-level expert. To transfer an existing v1 exact-seat bundle without
+changing its expert selection, add `--route-generator procedural_v1`; the
+report records both the v2 environment domain and the distinct policy route
+domain. Inspect `selected_experts` before comparing models.
+The same seed has the same land and capital locations under both versions, but
+assigns those starting positions to different seats. The generator fairness
+audit is in `benchmarks/2026-09-23-rotated-seat-generator-cpu.json`; it is not
+an Elo or a model-strength measurement.
+
 Arena dimensions and action limits otherwise inherit the training checkpoint.
 Cross-checkpoint comparisons must pass the same explicit `--width`, `--height`,
 and `--action-limit`; all three values are emitted in every result.
