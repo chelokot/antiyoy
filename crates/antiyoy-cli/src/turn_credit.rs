@@ -2,7 +2,9 @@ use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::time::Instant;
 
-use antiyoy_agents::{Agent, GreedyAgent, SearchAgent, SearchConfig, position_score};
+use antiyoy_agents::{
+    Agent, GreedyAgent, SearchAgent, SearchConfig, position_score, search_turn_slate,
+};
 use antiyoy_core::{Action, Game, GeneratorConfig, PlayerId, Rules, adjudicate};
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
@@ -33,6 +35,13 @@ struct AlternativeRecord {
 }
 
 #[derive(Debug, Serialize)]
+struct BeamRecord {
+    rank: usize,
+    different_end_state: bool,
+    branch: BranchRecord,
+}
+
+#[derive(Debug, Serialize)]
 struct CreditRecord {
     seed: u64,
     seat: u8,
@@ -43,6 +52,7 @@ struct CreditRecord {
     greedy: BranchRecord,
     search: BranchRecord,
     alternatives: Vec<AlternativeRecord>,
+    beam_candidates: Vec<BeamRecord>,
 }
 
 #[derive(Debug, Serialize)]
@@ -56,6 +66,7 @@ struct TurnCreditSummary {
     rollout_limit: u32,
     search_nodes: usize,
     alternative_search_nodes: Vec<usize>,
+    beam_slate_size: usize,
     maximum_actions_per_turn: usize,
     positions: usize,
     different_end_states: u32,
@@ -65,6 +76,8 @@ struct TurnCreditSummary {
     search_outcome_same: u32,
     censored_positions: u32,
     continuation_truncations: u32,
+    slate_censored_positions: u32,
+    slate_continuation_truncations: u32,
     elapsed_seconds: f64,
     records: Vec<CreditRecord>,
 }
@@ -75,6 +88,7 @@ struct CreditConfig {
     rollout_limit: u32,
     search: SearchConfig,
     alternative_search_nodes: Vec<usize>,
+    beam_slate_size: usize,
 }
 
 pub(super) fn run(arguments: &TurnCreditArgs) -> Result<()> {
@@ -97,6 +111,7 @@ pub(super) fn run(arguments: &TurnCreditArgs) -> Result<()> {
                 ..SearchConfig::default()
             },
             alternative_search_nodes: arguments.alternative_search_nodes.clone(),
+            beam_slate_size: arguments.beam_slate_size,
         },
     )?;
     print_value(&summary, arguments.json)
@@ -144,27 +159,27 @@ fn diagnose(
     let mut search_outcome_same = 0;
     let mut censored_positions = 0;
     let mut continuation_truncations = 0;
+    let mut slate_censored_positions = 0;
+    let mut slate_continuation_truncations = 0;
     let started = Instant::now();
 
     for map_index in 0..maps {
         let mut map_config = generator.clone();
         map_config.seed = generator.seed.wrapping_add(u64::from(map_index));
         let game = Game::new(rules.clone(), map_config.generate()?)?;
-        let states = if let Some(seat) = config.rollin_seat {
-            sample_first_search_divergence(game, seat, &config)?
-                .into_iter()
-                .collect()
-        } else {
-            sample_round_states(game, config.target_round, config.rollout_limit)?
-        };
+        let states = sample_states(game, &config)?;
         maps_with_samples += u32::from(!states.is_empty());
         for state in states {
             let record = analyze_turn(&state, map_config.seed, &config)?;
             different_end_states += u32::from(record.different_end_state);
             search_static_improvements +=
                 u32::from(record.search.static_score > record.greedy.static_score);
-            continuation_truncations += u32::from(record.greedy.continuation.truncated)
+            let pair_truncations = u32::from(record.greedy.continuation.truncated)
                 + u32::from(record.search.continuation.truncated);
+            continuation_truncations += pair_truncations;
+            let extra_truncations = extra_truncations(&record)?;
+            slate_continuation_truncations += pair_truncations + extra_truncations;
+            slate_censored_positions += u32::from(pair_truncations + extra_truncations > 0);
             if record.greedy.continuation.truncated || record.search.continuation.truncated {
                 censored_positions += 1;
             } else {
@@ -190,6 +205,7 @@ fn diagnose(
         rollout_limit: config.rollout_limit,
         search_nodes: config.search.node_budget,
         alternative_search_nodes: config.alternative_search_nodes,
+        beam_slate_size: config.beam_slate_size,
         maximum_actions_per_turn: config.search.maximum_actions_per_turn,
         positions: records.len(),
         different_end_states,
@@ -199,26 +215,53 @@ fn diagnose(
         search_outcome_same,
         censored_positions,
         continuation_truncations,
+        slate_censored_positions,
+        slate_continuation_truncations,
         elapsed_seconds: started.elapsed().as_secs_f64(),
         records,
     })
 }
 
+fn sample_states(game: Game, config: &CreditConfig) -> Result<Vec<Game>> {
+    if let Some(seat) = config.rollin_seat {
+        Ok(sample_first_search_divergence(game, seat, config)?
+            .into_iter()
+            .collect())
+    } else {
+        sample_round_states(game, config.target_round, config.rollout_limit)
+    }
+}
+
+fn extra_truncations(record: &CreditRecord) -> Result<u32> {
+    let alternatives = record
+        .alternatives
+        .iter()
+        .filter(|candidate| candidate.branch.continuation.truncated)
+        .count();
+    let beam = record
+        .beam_candidates
+        .iter()
+        .filter(|candidate| candidate.branch.continuation.truncated)
+        .count();
+    Ok(u32::try_from(alternatives + beam)?)
+}
+
 fn analyze_turn(state: &Game, seed: u64, config: &CreditConfig) -> Result<CreditRecord> {
     let seat = state.active_player().0;
     let round = state.round();
-    let mut search_agent = SearchAgent::with_config("search", config.search)
+    let search_slate = search_turn_slate(state, config.search, config.beam_slate_size.max(1))
         .context("invalid search configuration")?;
     let greedy_turn = finish_turn(
         state.clone(),
         &mut GreedyAgent::new("greedy"),
         config.search.maximum_actions_per_turn,
     )?;
-    let search_turn = finish_turn(
-        state.clone(),
-        &mut search_agent,
-        config.search.maximum_actions_per_turn,
-    )?;
+    let selected = &search_slate.turns[0];
+    let search_turn = TurnBranch {
+        game: selected.game.clone(),
+        actions: selected.actions.clone(),
+        score: selected.score,
+    };
     ensure!(
         search_turn.score >= greedy_turn.score,
         "search score fell below its greedy-turn fallback"
@@ -242,42 +285,22 @@ fn analyze_turn(state: &Game, seed: u64, config: &CreditConfig) -> Result<Credit
     if different {
         completed_states.push((search_turn.game.clone(), search_result));
     }
-    let mut alternatives = Vec::with_capacity(config.alternative_search_nodes.len());
-    for &nodes in &config.alternative_search_nodes {
-        let mut alternative_agent = SearchAgent::with_config(
-            "alternative-search",
-            SearchConfig {
-                node_budget: nodes,
-                ..config.search
-            },
-        )
-        .context("invalid alternative search configuration")?;
-        let alternative_turn = finish_turn(
-            state.clone(),
-            &mut alternative_agent,
-            config.search.maximum_actions_per_turn,
+    let alternatives =
+        compare_alternative_budgets(state, config, &greedy_turn.game, &mut completed_states)?;
+    let mut beam_candidates = Vec::with_capacity(search_slate.turns.len().saturating_sub(1));
+    for (rank, turn) in search_slate.turns.into_iter().enumerate().skip(1) {
+        let continuation = continuation_for_state(
+            &turn.game,
+            PlayerId(seat),
+            config.rollout_limit,
+            &mut completed_states,
         )?;
-        let continuation = if let Some((_, result)) = completed_states
-            .iter()
-            .find(|(game, _)| game == &alternative_turn.game)
-        {
-            *result
-        } else {
-            let result = continue_with_greedy(
-                alternative_turn.game.clone(),
-                PlayerId(seat),
-                config.rollout_limit,
-            )?;
-            completed_states.push((alternative_turn.game.clone(), result));
-            result
-        };
-        alternatives.push(AlternativeRecord {
-            search_nodes: nodes,
-            search_expansions: alternative_agent.last_stats().nodes,
-            different_end_state: alternative_turn.game != greedy_turn.game,
+        beam_candidates.push(BeamRecord {
+            rank,
+            different_end_state: turn.game != greedy_turn.game,
             branch: BranchRecord {
-                actions: alternative_turn.actions,
-                static_score: alternative_turn.score,
+                actions: turn.actions,
+                static_score: turn.score,
                 continuation,
             },
         });
@@ -286,7 +309,7 @@ fn analyze_turn(state: &Game, seed: u64, config: &CreditConfig) -> Result<Credit
         seed,
         seat,
         round,
-        search_expansions: search_agent.last_stats().nodes,
+        search_expansions: search_slate.stats.nodes,
         different_end_state: different,
         distinct_end_states: completed_states.len(),
         greedy: BranchRecord {
@@ -300,7 +323,63 @@ fn analyze_turn(state: &Game, seed: u64, config: &CreditConfig) -> Result<Credit
             continuation: search_result,
         },
         alternatives,
+        beam_candidates,
     })
+}
+
+fn compare_alternative_budgets(
+    state: &Game,
+    config: &CreditConfig,
+    greedy_end_state: &Game,
+    completed_states: &mut Vec<(Game, Continuation)>,
+) -> Result<Vec<AlternativeRecord>> {
+    let mut alternatives = Vec::with_capacity(config.alternative_search_nodes.len());
+    for &nodes in &config.alternative_search_nodes {
+        let mut agent = SearchAgent::with_config(
+            "alternative-search",
+            SearchConfig {
+                node_budget: nodes,
+                ..config.search
+            },
+        )
+        .context("invalid alternative search configuration")?;
+        let turn = finish_turn(
+            state.clone(),
+            &mut agent,
+            config.search.maximum_actions_per_turn,
+        )?;
+        let continuation = continuation_for_state(
+            &turn.game,
+            state.active_player(),
+            config.rollout_limit,
+            completed_states,
+        )?;
+        alternatives.push(AlternativeRecord {
+            search_nodes: nodes,
+            search_expansions: agent.last_stats().nodes,
+            different_end_state: turn.game != *greedy_end_state,
+            branch: BranchRecord {
+                actions: turn.actions,
+                static_score: turn.score,
+                continuation,
+            },
+        });
+    }
+    Ok(alternatives)
+}
+
+fn continuation_for_state(
+    game: &Game,
+    player: PlayerId,
+    action_limit: u32,
+    completed_states: &mut Vec<(Game, Continuation)>,
+) -> Result<Continuation> {
+    if let Some((_, result)) = completed_states.iter().find(|(state, _)| state == game) {
+        return Ok(*result);
+    }
+    let result = continue_with_greedy(game.clone(), player, action_limit)?;
+    completed_states.push((game.clone(), result));
+    Ok(result)
 }
 
 fn sample_round_states(mut game: Game, target_round: u32, action_limit: u32) -> Result<Vec<Game>> {
@@ -527,6 +606,7 @@ mod tests {
                     ..SearchConfig::default()
                 },
                 alternative_search_nodes: vec![4, 8],
+                beam_slate_size: 4,
             },
         )
         .expect("valid diagnostic");
@@ -539,12 +619,15 @@ mod tests {
             3
         );
         assert!(report.censored_positions > 0);
+        assert!(report.slate_censored_positions >= report.censored_positions);
+        assert!(report.slate_continuation_truncations >= report.continuation_truncations);
         assert!(report.records.iter().all(|record| {
             record.greedy.continuation.actions <= 32
                 && record.search.continuation.actions <= 32
                 && record.search.static_score >= record.greedy.static_score
                 && record.alternatives.len() == 2
-                && record.distinct_end_states <= 4
+                && record.beam_candidates.len() <= 3
+                && record.distinct_end_states <= 7
         }));
     }
 
@@ -567,6 +650,7 @@ mod tests {
                 rollout_limit: 32,
                 search: SearchConfig::default(),
                 alternative_search_nodes: Vec::new(),
+                beam_slate_size: 0,
             },
         );
         assert!(result.is_err());
@@ -595,6 +679,7 @@ mod tests {
                         ..SearchConfig::default()
                     },
                     alternative_search_nodes: budgets,
+                    beam_slate_size: 0,
                 },
             );
             assert!(result.is_err());
@@ -626,6 +711,7 @@ mod tests {
                 rollout_limit: 1,
                 search: SearchConfig::default(),
                 alternative_search_nodes: Vec::new(),
+                beam_slate_size: 0,
             },
         )
         .expect("valid roll-in");

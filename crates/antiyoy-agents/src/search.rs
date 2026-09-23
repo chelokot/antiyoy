@@ -34,6 +34,19 @@ pub struct SearchStats {
     pub selected_score: i64,
 }
 
+#[derive(Clone, Debug)]
+pub struct SearchTurn {
+    pub game: Game,
+    pub actions: Vec<Action>,
+    pub score: i64,
+}
+
+#[derive(Clone, Debug)]
+pub struct SearchTurnSlate {
+    pub turns: Vec<SearchTurn>,
+    pub stats: SearchStats,
+}
+
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum SearchConfigError {
     #[error("search node budget must be at least two")]
@@ -44,6 +57,8 @@ pub enum SearchConfigError {
     BranchWidth,
     #[error("search turn depth must be greater than zero")]
     TurnDepth,
+    #[error("search turn slate size must be greater than zero")]
+    SlateSize,
 }
 
 #[derive(Clone, Debug)]
@@ -111,69 +126,107 @@ impl SearchAgent {
 
     fn create_plan(&mut self, game: &Game) {
         self.search_count += 1;
-        let player = game.active_player();
-        let mut frontier = vec![Candidate {
-            game: game.clone(),
-            actions: Vec::new(),
-            score: position_score(game, player),
-        }];
-        let mut completed = vec![greedy_turn_candidate(
-            game,
-            player,
-            self.config.maximum_actions_per_turn,
-        )];
-        let mut nodes = 0;
-        let mut maximum_depth = 0;
-
-        for depth in 1..=self.config.maximum_actions_per_turn {
-            if frontier.is_empty() || nodes >= self.config.node_budget {
-                break;
-            }
-            let mut next = Vec::new();
-            for candidate in frontier {
-                for action in ordered_actions(&candidate.game, player, self.config.branch_width) {
-                    if nodes >= self.config.node_budget {
-                        break;
-                    }
-                    let mut successor = candidate.game.clone();
-                    successor
-                        .step(action)
-                        .expect("engine-generated legal action must apply");
-                    nodes += 1;
-                    maximum_depth = maximum_depth.max(depth);
-                    let mut actions = candidate.actions.clone();
-                    actions.push(action);
-                    let score = position_score(&successor, player);
-                    let successor = Candidate {
-                        game: successor,
-                        actions,
-                        score,
-                    };
-                    if successor.game.is_terminal() || successor.game.active_player() != player {
-                        completed.push(successor);
-                    } else {
-                        next.push(successor);
-                    }
-                }
-            }
-            next.sort_by(compare_candidates);
-            next.truncate(self.config.beam_width);
-            frontier = next;
-        }
-
-        let completed_turns = completed.len();
-        completed.sort_by(compare_candidates);
-        let selected = completed
+        let slate = build_search_turn_slate(game, self.config, 1);
+        let selected = slate
+            .turns
             .into_iter()
             .next()
             .expect("EndTurn always completes at least one candidate turn");
-        self.last_stats = SearchStats {
+        self.last_stats = slate.stats;
+        self.plan = materialize_plan(game, &selected.actions);
+    }
+}
+
+pub fn search_turn_slate(
+    game: &Game,
+    config: SearchConfig,
+    size: usize,
+) -> Result<SearchTurnSlate, SearchConfigError> {
+    validate_config(config)?;
+    if size == 0 {
+        return Err(SearchConfigError::SlateSize);
+    }
+    Ok(build_search_turn_slate(game, config, size))
+}
+
+fn build_search_turn_slate(game: &Game, config: SearchConfig, size: usize) -> SearchTurnSlate {
+    let player = game.active_player();
+    let mut frontier = vec![Candidate {
+        game: game.clone(),
+        actions: Vec::new(),
+        score: position_score(game, player),
+    }];
+    let mut completed = vec![greedy_turn_candidate(
+        game,
+        player,
+        config.maximum_actions_per_turn,
+    )];
+    let mut nodes = 0;
+    let mut maximum_depth = 0;
+
+    for depth in 1..=config.maximum_actions_per_turn {
+        if frontier.is_empty() || nodes >= config.node_budget {
+            break;
+        }
+        let mut next = Vec::new();
+        for candidate in frontier {
+            for action in ordered_actions(&candidate.game, player, config.branch_width) {
+                if nodes >= config.node_budget {
+                    break;
+                }
+                let mut successor = candidate.game.clone();
+                successor
+                    .step(action)
+                    .expect("engine-generated legal action must apply");
+                nodes += 1;
+                maximum_depth = maximum_depth.max(depth);
+                let mut actions = candidate.actions.clone();
+                actions.push(action);
+                let score = position_score(&successor, player);
+                let successor = Candidate {
+                    game: successor,
+                    actions,
+                    score,
+                };
+                if successor.game.is_terminal() || successor.game.active_player() != player {
+                    completed.push(successor);
+                } else {
+                    next.push(successor);
+                }
+            }
+        }
+        next.sort_by(compare_candidates);
+        next.truncate(config.beam_width);
+        frontier = next;
+    }
+
+    let completed_turns = completed.len();
+    completed.sort_by(compare_candidates);
+    let mut turns = Vec::with_capacity(size.min(completed_turns));
+    for candidate in completed {
+        if turns
+            .iter()
+            .all(|turn: &SearchTurn| turn.game != candidate.game)
+        {
+            turns.push(SearchTurn {
+                game: candidate.game,
+                actions: candidate.actions,
+                score: candidate.score,
+            });
+            if turns.len() == size {
+                break;
+            }
+        }
+    }
+    let selected_score = turns[0].score;
+    SearchTurnSlate {
+        turns,
+        stats: SearchStats {
             nodes,
             completed_turns,
             maximum_depth,
-            selected_score: selected.score,
-        };
-        self.plan = materialize_plan(game, &selected.actions);
+            selected_score,
+        },
     }
 }
 

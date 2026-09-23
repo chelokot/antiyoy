@@ -9,7 +9,10 @@ use rand::{Rng, SeedableRng, rngs::SmallRng};
 
 pub use evaluation::position_score;
 pub use puct::{PuctConfig, PuctError, PuctLeaf, PuctSearch, PuctStats, PuctValueMode};
-pub use search::{SearchAgent, SearchConfig, SearchConfigError, SearchStats};
+pub use search::{
+    SearchAgent, SearchConfig, SearchConfigError, SearchStats, SearchTurn, SearchTurnSlate,
+    search_turn_slate,
+};
 
 pub trait Agent {
     fn name(&self) -> &str;
@@ -101,7 +104,9 @@ mod tests {
         Topology,
     };
 
-    use super::{Agent, GreedyAgent, SearchAgent, SearchConfig, SearchConfigError};
+    use super::{
+        Agent, GreedyAgent, SearchAgent, SearchConfig, SearchConfigError, search_turn_slate,
+    };
 
     #[test]
     fn greedy_agent_prefers_free_capture_over_end_turn() {
@@ -176,6 +181,61 @@ mod tests {
         assert!(first.last_stats().nodes <= config.node_budget);
         assert!(first.last_stats().completed_turns > 0);
         assert!(first.last_stats().maximum_depth > 0);
+    }
+
+    #[test]
+    fn search_turn_slate_is_ranked_distinct_and_preserves_the_played_plan() {
+        let scenario = Scenario::symmetric_duel(7, 5, 101).expect("valid duel");
+        let game = antiyoy_core::Game::new(Rules::classic_generic(), scenario).expect("valid game");
+        let config = SearchConfig {
+            node_budget: 256,
+            beam_width: 12,
+            branch_width: 20,
+            maximum_actions_per_turn: 12,
+        };
+        let first = search_turn_slate(&game, config, 8).expect("valid slate");
+        let second = search_turn_slate(&game, config, 8).expect("repeatable slate");
+        assert_eq!(first.stats, second.stats);
+        assert_eq!(first.turns.len(), second.turns.len());
+        assert!(first.turns.len() > 1);
+        assert!(first.turns.len() <= 8);
+        assert!(first.stats.completed_turns >= first.turns.len());
+        for (index, turn) in first.turns.iter().enumerate() {
+            assert_eq!(turn.actions, second.turns[index].actions);
+            assert_eq!(turn.game, second.turns[index].game);
+            assert!(turn.game.is_terminal() || turn.game.active_player() != game.active_player());
+            assert!(
+                first.turns[..index]
+                    .iter()
+                    .all(|other| other.game != turn.game)
+            );
+            if index > 0 {
+                assert!(first.turns[index - 1].score >= turn.score);
+            }
+            let mut replay = game.clone();
+            for action in &turn.actions {
+                replay.step(*action).expect("slate actions remain legal");
+            }
+            assert_eq!(replay, turn.game);
+        }
+        let mut agent = SearchAgent::with_config("search", config).expect("valid search");
+        let mut legal = Vec::new();
+        game.legal_actions(&mut legal);
+        assert_eq!(
+            agent.select_action(&game, &legal),
+            first.turns[0].actions[0]
+        );
+        assert_eq!(agent.last_stats(), first.stats);
+    }
+
+    #[test]
+    fn search_turn_slate_rejects_zero_size() {
+        let scenario = Scenario::symmetric_duel(7, 5, 101).expect("valid duel");
+        let game = antiyoy_core::Game::new(Rules::classic_generic(), scenario).expect("valid game");
+        assert!(matches!(
+            search_turn_slate(&game, SearchConfig::default(), 0),
+            Err(SearchConfigError::SlateSize)
+        ));
     }
 
     #[test]

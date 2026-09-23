@@ -115,6 +115,18 @@ continuation, while every alternative keeps its own action sequence and search
 budget. `distinct_end_states` reports how much diversity the slate actually
 contains. This is a label-coverage probe, not an agent that can see the future.
 
+Pass `--beam-slate-size 8` to rank up to eight distinct completed-turn states
+visited by one search, including its normally selected turn. The report keeps
+the selected turn in `search` and records remaining ranked turns in
+`beam_candidates`; `greedy` remains a separate fallback. Equal post-turn game
+states share one continuation even when reached through different action
+sequences or search budgets. Ranks use the existing deterministic static score,
+not the continuation outcome. The default size zero disables extra beam
+candidates and leaves the search policy unchanged.
+`censored_positions` still describes the original greedy-versus-selected
+comparison; `slate_censored_positions` counts a position if any recorded
+branch has an action-limited continuation.
+
 An offline minimum-score-gain gate can be audited from these records by keeping
 only search turns whose `search.static_score - greedy.static_score` reaches a
 prechosen margin. Choose the margin on one seed window and validate it on a
