@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 import torch
 
+from antiyoy_rl import VectorEnv
 from antiyoy_rl.model import UniversalPolicy
 from antiyoy_rl.turn_credit import TurnCreditPosition
 from python.scout_turn_value import (
@@ -81,6 +82,39 @@ def test_scout_rejects_a_mismatched_model_domain() -> None:
 
     with pytest.raises(ValueError, match="five-player"):
         embed_position(source, UniversalPolicy(hidden=16, layers=1))
+
+
+def test_root_value_uses_root_seat_without_changing_exported_observation() -> None:
+    class RecordingModel:
+        def forward_with_value_features(self, observation, rules):
+            active = torch.as_tensor(observation["active_players"], dtype=torch.float32)
+            return torch.empty(0), active, active[:, None]
+
+    post_turn = {
+        "player_counts": np.asarray([5, 5]),
+        "active_players": np.asarray([2, 3]),
+    }
+    rules_json = VectorEnv(1, width=7, height=5, seed=47).rules_json()
+    source = TurnCreditPosition(
+        seed=1,
+        seat=4,
+        round=1,
+        root={},
+        post_turn=post_turn,
+        root_rules_json=(),
+        post_turn_rules_json=(rules_json,) * 2,
+        outcome_scores=np.asarray([0, 2]),
+        static_scores=np.asarray([150, -300]),
+        search_index=0,
+        greedy_index=1,
+    )
+
+    embedded = embed_position(source, RecordingModel(), "root_value_static")
+
+    torch.testing.assert_close(
+        embedded.features, torch.tensor([[4.0, 0.15], [4.0, -0.3]])
+    )
+    np.testing.assert_array_equal(post_turn["active_players"], [2, 3])
 
 
 def test_outcome_scout_groups_seats_by_independent_map() -> None:

@@ -5,6 +5,7 @@ import json
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 import torch
@@ -27,17 +28,33 @@ class EmbeddedPosition:
     search_index: int
 
 
-def embed_position(position: TurnCreditPosition, model: UniversalPolicy) -> EmbeddedPosition:
+Representation = Literal["next_features", "root_value_static"]
+
+
+def embed_position(
+    position: TurnCreditPosition,
+    model: UniversalPolicy,
+    representation: Representation = "next_features",
+) -> EmbeddedPosition:
     if not np.all(position.post_turn["player_counts"] == 5) or any(
         json.loads(rule)["profile"] != "ClassicGeneric"
         for rule in position.post_turn_rules_json
     ):
         raise ValueError("the scout requires five-player Classic Generic observations")
     rules = encode_rules_batch(list(position.post_turn_rules_json), torch.device("cpu"))
+    observation = position.post_turn
+    if representation == "root_value_static":
+        observation = {
+            **observation,
+            "active_players": np.full_like(observation["active_players"], position.seat),
+        }
     with torch.inference_mode():
-        _, _, features = model.forward_with_value_features(position.post_turn, rules)
+        _, values, features = model.forward_with_value_features(observation, rules)
     static_score = torch.as_tensor(position.static_scores, dtype=torch.float32)
-    features = torch.cat((features.cpu(), static_score[:, None] / 1000), dim=1)
+    if representation == "root_value_static":
+        features = torch.stack((values.cpu(), static_score / 1000), dim=1)
+    else:
+        features = torch.cat((features.cpu(), static_score[:, None] / 1000), dim=1)
     return EmbeddedPosition(
         seed=position.seed,
         seat=position.seat,
@@ -47,11 +64,13 @@ def embed_position(position: TurnCreditPosition, model: UniversalPolicy) -> Embe
     )
 
 
-def load_embeddings(paths: list[Path], model: UniversalPolicy) -> list[EmbeddedPosition]:
+def load_embeddings(
+    paths: list[Path], model: UniversalPolicy, representation: Representation
+) -> list[EmbeddedPosition]:
     positions = []
     for path in paths:
         positions.extend(
-            embed_position(position, model)
+            embed_position(position, model, representation)
             for position in load_turn_credit_positions(path)
         )
     return positions
@@ -179,6 +198,7 @@ def scout(
     checkpoint: Path,
     training_paths: list[Path],
     validation_paths: list[Path],
+    representation: Representation = "next_features",
 ) -> dict[str, object]:
     torch.set_num_threads(1)
     torch.manual_seed(72031)
@@ -189,15 +209,15 @@ def scout(
         generator="procedural_v1",
         players=5,
     )
-    training = load_embeddings(training_paths, model)
-    validation = load_embeddings(validation_paths, model)
+    training = load_embeddings(training_paths, model, representation)
+    validation = load_embeddings(validation_paths, model, representation)
     training_seeds = {position.seed for position in training}
     validation_seeds = {position.seed for position in validation}
     if training_seeds & validation_seeds:
         raise ValueError("training and validation maps overlap")
     differences, example_weights = pairwise_examples(training)
     weight, scales = train_head(differences, example_weights)
-    return {
+    report = {
         "kind": "whole_turn_outcome_value_scout",
         "source_model_sha256": digest(checkpoint),
         "source_expert": config["selected_expert"],
@@ -218,6 +238,18 @@ def scout(
         "validation_conservative": evaluate_head(validation, weight, scales, 1.0),
         "qualification": "offline exact greedy continuation only; no policy promotion",
     }
+    if representation == "root_value_static":
+        unit_scales = torch.ones(2)
+        report["representation"] = representation
+        report["root_critic_only"] = {
+            "training": evaluate_head(training, torch.tensor([1.0, 0.0]), unit_scales),
+            "validation": evaluate_head(validation, torch.tensor([1.0, 0.0]), unit_scales),
+        }
+        report["static_only"] = {
+            "training": evaluate_head(training, torch.tensor([0.0, 1.0]), unit_scales),
+            "validation": evaluate_head(validation, torch.tensor([0.0, 1.0]), unit_scales),
+        }
+    return report
 
 
 def main() -> None:
@@ -225,9 +257,19 @@ def main() -> None:
     parser.add_argument("--checkpoint", required=True, type=Path)
     parser.add_argument("--train", required=True, action="append", type=Path)
     parser.add_argument("--validation", required=True, action="append", type=Path)
+    parser.add_argument(
+        "--representation",
+        choices=("next_features", "root_value_static"),
+        default="next_features",
+    )
     parser.add_argument("--output", required=True, type=Path)
     arguments = parser.parse_args()
-    report = scout(arguments.checkpoint, arguments.train, arguments.validation)
+    report = scout(
+        arguments.checkpoint,
+        arguments.train,
+        arguments.validation,
+        arguments.representation,
+    )
     arguments.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
 

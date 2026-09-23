@@ -129,6 +129,32 @@ def test_policy_exposes_the_exact_features_used_by_the_value_head() -> None:
     assert torch.equal(values, policy.value_head(features).squeeze(1))
 
 
+def test_policy_value_is_independent_of_the_next_players_legal_actions() -> None:
+    environment = VectorEnv(3, width=7, height=5, seed=48)
+    observation = environment.observe()
+    policy = UniversalPolicy(hidden=16, layers=1)
+    rules = encode_rules(environment.rules_json(), torch.device("cpu"))
+    root_view = {
+        **observation,
+        "active_players": np.zeros_like(observation["active_players"]),
+    }
+    altered_actions = {
+        **root_view,
+        "action_kinds": np.zeros_like(root_view["action_kinds"]),
+        "action_parameters": np.zeros_like(root_view["action_parameters"]),
+    }
+
+    _, original_values, original_features = policy.forward_with_value_features(
+        root_view, rules
+    )
+    _, altered_values, altered_features = policy.forward_with_value_features(
+        altered_actions, rules
+    )
+
+    torch.testing.assert_close(original_values, altered_values)
+    torch.testing.assert_close(original_features, altered_features)
+
+
 def test_policy_exposes_the_exact_features_used_by_the_action_head() -> None:
     environment = VectorEnv(3, width=7, height=5, seed=49)
     observation = environment.observe()
