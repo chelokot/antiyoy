@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_opponent_trajectory_predictability",
+  "status": "read_only_diagnostic_not_a_policy",
+  "protocol": "benchmarks/protocols/2026-09-23-duel-opponent-trajectory-v1.json",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, action limit1000, reply-search self-play root256/slate8/opponent64, rounds divisible by eight",
+  "dataset": {
+    "first_seed": 6345000,
+    "independent_maps": 16,
+    "completed_maps": 16,
+    "truncated_maps": 0,
+    "sampled_positions": 89,
+    "teacher_overrides": 13,
+    "terminal_root_candidates_without_opponent_plan": 9,
+    "collection_elapsed_seconds": 4.575385507,
+    "compressed_size_bytes": 3499434,
+    "gzip_sha256": "d9b5218ac087cb0d11948be22b1505a677be634f2c907c6b60cdaf764804a2d2"
+  },
+  "frozen_policy": {
+    "checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "selected_expert": "context:b02423ddd2f8cdf9",
+    "weights_updated": false
+  },
+  "teacher_forced_agreement": {
+    "candidate_plans": 589,
+    "opponent_decisions": 2956,
+    "action_top_one": 1596,
+    "action_top_three": 2343,
+    "whole_plan_exact": 111,
+    "first_disagreement_depth_zero": 227,
+    "first_disagreement_depth_one": 160,
+    "first_disagreement_depth_two_or_later": 91,
+    "first_action_top_one": "362/589",
+    "second_action_top_one": "244/532",
+    "selected_root_candidates": {
+      "plans": 87,
+      "decisions": 432,
+      "action_top_one": 207,
+      "whole_plan_exact": 14
+    },
+    "beneficial_nonstatic_root_candidates": {
+      "plans": 44,
+      "decisions": 279,
+      "action_top_one": 118,
+      "whole_plan_exact": 1
+    },
+    "by_root_seat": {
+      "zero": {"plans": 302, "decisions": 1311, "action_top_one": 722, "whole_plan_exact": 71},
+      "one": {"plans": 287, "decisions": 1645, "action_top_one": 874, "whole_plan_exact": 40}
+    },
+    "by_searched_action_kind": {
+      "end_turn": {"decisions": 589, "action_top_one": 500},
+      "move": {"decisions": 1932, "action_top_one": 896},
+      "recruit": {"decisions": 330, "action_top_one": 168},
+      "build": {"decisions": 105, "action_top_one": 32}
+    }
+  },
+  "raw_audit_sha256": "8f0e4ab181937e8dc46f17de88007b668ccc3d3620bfb639b969853a3451a7bc",
+  "verification": "Each exported opponent action was replayed from its exact preceding state, mapped to a legal action index, and the complete replay matched the native searched reply game. Opt-in and default schemas, deterministic replay, Python loader alignment, 346 Python tests, Ruff, Rust CLI tests and Clippy -D warnings passed on SSH server.",
+  "interpretation": "The frozen source policy often ranks the searched opponent's first action highly, but matches fewer than one fifth of entire teacher-forced reply plans. Agreement is weaker for Move and Build decisions than for EndTurn; among 44 beneficial nonstatic root candidates only one full searched reply plan is matched. These candidate plans are correlated within just 16 maps, and teacher-forced later states would not be visited after an autonomous policy mismatch. This is a structural action-imitation diagnostic, not a full-game policy comparison, causal explanation, or Elo. No neural student was trained, rated, or deployed.",
+  "next_step": "On new disjoint fit/calibration/validation map windows, test whether supervised imitation of searched opponent decisions improves held-out whole-plan teacher-forced agreement and then autonomous response consequences. Keep this 16-map diagnostic window out of training and validation. Promote only after fresh complete both-seat independent-map games and runtime/profile gates."
+}
