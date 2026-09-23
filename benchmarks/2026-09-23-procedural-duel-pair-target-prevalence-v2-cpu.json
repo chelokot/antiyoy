@@ -1,0 +1,29 @@
+{
+  "kind": "procedural_duel_pair_target_prevalence",
+  "source": "Already-used reply-search teacher training maps seed6280000..6280767, procedural_v2 Classic Generic 11x9 two-player, every fourth round",
+  "maps": 768,
+  "positions": 8632,
+  "nonstatic_candidate_pairs": 51933,
+  "native_reply_better_than_static": 4842,
+  "native_reply_worse_than_static": 44594,
+  "native_reply_equal_to_static": 2497,
+  "positive_fraction_of_all_pairs": 0.09323,
+  "maps_with_at_least_one_better_candidate": 579,
+  "teacher_nonstatic_choices": 1401,
+  "by_seat": {
+    "0": {"pairs": 26588, "better": 2550, "worse": 22857, "same": 1181},
+    "1": {"pairs": 25345, "better": 2292, "worse": 21737, "same": 1316}
+  },
+  "root_static_score_ties": 2686,
+  "nonterminal_beneficial_alternative_median_initial_static_deficit": 129,
+  "nonterminal_beneficial_alternative_median_opponent_response_swing": 386,
+  "pairs_involving_terminal_magnitude_reply_score": 1295,
+  "dataset_sha256": [
+    "a64b0614ae8320ddc80a3cf28eec591f0751178d886918e393eb94b7084a1be0",
+    "c90898894708da1ae3d4bafcd92a561ec495090ccaa7f4a89657fbee36eda56b",
+    "63513ba7179674ed334a98ccd62a8d09deb3d30c9cd3b05c2c9bd5cc20e40e83"
+  ],
+  "remote_full_audit_sha256": "aefeb1f033c771bc5966648577c098f9d416dd19306926c636ef34e48bce42f0",
+  "interpretation": "Beneficial searched-response alternatives exist on most training maps but are rare among individual candidate pairs. Ordinary beneficial alternatives typically sacrifice initial static score and recover it through a favorable differential opponent response. A student trained to maximize overall pair sign accuracy can therefore look good while making harmful positive selections. Pair labels remain conditional native search scores, not terminal outcomes or complete-game strength.",
+  "decision": "Use the existing maps only for a predeclared pairwise response-outcome experiment with a disjoint fit/calibration split. Keep previous validation, reserved selective validation and final complete-game seeds untouched; no rated or browser policy change."
+}
