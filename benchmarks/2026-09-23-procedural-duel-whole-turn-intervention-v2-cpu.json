@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_reply_search_whole_turn_intervention",
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "action_limit": 1000,
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "route_generator": "procedural_v1"
+  },
+  "intervention": {
+    "sample": "start of round 8 for each surviving seat on each independent map",
+    "baseline": "frozen routed-v6 direct policy for the entire continuation",
+    "candidate": "reply-search 256 root nodes, eight completed-turn candidates, 64 reply nodes for one whole turn, then the same frozen direct policy",
+    "outcome": "exact terminal result or the configured action-limit adjudication; censoring reported separately"
+  },
+  "development": {
+    "seed_first": 6240000,
+    "maps": 16,
+    "sampled_positions": 32,
+    "better": 4,
+    "worse": 3,
+    "same": 25,
+    "censored": 0,
+    "independent_maps_better": 2,
+    "independent_maps_worse": 1,
+    "independent_maps_same": 13,
+    "same_first_turn": 1,
+    "elapsed_seconds": 21.997841232921928,
+    "raw_result_sha256": "3a2ae13ee346a113039bff7af5b45f15846cbb3a4ce6c509a98522d779434c4f"
+  },
+  "fresh_confirmation": {
+    "seed_first": 6241000,
+    "maps": 64,
+    "sampled_positions": 128,
+    "better": 8,
+    "worse": 11,
+    "same": 109,
+    "censored": 0,
+    "independent_maps_better": 4,
+    "independent_maps_worse": 7,
+    "independent_maps_same": 53,
+    "same_first_turn": 16,
+    "elapsed_seconds": 103.14506482565776,
+    "raw_result_sha256": "cb6952cc0dce4b66cdfc3acb4101f2d4cd5b09240a4843a96549fab0d76bba09"
+  },
+  "interpretation": "The complete reply-search agent has a validated full-game advantage over routed-v6 on separate fresh maps, but substituting only one searched whole turn and then reverting to routed-v6 does not show a positive conditional outcome effect. The labels are sparse and sometimes negative; this does not prove that any individual searched move is intrinsically bad or that reply-search is weak. It does show why treating every search action as an equally beneficial supervised target is unjustified. Future distillation should use sustained trajectories or outcome-grounded policy optimization, with fresh complete-game gates."
+}
