@@ -1,0 +1,53 @@
+{
+  "kind": "procedural_duel_large_teacher_slate_choice_scout",
+  "protocol": "benchmarks/protocols/2026-09-23-duel-teacher-slates-v1.json",
+  "arena": "classic_generic_2022 procedural_v2 11x9 two-player",
+  "teacher": "reply-search-256/8/64 self-play, sample every fourth round",
+  "dataset": {
+    "training_first_seed": 6280000,
+    "training_maps": 1024,
+    "training_completed_maps": 1019,
+    "training_truncated_maps": 5,
+    "training_positions": 11354,
+    "training_teacher_overrides": 1826,
+    "validation_first_seed": 6292000,
+    "validation_maps": 256,
+    "validation_completed_maps": 254,
+    "validation_truncated_maps": 2,
+    "validation_positions": 2782,
+    "validation_teacher_overrides": 474,
+    "validation_override_selected_rank_histogram": [185, 79, 55, 44, 43, 48, 20],
+    "validation_override_median_static_score_sacrifice": 139,
+    "validation_override_median_reply_score_gain": 207,
+    "compressed_training_bytes": 96753720,
+    "compressed_validation_bytes": 23467750,
+    "training_sha256": [
+      "a64b0614ae8320ddc80a3cf28eec591f0751178d886918e393eb94b7084a1be0",
+      "c90898894708da1ae3d4bafcd92a561ec495090ccaa7f4a89657fbee36eda56b",
+      "63513ba7179674ed334a98ccd62a8d09deb3d30c9cd3b05c2c9bd5cc20e40e83",
+      "38e1c74309dceae0a65da47dacb5fd0c050379c2dba905e960690adf375b3aee"
+    ],
+    "validation_sha256": "f619fa08ab7c908ee8e541c877ff832e2902adbe815e5017cc86305b40f3b0e1"
+  },
+  "candidate": {
+    "features": "17 root-conditioned material/economy values plus 256 frozen routed-v6 spatial features per completed-turn candidate",
+    "encoder_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "head": "200-step map- and override-balanced pairwise linear teacher-choice imitation",
+    "training_pairs": 68147,
+    "training_teacher_matches": 8789,
+    "training_static_matches": 9528,
+    "validation_teacher_matches": 2155,
+    "validation_static_matches": 2308,
+    "validation_correct_overrides": 111,
+    "validation_false_overrides": 408,
+    "validation_first_action_matches": 2294,
+    "validation_static_first_action_matches": 2442,
+    "validation_independent_maps_candidate_better": 39,
+    "validation_independent_maps_static_better": 96,
+    "validation_independent_maps_same": 121,
+    "validation_map_sign_test_p": 0.0000010064989577328,
+    "remote_report_sha256": "d4a39a03ab0d78d09e731692616b3825e87461345c112bbc64cd5892dc1fb897"
+  },
+  "decision": "Reject the linear student. It loses to always taking static rank zero both in training and on independent validation maps; no full-game evaluation or rating was attempted. The reserved 6300000 full-game map window remains untouched.",
+  "diagnosis": "The failure is not explained solely by the earlier tiny training set: 1024 maps and 1826 teacher override examples still gave many false overrides even in training. The reply-search teacher often accepts a substantial immediate static-score sacrifice for a substantial post-opponent-reply gain, and its chosen turn spans ranks one through seven. The present fixed linear post-turn features and equal-weight hard-choice objective do not reproduce that tactical response. The observation does not distinguish whether the remaining bottleneck is representation, head capacity, objective, or teacher-label stochasticity; those require controlled follow-up tests."
+}
