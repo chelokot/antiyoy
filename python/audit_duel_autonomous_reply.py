@@ -11,7 +11,12 @@ import numpy as np
 import torch
 
 from antiyoy_rl import ProceduralConfig, VectorEnv
-from antiyoy_rl.model import UniversalPolicy, encode_rules_batch, select_environments
+from antiyoy_rl.model import (
+    ACTION_KIND_NAMES,
+    UniversalPolicy,
+    encode_rules_batch,
+    select_environments,
+)
 from antiyoy_rl.turn_credit import model_observation
 
 from .build_bundle import digest
@@ -85,10 +90,65 @@ def compare_map_errors(
     return paired_comparison_summary(better, worse, same), map_ledger
 
 
+def searched_reply_diagnostic(
+    start: VectorEnv,
+    policies: dict[str, UniversalPolicy],
+    rules: torch.Tensor,
+    root_seat: int,
+    expected_score: int,
+) -> dict[str, object]:
+    environment = start.fork(np.asarray([0], dtype=np.uint64))
+    first_mismatch: dict[str, int | None] = {name: None for name in policies}
+    first_mismatch_kind: dict[str, str | None] = {name: None for name in policies}
+    first_actions: dict[str, int | None] = {name: None for name in policies}
+    teacher_actions = 0
+    if not environment.done()[0]:
+        opponent = int(environment.observe()["active_players"][0])
+        for depth in range(MAXIMUM_RESPONSE_ACTIONS):
+            observation = environment.observe()
+            if int(observation["active_players"][0]) != opponent:
+                break
+            selected = int(environment.search_actions(node_budget=64)[0])
+            action_kind = ACTION_KIND_NAMES[int(observation["action_kinds"][selected])]
+            for name, model in policies.items():
+                with torch.inference_mode():
+                    logits, _ = model(observation, rules)
+                predicted = int(logits.argmax())
+                if depth == 0:
+                    first_actions[name] = predicted
+                if first_mismatch[name] is None and predicted != selected:
+                    first_mismatch[name] = depth
+                    first_mismatch_kind[name] = action_kind
+            if step_index(environment, selected):
+                raise ValueError("native searched reply was action-limit adjudicated")
+            teacher_actions += 1
+            if environment.done()[0]:
+                break
+        if (
+            not environment.done()[0]
+            and int(environment.observe()["active_players"][0]) == opponent
+        ):
+            raise ValueError(
+                "native searched reply exceeded the full-turn action bound"
+            )
+    actual_score = int(environment.position_scores(root_seat)[0])
+    if actual_score != expected_score:
+        raise ValueError(
+            "native searched reply score disagrees with stored teacher score"
+        )
+    return {
+        "teacher_actions": teacher_actions,
+        "first_mismatch": first_mismatch,
+        "first_mismatch_kind": first_mismatch_kind,
+        "first_actions_differ": first_actions["source"] != first_actions["student"],
+    }
+
+
 def audit(
     dataset_path: Path,
     source_path: Path,
     head_path: Path,
+    diagnose: bool = False,
 ) -> dict[str, object]:
     torch.set_num_threads(1)
     with gzip.open(dataset_path, "rt", encoding="utf-8") as source_file:
@@ -127,6 +187,7 @@ def audit(
     selected_complete = 0
     candidate_count = 0
     checked_positions = 0
+    divergence = []
     by_seed: dict[int, list[dict[str, object]]] = defaultdict(list)
     for record in dataset["records"]:
         by_seed[record["seed"]].append(record)
@@ -187,6 +248,17 @@ def audit(
                 ):
                     raise ValueError("searched candidate state disagrees with replay")
                 candidate_count += 1
+                teacher_diagnostic = (
+                    searched_reply_diagnostic(
+                        branch,
+                        policies,
+                        rules,
+                        root_seat,
+                        record["reply_scores"][candidate],
+                    )
+                    if diagnose
+                    else None
+                )
                 for name, model in policies.items():
                     score, actions = response_score(branch, model, rules, root_seat)
                     autonomous_scores[name].append(score)
@@ -202,6 +274,24 @@ def audit(
                     )
                     response_errors[seed].append(pair)
                     seat_errors[root_seat].append(pair)
+                    if teacher_diagnostic is not None:
+                        divergence.append(
+                            {
+                                "seed": seed,
+                                "root_seat": root_seat,
+                                "round": record["round"],
+                                "candidate": candidate,
+                                "native_selected_index": record["selected_index"],
+                                "native_reply_score": expected_score,
+                                "source_reply_score": first,
+                                "student_reply_score": second,
+                                **teacher_diagnostic,
+                                "source_reply_actions": action_counts["source"][-1],
+                                "student_reply_actions": action_counts["student"][-1],
+                                "source_score_error": pair[0],
+                                "student_score_error": pair[1],
+                            }
+                        )
             if all(
                 all(score is not None for score in scores)
                 for scores in autonomous_scores.values()
@@ -223,7 +313,7 @@ def audit(
             "source_mean_transformed_error": float(errors[0]),
             "student_mean_transformed_error": float(errors[1]),
         }
-    return {
+    report = {
         "kind": "procedural_duel_autonomous_opponent_reply_probe",
         "dataset_sha256": digest(dataset_path),
         "source_sha256": digest(source_path),
@@ -245,6 +335,9 @@ def audit(
         "native_teacher_selected_turn_matches": selected_matches,
         "qualification": "Autonomous one-turn reply successor-score fidelity, not complete-game strength or Elo",
     }
+    if diagnose:
+        report["divergence"] = divergence
+    return report
 
 
 def main() -> None:
@@ -252,10 +345,17 @@ def main() -> None:
     parser.add_argument("dataset", type=Path)
     parser.add_argument("source", type=Path)
     parser.add_argument("head", type=Path)
+    parser.add_argument("--diagnose", action="store_true")
     arguments = parser.parse_args()
     print(
         json.dumps(
-            audit(arguments.dataset, arguments.source, arguments.head), sort_keys=True
+            audit(
+                arguments.dataset,
+                arguments.source,
+                arguments.head,
+                diagnose=arguments.diagnose,
+            ),
+            sort_keys=True,
         )
     )
 

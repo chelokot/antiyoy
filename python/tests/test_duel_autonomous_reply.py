@@ -3,9 +3,14 @@ from __future__ import annotations
 import json
 
 import numpy as np
+import torch
+
+from antiyoy_rl import VectorEnv
+from antiyoy_rl.model import UniversalPolicy, encode_rules_batch
 
 from python.audit_duel_autonomous_reply import (
     compare_map_errors,
+    searched_reply_diagnostic,
     selected_candidate,
     transformed_error,
 )
@@ -32,3 +37,31 @@ def test_map_error_comparison_serializes_numpy_comparisons() -> None:
     assert comparison["same"] == 1
     assert ledger[0]["seed"] == 3
     json.dumps({"comparison": comparison, "ledger": ledger})
+
+
+def test_native_teacher_reply_reconstruction_matches_its_terminal_score() -> None:
+    environment = VectorEnv(1, width=7, height=5, seed=47)
+    reference = environment.fork(np.asarray([0], dtype=np.uint64))
+    active = int(reference.observe()["active_players"][0])
+    for _ in range(24):
+        selected = reference.search_actions(node_budget=64)
+        reference.step(selected)
+        if (
+            reference.done()[0]
+            or int(reference.observe()["active_players"][0]) != active
+        ):
+            break
+    score = int(reference.position_scores(1)[0])
+    rules = encode_rules_batch([environment.rules_json()], torch.device("cpu"))
+    policy = UniversalPolicy(hidden=16, layers=1).eval()
+
+    diagnostic = searched_reply_diagnostic(
+        environment, {"source": policy, "student": policy}, rules, 1, score
+    )
+
+    assert diagnostic["teacher_actions"] >= 1
+    assert not diagnostic["first_actions_differ"]
+    assert (
+        diagnostic["first_mismatch"]["source"]
+        == diagnostic["first_mismatch"]["student"]
+    )
