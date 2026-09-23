@@ -1,0 +1,62 @@
+{
+  "kind": "procedural_duel_reply_score_decomposition",
+  "protocol": "benchmarks/protocols/2026-09-23-duel-reply-decomposition-v1.json",
+  "source": "Existing 32 completed procedural_v2 Classic Generic 11x9 two-player maps seed6316000, sampled every fourth round; post hoc read-only diagnostic, not a fresh independent validation",
+  "definitions": {
+    "root_static_gap": "Selected candidate position_score immediately after the root turn minus static rank-zero position_score; zero or negative by construction",
+    "reply_gap": "Selected candidate native position_score after the searched opponent full turn minus rank-zero score after its searched opponent full turn",
+    "response_swing": "reply_gap minus root_static_gap; a differential effect of the searched response, not a complete-game outcome"
+  },
+  "maps": 32,
+  "positions": 318,
+  "teacher_nonstatic_choices": {
+    "total": 56,
+    "identical_opponent_action_sequence_to_static": 3,
+    "changed_opponent_action_sequence": 53
+  },
+  "frozen_student_overrides": {
+    "positions": 75,
+    "native_reply_better": 22,
+    "native_reply_worse": 42,
+    "native_reply_same": 11,
+    "root_static_score_ties": 14,
+    "terminal_magnitude_positions": 6,
+    "nonterminal_median_root_static_gap": -47,
+    "nonterminal_median_reply_gap": -14,
+    "nonterminal_median_response_swing": 2,
+    "nonterminal_positive_response_swings": 36,
+    "nonterminal_negative_response_swings": 22,
+    "nonterminal_zero_response_swings": 11
+  },
+  "student_overrides_with_identical_opponent_action_sequence": {
+    "positions": 31,
+    "native_reply_better": 1,
+    "native_reply_worse": 20,
+    "native_reply_same": 10,
+    "terminal_magnitude_positions": 4,
+    "nonterminal_median_root_static_gap": -14,
+    "nonterminal_median_reply_gap": -15,
+    "nonterminal_median_response_swing": 0
+  },
+  "student_overrides_with_changed_opponent_action_sequence": {
+    "positions": 44,
+    "native_reply_better": 21,
+    "native_reply_worse": 22,
+    "native_reply_same": 1,
+    "terminal_magnitude_positions": 2,
+    "nonterminal_median_root_static_gap": -106,
+    "nonterminal_median_reply_gap": -7.5,
+    "nonterminal_median_response_swing": 194.5
+  },
+  "independent_maps": {
+    "student_better": 7,
+    "static_better": 13,
+    "same": 12,
+    "exact_two_sided_sign_test_p": 0.26317596435546875
+  },
+  "remote_dataset_sha256": "c0d444105b6248885f41bfe5a9f0fd83a9c89a891d4f37dc13a1e1b33cf7afbd",
+  "remote_report_sha256": "644cec6e82229520d5134ccc3dcaff5efa8626f083a987c28a279af5c1878778",
+  "validation": "The refactored frozen-model loader reproduced the prior opponent-plan audit byte-for-byte (SHA256 e1c0c18502203fbb0e40a1920ccf80edfb396f99e80ae9cbd599938587503b70); new decomposition unit tests passed.",
+  "interpretation": "On this already-inspected 32-map sample, the teacher almost always chose a non-static root turn when the selected candidate induced a different serialized opponent action sequence. The frozen student frequently overrode static rank zero with the same opponent sequence and no median response advantage, while its changed-sequence overrides had a positive median response swing that often failed to overcome the initial static deficit. This motivates a separate response-swing or change/no-change target, but is not proof that such a model will transfer. Identical action sequences may have different effects in different board states.",
+  "decision": "No policy change, retraining, threshold tuning, rating, or deployment. Design any response-outcome student with predeclared disjoint fit/validation and fresh complete-game both-seat map gates; preserve final seed6300000 and rejected selective seed6315000 untouched."
+}
