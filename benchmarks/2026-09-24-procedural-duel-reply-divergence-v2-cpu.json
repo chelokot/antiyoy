@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_searched_reply_divergence_diagnostic",
+  "status": "descriptive_localization_only_student_not_promoted",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-reply-divergence-v1.json",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, root beam256/slate8/opponent beam64, round modulo8 zero",
+  "reused_dataset": {
+    "first_seed": 6348000,
+    "independent_maps": 16,
+    "sampled_positions": 80,
+    "candidate_post_turn_states": 561,
+    "gzip_sha256": "445fde915816dc1ee2421dd39b532b93dd2e6e89637414d0b0f23378688e91d9"
+  },
+  "frozen_policies": {
+    "routed_v6_source_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "searched_action_student_sha256": "b92e0e9739f44728ee1724ad36dc248b41d4d2a9b258925544eb3c78043865b5"
+  },
+  "native_reply_reconstruction": {
+    "searched_complete_turns": 561,
+    "final_root_position_score_matches_stored_reply_score": 561,
+    "action_limit_censored": 0,
+    "mean_searched_reply_actions": 5.7326,
+    "mean_source_autonomous_reply_actions": 5.5775,
+    "mean_student_autonomous_reply_actions": 5.1373
+  },
+  "teacher_forced_first_mismatch_depth": {
+    "source": {"first_action": 218, "second_action": 162, "third_or_later": 125, "entire_plan_exact": 56},
+    "student": {"first_action": 179, "second_action": 148, "third_or_later": 151, "entire_plan_exact": 83},
+    "entire_plan_exact_by_root_seat": {
+      "seat_zero": {"candidate_plans": 296, "source": 51, "student": 70},
+      "seat_one": {"candidate_plans": 265, "source": 5, "student": 13}
+    }
+  },
+  "first_action_disagreement": {
+    "source_and_student_differ": 121,
+    "source_wrong_student_matches_teacher": 65,
+    "student_wrong_source_matches_teacher": 26,
+    "both_wrong": 30,
+    "among_disagreements_lower_absolute_transformed_successor_score_error": {
+      "student": 53,
+      "source": 19,
+      "equal": 49
+    }
+  },
+  "root_turn_selection": {
+    "slates": 80,
+    "source_teacher_choice_matches": 71,
+    "student_teacher_choice_matches": 70,
+    "source_student_choice_differences": 6,
+    "all_choice_differences_root_seat_one": true,
+    "source_correct_student_wrong": 3,
+    "student_correct_source_wrong": 2,
+    "both_wrong": 1
+  },
+  "independent_map_autonomous_successor_error": {
+    "student_lower": 10,
+    "source_lower": 6,
+    "same": 0,
+    "exact_two_sided_sign_p": 0.454498291015625,
+    "predeclared_autonomous_gate": "failed"
+  },
+  "raw_diagnostic_sha256": "ddc374accc9a1c3b2dc20a9dd8db1a0f0aed83bca6333d0342e525fcf8e18451",
+  "interpretation": "The student more often follows the searched teacher at the first action and over the complete teacher-forced reply, but changes only six of eighty root choices, three from correct to wrong and two from wrong to correct. The rare root-choice changes all occur in root seat one. Candidate observations within a map are correlated; subgroup counts are post hoc and cannot establish game strength, causal mechanism, or Elo. Native search is used only to label this offline audit, never as an instant student oracle.",
+  "decision": "Retain the source and validated native search as baselines. Reject the student for rating, browser deployment, and the reserved fresh full-game promotion seed6300000. Any intervention for off-teacher states must be predeclared on new disjoint maps and pass fresh complete both-seat game, profile, and runtime gates."
+}
