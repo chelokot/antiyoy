@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_generator_shift_audit",
+  "protocol": "benchmarks/protocols/2026-09-23-duel-generator-shift-v1.json",
+  "arena": {
+    "profile": "classic_generic_2022",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "action_limit": 1000,
+    "first_seed": 6341000,
+    "independent_maps": 64,
+    "both_seats_per_map": true,
+    "model": "routed-v6 direct, procedural_v1 expert SHA256 68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "opponent": "native reply-search root256/slate8/opponent64",
+    "device": "SSH server CPU, nice19, one process at a time"
+  },
+  "procedural_v1": {
+    "model_wins": 48,
+    "reply_search_reference_wins": 64,
+    "map_grouped_model_better": 6,
+    "map_grouped_reply_search_better": 22,
+    "map_grouped_same": 36,
+    "exact_two_sided_sign_test_p": 0.0037191659212112427,
+    "model_wins_by_seat": [28, 20],
+    "reply_search_reference_wins_by_seat": [38, 26],
+    "model_truncations": 0,
+    "reference_truncations": 0,
+    "raw_report_sha256": "b4288d2f5b1266e0111552d712ff25baf8716f231eeab037746e4a6792041e9d"
+  },
+  "procedural_v2": {
+    "model_wins": 51,
+    "reply_search_reference_wins": 64,
+    "map_grouped_model_better": 10,
+    "map_grouped_reply_search_better": 23,
+    "map_grouped_same": 31,
+    "exact_two_sided_sign_test_p": 0.03508203336969018,
+    "model_wins_by_seat": [35, 16],
+    "reply_search_reference_wins_by_seat": [40, 24],
+    "model_truncations": 0,
+    "reference_truncations": 0,
+    "raw_report_sha256": "2ebea93ad938d3d74bf17308d1da9d842c6d40e0adb853f34d0a04b5162d194c"
+  },
+  "matched_schema_comparison": {
+    "identical_map_seeds_and_model_experts": true,
+    "even_seeds": {
+      "maps": 32,
+      "model_and_reference_winners_identical_between_schemas": true,
+      "model_wins_in_each_schema": 25,
+      "map_grouped_model_better": 4,
+      "map_grouped_reply_search_better": 11,
+      "map_grouped_same": 17
+    },
+    "odd_seeds": {
+      "maps": 32,
+      "model_wins_procedural_v1": 23,
+      "model_wins_procedural_v2": 26,
+      "map_grouped_model_better_against_search_v1": 2,
+      "map_grouped_reply_search_better_v1": 11,
+      "map_grouped_same_v1": 19,
+      "map_grouped_model_better_against_search_v2": 6,
+      "map_grouped_reply_search_better_v2": 12,
+      "map_grouped_same_v2": 14,
+      "model_per_map_win_count_improved_by_rotation": 11,
+      "model_per_map_win_count_worsened_by_rotation": 8,
+      "model_per_map_win_count_unchanged": 13,
+      "exact_two_sided_sign_test_p_for_rotation_effect": 0.6476058959960938
+    }
+  },
+  "interpretation": "The even-seed identity control passed exactly. The model lost to the reply-search teacher on both generator schemas, and rotating starting assignments did not make its aggregate result worse on the 32 odd-seed maps. This small paired diagnostic weakens the hypothesis that procedural_v2 domain shift is the main source of the model-search gap, without proving there is no seat-specific effect. Seat-zero wins rose while seat-one wins fell under rotation, and the map-level rotation effect is unresolved. This is not a distillation, promotion or global Elo result; neither the rated nor browser agent changed.",
+  "next_step": "Investigate whole-turn credit localization or an explicitly structured response model. Do not repeat the failed terminal-PPO scale-up, tune rejected scalar/pairwise heads on their validation maps or use the untouched full-game promotion seed6300000."
+}
