@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_raw_observation_native_score_reconstruction",
+  "source": "Read-only post hoc audit of the already inspected response-state-boundary fit64 and validation32 maps; no new games or model training",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, native position_score from each exact post-root or post-searched-opponent state",
+  "method": "Independently reconstruct every nonterminal native score from raw BatchObservation cell owners, units, structures, defenses, provinces, money and the serialized rule economy. Recompute province income and upkeep from each owned cell and verify the exported profit before comparing the final root-seat score. Exclude terminal scores of magnitude at least1e9 because BatchObservation does not carry the terminal winner.",
+  "fit64": {
+    "first_seed": 6343000,
+    "positions": 618,
+    "post_root_nonterminal_states": 4282,
+    "post_root_exact_matches": 4282,
+    "post_root_terminal_scores_excluded": 26,
+    "post_reply_nonterminal_states": 4248,
+    "post_reply_exact_matches": 4248,
+    "post_reply_terminal_scores_excluded": 60,
+    "gzip_sha256": "0d117b85b9531ce9cd855f38042bbb0949b69c062699ee133756b6b36a71d894"
+  },
+  "validation32": {
+    "first_seed": 6343100,
+    "positions": 346,
+    "post_root_nonterminal_states": 2419,
+    "post_root_exact_matches": 2419,
+    "post_root_terminal_scores_excluded": 15,
+    "post_reply_nonterminal_states": 2409,
+    "post_reply_exact_matches": 2409,
+    "post_reply_terminal_scores_excluded": 25,
+    "gzip_sha256": "d216ce69c9e0b6ccf585383d6426716a11a0e28ff420412ab27d14684d9dfbc0"
+  },
+  "total_nonterminal_states_compared": 13358,
+  "total_native_score_mismatches": 0,
+  "maximum_absolute_error": 0,
+  "raw_audit_sha256": "44ee7572ee25bab5c74fbf7439f1c3cbcd5e1eb6ffa8da109fa810c77a754709",
+  "interpretation": "For this Classic Generic duel domain, raw BatchObservation plus its serialized rules contain enough information to reconstruct the exact nonterminal native evaluation. The earlier frozen-encoder two-layer scorer nevertheless chose worse native-reply alternatives even when given the observed post-reply state, so missing raw state fields are not the explanation for its nonterminal errors. This localizes the next question to lossy feature compression, learning objective/data, and terminal-score handling; it does not distinguish those causes or imply that a neural model can predict the opponent transition. The native simulator still supplies the transition at inference for reply-search. This is deterministic score reconstruction, not a game-strength or Elo result. No rated or browser policy changed."
+}
