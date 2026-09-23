@@ -123,3 +123,33 @@ def test_loader_accepts_compressed_reports(tmp_path: Path) -> None:
     [position] = load_turn_credit_positions(path)
 
     np.testing.assert_array_equal(position.outcome_scores, [0, 2, -1])
+
+
+def test_loader_aligns_opponent_search_labels_with_distinct_states(tmp_path: Path) -> None:
+    value = report()
+    value["opponent_search_nodes"] = 32
+    value["records"][0]["opponent_search_continuations"] = [
+        {"winner": 0, "truncated": False},
+        {"winner": 1, "truncated": False},
+        {"winner": None, "truncated": True},
+    ]
+    path = tmp_path / "probed.json"
+    write_report(path, value)
+
+    [position] = load_turn_credit_positions(path)
+
+    np.testing.assert_array_equal(position.opponent_search_scores, [2, 0, -1])
+    assert position.opponent_search_nodes == 32
+
+
+def test_loader_rejects_missing_opponent_search_state(tmp_path: Path) -> None:
+    value = report()
+    value["opponent_search_nodes"] = 32
+    value["records"][0]["opponent_search_continuations"] = [
+        {"winner": 0, "truncated": False}
+    ]
+    path = tmp_path / "incomplete-probe.json"
+    write_report(path, value)
+
+    with pytest.raises(ValueError, match="probe count"):
+        load_turn_credit_positions(path)

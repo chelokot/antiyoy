@@ -145,6 +145,14 @@ perspective. Train/test splits must keep every seat from the same map seed
 together; a terminal-continuation label is conditional on greedy opponents.
 For large studies, compress JSON output with `gzip`; the loader accepts both
 `.json` and `.json.gz` without expanding datasets on disk.
+The opt-in `--opponent-search-nodes 32` probe requires
+`--include-observations`. It replays each deduplicated completed-turn state
+with a greedy sampled player and searched opponents, preserving the original
+all-greedy labels. The added continuations are indexed by the same
+`state_index` values. `python -m python.audit_turn_label_stability` accepts
+repeated `--input` paths and reports outcome and candidate-preference changes,
+explicit censoring, and affected independent maps. It is a label-stability
+diagnostic, not a policy evaluator.
 `python -m python.scout_turn_value` accepts repeated `--train` and
 `--validation` paths plus a released policy `--checkpoint` and an `--output`
 report path. It freezes the policy encoder, learns a map-balanced pairwise

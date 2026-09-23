@@ -63,6 +63,8 @@ struct CreditRecord {
     alternatives: Vec<AlternativeRecord>,
     beam_candidates: Vec<BeamRecord>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    opponent_search_continuations: Option<Vec<Continuation>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     observations: Option<ObservationRecord>,
 }
 
@@ -79,6 +81,8 @@ struct TurnCreditSummary {
     alternative_search_nodes: Vec<usize>,
     beam_slate_size: usize,
     include_observations: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    opponent_search_nodes: Option<usize>,
     maximum_actions_per_turn: usize,
     positions: usize,
     different_end_states: u32,
@@ -102,6 +106,7 @@ struct CreditConfig {
     alternative_search_nodes: Vec<usize>,
     beam_slate_size: usize,
     include_observations: bool,
+    opponent_search_nodes: Option<usize>,
 }
 
 pub(super) fn run(arguments: &TurnCreditArgs) -> Result<()> {
@@ -126,6 +131,7 @@ pub(super) fn run(arguments: &TurnCreditArgs) -> Result<()> {
             alternative_search_nodes: arguments.alternative_search_nodes.clone(),
             beam_slate_size: arguments.beam_slate_size,
             include_observations: arguments.include_observations,
+            opponent_search_nodes: arguments.opponent_search_nodes,
         },
     )?;
     print_value(&summary, arguments.json)
@@ -149,6 +155,20 @@ fn diagnose(
     );
     SearchAgent::with_config("validation", config.search)
         .context("invalid search configuration")?;
+    if let Some(nodes) = config.opponent_search_nodes {
+        ensure!(
+            config.include_observations,
+            "opponent search probes require post-turn observations"
+        );
+        SearchAgent::with_config(
+            "opponent-search-validation",
+            SearchConfig {
+                node_budget: nodes,
+                ..config.search
+            },
+        )
+        .context("invalid opponent search configuration")?;
+    }
     let mut alternative_budgets = HashSet::new();
     for &budget in &config.alternative_search_nodes {
         ensure!(
@@ -221,6 +241,7 @@ fn diagnose(
         alternative_search_nodes: config.alternative_search_nodes,
         beam_slate_size: config.beam_slate_size,
         include_observations: config.include_observations,
+        opponent_search_nodes: config.opponent_search_nodes,
         maximum_actions_per_turn: config.search.maximum_actions_per_turn,
         positions: records.len(),
         different_end_states,
@@ -324,6 +345,25 @@ fn analyze_turn(state: &Game, seed: u64, config: &CreditConfig) -> Result<Credit
     let observations = config
         .include_observations
         .then(|| observe_states(state, &completed_states));
+    let opponent_search_continuations = config
+        .opponent_search_nodes
+        .map(|nodes| {
+            completed_states
+                .iter()
+                .map(|(game, _)| {
+                    continue_with_policy(
+                        game.clone(),
+                        PlayerId(seat),
+                        config.rollout_limit,
+                        Some(SearchConfig {
+                            node_budget: nodes,
+                            ..config.search
+                        }),
+                    )
+                })
+                .collect::<Result<Vec<_>>>()
+        })
+        .transpose()?;
     Ok(CreditRecord {
         seed,
         seat,
@@ -347,6 +387,7 @@ fn analyze_turn(state: &Game, seed: u64, config: &CreditConfig) -> Result<Credit
         },
         alternatives,
         beam_candidates,
+        opponent_search_continuations,
         observations,
     })
 }
@@ -526,10 +567,15 @@ fn finish_turn(
     })
 }
 
-fn continue_with_greedy(
+fn continue_with_greedy(game: Game, player: PlayerId, action_limit: u32) -> Result<Continuation> {
+    continue_with_policy(game, player, action_limit, None)
+}
+
+fn continue_with_policy(
     mut game: Game,
     player: PlayerId,
     action_limit: u32,
+    opponent_search: Option<SearchConfig>,
 ) -> Result<Continuation> {
     if game.is_terminal() {
         return Ok(Continuation {
@@ -540,11 +586,23 @@ fn continue_with_greedy(
         });
     }
     let mut greedy = GreedyAgent::new("greedy-continuation");
+    let mut search = opponent_search
+        .map(|config| SearchAgent::with_config("opponent-search-continuation", config))
+        .transpose()
+        .context("invalid opponent search configuration")?;
     let mut legal_actions = Vec::new();
     let mut reply_score = None;
     for action_index in 0..action_limit {
         game.legal_actions(&mut legal_actions);
-        let action = greedy.select_action(&game, &legal_actions);
+        let action = if game.active_player() != player {
+            if let Some(search) = search.as_mut() {
+                search.select_action(&game, &legal_actions)
+            } else {
+                greedy.select_action(&game, &legal_actions)
+            }
+        } else {
+            greedy.select_action(&game, &legal_actions)
+        };
         let transition = game.step(action)?;
         if transition.terminal {
             return Ok(Continuation {
@@ -665,6 +723,7 @@ mod tests {
                 alternative_search_nodes: vec![4, 8],
                 beam_slate_size: 4,
                 include_observations: true,
+                opponent_search_nodes: Some(2),
             },
         )
         .expect("valid diagnostic");
@@ -698,6 +757,12 @@ mod tests {
                 observations.post_turn.cell_offsets.len(),
                 record.distinct_end_states + 1
             );
+            let probes = record
+                .opponent_search_continuations
+                .as_ref()
+                .expect("opt-in opponent search probes");
+            assert_eq!(probes.len(), record.distinct_end_states);
+            assert!(probes.iter().all(|probe| probe.actions <= 32));
             let branches = std::iter::once(&record.greedy)
                 .chain(std::iter::once(&record.search))
                 .chain(
@@ -751,11 +816,13 @@ mod tests {
                 alternative_search_nodes: Vec::new(),
                 beam_slate_size: 2,
                 include_observations: false,
+                opponent_search_nodes: None,
             },
         )
         .expect("valid diagnostic");
         for record in &report.records {
             assert!(record.observations.is_none());
+            assert!(record.opponent_search_continuations.is_none());
             assert!(record.greedy.state_index.is_none());
             assert!(record.search.state_index.is_none());
             assert!(
@@ -767,6 +834,12 @@ mod tests {
         }
         let serialized = serde_json::to_value(report).expect("serializable report");
         assert!(serialized["records"][0].get("observations").is_none());
+        assert!(serialized.get("opponent_search_nodes").is_none());
+        assert!(
+            serialized["records"][0]
+                .get("opponent_search_continuations")
+                .is_none()
+        );
         assert!(
             serialized["records"][0]["greedy"]
                 .get("state_index")
@@ -795,6 +868,7 @@ mod tests {
                 alternative_search_nodes: Vec::new(),
                 beam_slate_size: 0,
                 include_observations: false,
+                opponent_search_nodes: None,
             },
         );
         assert!(result.is_err());
@@ -825,6 +899,7 @@ mod tests {
                     alternative_search_nodes: budgets,
                     beam_slate_size: 0,
                     include_observations: false,
+                    opponent_search_nodes: None,
                 },
             );
             assert!(result.is_err());
@@ -858,6 +933,7 @@ mod tests {
                 alternative_search_nodes: Vec::new(),
                 beam_slate_size: 0,
                 include_observations: false,
+                opponent_search_nodes: None,
             },
         )
         .expect("valid roll-in");

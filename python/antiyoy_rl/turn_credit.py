@@ -66,6 +66,8 @@ class TurnCreditPosition:
     static_scores: np.ndarray
     search_index: int
     greedy_index: int
+    opponent_search_scores: np.ndarray | None = None
+    opponent_search_nodes: int | None = None
 
     @property
     def complete(self) -> np.ndarray:
@@ -149,6 +151,20 @@ def load_turn_credit_positions(path: Path) -> list[TurnCreditPosition]:
             seen[index] = True
         if not seen.all():
             raise ValueError("a post-turn state has no outcome label")
+        probe_continuations = cast(
+            list[dict[str, object]] | None,
+            record.get("opponent_search_continuations"),
+        )
+        if (probe_continuations is None) != (report.get("opponent_search_nodes") is None):
+            raise ValueError("opponent search probe configuration and labels disagree")
+        opponent_search_scores = None
+        if probe_continuations is not None:
+            if len(probe_continuations) != state_count:
+                raise ValueError("opponent search probe count differs from end states")
+            opponent_search_scores = np.asarray(
+                [outcome_score(continuation, seat) for continuation in probe_continuations],
+                dtype=np.int8,
+            )
         positions.append(
             TurnCreditPosition(
                 seed=cast(int, record["seed"]),
@@ -162,6 +178,8 @@ def load_turn_credit_positions(path: Path) -> list[TurnCreditPosition]:
                 static_scores=static_scores,
                 search_index=cast(int, search["state_index"]),
                 greedy_index=cast(int, greedy["state_index"]),
+                opponent_search_scores=opponent_search_scores,
+                opponent_search_nodes=cast(int | None, report.get("opponent_search_nodes")),
             )
         )
     return positions
