@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_policy_sampling_gap_audit",
+  "protocol": "benchmarks/protocols/2026-09-23-duel-action-sampling-gap-v1.json",
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "action_limit": 1000,
+    "model_seat": 1,
+    "opponent": "fixed reply-search root256/slate8/opponent64",
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867"
+  },
+  "experiment": {
+    "seed_config": 6340000,
+    "paired_maps": 256,
+    "updates": 64,
+    "learning_rate": 0,
+    "weight_updates": 0,
+    "sampled_action_policy": "Frozen source distribution sampled independently at each learner decision",
+    "control_policy": "Same frozen source weights with deterministic argmax at each learner decision",
+    "sampled_wins": 79,
+    "argmax_wins": 84,
+    "paired_maps_sampled_better": 37,
+    "paired_maps_argmax_better": 42,
+    "paired_maps_same": 177,
+    "exact_two_sided_sign_test_p": 0.6529643755164601,
+    "sampled_score": 0.30859375,
+    "argmax_score": 0.328125,
+    "score_delta": -0.01953125,
+    "successive_64_pair_blocks": [
+      {"sampled_wins": 20, "argmax_wins": 19, "sampled_better": 5, "argmax_better": 4, "same": 55},
+      {"sampled_wins": 21, "argmax_wins": 22, "sampled_better": 10, "argmax_better": 11, "same": 43},
+      {"sampled_wins": 17, "argmax_wins": 26, "sampled_better": 8, "argmax_better": 17, "same": 39},
+      {"sampled_wins": 21, "argmax_wins": 17, "sampled_better": 14, "argmax_better": 10, "same": 40}
+    ],
+    "sampled_policy_decisions": 19507,
+    "mean_sampled_decisions_per_game": 76.19921875,
+    "mean_action_entropy": 1.0954939468453329,
+    "all_zero_credit_update_batches": 16,
+    "action_limit_adjudications": "Not exported by this training collector; these outcomes are not a fully terminal complete-game gate.",
+    "device": "cpu",
+    "cpu_threads": 1,
+    "process_priority": 19,
+    "exit_code": 0,
+    "runner_sha256": "996ed714be22647c744cc472b2c67b85a5d2682e28b6b11ec5c6dba5b37d9798",
+    "jsonl_log_sha256": "9d8b68b0b4e9294076a4d70f97a4990912871c6f785844917f661b4a559576a0"
+  },
+  "interpretation": "On this independent exploratory map set, per-action sampling of the unchanged source scored five wins below its own argmax policy, with nearly balanced paired discordances and no statistically resolved difference. The point estimate is smaller than the failed PPO student's sixteen-win held-out deficit against the source, but distinct seed windows and sampling uncertainty prevent attributing that deficit. This diagnostic does not establish that action sampling is harmless or identify the cause of PPO failure. Prior terminal-difference credit remained sparse: only 171 of 512 training episodes had nonzero credit across 35882 sampled decisions. Focus the next diagnostic on credit localization or representation, not further scaling of the rejected PPO setup. No rated or browser agent changed."
+}
