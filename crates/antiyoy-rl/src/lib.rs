@@ -559,6 +559,53 @@ impl BatchEnv {
         self.games.get(index)
     }
 
+    pub fn fork(&self, indices: &[usize]) -> Result<Self, BatchError> {
+        if indices.is_empty() {
+            return Err(BatchError::Empty);
+        }
+        for &index in indices {
+            if index >= self.len() {
+                return Err(BatchError::InvalidEnvironment {
+                    index,
+                    environments: self.len(),
+                });
+            }
+        }
+        Ok(Self {
+            rules: indices
+                .iter()
+                .map(|&index| self.rules[index].clone())
+                .collect(),
+            scenarios: indices
+                .iter()
+                .map(|&index| self.scenarios[index].clone())
+                .collect(),
+            generators: indices
+                .iter()
+                .map(|&index| self.generators[index].clone())
+                .collect(),
+            objectives: indices
+                .iter()
+                .map(|&index| self.objectives[index].clone())
+                .collect(),
+            games: indices
+                .iter()
+                .map(|&index| self.games[index].clone())
+                .collect(),
+            legal_actions: indices
+                .iter()
+                .map(|&index| self.legal_actions[index].clone())
+                .collect(),
+            episode_steps: indices
+                .iter()
+                .map(|&index| self.episode_steps[index])
+                .collect(),
+            done: indices.iter().map(|&index| self.done[index]).collect(),
+            action_limit: self.action_limit,
+            fog: self.fog,
+        })
+    }
+
     pub fn generator_config(&self, index: usize) -> Option<&GeneratorConfig> {
         self.generators.get(index).and_then(Option::as_ref)
     }
@@ -953,6 +1000,78 @@ mod tests {
                 break;
             }
         }
+    }
+
+    #[test]
+    fn forks_duplicate_live_states_without_mutating_the_source() {
+        let config = GeneratorConfig {
+            width: 17,
+            height: 13,
+            players: 4,
+            seed: 920,
+            ..GeneratorConfig::default()
+        };
+        let mut source =
+            BatchEnv::procedural(Rules::classic_generic(), 2, &config, 3).expect("valid batch");
+        source.set_fog(true);
+        source.step(0, 0).expect("legal step");
+        let source_state = source.game(0).expect("source game").clone();
+        let mut forks = source.fork(&[0, 0]).expect("valid forks");
+        assert!(forks.fog_enabled());
+        assert_eq!(forks.game(0), Some(&source_state));
+        assert_eq!(forks.game(1), Some(&source_state));
+        assert_eq!(forks.episode_steps(0), Some(1));
+        assert_eq!(forks.legal_actions(0), source.legal_actions(0));
+        let first_action = 0;
+        let second_action = forks.legal_actions(1).expect("fork actions").len() - 1;
+        forks
+            .step_all(&[first_action, second_action])
+            .expect("legal fork steps");
+        assert_eq!(source.game(0), Some(&source_state));
+        assert_ne!(forks.game(0), forks.game(1));
+        forks.step(0, 0).expect("legal final step");
+        assert_eq!(forks.is_done(0), Some(true));
+        assert_eq!(forks.episode_steps(0), Some(3));
+        forks.reset_with_seed(1, 921).expect("valid reset");
+        assert_eq!(forks.generator_config(1).expect("generator").seed, 921);
+        assert_eq!(source.generator_config(0).expect("generator").seed, 920);
+    }
+
+    #[test]
+    fn fork_rejects_empty_and_out_of_range_sources() {
+        let source = BatchEnv::symmetric_duels(Rules::classic_generic(), 1, 7, 5, 47, 500)
+            .expect("valid batch");
+        assert!(matches!(source.fork(&[]), Err(BatchError::Empty)));
+        assert!(matches!(
+            source.fork(&[0, 1]),
+            Err(BatchError::InvalidEnvironment {
+                index: 1,
+                environments: 1
+            })
+        ));
+    }
+
+    #[test]
+    fn fork_preserves_mixed_rules_when_sources_are_reordered() {
+        let rules = vec![
+            Rules::classic_generic(),
+            Rules::online_duel_v1(),
+            Rules::online_experimental_v2_260801(),
+        ];
+        let source = BatchEnv::symmetric_duels_mixed(rules.clone(), 7, 5, 951, 500)
+            .expect("valid mixed batch");
+        let mut selected = source.fork(&[2, 0, 2]).expect("valid selection");
+        let mut observation = BatchObservation::default();
+        selected.observe(&mut observation);
+        assert_eq!(
+            observation.rules,
+            vec![rules[2].clone(), rules[0].clone(), rules[2].clone()]
+        );
+        assert_eq!(selected.game(0), source.game(2));
+        assert_eq!(selected.game(1), source.game(0));
+        assert_eq!(selected.game(2), source.game(2));
+        selected.step(0, 0).expect("legal step");
+        assert_eq!(selected.game(2), source.game(2));
     }
 
     #[test]

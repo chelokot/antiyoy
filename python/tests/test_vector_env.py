@@ -61,6 +61,39 @@ def test_seeded_environments_are_equal_after_equal_actions() -> None:
             break
 
 
+def test_fork_branches_late_state_and_keeps_source_unchanged() -> None:
+    config = ProceduralConfig(width=17, height=13, players=4, seed=481)
+    source = VectorEnv.procedural(1, config, action_limit=30, fog=True)
+    for _ in range(8):
+        source.step(np.array([0], dtype=np.uint64))
+    before = source.observe()
+    branches = source.fork(np.array([0, 0], dtype=np.uint64))
+    fork_observation = branches.observe()
+    assert branches.environments == 2
+    assert branches.rules_jsons() == [source.rules_json()] * 2
+    assert branches.generator_jsons() == source.generator_jsons() * 2
+    for name in ("owners", "objects", "visible", "active_players", "rounds"):
+        np.testing.assert_array_equal(
+            fork_observation[name][: len(before[name])], before[name]
+        )
+    action_count = int(fork_observation["action_offsets"][1])
+    branches.step(np.array([0, action_count - 1], dtype=np.uint64))
+    after = source.observe()
+    for name in ("owners", "objects", "active_players", "rounds"):
+        np.testing.assert_array_equal(after[name], before[name])
+    branches.reset(1, 482)
+    assert json.loads(branches.generator_jsons()[1])["seed"] == 482
+    assert json.loads(source.generator_jsons()[0])["seed"] == 481
+
+
+def test_fork_rejects_empty_and_invalid_indices() -> None:
+    source = VectorEnv(1, width=7, height=5)
+    with pytest.raises(RuntimeError, match="at least one scenario"):
+        source.fork(np.array([], dtype=np.uint64))
+    with pytest.raises(RuntimeError, match="outside a batch"):
+        source.fork(np.array([1], dtype=np.uint64))
+
+
 def test_greedy_baseline_returns_legal_local_indices() -> None:
     environment = VectorEnv(4, width=7, height=5, seed=19)
     observation = environment.observe()

@@ -608,6 +608,22 @@ impl VectorEnv {
     }
 
     #[expect(clippy::needless_pass_by_value)]
+    fn fork(&self, indices: PyReadonlyArray1<'_, u64>) -> PyResult<Self> {
+        let sources = indices
+            .as_slice()
+            .map_err(|error| PyValueError::new_err(error.to_string()))?
+            .iter()
+            .copied()
+            .map(|value| {
+                usize::try_from(value)
+                    .map_err(|_| PyValueError::new_err("environment index does not fit usize"))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let batch = self.batch.fork(&sources).map_err(runtime_error)?;
+        Ok(Self::from_batch(batch))
+    }
+
+    #[expect(clippy::needless_pass_by_value)]
     fn step<'py>(
         &mut self,
         py: Python<'py>,
