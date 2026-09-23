@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::time::Instant;
 
 use antiyoy_agents::{Agent, GreedyAgent, SearchAgent, SearchConfig, position_score};
@@ -24,14 +25,24 @@ struct BranchRecord {
 }
 
 #[derive(Debug, Serialize)]
+struct AlternativeRecord {
+    search_nodes: usize,
+    search_expansions: usize,
+    different_end_state: bool,
+    branch: BranchRecord,
+}
+
+#[derive(Debug, Serialize)]
 struct CreditRecord {
     seed: u64,
     seat: u8,
     round: u32,
     search_expansions: usize,
     different_end_state: bool,
+    distinct_end_states: usize,
     greedy: BranchRecord,
     search: BranchRecord,
+    alternatives: Vec<AlternativeRecord>,
 }
 
 #[derive(Debug, Serialize)]
@@ -44,6 +55,7 @@ struct TurnCreditSummary {
     rollin_seat: Option<u8>,
     rollout_limit: u32,
     search_nodes: usize,
+    alternative_search_nodes: Vec<usize>,
     maximum_actions_per_turn: usize,
     positions: usize,
     different_end_states: u32,
@@ -57,12 +69,12 @@ struct TurnCreditSummary {
     records: Vec<CreditRecord>,
 }
 
-#[derive(Clone, Copy)]
 struct CreditConfig {
     target_round: u32,
     rollin_seat: Option<u8>,
     rollout_limit: u32,
     search: SearchConfig,
+    alternative_search_nodes: Vec<usize>,
 }
 
 pub(super) fn run(arguments: &TurnCreditArgs) -> Result<()> {
@@ -84,6 +96,7 @@ pub(super) fn run(arguments: &TurnCreditArgs) -> Result<()> {
                 maximum_actions_per_turn: arguments.maximum_actions_per_turn,
                 ..SearchConfig::default()
             },
+            alternative_search_nodes: arguments.alternative_search_nodes.clone(),
         },
     )?;
     print_value(&summary, arguments.json)
@@ -107,6 +120,21 @@ fn diagnose(
     );
     SearchAgent::with_config("validation", config.search)
         .context("invalid search configuration")?;
+    let mut alternative_budgets = HashSet::new();
+    for &budget in &config.alternative_search_nodes {
+        ensure!(
+            budget != config.search.node_budget && alternative_budgets.insert(budget),
+            "alternative search budgets must be unique and differ from the primary budget"
+        );
+        SearchAgent::with_config(
+            "alternative-validation",
+            SearchConfig {
+                node_budget: budget,
+                ..config.search
+            },
+        )
+        .context("invalid alternative search configuration")?;
+    }
     let mut records = Vec::new();
     let mut maps_with_samples = 0;
     let mut different_end_states = 0;
@@ -123,7 +151,7 @@ fn diagnose(
         map_config.seed = generator.seed.wrapping_add(u64::from(map_index));
         let game = Game::new(rules.clone(), map_config.generate()?)?;
         let states = if let Some(seat) = config.rollin_seat {
-            sample_first_search_divergence(game, seat, config)?
+            sample_first_search_divergence(game, seat, &config)?
                 .into_iter()
                 .collect()
         } else {
@@ -131,7 +159,7 @@ fn diagnose(
         };
         maps_with_samples += u32::from(!states.is_empty());
         for state in states {
-            let record = analyze_turn(state, map_config.seed, config)?;
+            let record = analyze_turn(&state, map_config.seed, &config)?;
             different_end_states += u32::from(record.different_end_state);
             search_static_improvements +=
                 u32::from(record.search.static_score > record.greedy.static_score);
@@ -161,6 +189,7 @@ fn diagnose(
         rollin_seat: config.rollin_seat,
         rollout_limit: config.rollout_limit,
         search_nodes: config.search.node_budget,
+        alternative_search_nodes: config.alternative_search_nodes,
         maximum_actions_per_turn: config.search.maximum_actions_per_turn,
         positions: records.len(),
         different_end_states,
@@ -175,7 +204,7 @@ fn diagnose(
     })
 }
 
-fn analyze_turn(state: Game, seed: u64, config: CreditConfig) -> Result<CreditRecord> {
+fn analyze_turn(state: &Game, seed: u64, config: &CreditConfig) -> Result<CreditRecord> {
     let seat = state.active_player().0;
     let round = state.round();
     let mut search_agent = SearchAgent::with_config("search", config.search)
@@ -186,7 +215,7 @@ fn analyze_turn(state: Game, seed: u64, config: CreditConfig) -> Result<CreditRe
         config.search.maximum_actions_per_turn,
     )?;
     let search_turn = finish_turn(
-        state,
+        state.clone(),
         &mut search_agent,
         config.search.maximum_actions_per_turn,
     )?;
@@ -195,19 +224,71 @@ fn analyze_turn(state: Game, seed: u64, config: CreditConfig) -> Result<CreditRe
         "search score fell below its greedy-turn fallback"
     );
     let different = greedy_turn.game != search_turn.game;
-    let greedy_result =
-        continue_with_greedy(greedy_turn.game, PlayerId(seat), config.rollout_limit)?;
+    let greedy_result = continue_with_greedy(
+        greedy_turn.game.clone(),
+        PlayerId(seat),
+        config.rollout_limit,
+    )?;
     let search_result = if different {
-        continue_with_greedy(search_turn.game, PlayerId(seat), config.rollout_limit)?
+        continue_with_greedy(
+            search_turn.game.clone(),
+            PlayerId(seat),
+            config.rollout_limit,
+        )?
     } else {
         greedy_result
     };
+    let mut completed_states = vec![(greedy_turn.game.clone(), greedy_result)];
+    if different {
+        completed_states.push((search_turn.game.clone(), search_result));
+    }
+    let mut alternatives = Vec::with_capacity(config.alternative_search_nodes.len());
+    for &nodes in &config.alternative_search_nodes {
+        let mut alternative_agent = SearchAgent::with_config(
+            "alternative-search",
+            SearchConfig {
+                node_budget: nodes,
+                ..config.search
+            },
+        )
+        .context("invalid alternative search configuration")?;
+        let alternative_turn = finish_turn(
+            state.clone(),
+            &mut alternative_agent,
+            config.search.maximum_actions_per_turn,
+        )?;
+        let continuation = if let Some((_, result)) = completed_states
+            .iter()
+            .find(|(game, _)| game == &alternative_turn.game)
+        {
+            *result
+        } else {
+            let result = continue_with_greedy(
+                alternative_turn.game.clone(),
+                PlayerId(seat),
+                config.rollout_limit,
+            )?;
+            completed_states.push((alternative_turn.game.clone(), result));
+            result
+        };
+        alternatives.push(AlternativeRecord {
+            search_nodes: nodes,
+            search_expansions: alternative_agent.last_stats().nodes,
+            different_end_state: alternative_turn.game != greedy_turn.game,
+            branch: BranchRecord {
+                actions: alternative_turn.actions,
+                static_score: alternative_turn.score,
+                continuation,
+            },
+        });
+    }
     Ok(CreditRecord {
         seed,
         seat,
         round,
         search_expansions: search_agent.last_stats().nodes,
         different_end_state: different,
+        distinct_end_states: completed_states.len(),
         greedy: BranchRecord {
             actions: greedy_turn.actions,
             static_score: greedy_turn.score,
@@ -218,6 +299,7 @@ fn analyze_turn(state: Game, seed: u64, config: CreditConfig) -> Result<CreditRe
             static_score: search_turn.score,
             continuation: search_result,
         },
+        alternatives,
     })
 }
 
@@ -243,7 +325,7 @@ fn sample_round_states(mut game: Game, target_round: u32, action_limit: u32) -> 
 fn sample_first_search_divergence(
     mut game: Game,
     seat: u8,
-    config: CreditConfig,
+    config: &CreditConfig,
 ) -> Result<Option<Game>> {
     let mut search = SearchAgent::with_config("search-rollin", config.search)
         .context("invalid search configuration")?;
@@ -444,6 +526,7 @@ mod tests {
                     maximum_actions_per_turn: 8,
                     ..SearchConfig::default()
                 },
+                alternative_search_nodes: vec![4, 8],
             },
         )
         .expect("valid diagnostic");
@@ -460,6 +543,8 @@ mod tests {
             record.greedy.continuation.actions <= 32
                 && record.search.continuation.actions <= 32
                 && record.search.static_score >= record.greedy.static_score
+                && record.alternatives.len() == 2
+                && record.distinct_end_states <= 4
         }));
     }
 
@@ -481,9 +566,39 @@ mod tests {
                 rollin_seat: Some(3),
                 rollout_limit: 32,
                 search: SearchConfig::default(),
+                alternative_search_nodes: Vec::new(),
             },
         );
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn alternative_search_budgets_must_be_distinct_and_valid() {
+        for budgets in [vec![2], vec![4, 4], vec![1]] {
+            let result = diagnose(
+                GeneratorConfig {
+                    schema_version: 2,
+                    width: 11,
+                    height: 9,
+                    players: 3,
+                    ..GeneratorConfig::default()
+                },
+                &Rules::classic_generic(),
+                "classic_generic_2022",
+                1,
+                CreditConfig {
+                    target_round: 1,
+                    rollin_seat: None,
+                    rollout_limit: 32,
+                    search: SearchConfig {
+                        node_budget: 2,
+                        ..SearchConfig::default()
+                    },
+                    alternative_search_nodes: budgets,
+                },
+            );
+            assert!(result.is_err());
+        }
     }
 
     #[test]
@@ -505,11 +620,12 @@ mod tests {
         let result = sample_first_search_divergence(
             game,
             0,
-            CreditConfig {
+            &CreditConfig {
                 target_round: 100,
                 rollin_seat: Some(0),
                 rollout_limit: 1,
                 search: SearchConfig::default(),
+                alternative_search_nodes: Vec::new(),
             },
         )
         .expect("valid roll-in");

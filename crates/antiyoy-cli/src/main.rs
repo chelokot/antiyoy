@@ -185,6 +185,8 @@ struct TurnCreditArgs {
     map: RlMapArgs,
     #[arg(long, default_value_t = 256)]
     search_nodes: usize,
+    #[arg(long, value_delimiter = ',')]
+    alternative_search_nodes: Vec<usize>,
     #[arg(long, default_value_t = 24)]
     maximum_actions_per_turn: usize,
     #[arg(long, value_enum, default_value_t = RulesKind::ClassicGeneric)]

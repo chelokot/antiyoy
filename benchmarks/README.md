@@ -109,6 +109,12 @@ Each branch also records `reply_score`, the unchanged static evaluator's score
 when the searched seat next gets a turn, after greedy opponent replies. It is
 absent if the game ends or that seat is eliminated first.
 
+Pass `--alternative-search-nodes 64,1024` to compare additional complete-turn
+plans from the same sampled state. Exact duplicate end states share one greedy
+continuation, while every alternative keeps its own action sequence and search
+budget. `distinct_end_states` reports how much diversity the slate actually
+contains. This is a label-coverage probe, not an agent that can see the future.
+
 An offline minimum-score-gain gate can be audited from these records by keeping
 only search turns whose `search.static_score - greedy.static_score` reaches a
 prechosen margin. Choose the margin on one seed window and validate it on a
