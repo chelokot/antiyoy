@@ -87,6 +87,10 @@ still scores all five harmful decisive turns above their alternatives.
 A static-score margin filter chosen on those diagnostic maps also failed on
 128 fresh maps ([record](benchmarks/2026-09-23-static-margin-gate-v2-cpu.json));
 it was not added to the agent.
+An [outcome-labeled turn-slate pilot](benchmarks/2026-09-23-whole-turn-budget-slate-v2-cpu.json)
+found only three new end states from two additional search budgets across 54
+positions, so changing node budgets alone does not provide useful training
+coverage for a turn selector.
 
 ## Auditable leagues
 

@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "kind": "outcome_labeled_whole_turn_budget_slate_pilot",
+  "implementation_commit": "c211ce25bb85948ac23831152c9cd9b18ed2785e",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 1,
+    "process_priority": "nice 19",
+    "gpu_used": false
+  },
+  "arena": {
+    "generator_schema_version": 2,
+    "rules": "classic_generic_2022",
+    "width": 19,
+    "height": 15,
+    "players": 5,
+    "maps": 16,
+    "first_seed": 5200700,
+    "seat_trials": 80,
+    "sample": "first whole-turn search-256 divergence from greedy on each search-visited seat trajectory",
+    "target_round": 100,
+    "rollout_limit_per_branch": 2400,
+    "primary_search_nodes": 256,
+    "alternative_search_nodes": [64, 1024],
+    "maximum_actions_per_turn": 24,
+    "command_template": "nice -n 19 target/release/antiyoy turn-credit --map procedural --generator-schema-version 2 --width 19 --height 15 --players 5 --maps 16 --seed 5200700 --target-round 100 --rollin-seat {seat} --rollout-limit 2400 --search-nodes 256 --alternative-search-nodes 64,1024 --json"
+  },
+  "per_seat": [
+    {
+      "seat": 0,
+      "sampled_positions": 10,
+      "distinct_end_states": 20,
+      "elapsed_seconds": 10.466645624,
+      "raw_result_sha256": "4e3e141247cc986954073eb0ac275a2c20b6cc20b6a49bfe7be1376a9801ad39"
+    },
+    {
+      "seat": 1,
+      "sampled_positions": 10,
+      "distinct_end_states": 20,
+      "elapsed_seconds": 10.640357927,
+      "raw_result_sha256": "f49e983c4707efb276e4b2e750c51be01447eb9ba65d5641d6554fd6caeda94f"
+    },
+    {
+      "seat": 2,
+      "sampled_positions": 9,
+      "distinct_end_states": 20,
+      "elapsed_seconds": 12.162596541,
+      "raw_result_sha256": "e145c93ab9639659e5f4faf83716e5bc52b2d6d05278786cfbc2881a61f304c0"
+    },
+    {
+      "seat": 3,
+      "sampled_positions": 12,
+      "distinct_end_states": 25,
+      "elapsed_seconds": 14.734206206,
+      "raw_result_sha256": "2e17f85ad3ff2f1424b928264abcc6753a335cbc14362fe58320069254c0122e"
+    },
+    {
+      "seat": 4,
+      "sampled_positions": 13,
+      "distinct_end_states": 26,
+      "elapsed_seconds": 12.498216381,
+      "raw_result_sha256": "acb04f98cd4034a09ed3a625abc255fad3b338b12b323c782c2f4c8ab0276e5c"
+    }
+  ],
+  "coverage": {
+    "sampled_positions": 54,
+    "terminally_completed_slates": 54,
+    "censored_slates": 0,
+    "distinct_end_states": 111,
+    "two_baseline_end_states_per_sample": 108,
+    "extra_distinct_end_states_from_alternative_budgets": 3,
+    "positions_with_extra_end_state": 3,
+    "positions_with_distinct_root_win_draw_loss_labels": 6,
+    "positions_where_an_alternative_added_a_better_root_outcome": 1,
+    "elapsed_seconds": 60.502022679
+  },
+  "example": {
+    "seed": 5200700,
+    "seat": 2,
+    "round": 7,
+    "greedy_continuation_winner": 3,
+    "search_256_continuation_winner": 0,
+    "search_64_continuation_winner": 0,
+    "search_1024_continuation_winner": 2
+  },
+  "decision": "Do not train a turn selector from node-budget variants alone. Two extra search budgets produced only three new end states across 54 sampled positions and only one newly favorable terminal label. Retain the optional diagnostic, but obtain genuinely diverse complete-turn candidates before spending shared GPU resources on distillation. No rated agent or browser policy was changed.",
+  "limitations": "This is a small exploratory label-coverage pilot, not a full-game strength benchmark. Positions are sampled only at the first divergence of search-256 from greedy; the four candidate plans are not an exhaustive beam slate. Every branch switches to deterministic greedy play after the sampled turn. Outcome labels come from terminal continuations, with action-limit censoring; all 54 slates completed here. Seat samples on the same map are correlated, and no Elo or multi-profile claim follows. Raw hashes identify the measured files, but elapsed_seconds changes on rerun."
+}
