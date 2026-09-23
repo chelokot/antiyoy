@@ -13,6 +13,8 @@ use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde::Serialize;
 
+mod seat_audit;
+
 #[derive(Debug, Parser)]
 #[command(name = "antiyoy", version, about)]
 struct Cli {
@@ -120,6 +122,22 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    SeatAudit {
+        #[arg(long, default_value_t = 64)]
+        maps: u32,
+        #[arg(long, default_value_t = 1)]
+        seed: u64,
+        #[arg(long, default_value_t = 2_400)]
+        action_limit: u32,
+        #[command(flatten)]
+        map: RlMapArgs,
+        #[arg(long, value_enum, default_value_t = RulesKind::ClassicGeneric)]
+        rules: RulesKind,
+        #[arg(long)]
+        rotate_starts: bool,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -191,22 +209,26 @@ impl RlMapArgs {
             RlMapKind::Procedural => Ok(BatchEnv::procedural(
                 Rules::classic_generic(),
                 environments,
-                &GeneratorConfig {
-                    schema_version: antiyoy_core::GENERATOR_SCHEMA_VERSION,
-                    width: self.width,
-                    height: self.height,
-                    players: self.players,
-                    seed: 1,
-                    land_density_per_million: self.land_density_per_million,
-                    starting_province_size: self.starting_province_size,
-                    starting_money: self.starting_money,
-                    tree_density_per_million: self.tree_density_per_million,
-                    neutral_tower_density_per_million: self.neutral_tower_density_per_million,
-                    neutral_capital_density_per_million: self.neutral_capital_density_per_million,
-                    grave_density_per_million: self.grave_density_per_million,
-                },
+                &self.generator_config(1),
                 action_limit,
             )?),
+        }
+    }
+
+    fn generator_config(&self, seed: u64) -> GeneratorConfig {
+        GeneratorConfig {
+            schema_version: antiyoy_core::GENERATOR_SCHEMA_VERSION,
+            width: self.width,
+            height: self.height,
+            players: self.players,
+            seed,
+            land_density_per_million: self.land_density_per_million,
+            starting_province_size: self.starting_province_size,
+            starting_money: self.starting_money,
+            tree_density_per_million: self.tree_density_per_million,
+            neutral_tower_density_per_million: self.neutral_tower_density_per_million,
+            neutral_capital_density_per_million: self.neutral_capital_density_per_million,
+            grave_density_per_million: self.grave_density_per_million,
         }
     }
 
@@ -411,6 +433,15 @@ fn main() -> Result<()> {
             map,
             json,
         } => rl_bench(environments, transitions, action_limit, &map, json)?,
+        Command::SeatAudit {
+            maps,
+            seed,
+            action_limit,
+            map,
+            rules,
+            rotate_starts,
+            json,
+        } => seat_audit::run(maps, seed, action_limit, &map, rules, rotate_starts, json)?,
     }
     Ok(())
 }

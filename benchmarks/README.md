@@ -38,6 +38,24 @@ environment count, observation version, thread budget, and action-selection
 stream match. The checksum detects transition or selection drift; it is not a
 cryptographic state digest.
 
+Audit procedural starting positions before interpreting multiplayer win rates:
+
+```bash
+cargo run --release -p antiyoy-cli -- seat-audit \
+  --map procedural --width 19 --height 15 --players 5 \
+  --maps 64 --seed 4500000 --action-limit 2400 --rotate-starts --json
+```
+
+The same deterministic greedy agent controls every seat. Each map is replayed
+once per cyclic relabelling of the starting provinces. `wins_by_seat` therefore
+measures the remaining seat effect, including turn order and first-round economy
+balancing, while `wins_by_original_start`
+holds the map geometry fixed and measures starting-position differences.
+Truncated games are adjudicated and counted separately. This is a fairness
+diagnostic, not an Elo estimate. For the initial Voronoi-region sizes on the
+unrotated maps, run `python -m python.benchmark_seat_balance`; its per-seed
+records can be compared with the Rust audit by using the same generator inputs.
+
 Training smoke tests are also checked in as metadata-only records. They include
 the model hash and held-out results but never commit checkpoints. A smoke test
 validates the learning path; it is not a release candidate or a calibrated
