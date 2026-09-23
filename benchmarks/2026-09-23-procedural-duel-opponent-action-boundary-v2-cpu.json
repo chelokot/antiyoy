@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_read_only_opponent_action_boundary_audit",
+  "protocol": "benchmarks/protocols/2026-09-23-duel-opponent-action-boundary-v1.json",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, reply-search root256/slate8/opponent64",
+  "dataset": {
+    "first_seed": 6316000,
+    "independent_maps": 32,
+    "sampled_positions": 318,
+    "candidate_post_turn_states": 2249,
+    "terminal_candidates_without_opponent_action": 21,
+    "nonterminal_candidates_with_searched_opponent_action": 2228,
+    "sha256": "c0d444105b6248885f41bfe5a9f0fd83a9c89a891d4f37dc13a1e1b33cf7afbd"
+  },
+  "source_policy": {
+    "checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "expert": "context:b02423ddd2f8cdf9",
+    "weights_updated": false,
+    "policy_input": "Exact post-root-turn BatchObservation for the next active player"
+  },
+  "first_opponent_action_agreement": {
+    "all": {"candidates": 2228, "top_one": 1199, "top_three": 1838, "mean_action_probability": 0.3882391056379722},
+    "root_seat_0": {"candidates": 1129, "top_one": 586, "top_three": 932},
+    "root_seat_1": {"candidates": 1099, "top_one": 613, "top_three": 906},
+    "teacher_selected_root_candidate": {"candidates": 310, "top_one": 162, "top_three": 250},
+    "static_best_root_candidate": {"candidates": 310, "top_one": 167, "top_three": 256},
+    "alternatives_with_better_native_reply_score_than_static": {"candidates": 173, "top_one": 93, "top_three": 149, "mean_action_probability": 0.38727927114141597},
+    "by_first_action_kind": {
+      "Move": {"candidates": 1698, "top_one": 928},
+      "Recruit": {"candidates": 255, "top_one": 142},
+      "Build": {"candidates": 148, "top_one": 38},
+      "EndTurn": {"candidates": 126, "top_one": 91},
+      "PlantTree": {"candidates": 1, "top_one": 0}
+    }
+  },
+  "verification": {
+    "exact_native_action_feature_mapping_tests": 9,
+    "searched_first_actions_mapped_uniquely_to_same_state_legal_actions": true,
+    "terminal_candidates_excluded_from_opponent_seat_assertion": true,
+    "raw_audit_sha256": "a9f22ee39c165126fc9128d0577b1a37d91a584e247aced2ec212a05349ace2d"
+  },
+  "interpretation": "The frozen source policy assigns substantial mass to the searched opponent's first action and ranks it first in about 54% of candidate states, but misses it in about 46%. The rare root alternatives with a better native searched-reply score have nearly the same first-action agreement and mean assigned probability as all candidates. Thus a special first-action prediction collapse on those alternatives is not observed. This does not establish that the student can predict the complete opponent turn or its consequences; later actions, state transitions and root-perspective valuation remain open information boundaries. Candidate states are correlated within sampled positions and 32 previously inspected maps, so these counts are descriptive, not independent strength evidence or Elo. No policy was trained, rated or deployed.",
+  "next_step": "Diagnose prediction of complete opponent-turn consequences on map-disjoint states, including cases where the opponent's first action is correctly predicted but the beneficial root alternative is misranked. Do not repeat rejected frozen scalar or pairwise heads without a new structural target."
+}

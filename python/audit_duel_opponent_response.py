@@ -79,6 +79,14 @@ def legal_action_index(action: object, legal: list[dict[str, object]]) -> int:
     return matches[0]
 
 
+def has_opponent_response(plan: list[object], root_seat: int, active_seat: int) -> bool:
+    if not plan:
+        return False
+    if active_seat != 1 - root_seat:
+        raise ValueError("post-turn observation has the wrong opponent seat")
+    return True
+
+
 def summarize(counts: Counter[str]) -> dict[str, float | int]:
     candidates = counts["candidates"]
     return {
@@ -118,8 +126,6 @@ def audit(dataset_path: Path, checkpoint_path: Path) -> dict[str, object]:
             maps.add(seed)
             serialized = cast(dict[str, object], record["post_turn"])
             observation, rules = model_observation(serialized)
-            if any(player != 1 - seat for player in observation["active_players"]):
-                raise ValueError("post-turn observation has the wrong opponent seat")
             logits, _ = model(observation, encode_rules_batch(list(rules), torch.device("cpu")))
             offsets = cast(list[int], serialized["action_offsets"])
             legal = cast(list[dict[str, object]], serialized["actions"])
@@ -129,7 +135,9 @@ def audit(dataset_path: Path, checkpoint_path: Path) -> dict[str, object]:
             if len(plans) != len(offsets) - 1:
                 raise ValueError("opponent plans and candidate states disagree")
             for index, plan in enumerate(plans):
-                if not plan:
+                if not has_opponent_response(
+                    plan, seat, int(observation["active_players"][index])
+                ):
                     skipped_terminal += 1
                     continue
                 start, end = offsets[index : index + 2]

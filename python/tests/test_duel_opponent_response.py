@@ -7,6 +7,7 @@ import pytest
 from python.audit_duel_opponent_response import (
     INVALID_HEX,
     action_feature,
+    has_opponent_response,
     legal_action_index,
     summarize,
 )
@@ -50,6 +51,13 @@ def test_searched_action_must_match_exactly_one_legal_action() -> None:
         legal_action_index(action, legal[:2])
     with pytest.raises(ValueError, match="unique legal action"):
         legal_action_index(action, [legal[2], legal[2]])
+
+
+def test_terminal_candidate_has_no_opponent_turn() -> None:
+    assert not has_opponent_response([], root_seat=1, active_seat=1)
+    assert has_opponent_response(["EndTurn"], root_seat=1, active_seat=0)
+    with pytest.raises(ValueError, match="wrong opponent seat"):
+        has_opponent_response(["EndTurn"], root_seat=1, active_seat=1)
 
 
 def test_empty_group_summary_has_no_division_error() -> None:
