@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_persistent_teacher_turn_credit_audit",
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "sample_round": 8,
+    "maps": 64,
+    "seats_per_map": 2,
+    "seed_first": 6264000,
+    "rollin": "reply-search self-play",
+    "root_beam_nodes": 256,
+    "distinct_completed_turn_slate_size": 8,
+    "reply_nodes": 64,
+    "continuation_action_limit": 1000,
+    "opponent_probe": "greedy root versus plain beam-64 opponents",
+    "teacher_probe": "reply-search-256/8/64 on both seats"
+  },
+  "sampling": {
+    "positions": 128,
+    "deduplicated_post_turn_states": 914,
+    "teacher_censored_positions": 2,
+    "teacher_censored_states": 2,
+    "elapsed_wall_seconds": 244.176556831
+  },
+  "teacher_outcomes": {
+    "positions_with_distinct_candidate_outcomes": 64,
+    "positions_with_observed_better_candidate": 23,
+    "reply_selection_differs_from_static": 12,
+    "reply_selection_changes_first_action": 9,
+    "reply_selected_rank_zero": 116,
+    "selected_outcome_better": 2,
+    "selected_outcome_worse": 0,
+    "selected_outcome_same": 126,
+    "selected_outcome_censored": 0,
+    "independent_maps_selected_better": 2,
+    "independent_maps_selected_worse": 0,
+    "independent_maps_selected_same": 62,
+    "exact_two_sided_map_sign_test_p": 0.5,
+    "informative_candidate_pairs": 588,
+    "pairwise_reply_score_outcome_concordant": 335,
+    "pairwise_reply_score_outcome_discordant": 204,
+    "pairwise_reply_score_tied": 49,
+    "by_seat_selected_better": [0, 2]
+  },
+  "opponent_probe_outcomes": {
+    "positions_with_distinct_candidate_outcomes": 65,
+    "selected_outcome_better": 4,
+    "selected_outcome_worse": 0,
+    "selected_outcome_same": 124,
+    "informative_candidate_pairs": 616,
+    "pairwise_reply_score_outcome_concordant": 341,
+    "pairwise_reply_score_outcome_discordant": 222,
+    "pairwise_reply_score_tied": 53
+  },
+  "probe_disagreement": {
+    "paired_complete_states": 910,
+    "changed_state_outcomes": 138,
+    "positions_with_changed_state_outcome": 61,
+    "independent_maps_with_changed_state_outcome": 42,
+    "strictly_informative_candidate_pairs_under_both": 318,
+    "strict_pairwise_preference_reversals": 55,
+    "positions_with_strict_preference_reversal": 21,
+    "independent_maps_with_strict_preference_reversal": 18
+  },
+  "artifacts": {
+    "compressed_raw_sha256": "95b436f8330546dacf3df6d10abcdef86af6c9dffe225a113a924e174f0049c9",
+    "teacher_summary_sha256": "299cde081abeea4ed863422230d228aef0e3a15fa605c0efed04f901c1322c1e",
+    "opponent_summary_sha256": "227604cff1887ee0c44736e0a31573d7f8018da23fda7c3c7a8ee89d81278c42"
+  },
+  "interpretation": "At a fixed sampled turn of strong-search self-play, outcome-diverse candidate slates are common under persistent teacher continuation. The immediate reply score often disagrees with the terminal preference between candidates, but it rarely changes the top static choice; its 2:0 conditional teacher advantage is too small for a strength claim. Continuation policy matters: 138 of 910 paired complete state outcomes change between the two frozen probes, with strict candidate-preference reversals on 18 independent maps. State and pair counts are correlated within maps and are diagnostics, not Elo or deployable oracle strength. No model was trained, rated, or promoted. Next candidate value target must preserve root-seat perspective, train on independent maps, and account for continuation-policy sensitivity before a fresh both-seat full-game gate."
+}
