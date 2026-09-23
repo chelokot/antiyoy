@@ -9,7 +9,7 @@ import numpy as np
 import torch
 
 from antiyoy_rl.model import ACTION_KIND_NAMES, encode_rules_batch
-from antiyoy_rl.slate_dataset import load_teacher_slates
+from antiyoy_rl.slate_dataset import TeacherSlatePosition, load_teacher_slates
 
 from .build_bundle import digest
 from .evaluate import load_policy
@@ -41,22 +41,17 @@ def summarize(counts: Counter[str]) -> dict[str, float | int]:
     }
 
 
-def audit(dataset_path: Path, checkpoint_path: Path) -> dict[str, object]:
-    torch.set_num_threads(1)
-    model, config = load_policy(
-        checkpoint_path,
-        torch.device("cpu"),
-        profile="classic_generic_2022",
-        generator="procedural_v1",
-        players=2,
-    )
-    model.eval()
+def measure_positions(
+    positions: list[TeacherSlatePosition],
+    model: torch.nn.Module,
+    include_maps: bool = False,
+) -> dict[str, object]:
     groups: dict[str, Counter[str]] = {}
     seeds: set[int] = set()
-    positions = terminal_candidates = 0
+    position_count = terminal_candidates = 0
     with torch.inference_mode():
-        for position in load_teacher_slates(dataset_path):
-            positions += 1
+        for position in positions:
+            position_count += 1
             seeds.add(position.seed)
             trace = position.opponent_decisions
             if trace is None:
@@ -86,6 +81,8 @@ def audit(dataset_path: Path, checkpoint_path: Path) -> dict[str, object]:
                     f"root_seat_{position.seat}",
                     "selected" if candidate == selected else "unselected",
                 ]
+                if include_maps:
+                    keys.append(f"map_{position.seed}")
                 if candidate > 0 and (
                     position.opponent_reply_scores[candidate]
                     > position.opponent_reply_scores[0]
@@ -128,14 +125,30 @@ def audit(dataset_path: Path, checkpoint_path: Path) -> dict[str, object]:
                     else:
                         counts["first_mismatch_depth_2_plus"] += 1
     return {
+        "independent_maps": len(seeds),
+        "positions": position_count,
+        "terminal_candidates_without_opponent_plan": terminal_candidates,
+        "groups": {key: summarize(counts) for key, counts in sorted(groups.items())},
+    }
+
+
+def audit(dataset_path: Path, checkpoint_path: Path) -> dict[str, object]:
+    torch.set_num_threads(1)
+    model, config = load_policy(
+        checkpoint_path,
+        torch.device("cpu"),
+        profile="classic_generic_2022",
+        generator="procedural_v1",
+        players=2,
+    )
+    model.eval()
+    measurements = measure_positions(load_teacher_slates(dataset_path), model)
+    return {
         "kind": "procedural_duel_opponent_trajectory_predictability",
         "dataset_sha256": digest(dataset_path),
         "checkpoint_sha256": digest(checkpoint_path),
         "selected_expert": config["selected_expert"],
-        "independent_maps": len(seeds),
-        "positions": positions,
-        "terminal_candidates_without_opponent_plan": terminal_candidates,
-        "groups": {key: summarize(counts) for key, counts in sorted(groups.items())},
+        **measurements,
         "qualification": "Teacher-forced action agreement on correlated searched candidate plans, not autonomous rollout, game strength, or Elo",
     }
 
