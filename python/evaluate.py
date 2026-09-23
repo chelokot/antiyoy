@@ -699,6 +699,10 @@ def evaluate(
     puct_total_nodes = 0
     puct_total_root_visits = 0
     puct_maximum_reached_depth = 0
+    puct_root_legal_actions = 0
+    puct_root_visited_actions = 0
+    puct_roots_with_multiple_visited_actions = 0
+    puct_selected_unvisited_actions = 0
     model_baseline_action_disagreements = 0
     model_policy_decisions = 0
     puct_config = PolicySearchConfig(
@@ -724,6 +728,7 @@ def evaluate(
                 rules,
                 model_turns,
                 puct_config,
+                include_root_targets=True,
                 maxn_evaluator=fast_maxn_evaluator,
             )
             puct_decisions += int(model_turns.sum())
@@ -734,6 +739,27 @@ def evaluate(
             puct_maximum_reached_depth = max(
                 puct_maximum_reached_depth,
                 int(puct_metrics["maximum_depth"].max(initial=0)),
+            )
+            root_offsets = puct_metrics["root_action_offsets"].astype(
+                np.intp, copy=False
+            )
+            root_action_visits = puct_metrics["root_action_visits"]
+            visited_prefix = np.concatenate(
+                ([0], np.cumsum(root_action_visits > 0, dtype=np.int64))
+            )
+            visited_counts = (
+                visited_prefix[root_offsets[1:]] - visited_prefix[root_offsets[:-1]]
+            )
+            puct_root_legal_actions += int(np.diff(root_offsets)[model_turns].sum())
+            puct_root_visited_actions += int(visited_counts[model_turns].sum())
+            puct_roots_with_multiple_visited_actions += int(
+                np.count_nonzero(visited_counts[model_turns] > 1)
+            )
+            selected_root_indices = root_offsets[:-1][model_turns] + model_actions[
+                model_turns
+            ].astype(np.intp, copy=False)
+            puct_selected_unvisited_actions += int(
+                np.count_nonzero(root_action_visits[selected_root_indices] == 0)
             )
         else:
             model_actions = routed_policy.actions(observation, rules)
@@ -981,6 +1007,10 @@ def evaluate(
             "total_nodes": puct_total_nodes,
             "total_root_visits": puct_total_root_visits,
             "maximum_reached_depth": puct_maximum_reached_depth,
+            "root_legal_actions": puct_root_legal_actions,
+            "root_visited_actions": puct_root_visited_actions,
+            "roots_with_multiple_visited_actions": puct_roots_with_multiple_visited_actions,
+            "selected_unvisited_actions": puct_selected_unvisited_actions,
         },
         "search_nodes": search_nodes if baseline == "search" else 0,
         "search_beam_width": search_beam_width if baseline == "search" else 0,

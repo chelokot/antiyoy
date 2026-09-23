@@ -305,6 +305,9 @@ def test_policy_search_runs_the_native_tree_for_every_model_decision(
     assert search["evaluated_leaves"] > 0
     assert search["leaf_batches"] > 0
     assert search["total_nodes"] == search["decisions"] * search["node_budget"]
+    assert search["root_visited_actions"] <= search["root_legal_actions"]
+    assert search["roots_with_multiple_visited_actions"] <= search["decisions"]
+    assert search["selected_unvisited_actions"] <= search["decisions"]
     assert search["total_root_visits"] > 0
     assert search["root_value_weight"] == 0.0
     assert search["value_perspective"] == "active"
