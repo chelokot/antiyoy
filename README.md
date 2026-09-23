@@ -73,6 +73,26 @@ seven compatibility profiles and reports paired relative Elo rather than an
 unsubstantiated absolute rating. Browser search remains selectable at 64, 256,
 or 2048 nodes, and rated placement always uses the fixed 2048-node agent.
 
+For procedural two-player search research, `multi-compare` can rerank distinct
+completed turns after a bounded whole-turn response by the opponent:
+
+```bash
+cargo run --release -p antiyoy-cli -- multi-compare \
+  --map procedural --generator-schema-version 2 --players 2 \
+  --width 11 --height 9 --maps 64 --seed 6224000 \
+  --candidate search --baseline search --search-nodes 256 \
+  --baseline-search-nodes 1024 --candidate-reply-nodes 64 \
+  --candidate-slate-size 8 --action-limit 1000 --json
+```
+
+`--search-nodes` budgets the candidate's root turn. The response search runs
+once for each of at most eight distinct completed root turns. A separate
+`--baseline-search-nodes` permits a larger plain-search control, so an
+improvement against the same-budget search is not confused with an algorithmic
+gain after giving plain search more expansion nodes. This does not equate wall
+time, because response search has additional rollout overhead. Results must be
+checked on disjoint maps with both seat assignments before promotion.
+
 These duel-relative ratings do not transfer to five-player procedural maps:
 on 128 rotated-start maps, search-256 won 135 of 640 seat trials versus 128
 expected for the greedy reference, but the independent-map comparison was

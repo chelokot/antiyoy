@@ -105,7 +105,8 @@ mod tests {
     };
 
     use super::{
-        Agent, GreedyAgent, SearchAgent, SearchConfig, SearchConfigError, search_turn_slate,
+        Agent, GreedyAgent, SearchAgent, SearchConfig, SearchConfigError, position_score,
+        search_turn_slate,
     };
 
     #[test]
@@ -235,6 +236,63 @@ mod tests {
         assert!(matches!(
             search_turn_slate(&game, SearchConfig::default(), 0),
             Err(SearchConfigError::SlateSize)
+        ));
+    }
+
+    #[test]
+    fn reply_search_selects_the_best_completed_turn_after_opponent_response() {
+        let scenario = Scenario::symmetric_duel(7, 5, 107).expect("valid duel");
+        let game = antiyoy_core::Game::new(Rules::classic_generic(), scenario).expect("valid game");
+        let config = SearchConfig {
+            node_budget: 64,
+            beam_width: 12,
+            branch_width: 20,
+            maximum_actions_per_turn: 12,
+        };
+        let reply_config = SearchConfig {
+            node_budget: 16,
+            ..config
+        };
+        let slate = search_turn_slate(&game, config, 4).expect("valid slate");
+        let expected = slate
+            .turns
+            .iter()
+            .enumerate()
+            .max_by_key(|(index, turn)| {
+                let outcome = if turn.game.is_terminal() {
+                    position_score(&turn.game, game.active_player())
+                } else {
+                    let reply = search_turn_slate(&turn.game, reply_config, 1)
+                        .expect("valid opponent reply");
+                    position_score(&reply.turns[0].game, game.active_player())
+                };
+                (outcome, turn.score, std::cmp::Reverse(*index))
+            })
+            .expect("completed turn");
+        let mut legal = Vec::new();
+        game.legal_actions(&mut legal);
+        let mut first =
+            SearchAgent::with_reply_search("reply", config, 4, 16).expect("valid reply search");
+        let mut second =
+            SearchAgent::with_reply_search("reply", config, 4, 16).expect("valid reply search");
+        assert_eq!(first.select_action(&game, &legal), expected.1.actions[0]);
+        assert_eq!(
+            first.select_action(&game, &legal),
+            second.select_action(&game, &legal)
+        );
+        assert_eq!(first.last_stats().nodes, slate.stats.nodes);
+        assert_eq!(first.last_stats().selected_score, expected.1.score);
+    }
+
+    #[test]
+    fn reply_search_validates_slate_and_reply_budgets() {
+        assert!(matches!(
+            SearchAgent::with_reply_search("reply", SearchConfig::default(), 0, 16),
+            Err(SearchConfigError::SlateSize)
+        ));
+        assert!(matches!(
+            SearchAgent::with_reply_search("reply", SearchConfig::default(), 4, 1),
+            Err(SearchConfigError::NodeBudget)
         ));
     }
 

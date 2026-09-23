@@ -145,6 +145,12 @@ struct MultiCompareArgs {
     baseline: AgentKind,
     #[arg(long, default_value_t = 256)]
     search_nodes: usize,
+    #[arg(long)]
+    baseline_search_nodes: Option<usize>,
+    #[arg(long, default_value_t = 0)]
+    candidate_reply_nodes: usize,
+    #[arg(long, default_value_t = 8)]
+    candidate_slate_size: usize,
     #[arg(long, value_enum, default_value_t = RulesKind::ClassicGeneric)]
     rules: RulesKind,
     #[arg(long)]
