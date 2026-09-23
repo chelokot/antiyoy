@@ -20,6 +20,9 @@
     "baseline_reference_games": 128,
     "action_limit": 2400,
     "candidate": "native whole-turn beam search, 256 nodes",
+    "search_beam_width": 32,
+    "search_branch_width": 48,
+    "search_maximum_actions_per_turn": 24,
     "baseline": "native deterministic greedy",
     "command": "nice -n 19 target/release/antiyoy multi-compare --map procedural --generator-schema-version 2 --width 19 --height 15 --players 5 --maps 128 --seed 5000000 --action-limit 2400 --candidate search --baseline greedy --search-nodes 256 --json"
   },

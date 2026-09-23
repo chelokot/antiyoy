@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "kind": "matched_multiplayer_search_budget_ablation",
+  "implementation_commit": "bfdf74f33a4732b12db4a569e4e925b3600bd564",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 1,
+    "process_priority": "nice 19",
+    "gpu_used": false
+  },
+  "arena": {
+    "generator_schema_version": 2,
+    "rules": "classic_generic_2022",
+    "width": 19,
+    "height": 15,
+    "players": 5,
+    "maps": 64,
+    "first_seed": 5100000,
+    "games_per_budget": 320,
+    "action_limit": 2400,
+    "baseline": "native deterministic greedy",
+    "candidate": "native whole-turn beam search",
+    "beam_width": 32,
+    "branch_width": 48,
+    "maximum_actions_per_turn": 24,
+    "command_template": "nice -n 19 target/release/antiyoy multi-compare --map procedural --generator-schema-version 2 --width 19 --height 15 --players 5 --maps 64 --seed 5100000 --action-limit 2400 --candidate search --baseline greedy --search-nodes {budget} --json"
+  },
+  "budgets": [
+    {
+      "nodes": 256,
+      "candidate_wins_by_seat": [24, 14, 12, 8, 13],
+      "candidate_wins": 71,
+      "baseline_expected_wins": 64,
+      "independent_map_better_than_baseline": 11,
+      "independent_map_worse_than_baseline": 6,
+      "independent_map_same_as_baseline": 47,
+      "candidate_truncations": 2,
+      "elapsed_seconds": 179.177382575,
+      "raw_result_sha256": "73c8f9d9b6a5e7d5a2777a1aabab4c20a5f76f0e473938ec7145b1cd8657edee"
+    },
+    {
+      "nodes": 1024,
+      "candidate_wins_by_seat": [18, 14, 13, 10, 13],
+      "candidate_wins": 68,
+      "baseline_expected_wins": 64,
+      "independent_map_better_than_baseline": 16,
+      "independent_map_worse_than_baseline": 16,
+      "independent_map_same_as_baseline": 32,
+      "candidate_truncations": 1,
+      "elapsed_seconds": 196.386782185,
+      "raw_result_sha256": "aab8759dae340de6182603811834561db1b1d356aee540d202fb174b444ce422"
+    }
+  ],
+  "matched_budget_comparison": {
+    "greedy_reference_games_identical": true,
+    "higher_budget_paired_seat_better": 14,
+    "higher_budget_paired_seat_worse": 17,
+    "higher_budget_paired_seat_same": 289,
+    "higher_budget_independent_map_better": 8,
+    "higher_budget_independent_map_worse": 13,
+    "higher_budget_independent_map_same": 43,
+    "higher_budget_independent_map_exact_two_sided_sign_test_p": 0.38331031799316406,
+    "higher_budget_total_win_delta": -3
+  },
+  "decision": "Increasing whole-turn search from 256 to 1024 nodes changes 31 of 320 matched seat outcomes, but does not improve independent-map wins or overcome greedy. Larger search alone is not a successful amplification strategy on this procedural five-player domain.",
+  "limitations": "This is a fresh but exploratory 64-map budget scout, not a multi-profile confirmation. Seat replacements on one map share a greedy reference; significance is calculated after grouping them by map. Search changes complete games, so no claim is made about which specific decision caused a win or loss. Neither budget has a human Elo measurement."
+}
