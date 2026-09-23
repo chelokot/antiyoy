@@ -238,6 +238,8 @@ struct SlateDatasetArgs {
     include_opponent_observations: bool,
     #[arg(long)]
     include_opponent_decisions: bool,
+    #[arg(long)]
+    include_rollin_indices: bool,
     #[arg(long, default_value_t = 1)]
     sample_round_modulus: u32,
     #[arg(long, default_value_t = 0)]

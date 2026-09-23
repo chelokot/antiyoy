@@ -28,6 +28,10 @@ struct SlateRecord {
     post_reply: Option<BatchObservation>,
     #[serde(skip_serializing_if = "Option::is_none")]
     opponent_decisions: Option<OpponentDecisions>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    rollin_indices: Option<Vec<usize>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    candidate_action_indices: Option<Vec<Vec<usize>>>,
 }
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
@@ -55,6 +59,8 @@ struct SlateDataset {
     include_opponent_observations: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     include_opponent_decisions: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    include_rollin_indices: Option<bool>,
     maximum_actions_per_turn: usize,
     sample_round_modulus: u32,
     sample_round_remainder: u32,
@@ -114,11 +120,8 @@ fn collect(
     .context("invalid reply-search configuration")?;
     let started = Instant::now();
     let mut records = Vec::new();
-    let mut completed_maps = 0;
-    let mut truncated_maps = 0;
-    let mut teacher_overrides = 0;
-    let mut first_action_changes = 0;
-    let mut actions_played = 0;
+    let (mut completed_maps, mut truncated_maps) = (0, 0);
+    let (mut teacher_overrides, mut first_action_changes, mut actions_played) = (0, 0, 0);
     for map_index in 0..arguments.maps {
         let mut map_generator = generator.clone();
         map_generator.seed = generator
@@ -127,13 +130,9 @@ fn collect(
             .context("map seed overflow")?;
         let mut game = Game::new(rules.clone(), map_generator.generate()?)?;
         let mut actions = 0;
+        let mut rollin_indices = Vec::new();
         while !game.is_terminal() && actions < arguments.action_limit {
-            let scored = score_slate(
-                &game,
-                search,
-                arguments.beam_slate_size,
-                arguments.opponent_search_nodes,
-            )?;
+            let scored = score_slate_for_args(&game, search, arguments)?;
             let chosen = &scored.slate.turns[scored.selected];
             let turn_actions = u32::try_from(chosen.actions.len())?;
             if turn_actions > arguments.action_limit - actions {
@@ -148,6 +147,9 @@ fn collect(
                     arguments.include_opponent_actions,
                     arguments.include_opponent_observations,
                     arguments.include_opponent_decisions,
+                    arguments
+                        .include_rollin_indices
+                        .then_some(rollin_indices.as_slice()),
                 );
                 teacher_overrides += u32::from(record.selected_index != 0);
                 first_action_changes +=
@@ -155,6 +157,13 @@ fn collect(
                 records.push(record);
             }
             actions += turn_actions;
+            append_rollin_indices(
+                &mut rollin_indices,
+                arguments.include_rollin_indices,
+                &game,
+                &chosen.actions,
+                &next_game,
+            );
             game = next_game;
         }
         actions_played += u64::from(actions);
@@ -175,6 +184,7 @@ fn collect(
         include_opponent_actions: arguments.include_opponent_actions.then_some(true),
         include_opponent_observations: arguments.include_opponent_observations.then_some(true),
         include_opponent_decisions: arguments.include_opponent_decisions.then_some(true),
+        include_rollin_indices: arguments.include_rollin_indices.then_some(true),
         maximum_actions_per_turn: arguments.maximum_actions_per_turn,
         sample_round_modulus: arguments.sample_round_modulus,
         sample_round_remainder: arguments.sample_round_remainder,
@@ -185,6 +195,19 @@ fn collect(
         elapsed_seconds: started.elapsed().as_secs_f64(),
         records,
     })
+}
+
+fn score_slate_for_args(
+    game: &Game,
+    search: SearchConfig,
+    arguments: &SlateDatasetArgs,
+) -> Result<ScoredSlate> {
+    score_slate(
+        game,
+        search,
+        arguments.beam_slate_size,
+        arguments.opponent_search_nodes,
+    )
 }
 
 fn score_slate(
@@ -224,6 +247,7 @@ fn record_slate(
     include_opponent_actions: bool,
     include_opponent_observations: bool,
     include_opponent_decisions: bool,
+    rollin_indices: Option<&[usize]>,
 ) -> SlateRecord {
     let games = scored
         .slate
@@ -263,6 +287,49 @@ fn record_slate(
             )
         }),
         opponent_decisions: include_opponent_decisions.then(|| opponent_decisions(scored)),
+        rollin_indices: rollin_indices.map(<[usize]>::to_vec),
+        candidate_action_indices: rollin_indices.map(|_| {
+            scored
+                .slate
+                .turns
+                .iter()
+                .map(|turn| replay_action_indices(game, &turn.actions, &turn.game))
+                .collect()
+        }),
+    }
+}
+
+fn replay_action_indices(game: &Game, actions: &[Action], expected: &Game) -> Vec<usize> {
+    let mut replay = game.clone();
+    let mut legal = Vec::new();
+    let mut indices = Vec::with_capacity(actions.len());
+    for action in actions {
+        replay.legal_actions(&mut legal);
+        let index = legal
+            .iter()
+            .position(|candidate| candidate == action)
+            .expect("searched turn action must be legal");
+        indices.push(index);
+        replay
+            .step(*action)
+            .expect("searched turn action must apply");
+    }
+    assert_eq!(
+        replay, *expected,
+        "indexed searched turn must replay exactly"
+    );
+    indices
+}
+
+fn append_rollin_indices(
+    history: &mut Vec<usize>,
+    enabled: bool,
+    game: &Game,
+    actions: &[Action],
+    expected: &Game,
+) {
+    if enabled {
+        history.extend(replay_action_indices(game, actions, expected));
     }
 }
 
@@ -338,6 +405,66 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn assert_rollin_indices_aligned(dataset: &SlateDataset, generator: &GeneratorConfig) {
+        for record in &dataset.records {
+            let mut root = Game::new(
+                Rules::classic_generic(),
+                GeneratorConfig {
+                    seed: record.seed,
+                    ..generator.clone()
+                }
+                .generate()
+                .expect("valid generated map"),
+            )
+            .expect("valid generated game");
+            let mut legal = Vec::new();
+            for &index in record.rollin_indices.as_ref().expect("roll-in indices") {
+                root.legal_actions(&mut legal);
+                root.step(legal[index]).expect("legal roll-in action");
+            }
+            assert_eq!(root.round(), record.round);
+            assert_eq!(root.active_player().0, record.seat);
+            for (candidate, indices) in record
+                .candidate_action_indices
+                .as_ref()
+                .expect("candidate indices")
+                .iter()
+                .enumerate()
+            {
+                let mut replay = root.clone();
+                for &index in indices {
+                    replay.legal_actions(&mut legal);
+                    replay.step(legal[index]).expect("legal candidate action");
+                }
+                assert_eq!(
+                    position_score(&replay, root.active_player()),
+                    record.static_scores[candidate]
+                );
+            }
+        }
+    }
+
+    fn assert_opt_in_absent(dataset: &SlateDataset) {
+        assert!(dataset.records.iter().all(|record| {
+            record.opponent_actions.is_none()
+                && record.post_reply.is_none()
+                && record.opponent_decisions.is_none()
+                && record.rollin_indices.is_none()
+                && record.candidate_action_indices.is_none()
+        }));
+        let serialized = serde_json::to_value(&dataset.records[0]).expect("serializable record");
+        assert!(serialized.get("opponent_actions").is_none());
+        assert!(serialized.get("post_reply").is_none());
+        assert!(serialized.get("opponent_decisions").is_none());
+        assert!(serialized.get("rollin_indices").is_none());
+        assert!(serialized.get("candidate_action_indices").is_none());
+        let summary = serde_json::to_value(dataset).expect("serializable summary");
+        assert!(summary.get("include_opponent_actions").is_none());
+        assert!(summary.get("include_opponent_observations").is_none());
+        assert!(summary.get("include_opponent_decisions").is_none());
+        assert!(summary.get("include_rollin_indices").is_none());
     }
 
     #[test]
@@ -416,6 +543,7 @@ mod tests {
             include_opponent_actions: true,
             include_opponent_observations: true,
             include_opponent_decisions: true,
+            include_rollin_indices: true,
             sample_round_modulus: 2,
             sample_round_remainder: 0,
             maximum_actions_per_turn: 8,
@@ -439,6 +567,7 @@ mod tests {
         assert_eq!(first.records, second.records);
         assert_eq!(first.include_opponent_actions, Some(true));
         assert_eq!(first.include_opponent_decisions, Some(true));
+        assert_eq!(first.include_rollin_indices, Some(true));
         assert!(!first.records.is_empty());
         assert!(first.records.iter().all(|record| {
             let candidates = record.static_scores.len();
@@ -456,10 +585,12 @@ mod tests {
                     == Some(candidates + 1)
         }));
         assert_opponent_decisions_aligned(&first);
+        assert_rollin_indices_aligned(&first, &generator);
         let mut without_replies = arguments;
         without_replies.include_opponent_actions = false;
         without_replies.include_opponent_observations = false;
         without_replies.include_opponent_decisions = false;
+        without_replies.include_rollin_indices = false;
         let plain = collect(
             generator,
             &Rules::classic_generic(),
@@ -467,18 +598,6 @@ mod tests {
             &without_replies,
         )
         .expect("plain dataset");
-        assert!(plain.records.iter().all(|record| {
-            record.opponent_actions.is_none()
-                && record.post_reply.is_none()
-                && record.opponent_decisions.is_none()
-        }));
-        let serialized = serde_json::to_value(&plain.records[0]).expect("serializable record");
-        assert!(serialized.get("opponent_actions").is_none());
-        assert!(serialized.get("post_reply").is_none());
-        assert!(serialized.get("opponent_decisions").is_none());
-        let summary = serde_json::to_value(&plain).expect("serializable summary");
-        assert!(summary.get("include_opponent_actions").is_none());
-        assert!(summary.get("include_opponent_observations").is_none());
-        assert!(summary.get("include_opponent_decisions").is_none());
+        assert_opt_in_absent(&plain);
     }
 }

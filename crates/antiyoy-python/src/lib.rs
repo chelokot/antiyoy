@@ -691,6 +691,28 @@ impl VectorEnv {
             .collect()
     }
 
+    fn position_scores<'py>(
+        &self,
+        py: Python<'py>,
+        player: u8,
+    ) -> PyResult<Bound<'py, PyArray1<i64>>> {
+        if self.batch.fog_enabled() {
+            return Err(PyValueError::new_err(
+                "full-state position scores are unavailable in fog games",
+            ));
+        }
+        let scores = (0..self.batch.len())
+            .map(|index| {
+                let game = self.batch.game(index).expect("batch index must exist");
+                if player >= game.player_count() {
+                    return Err(PyValueError::new_err("player is outside the game"));
+                }
+                Ok(position_score(game, PlayerId(player)))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(PyArray1::from_vec(py, scores))
+    }
+
     fn rules_json(&self) -> PyResult<String> {
         let game = self
             .batch

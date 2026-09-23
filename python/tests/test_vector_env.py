@@ -43,6 +43,19 @@ def test_truncation_reports_deterministic_adjudication() -> None:
     assert result["adjudicated_winners"].shape == (1,)
 
 
+def test_position_scores_use_requested_root_player_and_reject_fog() -> None:
+    environment = VectorEnv(2, width=7, height=5, seed=47)
+    first = environment.position_scores(0)
+    second = environment.position_scores(1)
+
+    assert first.shape == (2,)
+    np.testing.assert_array_equal(first, -second)
+    with pytest.raises(ValueError, match="outside the game"):
+        environment.position_scores(2)
+    with pytest.raises(ValueError, match="unavailable in fog"):
+        VectorEnv(1, width=7, height=5, fog=True).position_scores(0)
+
+
 def test_seeded_environments_are_equal_after_equal_actions() -> None:
     environment = VectorEnv(2, width=7, height=5, seed=91)
     environment.reset(1, 91)
