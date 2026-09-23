@@ -7,6 +7,7 @@ pytest.importorskip("torch")
 
 import torch
 from antiyoy_rl.turn_credit import TurnCreditPosition
+import python.scout_duel_teacher_choice as teacher_choice
 from python.scout_duel_teacher_choice import agreement, teacher_choice_examples
 from python.scout_duel_turn_value import (
     FEATURE_NAMES,
@@ -22,6 +23,7 @@ def duel_position() -> TurnCreditPosition:
         "cell_offsets": np.asarray([0, 2, 4]),
         "province_offsets": np.asarray([0, 2, 4]),
         "player_counts": np.asarray([2, 2]),
+        "active_players": np.asarray([1, 1]),
         "owners": np.asarray([0, 1, 1, 0]),
         "objects": np.asarray([0, 0, 2, 0]),
         "unit_strengths": np.asarray([1, 0, 2, 0]),
@@ -39,7 +41,7 @@ def duel_position() -> TurnCreditPosition:
         root={},
         post_turn=post_turn,
         root_rules_json=(),
-        post_turn_rules_json=(),
+        post_turn_rules_json=("{}", "{}"),
         outcome_scores=np.asarray([2, 0]),
         static_scores=np.asarray([30, 20]),
         search_index=0,
@@ -130,3 +132,26 @@ def test_teacher_choice_training_balances_static_and_override_positions() -> Non
     assert report["static_matches"] == 1
     assert report["teacher_overrides"] == 1
     assert report["correct_overrides"] == 0
+
+
+def test_spatial_embedding_uses_root_seat_and_preserves_slate_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        teacher_choice,
+        "encode_rules_batch",
+        lambda rules, device: torch.zeros((len(rules), 1), device=device),
+    )
+
+    class Encoder:
+        def forward_with_value_features(self, observation, rules):
+            np.testing.assert_array_equal(observation["active_players"], [0, 0])
+            assert rules.shape == (2, 1)
+            return None, None, torch.as_tensor([[1.0, 2.0], [3.0, 4.0]])
+
+    embedded = teacher_choice.embed_spatial(duel_position(), Encoder())
+
+    assert embedded.position.features.shape == (2, len(FEATURE_NAMES) + 2)
+    np.testing.assert_array_equal(
+        embedded.position.features[:, -2:].numpy(), [[1, 2], [3, 4]]
+    )

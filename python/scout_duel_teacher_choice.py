@@ -3,15 +3,18 @@ from __future__ import annotations
 import argparse
 import json
 from collections import Counter
+from dataclasses import replace
 from pathlib import Path
 
+import numpy as np
 import torch
 from torch import Tensor
 
-from antiyoy_rl.turn_credit import load_turn_credit_positions
+from antiyoy_rl.model import UniversalPolicy, encode_rules_batch
+from antiyoy_rl.turn_credit import TurnCreditPosition, load_turn_credit_positions
 
 from .build_bundle import digest
-from .evaluate import paired_comparison_summary
+from .evaluate import load_policy, paired_comparison_summary
 from .scout_duel_turn_value import (
     FEATURE_NAMES,
     DuelEmbedding,
@@ -132,17 +135,53 @@ def agreement(
     }
 
 
+def embed_spatial(source: TurnCreditPosition, model: UniversalPolicy) -> DuelEmbedding:
+    base = embed_position(source)
+    observation = {
+        **source.post_turn,
+        "active_players": np.full_like(source.post_turn["active_players"], source.seat),
+    }
+    rules = encode_rules_batch(list(source.post_turn_rules_json), torch.device("cpu"))
+    with torch.inference_mode():
+        _, _, spatial = model.forward_with_value_features(observation, rules)
+    selected = spatial.cpu()[list(source.slate_indices)]
+    return replace(
+        base,
+        position=replace(
+            base.position,
+            features=torch.cat((base.position.features, selected), dim=1),
+        ),
+    )
+
+
 def scout(
-    training_paths: list[Path], validation_paths: list[Path]
+    training_paths: list[Path],
+    validation_paths: list[Path],
+    encoder_path: Path | None = None,
 ) -> dict[str, object]:
     torch.set_num_threads(1)
+    model = None
+    encoder_config = None
+    if encoder_path is not None:
+        model, encoder_config = load_policy(
+            encoder_path,
+            torch.device("cpu"),
+            profile="classic_generic_2022",
+            generator="procedural_v1",
+            players=2,
+        )
+        if encoder_config["players"] != 2:
+            raise ValueError("spatial encoder must select a two-player expert")
+    embed = (
+        embed_position if model is None else lambda source: embed_spatial(source, model)
+    )
     training = [
-        embed_position(position)
+        embed(position)
         for path in training_paths
         for position in load_turn_credit_positions(path, "teacher")
     ]
     validation = [
-        embed_position(position)
+        embed(position)
         for path in validation_paths
         for position in load_turn_credit_positions(path, "teacher")
     ]
@@ -153,8 +192,25 @@ def scout(
     differences, example_weights = teacher_choice_examples(training)
     weight, scales = train_head(differences, example_weights)
     return {
-        "kind": "procedural_duel_reply_search_teacher_choice_scout",
-        "feature_names": FEATURE_NAMES,
+        "kind": (
+            "procedural_duel_spatial_teacher_choice_scout"
+            if model is not None
+            else "procedural_duel_reply_search_teacher_choice_scout"
+        ),
+        "feature_names": list(FEATURE_NAMES)
+        + [
+            f"frozen_spatial_{index}"
+            for index in range(len(weight) - len(FEATURE_NAMES))
+        ],
+        "encoder": (
+            {
+                "checkpoint_sha256": digest(encoder_path),
+                "selected_expert": encoder_config["selected_expert"],
+                "routing_generator": "procedural_v1",
+            }
+            if encoder_path is not None and encoder_config is not None
+            else None
+        ),
         "training_files": [
             {"name": path.name, "sha256": digest(path)} for path in training_paths
         ],
@@ -178,8 +234,14 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--train", required=True, action="append", type=Path)
     parser.add_argument("--validation", required=True, action="append", type=Path)
+    parser.add_argument("--encoder", type=Path)
     arguments = parser.parse_args()
-    print(json.dumps(scout(arguments.train, arguments.validation), sort_keys=True))
+    print(
+        json.dumps(
+            scout(arguments.train, arguments.validation, arguments.encoder),
+            sort_keys=True,
+        )
+    )
 
 
 if __name__ == "__main__":
