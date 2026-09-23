@@ -2,7 +2,8 @@
   "schema_version": 1,
   "kind": "predeclared_procedural_duel_opponent_plan_imitation_scout",
   "question": "Can searched full-turn opponent action supervision improve a cheap policy's whole-plan agreement on previously unseen procedural maps, especially tactical Move and Build decisions, without changing its frozen spatial encoder?",
-  "arena": "Classic Generic procedural_v2 11x9 two-player, action limit1000, reply-search self-play root256/slate8/opponent64, sample turns whose round modulo8 is zero",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, action limit2400, reply-search self-play root256/slate8/opponent64, sample turns whose round modulo8 is zero",
+  "precollection_amendment": "The first fit collection at action limit1000 had 1/64 truncated maps. Only its aggregate completion count, elapsed time, compressed size and SHA256 were inspected; no opponent-decision data or model metrics were examined. That file is discarded from fit. Before collecting validation data or training, the action limit is raised to2400 and both fit and validation windows are recollected unchanged. This amendment does not alter seeds, objective, hyperparameters or gates.",
   "datasets": {
     "fit": {"first_seed": 6346000, "maps": 64},
     "validation": {"first_seed": 6347000, "maps": 32},
