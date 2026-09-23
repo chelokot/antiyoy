@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_read_only_procedural_duel_reply_divergence_audit",
+  "question": "Where do source and frozen imitation student first diverge from the native searched full opponent turn, and how does that divergence relate to autonomous successor-score error?",
+  "data": "Reuse EXACTLY the completed 16-map procedural_v2 Classic Generic11x9 two-player autonomous probe seed6348000, sampled round modulo8 zero, 80 positions/561 candidate post-turn states. No new maps, training, checkpoint selection or ratings.",
+  "teacher_reconstruction": "From each previously verified post-root candidate state, run the same native whole-turn beam64 search through the Python vector environment, reusing its plan. Require its final root-perspective native position_score to match the stored exact reply_score for every candidate; stop/report failure on any mismatch.",
+  "measurements": "At each exact searched pre-action state, score source and frozen student argmax. For each candidate report first disagreement depth with teacher (0, 1, 2+, never), searched action kind at that depth (EndTurn, Move, Recruit, Build, other), teacher plan length, each policy's completed autonomous reply length and transformed asinh(score/1000) absolute error. Summarize root seat, independent map and whether source/student first actions differ. Separate candidate-level descriptive counts from independent-map comparisons; no causal attribution or online-oracle claim.",
+  "decision_rule": "This is a descriptive localization audit only. Do not promote the student or tune it on these maps, regardless of apparent subgroup advantage. Use the first verified failure boundary to predeclare a fresh intervention before another training run.",
+  "resources": "Remote SSH server only, bounded nice19 one CPU process, no GPU, hard timeout15 minutes, tiny JSON output. Inspect aggregate CPU/memory/disk first; avoid other user workloads and private data."
+}
