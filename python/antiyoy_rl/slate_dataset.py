@@ -24,6 +24,7 @@ class TeacherSlatePosition:
     slate_indices: tuple[int, ...]
     slate_first_actions: tuple[str, ...]
     opponent_actions: tuple[tuple[str, ...], ...] | None
+    post_reply: dict[str, np.ndarray] | None
 
 
 def load_teacher_slates(path: Path) -> list[TeacherSlatePosition]:
@@ -53,6 +54,14 @@ def load_teacher_slates(path: Path) -> list[TeacherSlatePosition]:
         )
         if opponent_actions is not None and len(opponent_actions) != count:
             raise ValueError("teacher slate opponent action counts differ")
+        post_reply = cast(dict[str, object] | None, record.get("post_reply"))
+        reply_observation = None
+        if post_reply is not None:
+            reply_observation, reply_rules = model_observation(post_reply)
+            if len(reply_observation["widths"]) != count:
+                raise ValueError("teacher slate opponent observation counts differ")
+            if reply_rules != rules:
+                raise ValueError("teacher slate opponent observation rules differ")
         chosen = max(
             range(count),
             key=lambda index: (reply[index], static[index], -index),
@@ -83,6 +92,7 @@ def load_teacher_slates(path: Path) -> list[TeacherSlatePosition]:
                     if opponent_actions is not None
                     else None
                 ),
+                post_reply=reply_observation,
             )
         )
     if len(positions) != report["positions"]:

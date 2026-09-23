@@ -306,6 +306,7 @@ mod tests {
                     .step(*action)
                     .expect("searched opponent action is legal");
             }
+            assert_eq!(response.game, replay);
             assert_eq!(
                 response.score,
                 position_score(&replay, game.active_player())

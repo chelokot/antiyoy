@@ -51,6 +51,7 @@ pub struct SearchTurnSlate {
 pub struct SearchReply {
     pub score: i64,
     pub actions: Vec<Action>,
+    pub game: Game,
 }
 
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
@@ -206,6 +207,7 @@ pub fn search_reply(
         return SearchReply {
             score: position_score(&turn.game, root_player),
             actions: Vec::new(),
+            game: turn.game.clone(),
         };
     }
     let mut reply = build_search_turn_slate(&turn.game, reply_config, 1);
@@ -213,6 +215,7 @@ pub fn search_reply(
     SearchReply {
         score: position_score(&completed.game, root_player),
         actions: completed.actions,
+        game: completed.game,
     }
 }
 

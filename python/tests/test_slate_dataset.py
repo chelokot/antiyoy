@@ -61,6 +61,7 @@ def test_teacher_slate_loader_aligns_selection_and_observations(tmp_path: Path) 
         '{"Recruit": {"target": 3}}',
     )
     assert position.opponent_actions is None
+    assert position.post_reply is None
 
 
 def test_teacher_slate_loader_aligns_opponent_actions(tmp_path: Path) -> None:
@@ -78,6 +79,31 @@ def test_teacher_slate_loader_aligns_opponent_actions(tmp_path: Path) -> None:
         ('{"Move": {"source": 4, "target": 5}}', '"EndTurn"'),
         ('"EndTurn"',),
     )
+
+
+def test_teacher_slate_loader_aligns_post_reply_observations(tmp_path: Path) -> None:
+    value = report()
+    value["records"][0]["post_reply"] = value["records"][0]["post_turn"]
+    path = tmp_path / "observed-replies.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+
+    [position] = load_teacher_slates(path)
+
+    assert position.post_reply is not None
+    np.testing.assert_array_equal(position.post_reply["active_players"], [1, 1])
+
+
+def test_teacher_slate_loader_rejects_misaligned_post_reply_observations(
+    tmp_path: Path,
+) -> None:
+    value = report()
+    value["records"][0]["post_reply"] = report()["records"][0]["post_turn"]
+    value["records"][0]["post_reply"]["widths"] = [7]
+    path = tmp_path / "incorrect-observed-replies.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="opponent observation counts differ"):
+        load_teacher_slates(path)
 
 
 def test_teacher_slate_loader_rejects_misaligned_opponent_actions(
