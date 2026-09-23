@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -62,6 +63,7 @@ class TurnCreditPosition:
     root_rules_json: tuple[str, ...]
     post_turn_rules_json: tuple[str, ...]
     outcome_scores: np.ndarray
+    static_scores: np.ndarray
     search_index: int
     greedy_index: int
 
@@ -104,7 +106,11 @@ def outcome_score(continuation: dict[str, object], seat: int) -> int:
 
 
 def load_turn_credit_positions(path: Path) -> list[TurnCreditPosition]:
-    with path.open(encoding="utf-8") as source:
+    if path.suffix == ".gz":
+        source = gzip.open(path, "rt", encoding="utf-8")
+    else:
+        source = path.open(encoding="utf-8")
+    with source:
         report = cast(dict[str, object], json.load(source))
     if report["include_observations"] is not True:
         raise ValueError("turn-credit report requires --include-observations")
@@ -119,6 +125,7 @@ def load_turn_credit_positions(path: Path) -> list[TurnCreditPosition]:
         if len(root["widths"]) != 1 or len(post_rules) != state_count:
             raise ValueError("turn-credit observations have inconsistent batch sizes")
         scores = np.full(state_count, -1, dtype=np.int8)
+        static_scores = np.zeros(state_count, dtype=np.int64)
         seen = np.zeros(state_count, dtype=np.bool_)
         greedy = cast(dict[str, object], record["greedy"])
         search = cast(dict[str, object], record["search"])
@@ -134,7 +141,11 @@ def load_turn_credit_positions(path: Path) -> list[TurnCreditPosition]:
             score = outcome_score(continuation, seat)
             if seen[index] and scores[index] != score:
                 raise ValueError("branches sharing a post-turn state disagree on outcome")
+            static_score = cast(int, branch["static_score"])
+            if seen[index] and static_scores[index] != static_score:
+                raise ValueError("branches sharing a post-turn state disagree on static score")
             scores[index] = score
+            static_scores[index] = static_score
             seen[index] = True
         if not seen.all():
             raise ValueError("a post-turn state has no outcome label")
@@ -148,6 +159,7 @@ def load_turn_credit_positions(path: Path) -> list[TurnCreditPosition]:
                 root_rules_json=root_rules,
                 post_turn_rules_json=post_rules,
                 outcome_scores=scores,
+                static_scores=static_scores,
                 search_index=cast(int, search["state_index"]),
                 greedy_index=cast(int, greedy["state_index"]),
             )

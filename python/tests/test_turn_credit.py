@@ -1,3 +1,4 @@
+import gzip
 import json
 from pathlib import Path
 
@@ -32,6 +33,7 @@ def observation(states: int) -> dict[str, object]:
 def branch(index: int, winner: int | None, truncated: bool = False) -> dict[str, object]:
     return {
         "state_index": index,
+        "static_score": 100 + index,
         "continuation": {"winner": winner, "truncated": truncated},
     }
 
@@ -67,6 +69,7 @@ def test_load_turn_credit_preserves_state_labels_and_censoring(tmp_path: Path) -
     assert (position.seed, position.seat, position.round) == (71, 0, 4)
     assert (position.greedy_index, position.search_index) == (0, 1)
     np.testing.assert_array_equal(position.outcome_scores, [0, 2, -1])
+    np.testing.assert_array_equal(position.static_scores, [100, 101, 102])
     np.testing.assert_array_equal(position.complete, [True, True, False])
     np.testing.assert_array_equal(position.post_turn["action_kinds"], [0, 0, 0])
     np.testing.assert_array_equal(position.post_turn["action_offsets"], [0, 1, 2, 3])
@@ -110,3 +113,13 @@ def test_loader_requires_observations(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="--include-observations"):
         load_turn_credit_positions(path)
+
+
+def test_loader_accepts_compressed_reports(tmp_path: Path) -> None:
+    path = tmp_path / "credit.json.gz"
+    with gzip.open(path, "wt", encoding="utf-8") as destination:
+        json.dump(report(), destination)
+
+    [position] = load_turn_credit_positions(path)
+
+    np.testing.assert_array_equal(position.outcome_scores, [0, 2, -1])

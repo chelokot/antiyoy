@@ -143,6 +143,16 @@ marks truncated continuations with outcome score `-1`. Complete continuations
 use `0` for a loss, `1` for a draw, and `2` for a win from the sampled seat's
 perspective. Train/test splits must keep every seat from the same map seed
 together; a terminal-continuation label is conditional on greedy opponents.
+For large studies, compress JSON output with `gzip`; the loader accepts both
+`.json` and `.json.gz` without expanding datasets on disk.
+`python -m python.scout_turn_value` accepts repeated `--train` and
+`--validation` paths plus a released policy `--checkpoint` and an `--output`
+report path. It freezes the policy encoder, learns a map-balanced pairwise
+head only from complete outcome-discordant slates, and reports held-out
+outcome changes by seat and independent map. Its choices are evaluated offline
+under the recorded greedy continuations; a second, predeclared conservative
+comparison requires a learned pairwise log-odds margin above `1.0` before
+departing from search. No head is deployed on that evidence.
 
 An offline minimum-score-gain gate can be audited from these records by keeping
 only search turns whose `search.static_score - greedy.static_score` reaches a
