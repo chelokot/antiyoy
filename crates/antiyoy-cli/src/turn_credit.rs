@@ -6,6 +6,7 @@ use antiyoy_agents::{
     Agent, GreedyAgent, SearchAgent, SearchConfig, position_score, search_turn_slate,
 };
 use antiyoy_core::{Action, Game, GeneratorConfig, PlayerId, Rules, adjudicate};
+use antiyoy_rl::BatchObservation;
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 
@@ -24,6 +25,14 @@ struct BranchRecord {
     actions: Vec<Action>,
     static_score: i64,
     continuation: Continuation,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    state_index: Option<usize>,
+}
+
+#[derive(Debug, Serialize)]
+struct ObservationRecord {
+    root: BatchObservation,
+    post_turn: BatchObservation,
 }
 
 #[derive(Debug, Serialize)]
@@ -53,6 +62,8 @@ struct CreditRecord {
     search: BranchRecord,
     alternatives: Vec<AlternativeRecord>,
     beam_candidates: Vec<BeamRecord>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    observations: Option<ObservationRecord>,
 }
 
 #[derive(Debug, Serialize)]
@@ -67,6 +78,7 @@ struct TurnCreditSummary {
     search_nodes: usize,
     alternative_search_nodes: Vec<usize>,
     beam_slate_size: usize,
+    include_observations: bool,
     maximum_actions_per_turn: usize,
     positions: usize,
     different_end_states: u32,
@@ -89,6 +101,7 @@ struct CreditConfig {
     search: SearchConfig,
     alternative_search_nodes: Vec<usize>,
     beam_slate_size: usize,
+    include_observations: bool,
 }
 
 pub(super) fn run(arguments: &TurnCreditArgs) -> Result<()> {
@@ -112,6 +125,7 @@ pub(super) fn run(arguments: &TurnCreditArgs) -> Result<()> {
             },
             alternative_search_nodes: arguments.alternative_search_nodes.clone(),
             beam_slate_size: arguments.beam_slate_size,
+            include_observations: arguments.include_observations,
         },
     )?;
     print_value(&summary, arguments.json)
@@ -206,6 +220,7 @@ fn diagnose(
         search_nodes: config.search.node_budget,
         alternative_search_nodes: config.alternative_search_nodes,
         beam_slate_size: config.beam_slate_size,
+        include_observations: config.include_observations,
         maximum_actions_per_turn: config.search.maximum_actions_per_turn,
         positions: records.len(),
         different_end_states,
@@ -289,7 +304,7 @@ fn analyze_turn(state: &Game, seed: u64, config: &CreditConfig) -> Result<Credit
         compare_alternative_budgets(state, config, &greedy_turn.game, &mut completed_states)?;
     let mut beam_candidates = Vec::with_capacity(search_slate.turns.len().saturating_sub(1));
     for (rank, turn) in search_slate.turns.into_iter().enumerate().skip(1) {
-        let continuation = continuation_for_state(
+        let (state_index, continuation) = continuation_for_state(
             &turn.game,
             PlayerId(seat),
             config.rollout_limit,
@@ -302,9 +317,13 @@ fn analyze_turn(state: &Game, seed: u64, config: &CreditConfig) -> Result<Credit
                 actions: turn.actions,
                 static_score: turn.score,
                 continuation,
+                state_index: config.include_observations.then_some(state_index),
             },
         });
     }
+    let observations = config
+        .include_observations
+        .then(|| observe_states(state, &completed_states));
     Ok(CreditRecord {
         seed,
         seat,
@@ -316,14 +335,19 @@ fn analyze_turn(state: &Game, seed: u64, config: &CreditConfig) -> Result<Credit
             actions: greedy_turn.actions,
             static_score: greedy_turn.score,
             continuation: greedy_result,
+            state_index: config.include_observations.then_some(0),
         },
         search: BranchRecord {
             actions: search_turn.actions,
             static_score: search_turn.score,
             continuation: search_result,
+            state_index: config
+                .include_observations
+                .then_some(usize::from(different)),
         },
         alternatives,
         beam_candidates,
+        observations,
     })
 }
 
@@ -348,7 +372,7 @@ fn compare_alternative_budgets(
             &mut agent,
             config.search.maximum_actions_per_turn,
         )?;
-        let continuation = continuation_for_state(
+        let (state_index, continuation) = continuation_for_state(
             &turn.game,
             state.active_player(),
             config.rollout_limit,
@@ -362,6 +386,7 @@ fn compare_alternative_budgets(
                 actions: turn.actions,
                 static_score: turn.score,
                 continuation,
+                state_index: config.include_observations.then_some(state_index),
             },
         });
     }
@@ -373,13 +398,45 @@ fn continuation_for_state(
     player: PlayerId,
     action_limit: u32,
     completed_states: &mut Vec<(Game, Continuation)>,
-) -> Result<Continuation> {
-    if let Some((_, result)) = completed_states.iter().find(|(state, _)| state == game) {
-        return Ok(*result);
+) -> Result<(usize, Continuation)> {
+    if let Some((index, (_, result))) = completed_states
+        .iter()
+        .enumerate()
+        .find(|(_, (state, _))| state == game)
+    {
+        return Ok((index, *result));
     }
     let result = continue_with_greedy(game.clone(), player, action_limit)?;
+    let index = completed_states.len();
     completed_states.push((game.clone(), result));
-    Ok(result)
+    Ok((index, result))
+}
+
+fn observe_states(root: &Game, states: &[(Game, Continuation)]) -> ObservationRecord {
+    let mut root_actions = Vec::new();
+    root.legal_actions(&mut root_actions);
+    let mut root_observation = BatchObservation::default();
+    root_observation.observe_game(root, &root_actions, false);
+
+    let legal_actions = states
+        .iter()
+        .map(|(game, _)| {
+            let mut actions = Vec::new();
+            game.legal_actions(&mut actions);
+            actions
+        })
+        .collect::<Vec<_>>();
+    let games = states
+        .iter()
+        .zip(&legal_actions)
+        .map(|((game, _), actions)| (game, actions.as_slice()))
+        .collect::<Vec<_>>();
+    let mut post_turn = BatchObservation::default();
+    post_turn.observe_games(&games, false);
+    ObservationRecord {
+        root: root_observation,
+        post_turn,
+    }
 }
 
 fn sample_round_states(mut game: Game, target_round: u32, action_limit: u32) -> Result<Vec<Game>> {
@@ -607,6 +664,7 @@ mod tests {
                 },
                 alternative_search_nodes: vec![4, 8],
                 beam_slate_size: 4,
+                include_observations: true,
             },
         )
         .expect("valid diagnostic");
@@ -629,6 +687,91 @@ mod tests {
                 && record.beam_candidates.len() <= 3
                 && record.distinct_end_states <= 7
         }));
+        for record in &report.records {
+            let observations = record.observations.as_ref().expect("opt-in observations");
+            assert_eq!(observations.root.active_players, vec![record.seat]);
+            assert_eq!(
+                observations.post_turn.widths.len(),
+                record.distinct_end_states
+            );
+            assert_eq!(
+                observations.post_turn.cell_offsets.len(),
+                record.distinct_end_states + 1
+            );
+            let branches = std::iter::once(&record.greedy)
+                .chain(std::iter::once(&record.search))
+                .chain(
+                    record
+                        .alternatives
+                        .iter()
+                        .map(|candidate| &candidate.branch),
+                )
+                .chain(
+                    record
+                        .beam_candidates
+                        .iter()
+                        .map(|candidate| &candidate.branch),
+                );
+            let mut continuations = vec![None; record.distinct_end_states];
+            for branch in branches {
+                let index = branch.state_index.expect("mapped branch");
+                assert!(index < record.distinct_end_states);
+                match continuations[index] {
+                    Some(continuation) => assert_eq!(continuation, branch.continuation),
+                    None => continuations[index] = Some(branch.continuation),
+                }
+            }
+            assert!(continuations.into_iter().all(|value| value.is_some()));
+        }
+    }
+
+    #[test]
+    fn observations_are_absent_unless_requested() {
+        let report = diagnose(
+            GeneratorConfig {
+                schema_version: 2,
+                width: 11,
+                height: 9,
+                players: 3,
+                seed: 506,
+                ..GeneratorConfig::default()
+            },
+            &Rules::classic_generic(),
+            "classic_generic_2022",
+            1,
+            CreditConfig {
+                target_round: 1,
+                rollin_seat: None,
+                rollout_limit: 32,
+                search: SearchConfig {
+                    node_budget: 2,
+                    maximum_actions_per_turn: 8,
+                    ..SearchConfig::default()
+                },
+                alternative_search_nodes: Vec::new(),
+                beam_slate_size: 2,
+                include_observations: false,
+            },
+        )
+        .expect("valid diagnostic");
+        for record in &report.records {
+            assert!(record.observations.is_none());
+            assert!(record.greedy.state_index.is_none());
+            assert!(record.search.state_index.is_none());
+            assert!(
+                record
+                    .beam_candidates
+                    .iter()
+                    .all(|candidate| candidate.branch.state_index.is_none())
+            );
+        }
+        let serialized = serde_json::to_value(report).expect("serializable report");
+        assert!(serialized["records"][0].get("observations").is_none());
+        assert!(
+            serialized["records"][0]["greedy"]
+                .get("state_index")
+                .is_none()
+        );
     }
 
     #[test]
@@ -651,6 +794,7 @@ mod tests {
                 search: SearchConfig::default(),
                 alternative_search_nodes: Vec::new(),
                 beam_slate_size: 0,
+                include_observations: false,
             },
         );
         assert!(result.is_err());
@@ -680,6 +824,7 @@ mod tests {
                     },
                     alternative_search_nodes: budgets,
                     beam_slate_size: 0,
+                    include_observations: false,
                 },
             );
             assert!(result.is_err());
@@ -712,6 +857,7 @@ mod tests {
                 search: SearchConfig::default(),
                 alternative_search_nodes: Vec::new(),
                 beam_slate_size: 0,
+                include_observations: false,
             },
         )
         .expect("valid roll-in");

@@ -131,6 +131,19 @@ terminal labels among distinct completed turns, while a simple equal-score
 rank-one tie-break failed on fresh maps. This supports collecting training
 examples, not promoting a new policy.
 
+`--include-observations` adds the unfogged root observation and one canonical
+RL batch observation per distinct post-turn state. Each branch receives a
+`state_index` into that post-turn batch, so duplicate states share an exact
+observation and continuation label. The sampled seat remains in `seat`; a
+post-turn observation normally has the next player active. Omit the flag for
+compact diagnostic output with no observation serialization.
+`antiyoy_rl.turn_credit.load_turn_credit_positions` converts these batches to
+the arrays used by `UniversalPolicy`, preserves map seed and acting seat, and
+marks truncated continuations with outcome score `-1`. Complete continuations
+use `0` for a loss, `1` for a draw, and `2` for a win from the sampled seat's
+perspective. Train/test splits must keep every seat from the same map seed
+together; a terminal-continuation label is conditional on greedy opponents.
+
 An offline minimum-score-gain gate can be audited from these records by keeping
 only search turns whose `search.static_score - greedy.static_score` reaches a
 prechosen margin. Choose the margin on one seed window and validate it on a
