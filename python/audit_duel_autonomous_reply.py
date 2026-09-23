@@ -67,6 +67,31 @@ def selected_candidate(scores: list[int], static_scores: list[int]) -> int:
     )
 
 
+def candidate_score_record(
+    seed: int,
+    record: dict[str, object],
+    autonomous_scores: dict[str, list[int | None]],
+) -> dict[str, object]:
+    static_scores = record["static_scores"]
+    return {
+        "seed": seed,
+        "root_seat": record["seat"],
+        "round": record["round"],
+        "native_selected_index": record["selected_index"],
+        "static_scores": static_scores,
+        "native_reply_scores": record["reply_scores"],
+        "autonomous_reply_scores": autonomous_scores,
+        "autonomous_selected_indices": {
+            name: (
+                selected_candidate([int(score) for score in scores], static_scores)
+                if all(score is not None for score in scores)
+                else None
+            )
+            for name, scores in autonomous_scores.items()
+        },
+    }
+
+
 def compare_map_errors(
     response_errors: dict[int, list[tuple[float, float]]],
 ) -> tuple[dict[str, float | int], list[dict[str, float | int]]]:
@@ -147,6 +172,7 @@ def audit(
     source_path: Path,
     head_path: Path,
     diagnose: bool = False,
+    include_candidate_scores: bool = False,
 ) -> dict[str, object]:
     torch.set_num_threads(1)
     with gzip.open(dataset_path, "rt", encoding="utf-8") as source_file:
@@ -167,6 +193,7 @@ def audit(
     candidate_count = 0
     checked_positions = 0
     divergence = []
+    candidate_scores = []
     for position in replay_slate_positions(dataset):
         seed, record = position.seed, position.record
         rules = encode_rules_batch([position.root.rules_json()], torch.device("cpu"))
@@ -230,6 +257,10 @@ def audit(
                     record["static_scores"],
                 )
                 selected_matches[name] += choice == record["selected_index"]
+        if include_candidate_scores:
+            candidate_scores.append(
+                candidate_score_record(seed, record, autonomous_scores)
+            )
         checked_positions += 1
     comparison, map_ledger = compare_map_errors(response_errors)
     by_seat = {}
@@ -264,6 +295,8 @@ def audit(
     }
     if diagnose:
         report["divergence"] = divergence
+    if include_candidate_scores:
+        report["candidate_score_records"] = candidate_scores
     return report
 
 
@@ -273,6 +306,7 @@ def main() -> None:
     parser.add_argument("source", type=Path)
     parser.add_argument("head", type=Path)
     parser.add_argument("--diagnose", action="store_true")
+    parser.add_argument("--include-candidate-scores", action="store_true")
     arguments = parser.parse_args()
     print(
         json.dumps(
@@ -281,6 +315,7 @@ def main() -> None:
                 arguments.source,
                 arguments.head,
                 diagnose=arguments.diagnose,
+                include_candidate_scores=arguments.include_candidate_scores,
             ),
             sort_keys=True,
         )

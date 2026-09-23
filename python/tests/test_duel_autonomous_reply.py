@@ -9,6 +9,7 @@ from antiyoy_rl import VectorEnv
 from antiyoy_rl.model import UniversalPolicy, encode_rules_batch
 
 from python.audit_duel_autonomous_reply import (
+    candidate_score_record,
     compare_map_errors,
     searched_reply_diagnostic,
     selected_candidate,
@@ -25,6 +26,24 @@ def test_transformed_error_keeps_terminal_scores_finite() -> None:
 def test_selected_candidate_uses_native_static_and_rank_tie_breaks() -> None:
     assert selected_candidate([5, 5, 4], [1, 2, 100]) == 1
     assert selected_candidate([5, 5, 5], [2, 2, 2]) == 0
+
+
+def test_candidate_score_record_preserves_paired_rankings_and_censoring() -> None:
+    record = {
+        "seat": 1,
+        "round": 8,
+        "selected_index": 2,
+        "static_scores": [10, 20, 20],
+        "reply_scores": [5, 7, 9],
+    }
+
+    exported = candidate_score_record(
+        71, record, {"source": [2, 5, 5], "student": [3, None, 1]}
+    )
+
+    assert exported["autonomous_selected_indices"] == {"source": 1, "student": None}
+    assert exported["native_reply_scores"] == [5, 7, 9]
+    json.dumps(exported)
 
 
 def test_map_error_comparison_serializes_numpy_comparisons() -> None:
