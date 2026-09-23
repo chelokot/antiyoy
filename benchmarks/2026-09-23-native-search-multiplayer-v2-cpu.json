@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "kind": "paired_native_multiplayer_agent_comparison",
+  "implementation_commit": "bfdf74f33a4732b12db4a569e4e925b3600bd564",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 1,
+    "process_priority": "nice 19",
+    "gpu_used": false
+  },
+  "arena": {
+    "generator_schema_version": 2,
+    "rules": "classic_generic_2022",
+    "width": 19,
+    "height": 15,
+    "players": 5,
+    "maps": 128,
+    "first_seed": 5000000,
+    "candidate_games": 640,
+    "baseline_reference_games": 128,
+    "action_limit": 2400,
+    "candidate": "native whole-turn beam search, 256 nodes",
+    "baseline": "native deterministic greedy",
+    "command": "nice -n 19 target/release/antiyoy multi-compare --map procedural --generator-schema-version 2 --width 19 --height 15 --players 5 --maps 128 --seed 5000000 --action-limit 2400 --candidate search --baseline greedy --search-nodes 256 --json"
+  },
+  "outcome": {
+    "candidate_wins_by_seat": [32, 30, 18, 32, 23],
+    "baseline_wins_by_seat": [34, 29, 17, 33, 15],
+    "candidate_wins": 135,
+    "baseline_expected_wins": 128,
+    "paired_seat_better": 20,
+    "paired_seat_worse": 13,
+    "paired_seat_same": 607,
+    "independent_map_better": 19,
+    "independent_map_worse": 12,
+    "independent_map_same": 97,
+    "independent_map_exact_two_sided_sign_test_p": 0.28104151505976915,
+    "candidate_truncations": 4,
+    "baseline_reference_truncations": 0,
+    "total_actions": 573671,
+    "elapsed_seconds": 355.133967671,
+    "raw_result_sha256": "a53a4b386a5c2dcd6d9a003e6bef6fd0a4f5e773ec3c8fb31e8e28d61d28e872"
+  },
+  "decision": "At 256 nodes, whole-turn search is not established as stronger than greedy on this five-player procedural domain. The 7-win aggregate lift corresponds to 19 improved versus 12 worsened independent maps, with a two-sided exact p-value of 0.281. Do not transfer the much stronger fixed-duel Elo claim to this domain.",
+  "limitations": "All five seat replacements on one seed share the same map and greedy reference, so seat games are correlated. The significance calculation groups by independent map and tests whether its total candidate wins exceed the one baseline win. Four candidate games reached the action limit and were adjudicated. This is one ruleset and map size, not universal strength or a human Elo."
+}
