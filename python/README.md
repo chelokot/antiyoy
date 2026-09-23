@@ -469,6 +469,13 @@ reports terminal or adjudicated outcomes under the same frozen direct-policy
 continuation. It reports censored branches separately if a horizon is set.
 These conditional pair labels diagnose search-value ranking; they are not an
 online strength rating and should not be promoted without fresh paired games.
+Use `--single-disagreement` with `evaluate.py --baseline policy --model-agent puct`
+to search until the first action that differs from the frozen direct policy,
+then finish each game entirely with that direct policy. The result records how
+many games received an intervention and the searched-root count. Compare this
+diagnostic with full-game PUCT on disjoint matched maps to distinguish the
+first search correction from errors introduced by repeated replanning. It is
+not a separate trained agent or a substitute for an all-seat strength gate.
 
 Compare the cheap student against the exact frozen source on disjoint seeds:
 

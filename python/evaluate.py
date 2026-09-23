@@ -435,6 +435,7 @@ def evaluate(
     maxn_value_head_path: Path | None = None,
     generator_schema_version: int = GENERATOR_SCHEMA_VERSION,
     route_generator: str | None = None,
+    single_disagreement: bool = False,
 ) -> dict[str, object]:
     if generator_schema_version not in (
         GENERATOR_SCHEMA_VERSION,
@@ -451,6 +452,14 @@ def evaluate(
         raise ValueError("unsupported policy route generator")
     if model_agent not in ("policy", "puct"):
         raise ValueError(f"unsupported model agent: {model_agent}")
+    if single_disagreement and (
+        model_agent != "puct"
+        or baseline != "policy"
+        or baseline_checkpoint_path is not None
+    ):
+        raise ValueError(
+            "single-disagreement intervention requires PUCT against its own direct policy"
+        )
     if baseline_checkpoint_path is not None and baseline != "policy":
         raise ValueError("a baseline checkpoint requires the policy baseline")
     if maxn_value_head_path is not None and (
@@ -705,6 +714,7 @@ def evaluate(
     puct_selected_unvisited_actions = 0
     model_baseline_action_disagreements = 0
     model_policy_decisions = 0
+    intervened = np.zeros(games, dtype=np.bool_)
     puct_config = PolicySearchConfig(
         node_budget=puct_nodes,
         exploration=puct_exploration,
@@ -721,17 +731,22 @@ def evaluate(
         active_players = observation["active_players"]
         active = np.logical_not(finished)
         model_turns = np.logical_and(active, active_players == model_seats)
+        model_search_turns = (
+            np.logical_and(model_turns, np.logical_not(intervened))
+            if single_disagreement
+            else model_turns
+        )
         if model_agent == "puct":
             model_actions, puct_metrics = policy_search_actions(
                 environment,
                 routed_policy,
                 rules,
-                model_turns,
+                model_search_turns,
                 puct_config,
                 include_root_targets=True,
                 maxn_evaluator=fast_maxn_evaluator,
             )
-            puct_decisions += int(model_turns.sum())
+            puct_decisions += int(model_search_turns.sum())
             puct_evaluated_leaves += puct_metrics["evaluated_leaves"]
             puct_leaf_batches += puct_metrics["leaf_batches"]
             puct_total_nodes += int(puct_metrics["nodes"].sum())
@@ -750,14 +765,16 @@ def evaluate(
             visited_counts = (
                 visited_prefix[root_offsets[1:]] - visited_prefix[root_offsets[:-1]]
             )
-            puct_root_legal_actions += int(np.diff(root_offsets)[model_turns].sum())
-            puct_root_visited_actions += int(visited_counts[model_turns].sum())
-            puct_roots_with_multiple_visited_actions += int(
-                np.count_nonzero(visited_counts[model_turns] > 1)
+            puct_root_legal_actions += int(
+                np.diff(root_offsets)[model_search_turns].sum()
             )
-            selected_root_indices = root_offsets[:-1][model_turns] + model_actions[
-                model_turns
-            ].astype(np.intp, copy=False)
+            puct_root_visited_actions += int(visited_counts[model_search_turns].sum())
+            puct_roots_with_multiple_visited_actions += int(
+                np.count_nonzero(visited_counts[model_search_turns] > 1)
+            )
+            selected_root_indices = root_offsets[:-1][
+                model_search_turns
+            ] + model_actions[model_search_turns].astype(np.intp, copy=False)
             puct_selected_unvisited_actions += int(
                 np.count_nonzero(root_action_visits[selected_root_indices] == 0)
             )
@@ -781,6 +798,12 @@ def evaluate(
                 search_branch_width,
                 search_maximum_actions_per_turn,
             )
+        if single_disagreement:
+            disagreements = np.logical_and(
+                model_search_turns, model_actions != baseline_actions
+            )
+            model_actions = np.where(disagreements, model_actions, baseline_actions)
+            intervened = np.logical_or(intervened, disagreements)
         actions = np.where(
             active_players == model_seats, model_actions, baseline_actions
         )
@@ -1011,6 +1034,12 @@ def evaluate(
             "root_visited_actions": puct_root_visited_actions,
             "roots_with_multiple_visited_actions": puct_roots_with_multiple_visited_actions,
             "selected_unvisited_actions": puct_selected_unvisited_actions,
+            "single_disagreement_intervention": single_disagreement,
+            "intervened_games": int(intervened.sum()),
+            "intervened_games_by_seat": [
+                int(np.count_nonzero(np.logical_and(intervened, model_seats == seat)))
+                for seat in range(players)
+            ],
         },
         "search_nodes": search_nodes if baseline == "search" else 0,
         "search_beam_width": search_beam_width if baseline == "search" else 0,
@@ -1057,6 +1086,7 @@ def main() -> None:
     parser.add_argument("--players", type=int, default=2)
     parser.add_argument("--model-seat", type=int)
     parser.add_argument("--model-agent", choices=("policy", "puct"), default="policy")
+    parser.add_argument("--single-disagreement", action="store_true")
     parser.add_argument("--puct-nodes", type=int, default=256)
     parser.add_argument("--puct-exploration", type=float, default=1.5)
     parser.add_argument("--puct-virtual-loss", type=float, default=1.0)
@@ -1104,6 +1134,14 @@ def main() -> None:
         parser.error("generator schema 2 requires --procedural")
     if arguments.baseline_checkpoint is not None and arguments.baseline != "policy":
         parser.error("--baseline-checkpoint requires --baseline policy")
+    if arguments.single_disagreement and (
+        arguments.model_agent != "puct"
+        or arguments.baseline != "policy"
+        or arguments.baseline_checkpoint is not None
+    ):
+        parser.error(
+            "--single-disagreement requires PUCT against its own direct policy"
+        )
     print(
         json.dumps(
             evaluate(
@@ -1144,6 +1182,7 @@ def main() -> None:
                 arguments.maxn_value_head,
                 arguments.generator_schema_version,
                 arguments.route_generator,
+                arguments.single_disagreement,
             ),
             sort_keys=True,
         )

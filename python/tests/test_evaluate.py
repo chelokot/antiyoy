@@ -8,6 +8,7 @@ pytest.importorskip("torch")
 
 import torch
 
+import python.evaluate as evaluate_module
 from antiyoy_rl.model import UniversalPolicy
 from antiyoy_rl.vector_value import (
     VECTOR_VALUE_ARTIFACT_KIND,
@@ -314,6 +315,117 @@ def test_policy_search_runs_the_native_tree_for_every_model_decision(
     assert search["opponent_horizon"] == "search"
     assert search["objective"] == "scalar"
     assert result["score_delta"] == pytest.approx(0.0)
+
+
+def test_single_disagreement_search_intervenes_at_most_once_per_game(
+    tmp_path: Path,
+) -> None:
+    checkpoint = tmp_path / "policy.pt"
+    write_checkpoint(checkpoint, 1.0)
+
+    result = evaluate(
+        checkpoint,
+        games=4,
+        seed=91_110,
+        device_name="cpu",
+        baseline="policy",
+        profile="classic_generic_2022",
+        search_nodes=8,
+        search_beam_width=4,
+        search_branch_width=4,
+        search_maximum_actions_per_turn=4,
+        width=7,
+        height=5,
+        action_limit=24,
+        model_agent="puct",
+        puct_nodes=4,
+        puct_root_value_weight=0.0,
+        puct_leaf_batch_size=8,
+        single_disagreement=True,
+    )
+
+    search = result["policy_search"]
+    disagreements = result["model_baseline_policy_actions"]["disagreements"]
+    assert search["single_disagreement_intervention"]
+    assert search["intervened_games"] == disagreements
+    assert sum(search["intervened_games_by_seat"]) == disagreements
+    assert disagreements <= result["games"]
+    assert search["decisions"] <= result["model_baseline_policy_actions"]["decisions"]
+    assert search["root_visited_actions"] <= search["root_legal_actions"]
+    if disagreements == 0:
+        assert result["score_delta"] == pytest.approx(0.0)
+
+
+def test_single_disagreement_stops_search_after_the_first_changed_action(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkpoint = tmp_path / "policy.pt"
+    write_checkpoint(checkpoint, 1.0)
+    native_search = evaluate_module.policy_search_actions
+
+    def force_changed_action(environment, policy, rules, selected, config, **kwargs):
+        actions, metrics = native_search(
+            environment, policy, rules, selected, config, **kwargs
+        )
+        observation = environment.observe()
+        direct = policy.actions(observation, rules)
+        offsets = observation["action_offsets"]
+        for index in np.flatnonzero(selected):
+            legal_count = int(offsets[index + 1] - offsets[index])
+            if legal_count > 1:
+                actions[index] = (int(direct[index]) + 1) % legal_count
+        return actions, metrics
+
+    monkeypatch.setattr(evaluate_module, "policy_search_actions", force_changed_action)
+    result = evaluate(
+        checkpoint,
+        games=2,
+        seed=91_112,
+        device_name="cpu",
+        baseline="policy",
+        profile="classic_generic_2022",
+        search_nodes=8,
+        search_beam_width=4,
+        search_branch_width=4,
+        search_maximum_actions_per_turn=4,
+        width=7,
+        height=5,
+        action_limit=24,
+        model_agent="puct",
+        puct_nodes=4,
+        puct_root_value_weight=0.0,
+        puct_leaf_batch_size=8,
+        single_disagreement=True,
+    )
+
+    assert result["policy_search"]["intervened_games"] == 2
+    assert result["policy_search"]["intervened_games_by_seat"] == [1, 1]
+    assert result["model_baseline_policy_actions"]["disagreements"] == 2
+
+
+def test_single_disagreement_requires_an_identical_direct_reference(
+    tmp_path: Path,
+) -> None:
+    checkpoint = tmp_path / "policy.pt"
+    write_checkpoint(checkpoint, 1.0)
+    with pytest.raises(ValueError, match="requires PUCT against its own direct policy"):
+        evaluate(
+            checkpoint,
+            games=2,
+            seed=91_111,
+            device_name="cpu",
+            baseline="policy",
+            profile="classic_generic_2022",
+            search_nodes=8,
+            search_beam_width=4,
+            search_branch_width=4,
+            search_maximum_actions_per_turn=4,
+            width=7,
+            height=5,
+            action_limit=12,
+            model_agent="policy",
+            single_disagreement=True,
+        )
 
 
 def test_maxn_policy_search_loads_a_matching_one_pass_value_head(
