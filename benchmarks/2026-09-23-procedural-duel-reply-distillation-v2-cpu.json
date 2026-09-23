@@ -82,5 +82,34 @@
     },
     "raw_result_sha256": "5133159f542b23351f07b0f03cfc023cb3d4432ece5e756ac80d680677d32036"
   },
-  "interpretation": "The teacher was a stronger search agent, but the first policy-rollin imitation student became significantly weaker than its routed-v6 initialization on disjoint procedural duel maps. The loss was concentrated in the second seat. In a separate same-state audit, it learned fewer than one-third of teacher-versus-source corrections and also introduced new disagreements where teacher and source agreed. Imitation accuracy did not predict online strength; this checkpoint is rejected and not promoted. This is a failed distillation stage, not evidence against the independently validated teacher."
+  "correction_weighted_experiment": {
+    "training_seed_first": 6235100,
+    "imitation_updates": 512,
+    "teacher_labels": 16384,
+    "imitation_disagreement_weight": 4.0,
+    "imitation_reference_weight": 0.5,
+    "imitation_seconds": 240.61901638982818,
+    "average_imitation_accuracy": 0.7228393554687498,
+    "checkpoint_sha256": "754b7ce18ca84e4aaa03a767dc955d407a8027bbf8607e8a72c737531a511a07",
+    "training_log_sha256": "b550af07c6a863b71a038d0e69560d864a5c069014e309412ed4e95d5df411da",
+    "development_seed_first": 6237000,
+    "development_maps": 64,
+    "development_games": 128,
+    "student_wins": 57,
+    "source_wins": 71,
+    "frozen_source_self_play_reference_wins": 64,
+    "student_better_independent_maps": 8,
+    "source_better_independent_maps": 15,
+    "same_independent_maps": 41,
+    "exact_two_sided_sign_test_p": 0.21003961563110352,
+    "score_delta": -0.0546875,
+    "map_cluster_bootstrap_95_score_delta": [-0.1328125, 0.015625],
+    "student_truncations": 0,
+    "source_truncations": 0,
+    "teacher_source_disagreements_on_student_match_states": 3858,
+    "student_matches_teacher_on_disagreements": 1216,
+    "student_deviates_when_teacher_matches_source": 632,
+    "raw_result_sha256": "5c84cb9fb9a92809ea7c2d8cb29a98393575f87edaaa8cff6c9d15dd0ae90c35"
+  },
+  "interpretation": "The teacher was a stronger search agent, but the first policy-rollin imitation student became significantly weaker than its routed-v6 initialization on disjoint procedural duel maps. A same-state audit found that it learned fewer than one-third of teacher-versus-source corrections and also introduced new disagreements where teacher and source agreed. A predeclared second experiment upweighted corrections and strengthened source KL, yet remained below the source on a different fresh 64-map gate and still matched only 31.5% of teacher corrections. Neither checkpoint is promoted. Imitation accuracy did not predict online strength; this is a failed distillation stage, not evidence against the independently validated teacher."
 }
