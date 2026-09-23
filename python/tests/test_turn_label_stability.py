@@ -10,11 +10,12 @@ def position(
     seat: int,
     greedy: list[int],
     opponent_search: list[int] | None,
+    round_number: int = 4,
 ) -> TurnCreditPosition:
     return TurnCreditPosition(
         seed=seed,
         seat=seat,
-        round=4,
+        round=round_number,
         root={},
         post_turn={},
         root_rules_json=(),
@@ -37,7 +38,7 @@ def test_audit_distinguishes_outcome_changes_from_preference_reversals() -> None
         [
             position(10, 0, [0, 2, -1], [2, 0, -1]),
             position(10, 1, [1, 2], [1, 2]),
-            position(11, 2, [0, 0], [0, 2]),
+            position(11, 2, [0, 0], [0, 2], round_number=14),
         ]
     )
 
@@ -54,6 +55,7 @@ def test_audit_distinguishes_outcome_changes_from_preference_reversals() -> None
         "strict_reversals": 1,
         "greedy_better_probe_not": 1,
         "probe_better_greedy_not": 1,
+        "robust_better": 1,
         "same": 1,
         "censored": 1,
     }
@@ -62,14 +64,28 @@ def test_audit_distinguishes_outcome_changes_from_preference_reversals() -> None
     assert summary["positions_with_informative_candidate"] == 3
     assert summary["positions_with_changed_candidate_preference"] == 2
     assert summary["positions_with_strict_preference_reversal"] == 1
+    assert summary["positions_with_robust_better_candidate"] == 1
     assert summary["maps_with_informative_candidate"] == 2
     assert summary["maps_with_changed_candidate_preference"] == 2
     assert summary["maps_with_strict_preference_reversal"] == 1
+    assert summary["maps_with_robust_better_candidate"] == 1
     assert summary["maps_with_better_candidate"] == {
         "greedy_continuation": 1,
         "search_opponents": 2,
     }
     assert summary["by_seat"]["1"] == {"positions": 1}
+    assert summary["by_round_decade"] == {
+        "0-9": {
+            "positions": 2,
+            "informative_positions": 2,
+            "changed_preference_positions": 1,
+        },
+        "10-19": {
+            "positions": 1,
+            "informative_positions": 1,
+            "changed_preference_positions": 1,
+        },
+    }
 
 
 def test_audit_requires_aligned_probe_labels() -> None:

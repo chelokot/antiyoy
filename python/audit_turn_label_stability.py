@@ -28,23 +28,29 @@ def summarize(positions: list[TurnCreditPosition]) -> dict[str, object]:
     informative_maps = set()
     affected_preference_maps = set()
     strict_reversal_maps = set()
+    robust_better_maps = set()
     greedy_opportunity_maps = set()
     probe_opportunity_maps = set()
     seat_counts: dict[int, Counter[str]] = {seat: Counter() for seat in range(5)}
+    round_counts: dict[int, Counter[str]] = {}
     informative_positions = 0
     changed_outcome_positions = 0
     changed_preference_positions = 0
     strict_reversal_positions = 0
+    robust_better_positions = 0
     for position in positions:
         probe = position.opponent_search_scores
         if probe is None or len(probe) != len(position.outcome_scores):
             raise ValueError("opponent search labels must align with completed states")
         greedy = position.outcome_scores
         seat_counts[position.seat]["positions"] += 1
+        round_count = round_counts.setdefault(10 * (position.round // 10), Counter())
+        round_count["positions"] += 1
         state_changed = False
         informative = False
         preference_changed = False
         strict_reversal = False
+        robust_better = False
         for greedy_score, probe_score in zip(greedy, probe, strict=True):
             if greedy_score < 0 or probe_score < 0:
                 state_counts["censored"] += 1
@@ -78,6 +84,11 @@ def summarize(positions: list[TurnCreditPosition]) -> dict[str, object]:
             if greedy_preference * probe_preference < 0:
                 comparison_counts["strict_reversals"] += 1
                 strict_reversal = True
+            if greedy_preference > 0 and probe_preference > 0:
+                comparison_counts["robust_better"] += 1
+                robust_better = True
+            if greedy_preference < 0 and probe_preference < 0:
+                comparison_counts["robust_worse"] += 1
             if greedy_preference > 0 and probe_preference <= 0:
                 comparison_counts["greedy_better_probe_not"] += 1
             if probe_preference > 0 and greedy_preference <= 0:
@@ -89,13 +100,18 @@ def summarize(positions: list[TurnCreditPosition]) -> dict[str, object]:
         if informative:
             informative_maps.add(position.seed)
             informative_positions += 1
+            round_count["informative_positions"] += 1
         if preference_changed:
             affected_preference_maps.add(position.seed)
             changed_preference_positions += 1
             seat_counts[position.seat]["changed_preference_positions"] += 1
+            round_count["changed_preference_positions"] += 1
         if strict_reversal:
             strict_reversal_maps.add(position.seed)
             strict_reversal_positions += 1
+        if robust_better:
+            robust_better_maps.add(position.seed)
+            robust_better_positions += 1
     return {
         "opponent_search_nodes": probe_nodes.pop(),
         "positions": len(positions),
@@ -107,23 +123,27 @@ def summarize(positions: list[TurnCreditPosition]) -> dict[str, object]:
         "positions_with_informative_candidate": informative_positions,
         "positions_with_changed_candidate_preference": changed_preference_positions,
         "positions_with_strict_preference_reversal": strict_reversal_positions,
+        "positions_with_robust_better_candidate": robust_better_positions,
         "maps_with_changed_state_outcome": len(affected_state_maps),
         "maps_with_informative_candidate": len(informative_maps),
         "maps_with_changed_candidate_preference": len(affected_preference_maps),
         "maps_with_strict_preference_reversal": len(strict_reversal_maps),
+        "maps_with_robust_better_candidate": len(robust_better_maps),
         "maps_with_better_candidate": {
             "greedy_continuation": len(greedy_opportunity_maps),
             "search_opponents": len(probe_opportunity_maps),
         },
         "by_seat": {str(seat): dict(counts) for seat, counts in seat_counts.items()},
+        "by_round_decade": {
+            f"{start}-{start + 9}": dict(round_counts[start])
+            for start in sorted(round_counts)
+        },
     }
 
 
 def audit(paths: list[Path]) -> dict[str, object]:
     positions = [
-        position
-        for path in paths
-        for position in load_turn_credit_positions(path)
+        position for path in paths for position in load_turn_credit_positions(path)
     ]
     return {
         "kind": "whole_turn_opponent_continuation_label_stability",
