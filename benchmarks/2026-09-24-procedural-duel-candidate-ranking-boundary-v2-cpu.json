@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_autonomous_candidate_ranking_diagnostic",
+  "status": "post_hoc_read_only_no_policy_promotion",
+  "source_dataset": "Fresh autonomous validation from the already rejected corrective experiment: Classic Generic procedural_v2 11x9 two-player, 32 independent maps seed6351000, 154 sampled positions, 1054 candidate post-turn states, all games and candidate replies complete",
+  "native_slate_gzip_sha256": "2bcd070af4f61f8363c8972aecde459a566eeb25c407d71311bdb88ea9221c65",
+  "policies": {
+    "first_student_head_sha256": "b92e0e9739f44728ee1724ad36dc248b41d4d2a9b258925544eb3c78043865b5",
+    "corrective_student_head_sha256": "f19dd174613debd8b7ebdb5ec7dfe776ae423bf8dc5bd2e1cd23a93d804f50ef",
+    "same_frozen_source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867"
+  },
+  "verification": "Opt-in per-candidate score export preserved the ordinary first-student audit byte-for-byte, SHA256 642e3fc3a5493b9e59e5256d555920041dedec3baa967df2f05c27134d509cba. Both opt-in reports used identical map/position order, native and static scores, and source-model autonomous scores. Native search was used only for offline comparison, not model inference.",
+  "root_choice_comparison": {
+    "sampled_positions": 154,
+    "paired_complete_positions": 154,
+    "native_teacher_index_matches_first_student": 133,
+    "native_teacher_index_matches_corrective_student": 136,
+    "changed_root_choices": 5,
+    "changed_on_independent_maps": 5,
+    "native_reply_score_improved": 3,
+    "native_reply_score_worsened": 1,
+    "native_reply_score_tied": 1,
+    "independent_map_exact_two_sided_sign_p_excluding_tie": 0.625,
+    "root_seat_zero": {"improved": 3, "worsened": 0, "tied": 0},
+    "root_seat_one": {"improved": 0, "worsened": 1, "tied": 1}
+  },
+  "changed_position_ledger": [
+    {"seed": 6351001, "root_seat": 0, "round": 16, "first_index": 1, "corrective_index": 2, "native_reply_score_delta": 184},
+    {"seed": 6351002, "root_seat": 1, "round": 16, "first_index": 1, "corrective_index": 0, "native_reply_score_delta": 0},
+    {"seed": 6351003, "root_seat": 0, "round": 16, "first_index": 5, "corrective_index": 0, "native_reply_score_delta": 61},
+    {"seed": 6351016, "root_seat": 1, "round": 16, "first_index": 0, "corrective_index": 2, "native_reply_score_delta": -61},
+    {"seed": 6351028, "root_seat": 0, "round": 32, "first_index": 0, "corrective_index": 5, "native_reply_score_delta": 251}
+  ],
+  "raw_first_candidate_audit_sha256": "df2dd5657b5058f4e0a675b59770b139c517fd0380b8a96f9f8638698bb7f6ac",
+  "raw_corrective_candidate_audit_sha256": "e9b50861b986dd01c21658f3bdd5b3f31e1f91a2d9b26f5f8e85f84409751eb8",
+  "raw_paired_ranking_audit_sha256": "e10b6d2b885a877fd66623c5bb9886d4d1a72dc8f1c6a129b717f229d094d10f",
+  "interpretation": "Absolute transformed successor-score error and decision quality diverge in this diagnostic: the corrective model's aggregate error increased for root seat zero, yet all three of its changed seat-zero root choices improved the native searched one-turn objective. Exact teacher-index agreement also overstates progress because one changed index has equal native reply score. Only four changes have strict native preference, with three favorable and one unfavorable across independent maps; the post hoc sign p=.625 provides no reliable strength evidence. This conditional one-turn objective is neither terminal outcome nor Elo.",
+  "decision": "Retain the predeclared rejection of the corrective student. Do not tune on these maps, use reserved confirmation seed6352000 or final complete-game seed6300000, or deploy/rate this head. Before further direct action-head training, define a search-aware root-candidate ranking policy and a fresh independent-map gate that measures complete-game outcomes and runtime."
+}
