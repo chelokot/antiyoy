@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "kind": "first_divergent_whole_turn_counterfactual_credit",
+  "implementation_commit": "1bbeb1febfcb2be20b77a3abefdcbbfb90703b98",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 1,
+    "process_priority": "nice 19",
+    "gpu_used": false
+  },
+  "arena": {
+    "generator_schema_version": 2,
+    "rules": "classic_generic_2022",
+    "width": 19,
+    "height": 15,
+    "players": 5,
+    "maps": 64,
+    "first_seed": 5200300,
+    "seat_trials": 320,
+    "target_round": 100,
+    "rollout_limit_per_branch": 2400,
+    "search_nodes": 256,
+    "beam_width": 32,
+    "branch_width": 48,
+    "maximum_actions_per_turn": 24,
+    "command_template": "nice -n 19 target/release/antiyoy turn-credit --map procedural --generator-schema-version 2 --width 19 --height 15 --players 5 --maps 64 --seed 5200300 --target-round 100 --rollin-seat {seat} --rollout-limit 2400 --search-nodes 256 --json"
+  },
+  "method": "For every map and seat, roll search in against four greedy opponents until its first completed turn differs from a greedy turn from the same state. Continue both whole-turn branches with greedy agents to a terminal winner. Score win, draw, or loss for the sampled seat. Exclude a pair if either continuation reaches the action limit, and exclude its entire map from the grouped sign test. Record the original static score and that score after greedy opponent replies, when the sampled seat next acts.",
+  "per_seat": [
+    {
+      "seat": 0,
+      "divergent_positions": 29,
+      "terminal_better": 3,
+      "terminal_worse": 2,
+      "terminal_same": 24,
+      "censored": 0,
+      "elapsed_seconds": 50.549665394,
+      "raw_result_sha256": "b7cadcc2d3cf15dd2301ca71b9d0938ce69eb849698c4386aed8ff1d6fbd5462"
+    },
+    {
+      "seat": 1,
+      "divergent_positions": 29,
+      "terminal_better": 0,
+      "terminal_worse": 1,
+      "terminal_same": 27,
+      "censored": 1,
+      "elapsed_seconds": 52.729374658,
+      "raw_result_sha256": "e90bac3d544694d0450a42046fea54143dbf26e92cd2292c83bc5ed4820915d8"
+    },
+    {
+      "seat": 2,
+      "divergent_positions": 35,
+      "terminal_better": 2,
+      "terminal_worse": 0,
+      "terminal_same": 32,
+      "censored": 1,
+      "elapsed_seconds": 52.074429376,
+      "raw_result_sha256": "0696ed44f68ca61c465831bfda8bac9b832d00a441a9ee99f3ad2857a0340ec5"
+    },
+    {
+      "seat": 3,
+      "divergent_positions": 36,
+      "terminal_better": 3,
+      "terminal_worse": 0,
+      "terminal_same": 33,
+      "censored": 0,
+      "elapsed_seconds": 53.576652167,
+      "raw_result_sha256": "d2ae73782e7d93ff3bc07d541f92727ce452be48375abf25d8c9bb87a52fa192"
+    },
+    {
+      "seat": 4,
+      "divergent_positions": 43,
+      "terminal_better": 2,
+      "terminal_worse": 2,
+      "terminal_same": 38,
+      "censored": 1,
+      "elapsed_seconds": 54.183580915,
+      "raw_result_sha256": "11402120f5804c0f8f6000bde785ca1197c41090ededb644202eae2c1d581666"
+    }
+  ],
+  "totals": {
+    "maps_without_divergence": 3,
+    "divergent_positions": 172,
+    "terminal_better": 10,
+    "terminal_worse": 5,
+    "terminal_same": 154,
+    "censored_positions": 3,
+    "independent_map_better": 8,
+    "independent_map_worse": 5,
+    "independent_map_same": 50,
+    "independent_map_censored": 1,
+    "independent_map_exact_two_sided_sign_test_p": 0.5810546875,
+    "elapsed_seconds": 263.11370251
+  },
+  "score_alignment_on_15_terminal_decisive_positions": {
+    "search_immediate_static_score_higher": 15,
+    "beneficial_search_turns": 10,
+    "beneficial_reply_score_higher": 8,
+    "beneficial_reply_score_equal": 1,
+    "beneficial_reply_score_lower": 1,
+    "harmful_search_turns": 5,
+    "harmful_reply_score_higher": 5,
+    "harmful_reply_score_equal": 0,
+    "harmful_reply_score_lower": 0
+  },
+  "examples": [
+    {
+      "seed": 5200312,
+      "seat": 0,
+      "round": 3,
+      "search_static_score_delta": 22,
+      "search_reply_score_delta": 0,
+      "greedy_continuation_winner": 3,
+      "search_continuation_winner": 0
+    },
+    {
+      "seed": 5200332,
+      "seat": 0,
+      "round": 1,
+      "search_static_score_delta": 7,
+      "search_reply_score_delta": 9,
+      "greedy_continuation_winner": 0,
+      "search_continuation_winner": 2
+    }
+  ],
+  "decision": "Do not promote a larger node budget or a one-round greedy-reply reranker on this evidence. Immediate static score is misaligned with terminal outcomes in both directions, and a single greedy opponent cycle still favors all five harmful decisive search turns. Prioritize outcome-grounded multi-action or whole-turn credit, then gate the resulting agent in fresh all-seat matched games grouped by independent map.",
+  "limitations": "This is an exploratory 64-map diagnostic, not an evaluation of a deployed policy, not a human Elo measurement, and not a multi-profile result. The intervention is only the first divergent search turn on each search-visited trajectory. Every branch switches to greedy afterwards, so these local counterfactual outcomes are not the win rate of an agent that keeps using search. Seat trials on one map are correlated; the sign test groups by map. Three branch pairs are censored, and their adjudicated winners are excluded. Raw outputs are not checked into the repository; their hashes identify the measured files, but the elapsed_seconds field prevents an exact hash match on a rerun."
+}

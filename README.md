@@ -73,6 +73,18 @@ seven compatibility profiles and reports paired relative Elo rather than an
 unsubstantiated absolute rating. Browser search remains selectable at 64, 256,
 or 2048 nodes, and rated placement always uses the fixed 2048-node agent.
 
+These duel-relative ratings do not transfer to five-player procedural maps:
+on 128 rotated-start maps, search-256 won 135 of 640 seat trials versus 128
+expected for the greedy reference, but the independent-map comparison was
+19 better, 12 worse, and 97 unchanged
+([record](benchmarks/2026-09-23-native-search-multiplayer-v2-cpu.json)).
+Search-1024 did not improve on search-256 in a fresh matched scout
+([record](benchmarks/2026-09-23-native-search-budget-ablation-v2-cpu.json)).
+A [whole-turn counterfactual diagnostic](benchmarks/2026-09-23-whole-turn-credit-v2-cpu.json)
+shows why more nodes alone are not a reliable amplifier: higher immediate
+static score can either win or lose, and one cycle of greedy opponent replies
+still scores all five harmful decisive turns above their alternatives.
+
 ## Auditable leagues
 
 The league runner persists a versioned JSON leaderboard and one compact binary
