@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_plain_beam_distillation_gate",
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "action_limit": 1000,
+    "pairing": "identical map with both candidate seats"
+  },
+  "teacher": {
+    "agent": "native whole-turn beam search",
+    "nodes": 256,
+    "beam_width": 32,
+    "branch_width": 48,
+    "maximum_actions_per_turn": 24,
+    "value": "native position_score",
+    "prior": "none"
+  },
+  "training": {
+    "initial_checkpoint": "routed-v6.pt",
+    "seed_first": 6206000,
+    "imitation_updates": 512,
+    "environments": 32,
+    "imitation_reset_interval": 64,
+    "imitation_rollin": "policy",
+    "imitation_search_replan": true,
+    "imitation_reference_weight": 0.1,
+    "learning_rate": 0.0001,
+    "teacher_labels": 16384,
+    "resets": 257,
+    "average_imitation_accuracy": 0.762,
+    "elapsed_seconds": 221,
+    "checkpoint_sha256": "4455ad277acb3ab525fc17a266847990a3b4a80df6c5cac8ff3c70d594ae9ec5",
+    "training_log_sha256": "d5ba36794e6568d82a1f99b41eab6f8567f86fe5913fa302b27990a2eed90fc0"
+  },
+  "development_gate": {
+    "seed_first": 6208000,
+    "maps": 64,
+    "games": 128,
+    "student_wins": 64,
+    "frozen_routed_v6_reference_wins": 64,
+    "independent_maps_student_better": 13,
+    "independent_maps_base_better": 13,
+    "independent_maps_same": 38,
+    "exact_two_sided_sign_test_p": 1.0,
+    "score_delta": 0.0,
+    "map_cluster_bootstrap_95_score_delta": [-0.078125, 0.078125],
+    "raw_result_sha256": "c4408c09f3a9f8eed6475fc202565ee19427e7bc2e27960f5b40aaf8363095e2"
+  },
+  "interpretation": "Imitation matched the teacher on sampled states, but the resulting student did not improve on its routed-v6 initialization in a fresh all-seat game gate. Plain beam search had not itself beaten routed-v6 directly, so this is not evidence for a successful amplification-distillation climb. The student was not promoted."
+}
