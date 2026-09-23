@@ -130,3 +130,31 @@ test("model arena seat audit stays separate from Elo and matches both reports", 
   assert.equal(policyScout.all_seats.exact_two_sided_sign_test_p, 1);
   assert.ok(snapshot.comparisons.every((row) => row.evidence !== "routed-rotated-scout"));
 });
+
+test("multiplayer search results are map-paired and stay outside the Elo table", async () => {
+  const [snapshot, comparison, budget] = await Promise.all([
+    readJson(snapshotUrl),
+    readJson(new URL("2026-09-23-native-search-multiplayer-v2-cpu.json", benchmarkRoot)),
+    readJson(new URL("2026-09-23-native-search-budget-ablation-v2-cpu.json", benchmarkRoot)),
+  ]);
+  const displayed = snapshot.multiplayerSearch;
+  const outcome = comparison.outcome;
+  const matched = budget.matched_budget_comparison;
+
+  assert.equal(displayed.maps, comparison.arena.maps);
+  assert.equal(displayed.games, comparison.arena.candidate_games);
+  assert.equal(displayed.searchWins, outcome.candidate_wins);
+  assert.equal(displayed.greedyExpectedWins, outcome.baseline_expected_wins);
+  assert.equal(displayed.betterMaps, outcome.independent_map_better);
+  assert.equal(displayed.worseMaps, outcome.independent_map_worse);
+  assert.equal(displayed.sameMaps, outcome.independent_map_same);
+  assert.equal(displayed.mapSignTestP, outcome.independent_map_exact_two_sided_sign_test_p);
+  assert.equal(displayed.budgetMaps, budget.arena.maps);
+  assert.equal(displayed.lowBudgetWins, budget.budgets[0].candidate_wins);
+  assert.equal(displayed.highBudgetWins, budget.budgets[1].candidate_wins);
+  assert.equal(displayed.higherBudgetBetterMaps, matched.higher_budget_independent_map_better);
+  assert.equal(displayed.higherBudgetWorseMaps, matched.higher_budget_independent_map_worse);
+  assert.equal(displayed.higherBudgetSameMaps, matched.higher_budget_independent_map_same);
+  assert.equal(displayed.higherBudgetMapSignTestP, matched.higher_budget_independent_map_exact_two_sided_sign_test_p);
+  assert.ok(snapshot.comparisons.every((row) => !row.evidence.startsWith("native-search-")));
+});

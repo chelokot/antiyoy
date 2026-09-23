@@ -167,6 +167,7 @@ function SnapshotEvidenceLink({ evidence }: { evidence: keyof typeof benchmarkDa
 }
 
 export default function ModelsPage() {
+  const multiplayerSearch = benchmarkData.multiplayerSearch;
   return (
     <main className="models-page">
       <nav className="models-nav"><Link href="/">← Play</Link><strong>Antiyoy Model Arena</strong><a href="https://github.com/chelokot/antiyoy" target="_blank" rel="noreferrer">Repository ↗</a></nav>
@@ -199,6 +200,8 @@ export default function ModelsPage() {
         <div className="section-heading"><div><p>Compute ledger</p><h2>What does search actually buy?</h2></div><p>Each row stays inside its named pool. Paired flips count maps changed by the method; p-values prevent a visually large Elo estimate from hiding a tiny discordant sample. Proof hashes are verified against the repository benchmark at build time.</p></div>
         <div className="method-matrix-wrap"><table className="method-matrix"><thead><tr><th>Pool</th><th>Agent / method</th><th>Compute</th><th>Opponent</th><th>W–D–L</th><th>Games</th><th>Relative Elo</th><th>Paired flips</th><th>Gate</th><th>Proof SHA</th></tr></thead><tbody>{benchmarkData.comparisons.map((row) => <tr key={`${row.pool}:${row.method}`}><td>{row.pool}</td><th scope="row">{row.method}</th><td>{row.compute}</td><td>{row.opponent}</td><td>{row.record}</td><td>{row.games}</td><td className="method-delta">{row.relativeElo}</td><td>{row.pairedFlips}<small>{row.significance}</small></td><td><span className={`verdict verdict-${row.verdict.replaceAll(" ", "-")}`}>{row.verdict}</span></td><td><SnapshotEvidenceLink evidence={row.evidence as keyof typeof benchmarkData.evidence} /></td></tr>)}</tbody></table></div>
         <p className="method-note">The table is a comparison index, not one global ladder. “Relative Elo” is local to the opponent and protocol named on that row.</p>
+        <p className="method-note">Five-player reality check: native search-256 won {multiplayerSearch.searchWins} of {multiplayerSearch.games} seat trials versus {multiplayerSearch.greedyExpectedWins} expected greedy wins on the same {multiplayerSearch.maps} maps. Grouped by map: {multiplayerSearch.betterMaps} better, {multiplayerSearch.worseMaps} worse, {multiplayerSearch.sameMaps} unchanged (p={multiplayerSearch.mapSignTestP.toFixed(3)}). <SnapshotEvidenceLink evidence="native-search-multiplayer" /></p>
+        <p className="method-note">More compute did not fix it: on {multiplayerSearch.budgetMaps} fresh matched maps, search-1024 won {multiplayerSearch.highBudgetWins} seat trials versus {multiplayerSearch.lowBudgetWins} for search-256; {multiplayerSearch.higherBudgetBetterMaps} maps improved, {multiplayerSearch.higherBudgetWorseMaps} worsened, {multiplayerSearch.higherBudgetSameMaps} tied (p={multiplayerSearch.higherBudgetMapSignTestP.toFixed(3)}). Neither is promoted as a strong multiplayer agent. <SnapshotEvidenceLink evidence="native-search-budget" /></p>
       </section>
 
       <section className="models-section">
