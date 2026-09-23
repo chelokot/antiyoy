@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_generator_shift_audit",
+  "hypothesis": "The routed-v6 policy was trained and routed as procedural_v1, while the strongest reply-search comparison used procedural_v2. Rotating starting assignments on odd seeds may account for part of the observed model-search gap.",
+  "arena": "Classic Generic 11x9 two-player, action limit1000, routed-v6 direct versus native reply-search root256/slate8/opponent64",
+  "comparison": {
+    "first_seed": 6341000,
+    "independent_maps": 64,
+    "games_per_schema": 128,
+    "schemas": [1, 2],
+    "seats": [0, 1],
+    "route_generator": "procedural_v1",
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "control": "Even seeds should have the same generated scenario in both schemas; verify identical per-map outcomes. Odd seeds rotate the player assignment. Compare model win counts and map-grouped model-versus-search outcomes separately for even and odd seeds."
+  },
+  "interpretation": "This is an exploratory domain-shift localization, not a student training or promotion gate. A changed model-search gap on odd seeds would suggest sensitivity to starting assignment; equal results would weaken that explanation. No student will be rated or deployed from this audit.",
+  "resource_limit": "SSH server only after aggregate load check; sequential nice19 single-CPU jobs with 1800-second cap each, no GPU, tiny JSON reports in /tmp/antiyoy-residual.n17QTu; never preempt other workloads.",
+  "reserved_windows": "Use fresh seed6341000 only for this diagnostic. Do not use prior fit/validation seeds or the untouched final full-game promotion seed6300000. Any policy change requires its own predeclared disjoint fit/validation/final maps and both-seat complete-game gate."
+}
