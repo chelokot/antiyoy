@@ -49,13 +49,26 @@
     "raw_report": "benchmarks/2026-09-24-procedural-duel-model-reply-validation-raw.json",
     "raw_report_sha256": "c17123caf43b70394cde5a08f7d064ef081ca87be58905317e3205297fa4c96e"
   },
+  "native_teacher_latency_audit": {
+    "first_seed": 6355000,
+    "maps": 8,
+    "arena": "Same host, rules, map size and already-inspected pilot seeds; native reply-search256/8/64 self-play positions, not exactly the hybrid's positions",
+    "root_decisions": 317,
+    "median_root_decision_wall_seconds": 0.004225090611726046,
+    "p95_root_decision_wall_seconds": 0.02217933982610702,
+    "truncated_maps": 0,
+    "elapsed_wall_seconds": 2.19,
+    "hybrid_validation_median_amortized_to_teacher_median_ratio": 16.11538122844434,
+    "raw_report": "benchmarks/2026-09-24-procedural-duel-native-reply-latency-pilot-raw.json",
+    "raw_report_sha256": "49e740182072b4e8471544964a848ba1e997778506e105cfe7f5cbe5ebcfb6a1"
+  },
   "predeclared_gate": {
     "independent_map_positive_p_below_0_05": true,
     "both_seats_nonnegative_win_difference": false,
     "no_candidate_censoring_or_truncation": true,
-    "median_runtime_below_native_reply_search_teacher": "not_measured_after_earlier_gate_failure",
+    "median_runtime_below_native_reply_search_teacher": false,
     "overall_pass": false
   },
-  "decision": "Reject this frozen hybrid for rating and browser deployment. Do not run reserved independent confirmation seed6357000 or final promotion seed6300000. The pooled map gain is promising but seat one regressed by one win, and runtime superiority over native reply search has not been established.",
-  "interpretation": "This is the first evaluated model-plus-whole-turn-search variant with a positive predeclared independent-map aggregate comparison in this arena. It is not an all-seat strength result, not universal Elo, and not an amplification-distillation cycle. The complete both-seat result exposes seat asymmetry that must be resolved on new exploratory maps before another frozen policy can be gated."
+  "decision": "Reject this frozen hybrid for rating and browser deployment. Do not run reserved independent confirmation seed6357000 or final promotion seed6300000. The pooled map gain is promising, but seat one regressed by one win and the Python/Torch hybrid's median decision was about sixteen times slower than native reply search on same-host same-arena pilot maps.",
+  "interpretation": "This is the first evaluated model-plus-whole-turn-search variant with a positive predeclared independent-map aggregate comparison in this arena. It is not an all-seat strength result, not universal Elo, and not an amplification-distillation cycle. Both seat asymmetry and the large implementation/runtime gap must be addressed and re-gated on new maps; the compared timing samples are from different game positions."
 }
