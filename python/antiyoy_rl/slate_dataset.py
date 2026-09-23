@@ -4,10 +4,12 @@ import gzip
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+from typing import Iterator, cast
 
 import numpy as np
 
+from . import ProceduralConfig, VectorEnv
+from .model import select_environments
 from .turn_credit import model_observation
 
 
@@ -34,6 +36,154 @@ class TeacherSlatePosition:
     opponent_actions: tuple[tuple[str, ...], ...] | None
     post_reply: dict[str, np.ndarray] | None
     opponent_decisions: OpponentDecisions | None = None
+
+
+@dataclass(frozen=True)
+class ReplayedSlatePosition:
+    seed: int
+    record: dict[str, object]
+    root: VectorEnv
+    post_turn: dict[str, np.ndarray]
+
+
+@dataclass(frozen=True)
+class CorrectiveSlatePosition:
+    seed: int
+    seat: int
+    round: int
+    decisions: OpponentDecisions
+    student_action_indices: np.ndarray
+
+
+def step_action_index(environment: VectorEnv, index: int) -> bool:
+    result = environment.step(np.asarray([index], dtype=np.uint64))
+    return bool(result["truncated"][0])
+
+
+def replay_slate_positions(
+    dataset: dict[str, object],
+) -> Iterator[ReplayedSlatePosition]:
+    generator = cast(dict[str, int], dataset["generator"])
+    if dataset["schema_version"] != 1 or generator["players"] != 2:
+        raise ValueError("slate replay requires version-one two-player data")
+    by_seed: dict[int, list[dict[str, object]]] = {}
+    for record in cast(list[dict[str, object]], dataset["records"]):
+        by_seed.setdefault(cast(int, record["seed"]), []).append(record)
+    for seed, records in sorted(by_seed.items()):
+        map_config = ProceduralConfig(
+            width=generator["width"],
+            height=generator["height"],
+            players=2,
+            seed=seed,
+            land_density_per_million=generator["land_density_per_million"],
+            starting_province_size=generator["starting_province_size"],
+            starting_money=generator["starting_money"],
+            tree_density_per_million=generator["tree_density_per_million"],
+            neutral_tower_density_per_million=generator[
+                "neutral_tower_density_per_million"
+            ],
+            neutral_capital_density_per_million=generator[
+                "neutral_capital_density_per_million"
+            ],
+            grave_density_per_million=generator["grave_density_per_million"],
+            schema_version=generator["schema_version"],
+        )
+        environment = VectorEnv.procedural(
+            1,
+            map_config,
+            action_limit=cast(int, dataset["action_limit"]),
+            profile=cast(str, dataset["rules"]),
+        )
+        applied = 0
+        for record in records:
+            rollin = cast(list[int], record["rollin_indices"])
+            for index in rollin[applied:]:
+                if step_action_index(environment, index):
+                    raise ValueError("searched roll-in was action-limit adjudicated")
+            applied = len(rollin)
+            observed = environment.observe()
+            if (
+                int(observed["active_players"][0]) != record["seat"]
+                or int(observed["rounds"][0]) != record["round"]
+            ):
+                raise ValueError("sampled root state disagrees with replayed roll-in")
+            expected, _ = model_observation(
+                cast(dict[str, object], record["post_turn"])
+            )
+            yield ReplayedSlatePosition(seed, record, environment, expected)
+
+
+def replay_slate_candidate(
+    position: ReplayedSlatePosition, candidate: int
+) -> VectorEnv:
+    branch = position.root.fork(np.asarray([0], dtype=np.uint64))
+    indices = cast(list[list[int]], position.record["candidate_action_indices"])
+    for index in indices[candidate]:
+        if step_action_index(branch, index):
+            raise ValueError("searched root candidate was adjudicated")
+    actual = branch.observe()
+    expected = select_environments(position.post_turn, [candidate])
+    if any(not np.array_equal(actual[key], values) for key, values in expected.items()):
+        raise ValueError("searched candidate state disagrees with replay")
+    return branch
+
+
+def load_corrective_positions(path: Path) -> list[CorrectiveSlatePosition]:
+    with gzip.open(path, "rt", encoding="utf-8") as source:
+        report = cast(dict[str, object], json.load(source))
+    if (
+        report["schema_version"] != 1
+        or report["kind"] != "procedural_duel_corrective_opponent_decisions"
+    ):
+        raise ValueError("corrective slate dataset has an unsupported schema")
+    positions = []
+    for record in cast(list[dict[str, object]], report["records"]):
+        raw = cast(dict[str, list[int]] | None, record["observation"])
+        observation = (
+            {key: np.asarray(values, dtype=np.int64) for key, values in raw.items()}
+            if raw is not None
+            else None
+        )
+        labels = np.asarray(record["teacher_action_indices"], dtype=np.int64)
+        chosen = np.asarray(record["student_action_indices"], dtype=np.int64)
+        offsets = np.asarray(record["candidate_offsets"], dtype=np.int64)
+        rules = tuple(cast(list[str], record["rules_json"]))
+        count = len(labels)
+        if (
+            len(offsets) < 2
+            or offsets[0] != 0
+            or offsets[-1] != count
+            or np.any(np.diff(offsets) < 0)
+            or len(chosen) != count
+            or len(rules) != count
+            or (observation is None) != (count == 0)
+        ):
+            raise ValueError("corrective candidate and decision counts differ")
+        if observation is None:
+            continue
+        action_counts = np.diff(observation["action_offsets"])
+        if (
+            len(observation["widths"]) != count
+            or len(observation["action_offsets"]) != count + 1
+            or len(action_counts) != count
+            or np.any(labels < 0)
+            or np.any(labels >= action_counts)
+            or np.any(chosen < 0)
+            or np.any(chosen >= action_counts)
+        ):
+            raise ValueError("corrective action index is not locally legal")
+        positions.append(
+            CorrectiveSlatePosition(
+                seed=cast(int, record["seed"]),
+                seat=cast(int, record["seat"]),
+                round=cast(int, record["round"]),
+                decisions=OpponentDecisions(observation, rules, offsets, labels),
+                student_action_indices=chosen,
+            )
+        )
+    if len(cast(list[object], report["records"])) != report["positions"]:
+        raise ValueError("corrective dataset position count disagrees with summary")
+    return positions
 
 
 def load_teacher_slates(path: Path) -> list[TeacherSlatePosition]:

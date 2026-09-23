@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import gzip
 import json
 from collections import defaultdict
@@ -10,25 +9,24 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from antiyoy_rl import ProceduralConfig, VectorEnv
+from antiyoy_rl import VectorEnv
 from antiyoy_rl.model import (
     ACTION_KIND_NAMES,
     UniversalPolicy,
     encode_rules_batch,
-    select_environments,
 )
-from antiyoy_rl.turn_credit import model_observation
+from antiyoy_rl.slate_dataset import (
+    replay_slate_candidate,
+    replay_slate_positions,
+    step_action_index,
+)
 
 from .build_bundle import digest
-from .evaluate import load_policy, paired_comparison_summary
+from .evaluate import paired_comparison_summary
+from .train_duel_opponent_plan import load_head_student
 
 
 MAXIMUM_RESPONSE_ACTIONS = 24
-
-
-def step_index(environment: VectorEnv, index: int) -> bool:
-    result = environment.step(np.asarray([index], dtype=np.uint64))
-    return bool(result["truncated"][0])
 
 
 def response_score(
@@ -48,7 +46,7 @@ def response_score(
         with torch.inference_mode():
             logits, _ = model(observation, rules)
         action = int(logits.argmax())
-        if step_index(environment, action):
+        if step_action_index(environment, action):
             return None, depth + 1
         if environment.done()[0]:
             return int(environment.position_scores(root_seat)[0]), depth + 1
@@ -119,7 +117,7 @@ def searched_reply_diagnostic(
                 if first_mismatch[name] is None and predicted != selected:
                     first_mismatch[name] = depth
                     first_mismatch_kind[name] = action_kind
-            if step_index(environment, selected):
+            if step_action_index(environment, selected):
                 raise ValueError("native searched reply was action-limit adjudicated")
             teacher_actions += 1
             if environment.done()[0]:
@@ -158,26 +156,7 @@ def audit(
         raise ValueError(
             "autonomous reply audit requires version-one two-player slates"
         )
-    source, config = load_policy(
-        source_path,
-        torch.device("cpu"),
-        profile="classic_generic_2022",
-        generator="procedural_v1",
-        players=2,
-    )
-    saved = torch.load(head_path, map_location="cpu", weights_only=True)
-    if (
-        saved["kind"] != "opponent_action_head_scout"
-        or saved["source_sha256"] != digest(source_path)
-        or saved["selected_expert"] != config["selected_expert"]
-    ):
-        raise ValueError("student head does not match the frozen source expert")
-    student = copy.deepcopy(source)
-    student.action_head.load_state_dict(saved["action_head"])
-    if student.action_residual is not None:
-        student.action_residual.load_state_dict(saved["action_residual"])
-    source.eval()
-    student.eval()
+    source, student = load_head_student(source_path, head_path)
     policies = {"source": source, "student": student}
     response_errors: dict[int, list[tuple[float, float]]] = defaultdict(list)
     seat_errors: dict[int, list[tuple[float, float]]] = defaultdict(list)
@@ -188,122 +167,70 @@ def audit(
     candidate_count = 0
     checked_positions = 0
     divergence = []
-    by_seed: dict[int, list[dict[str, object]]] = defaultdict(list)
-    for record in dataset["records"]:
-        by_seed[record["seed"]].append(record)
-    for seed, records in sorted(by_seed.items()):
-        map_config = ProceduralConfig(
-            width=generator["width"],
-            height=generator["height"],
-            players=2,
-            seed=seed,
-            land_density_per_million=generator["land_density_per_million"],
-            starting_province_size=generator["starting_province_size"],
-            starting_money=generator["starting_money"],
-            tree_density_per_million=generator["tree_density_per_million"],
-            neutral_tower_density_per_million=generator[
-                "neutral_tower_density_per_million"
-            ],
-            neutral_capital_density_per_million=generator[
-                "neutral_capital_density_per_million"
-            ],
-            grave_density_per_million=generator["grave_density_per_million"],
-            schema_version=generator["schema_version"],
-        )
-        environment = VectorEnv.procedural(
-            1,
-            map_config,
-            action_limit=dataset["action_limit"],
-            profile=dataset["rules"],
-        )
-        rules = encode_rules_batch([environment.rules_json()], torch.device("cpu"))
-        applied = 0
-        for record in records:
-            rollin = record["rollin_indices"]
-            for index in rollin[applied:]:
-                if step_index(environment, index):
-                    raise ValueError("searched roll-in was action-limit adjudicated")
-            applied = len(rollin)
-            observed = environment.observe()
-            if (
-                int(observed["active_players"][0]) != record["seat"]
-                or int(observed["rounds"][0]) != record["round"]
-            ):
-                raise ValueError("sampled root state disagrees with replayed roll-in")
-            expected, _ = model_observation(record["post_turn"])
-            root_seat = record["seat"]
-            autonomous_scores: dict[str, list[int | None]] = {
-                name: [] for name in policies
-            }
-            for candidate, indices in enumerate(record["candidate_action_indices"]):
-                branch = environment.fork(np.asarray([0], dtype=np.uint64))
-                for index in indices:
-                    if step_index(branch, index):
-                        raise ValueError("searched root candidate was adjudicated")
-                actual_observation = branch.observe()
-                expected_observation = select_environments(expected, [candidate])
-                if any(
-                    not np.array_equal(actual_observation[key], values)
-                    for key, values in expected_observation.items()
-                ):
-                    raise ValueError("searched candidate state disagrees with replay")
-                candidate_count += 1
-                teacher_diagnostic = (
-                    searched_reply_diagnostic(
-                        branch,
-                        policies,
-                        rules,
-                        root_seat,
-                        record["reply_scores"][candidate],
-                    )
-                    if diagnose
-                    else None
+    for position in replay_slate_positions(dataset):
+        seed, record = position.seed, position.record
+        rules = encode_rules_batch([position.root.rules_json()], torch.device("cpu"))
+        root_seat = int(record["seat"])
+        autonomous_scores: dict[str, list[int | None]] = {name: [] for name in policies}
+        for candidate in range(len(record["candidate_action_indices"])):
+            branch = replay_slate_candidate(position, candidate)
+            candidate_count += 1
+            teacher_diagnostic = (
+                searched_reply_diagnostic(
+                    branch,
+                    policies,
+                    rules,
+                    root_seat,
+                    record["reply_scores"][candidate],
                 )
-                for name, model in policies.items():
-                    score, actions = response_score(branch, model, rules, root_seat)
-                    autonomous_scores[name].append(score)
-                    action_counts[name].append(actions)
-                    censored[name] += score is None
-                first = autonomous_scores["source"][-1]
-                second = autonomous_scores["student"][-1]
-                if first is not None and second is not None:
-                    expected_score = record["reply_scores"][candidate]
-                    pair = (
-                        transformed_error(first, expected_score),
-                        transformed_error(second, expected_score),
+                if diagnose
+                else None
+            )
+            for name, model in policies.items():
+                score, actions = response_score(branch, model, rules, root_seat)
+                autonomous_scores[name].append(score)
+                action_counts[name].append(actions)
+                censored[name] += score is None
+            first = autonomous_scores["source"][-1]
+            second = autonomous_scores["student"][-1]
+            if first is not None and second is not None:
+                expected_score = record["reply_scores"][candidate]
+                pair = (
+                    transformed_error(first, expected_score),
+                    transformed_error(second, expected_score),
+                )
+                response_errors[seed].append(pair)
+                seat_errors[root_seat].append(pair)
+                if teacher_diagnostic is not None:
+                    divergence.append(
+                        {
+                            "seed": seed,
+                            "root_seat": root_seat,
+                            "round": record["round"],
+                            "candidate": candidate,
+                            "native_selected_index": record["selected_index"],
+                            "native_reply_score": expected_score,
+                            "source_reply_score": first,
+                            "student_reply_score": second,
+                            **teacher_diagnostic,
+                            "source_reply_actions": action_counts["source"][-1],
+                            "student_reply_actions": action_counts["student"][-1],
+                            "source_score_error": pair[0],
+                            "student_score_error": pair[1],
+                        }
                     )
-                    response_errors[seed].append(pair)
-                    seat_errors[root_seat].append(pair)
-                    if teacher_diagnostic is not None:
-                        divergence.append(
-                            {
-                                "seed": seed,
-                                "root_seat": root_seat,
-                                "round": record["round"],
-                                "candidate": candidate,
-                                "native_selected_index": record["selected_index"],
-                                "native_reply_score": expected_score,
-                                "source_reply_score": first,
-                                "student_reply_score": second,
-                                **teacher_diagnostic,
-                                "source_reply_actions": action_counts["source"][-1],
-                                "student_reply_actions": action_counts["student"][-1],
-                                "source_score_error": pair[0],
-                                "student_score_error": pair[1],
-                            }
-                        )
-            if all(
-                all(score is not None for score in scores)
-                for scores in autonomous_scores.values()
-            ):
-                selected_complete += 1
-                for name, scores in autonomous_scores.items():
-                    choice = selected_candidate(
-                        [score for score in scores if score is not None],
-                        record["static_scores"],
-                    )
-                    selected_matches[name] += choice == record["selected_index"]
-            checked_positions += 1
+        if all(
+            all(score is not None for score in scores)
+            for scores in autonomous_scores.values()
+        ):
+            selected_complete += 1
+            for name, scores in autonomous_scores.items():
+                choice = selected_candidate(
+                    [score for score in scores if score is not None],
+                    record["static_scores"],
+                )
+                selected_matches[name] += choice == record["selected_index"]
+        checked_positions += 1
     comparison, map_ledger = compare_map_errors(response_errors)
     by_seat = {}
     for seat, pairs in sorted(seat_errors.items()):

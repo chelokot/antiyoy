@@ -5,8 +5,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from antiyoy_rl.slate_dataset import load_teacher_slates
-from antiyoy_rl.turn_credit import OBSERVATION_FIELDS
+from antiyoy_rl.slate_dataset import load_corrective_positions, load_teacher_slates
+from antiyoy_rl.turn_credit import OBSERVATION_FIELDS, model_observation
 
 
 def report() -> dict[str, object]:
@@ -166,3 +166,43 @@ def test_teacher_slate_loader_rejects_inconsistent_selection(tmp_path: Path) -> 
 
     with pytest.raises(ValueError, match="selection disagrees"):
         load_teacher_slates(path)
+
+
+def test_corrective_loader_preserves_candidate_offsets_and_local_labels(
+    tmp_path: Path,
+) -> None:
+    observation, rules = model_observation(report()["records"][0]["post_turn"])
+    value = {
+        "schema_version": 1,
+        "kind": "procedural_duel_corrective_opponent_decisions",
+        "positions": 1,
+        "records": [
+            {
+                "seed": 71,
+                "seat": 0,
+                "round": 4,
+                "candidate_offsets": [0, 1, 2],
+                "observation": {
+                    key: data.tolist() for key, data in observation.items()
+                },
+                "rules_json": list(rules),
+                "teacher_action_indices": [0, 0],
+                "student_action_indices": [0, 0],
+            }
+        ],
+    }
+    path = tmp_path / "corrective.json.gz"
+    with gzip.open(path, "wt", encoding="utf-8") as destination:
+        json.dump(value, destination)
+
+    [position] = load_corrective_positions(path)
+
+    np.testing.assert_array_equal(position.decisions.candidate_offsets, [0, 1, 2])
+    np.testing.assert_array_equal(position.decisions.action_indices, [0, 0])
+    np.testing.assert_array_equal(position.student_action_indices, [0, 0])
+
+    value["records"][0]["teacher_action_indices"] = [0, 1]
+    with gzip.open(path, "wt", encoding="utf-8") as destination:
+        json.dump(value, destination)
+    with pytest.raises(ValueError, match="not locally legal"):
+        load_corrective_positions(path)

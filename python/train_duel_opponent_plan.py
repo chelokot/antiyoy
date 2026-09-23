@@ -14,7 +14,11 @@ from torch import Tensor, nn
 from torch.distributions import kl_divergence
 
 from antiyoy_rl.model import UniversalPolicy, action_distribution, encode_rules_batch
-from antiyoy_rl.slate_dataset import TeacherSlatePosition, load_teacher_slates
+from antiyoy_rl.slate_dataset import (
+    OpponentDecisions,
+    TeacherSlatePosition,
+    load_teacher_slates,
+)
 
 from .audit_duel_opponent_trajectory import measure_positions
 from .build_bundle import digest
@@ -52,17 +56,12 @@ def source_logits(
     return scores.squeeze(1)
 
 
-def position_loss(
-    position: TeacherSlatePosition,
+def decision_loss(
+    trace: OpponentDecisions,
     model: UniversalPolicy,
     action_head: nn.Module,
     action_residual: nn.Module | None,
-) -> tuple[Tensor, Tensor, Tensor] | None:
-    trace = position.opponent_decisions
-    if trace is None:
-        raise ValueError("opponent-plan training requires searched decision traces")
-    if len(trace.action_indices) == 0:
-        return None
+) -> tuple[Tensor, Tensor, Tensor]:
     rules = encode_rules_batch(list(trace.rules_json), torch.device("cpu"))
     logits, _, features = model.forward_with_action_features(trace.observation, rules)
     original = source_logits(features, action_head, action_residual)
@@ -74,15 +73,19 @@ def position_loss(
     )
 
 
-def train(
-    positions: list[TeacherSlatePosition], model: UniversalPolicy
+def train_action_head(
+    positions: list[tuple[int, OpponentDecisions]],
+    model: UniversalPolicy,
+    reference: UniversalPolicy,
+    epochs: int,
+    shuffle_seed: int,
 ) -> list[dict[str, float | int]]:
     for parameter in model.parameters():
         parameter.requires_grad_(False)
-    source_head = copy.deepcopy(model.action_head).eval()
+    source_head = copy.deepcopy(reference.action_head).eval()
     source_residual = (
-        copy.deepcopy(model.action_residual).eval()
-        if model.action_residual is not None
+        copy.deepcopy(reference.action_residual).eval()
+        if reference.action_residual is not None
         else None
     )
     trainable = [*model.action_head.parameters()]
@@ -91,31 +94,27 @@ def train(
     for parameter in trainable:
         parameter.requires_grad_(True)
     optimizer = torch.optim.AdamW(trainable, lr=0.0001, weight_decay=0.01)
-    by_map: dict[int, list[TeacherSlatePosition]] = defaultdict(list)
-    for position in positions:
-        by_map[position.seed].append(position)
+    by_map: dict[int, list[OpponentDecisions]] = defaultdict(list)
+    for seed, trace in positions:
+        by_map.setdefault(seed, [])
+        if len(trace.action_indices):
+            by_map[seed].append(trace)
     order = sorted(by_map)
-    shuffle = random.Random(SEED)
-    epochs = []
-    for epoch in range(EPOCHS):
+    shuffle = random.Random(shuffle_seed)
+    history = []
+    for epoch in range(epochs):
         shuffle.shuffle(order)
         losses = np.zeros(3, dtype=np.float64)
         updates = 0
         for seed in order:
-            eligible = [
-                position
-                for position in by_map[seed]
-                if position.opponent_decisions is not None
-                and len(position.opponent_decisions.action_indices) > 0
-            ]
+            eligible = by_map[seed]
             if not eligible:
                 continue
             optimizer.zero_grad(set_to_none=True)
-            for position in eligible:
-                result = position_loss(position, model, source_head, source_residual)
-                if result is None:
-                    raise AssertionError("eligible position had no searched decisions")
-                objective, cross_entropy, retention = result
+            for trace in eligible:
+                objective, cross_entropy, retention = decision_loss(
+                    trace, model, source_head, source_residual
+                )
                 (objective / len(eligible)).backward()
                 losses += np.asarray(
                     [
@@ -127,7 +126,7 @@ def train(
             torch.nn.utils.clip_grad_norm_(trainable, 1.0)
             optimizer.step()
             updates += 1
-        epochs.append(
+        history.append(
             {
                 "epoch": epoch + 1,
                 "map_updates": updates,
@@ -136,7 +135,18 @@ def train(
                 "mean_map_source_kl": float(losses[2] / updates),
             }
         )
-    return epochs
+    return history
+
+
+def train(
+    positions: list[TeacherSlatePosition], model: UniversalPolicy
+) -> list[dict[str, float | int]]:
+    traces = []
+    for position in positions:
+        if position.opponent_decisions is None:
+            raise ValueError("opponent-plan training requires searched decision traces")
+        traces.append((position.seed, position.opponent_decisions))
+    return train_action_head(traces, model, model, EPOCHS, SEED)
 
 
 def compared_measurements(
@@ -190,6 +200,31 @@ def compared_measurements(
         ),
         "map_ledger": ledger,
     }
+
+
+def load_head_student(
+    source_path: Path, head_path: Path
+) -> tuple[UniversalPolicy, UniversalPolicy]:
+    source, config = load_policy(
+        source_path,
+        torch.device("cpu"),
+        profile="classic_generic_2022",
+        generator="procedural_v1",
+        players=2,
+    )
+    saved = torch.load(head_path, map_location="cpu", weights_only=True)
+    if (
+        saved["kind"]
+        not in {"opponent_action_head_scout", "corrective_opponent_action_head"}
+        or saved["source_sha256"] != digest(source_path)
+        or saved["selected_expert"] != config["selected_expert"]
+    ):
+        raise ValueError("student head does not match the frozen source expert")
+    student = copy.deepcopy(source)
+    student.action_head.load_state_dict(saved["action_head"])
+    if student.action_residual is not None:
+        student.action_residual.load_state_dict(saved["action_residual"])
+    return source.eval(), student.eval()
 
 
 def run(
