@@ -1,0 +1,43 @@
+{
+  "kind": "procedural_duel_teacher_slate_dataset_pilot",
+  "protocol": "benchmarks/protocols/2026-09-23-duel-teacher-slates-v1.json",
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "seed": 6277100,
+    "maps": 4,
+    "action_limit": 400
+  },
+  "teacher": {
+    "root_search_nodes": 256,
+    "distinct_completed_turns": 8,
+    "opponent_search_nodes": 64,
+    "sample_round_modulus": 4,
+    "sample_round_remainder": 0
+  },
+  "result": {
+    "completed_maps": 4,
+    "truncated_maps": 0,
+    "sampled_positions": 47,
+    "candidate_turns": 332,
+    "teacher_overrides_of_static_rank_zero": 10,
+    "teacher_first_action_changes": 6,
+    "actions_played": 823,
+    "native_elapsed_seconds": 0.998826654,
+    "compressed_bytes": 392528
+  },
+  "remote_artifact": {
+    "name": "procedural-v2-duel-slate-dataset-pilot-6277100.json.gz",
+    "sha256": "5648957a5a75197c790413a05821a7b54926df601f32b3d03779f36980c36f15"
+  },
+  "checks": [
+    "Rust workspace tests and Clippy passed on SSH server",
+    "306 Python tests passed on SSH server",
+    "Python loader reconstructed all 47 positions and exactly reproduced all 10 native teacher overrides",
+    "Four-map disjoint smoke completed end-to-end with frozen routed-v6 spatial encoder and no terminal continuation labels"
+  ],
+  "qualification": "This validates an opt-in dataset pipeline, not a learned policy or an Elo improvement. The earlier procedural_v1 pilot was discarded. Training, validation, and full-game-gate windows in the protocol remain unused."
+}
