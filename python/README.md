@@ -39,6 +39,36 @@ Each action index is local to its environment's half-open range in
 `observation["action_offsets"]`. Select a legal action, step the complete batch,
 and reset every environment whose terminal or truncated value is one.
 
+## Exact counterfactual branches
+
+`VectorEnv.fork(np.array([source_index, ...], dtype=np.uint64))` copies live Rust
+states without replaying their action histories. Indices may repeat or be
+reordered. Each copy retains its rules, procedural generator, objective, fog
+mode, legal actions, episode step, and action limit, then advances independently
+of the source. This is useful for evaluating alternative legal actions from the
+same position and for collecting state-action training targets.
+
+`antiyoy_rl.counterfactual.rollout_candidates` applies each candidate action
+to a fork and continues with the same frozen routed policy. With no horizon it
+returns exact terminal or adjudicated results under that continuation. A finite
+`horizon` returns territory at that many future atomic actions and explicitly
+marks unfinished branches as censored; their winner is `None`, not a draw.
+These deterministic continuations are conditional counterfactuals, not an
+estimate of performance against arbitrary opponents.
+
+From the repository root, `python -m python.benchmark_counterfactual CHECKPOINT`
+samples policy positions and reports all candidate results. For example, add
+`--generator procedural_v1 --players 5 --environments 4 --updates 320
+--label-stride 8 --candidate-count 3 --training-seat 4
+--rollout-horizon 96 --device cpu`. The report contains episode seeds and full
+action prefixes so each sampled position can be replayed. To test whether
+lookahead actually improves games, use
+`python -m python.evaluate_counterfactual CHECKPOINT` with the same domain
+options, `--environments 64 --model-seat 4 --candidate-count 3
+--rollout-horizon 96 --intervention-round 0`. It changes one decision per game
+and compares complete outcomes against the direct policy on identical seeds.
+Only the paired outcome test, not territory at the horizon, is a strength gate.
+
 ## Policy training
 
 `UniversalPolicy` is a rules-conditioned hex convolutional actor-critic. It

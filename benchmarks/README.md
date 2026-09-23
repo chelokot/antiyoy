@@ -83,6 +83,13 @@ greedy policy on the identical seed and report both records. Exact-seat scouts
 may avoid replaying unchanged routes, but a tie still fails selection and any
 actual gain must subsequently survive the all-seat release suite.
 
+Action-level counterfactual scouts fork the exact live Rust state, change one
+legal action, and let the frozen policy play the remainder. Horizon-limited
+territory is diagnostic only: incomplete branches are censored, and their
+unknown winner is never recorded as a draw. A candidate decision rule must be
+compared against the direct policy in complete, paired games on fresh seeds
+before it can be called an amplifier.
+
 The 5–8 player matrix gives every seat one game on each of two held-out seeds
 for every compatibility profile. Its increasing board sizes and action limits
 are part of the domain identity. Use a search-node override only for explicitly
