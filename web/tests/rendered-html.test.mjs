@@ -154,6 +154,12 @@ test("renders the benchmark-backed model arena", async () => {
   assert.match(html, /Exact-state counterfactual lookahead/);
   assert.match(html, /57\/57 full continuations still lost/);
   assert.match(html, /2026-09-23-counterfactual-fork-cpu-scout\.json/);
+  assert.match(html, /The seat is part of the experiment/);
+  assert.match(html, /v1 wins \/ 512/);
+  assert.match(html, /v2 wins \/ 512/);
+  assert.match(html, /self-play wins, not Elo or model-versus-model results/);
+  assert.match(html, /2026-09-23-procedural-seat-bias-cpu\.json/);
+  assert.match(html, /2026-09-23-rotated-seat-generator-cpu\.json/);
   assert.match(html, /Test whole-turn or multi-action outcome credit/);
   assert.match(html, /Play either promoted Soft-PUCT seat now/);
   assert.match(html, /280–0–232/);

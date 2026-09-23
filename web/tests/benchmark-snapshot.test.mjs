@@ -104,3 +104,21 @@ test("model arena snapshot preserves the measured search and value gates", async
     exact_two_sided_sign_test_p: 1,
   });
 });
+
+test("model arena seat audit stays separate from Elo and matches both reports", async () => {
+  const [snapshot, bias, rotation] = await Promise.all([
+    readJson(snapshotUrl),
+    readJson(new URL("2026-09-23-procedural-seat-bias-cpu.json", benchmarkRoot)),
+    readJson(new URL("2026-09-23-rotated-seat-generator-cpu.json", benchmarkRoot)),
+  ]);
+  assert.equal(snapshot.seatAudit.mapsPerSchema, rotation.combined.maps_per_schema);
+  assert.deepEqual(bias.controlled_start_rotation.combined_wins_by_original_start, [187, 172, 146, 87, 48]);
+  for (const row of snapshot.seatAudit.rows) {
+    const seat = row.seat;
+    assert.equal(row.legacyWins, rotation.combined.schema_1.wins_by_seat[seat]);
+    assert.equal(row.rotatedWins, rotation.combined.schema_2.wins_by_seat[seat]);
+    assert.equal(row.legacyRegion, Number(rotation.combined.schema_1.initial_voronoi_region_mean_by_seat[seat].toFixed(2)));
+    assert.equal(row.rotatedRegion, Number(rotation.combined.schema_2.initial_voronoi_region_mean_by_seat[seat].toFixed(2)));
+  }
+  assert.ok(snapshot.comparisons.every((row) => row.evidence !== "rotated-seat-generator"));
+});
