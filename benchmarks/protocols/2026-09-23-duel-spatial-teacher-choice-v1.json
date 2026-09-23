@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_spatial_teacher_choice_scout",
+  "teacher": "Native reply-search-256/8/64 on Classic Generic procedural_v2 11x9 two-player maps",
+  "source_encoder": "Frozen routed-v6 two-player Classic Generic procedural expert; root-seat perspective applied to each post-turn candidate before feature extraction",
+  "training_first_seed": 6265000,
+  "training_maps": 256,
+  "offline_validation_first_seed": 6268000,
+  "offline_validation_maps": 128,
+  "full_game_gate_first_seed": 6275000,
+  "full_game_gate_maps": 256,
+  "fit": "Use the same map-balanced, static-versus-override-balanced pairwise teacher-choice loss and fixed 200-step linear head as the 17-feature scout. Concatenate frozen spatial value features with the 17 root-conditioned material and economy features. No encoder fine-tuning and no validation-seed hyperparameter tuning.",
+  "checks": "First verify the exact selected two-player expert and root-seat encoding. Report training and held-out exact choice agreement, override precision/recall, first-action agreement and conditional terminal outcomes against static rank zero and the reply-search teacher, grouped by independent map. Keep the full-game seed window untouched unless the offline candidate is promising.",
+  "promotion": "No model, rating or browser deployment without fresh matched complete both-seat games and runtime evidence."
+}
