@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_reply_score_distillation",
+  "hypothesis": "Hard teacher-choice labels discard the relative utility of nonselected complete turns and overproduce false overrides. Regress every candidate's full-opponent-turn native reply score relative to static rank zero, rather than train only on the hard winner.",
+  "arena": "classic_generic_2022 procedural_v2 11x9 two-player reply-search-256/8/64 self-play, sample every fourth round",
+  "fit_first_seed": 6280000,
+  "fit_maps": 768,
+  "fresh_offline_validation_first_seed": 6312000,
+  "fresh_offline_validation_maps": 256,
+  "used_diagnostic_windows": [6280768, 6292000, 6310000],
+  "untouched_full_game_gate_first_seed": 6300000,
+  "untouched_full_game_gate_maps": 256,
+  "score_target": "For each candidate i>0, asinh(reply_score_i/1000)-asinh(reply_score_0/1000). This monotonic transform preserves score ordering and compresses terminal-magnitude values near +/-1e12; validation seed6310000 contained 189 such values among 19702 candidate scores. Train on every candidate difference, not just the selected winner.",
+  "model": "Frozen routed-v6 two-player encoder on genuine post-turn next-active-player observations plus 17 root-conditioned aggregate features; shared two-hidden-layer 128-ReLU scalar candidate scorer. Z-score inputs on fit maps only. AdamW learning rate0.001 weight_decay0.01, deterministic seed72031, 20 shuffled epochs of2048 candidate-pair minibatches, SmoothL1 beta1.0 loss, equal map/position weighting and natural rather than override-balanced position frequency. No threshold or early stopping.",
+  "offline_gate": "Report transformed relative-score MAE and sign accuracy, exact teacher-choice and first-action agreement, correct and false overrides, both seats and independent-map sign test against always choosing static rank zero. Reject if no robust offline transfer; do not tune on seed6312000 results.",
+  "promotion": "Even positive offline transfer is not Elo. Only frozen inference plus fresh complete both-seat matched games grouped by independent map against plain beam and reply-search teacher, profile/runtime checks, and untouched seed6300000 final gate can promote the student.",
+  "resources": "All compute on SSH server after aggregate resource check, bounded nice-19 single-CPU jobs, thread limits and compressed artifacts; no other workload preemption, no GPU unless safely free."
+}
