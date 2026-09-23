@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "kind": "routed_policy_rotated_procedural_map_cpu_scout",
+  "implementation_commit": "2927ff8adbf51f73f44226b3ffe33f49ae6b3d20",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 2,
+    "process_priority": "nice 19",
+    "gpu_used": false
+  },
+  "source": {
+    "artifact": "universal-routed-2to8p-engine-v6-2026-08-31.pt",
+    "sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "selected_five_player_expert": "context:ea1a83a813d1f57f",
+    "policy_route_generator": "procedural_v1"
+  },
+  "arena": {
+    "environment_generator": "procedural_v2",
+    "rules": "classic_generic_2022",
+    "players": 5,
+    "width": 19,
+    "height": 15,
+    "action_limit": 2400,
+    "seed_first": 4900000,
+    "unique_maps": 16,
+    "land_density_per_million": 650000,
+    "starting_province_size": 5,
+    "starting_money": 10,
+    "tree_density_per_million": 150000,
+    "neutral_tower_density_per_million": 20000,
+    "neutral_capital_density_per_million": 10000,
+    "grave_density_per_million": 15000,
+    "baseline": "native deterministic greedy",
+    "fog": false,
+    "diplomacy": false
+  },
+  "command": "OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 RAYON_NUM_THREADS=2 nice -n 19 python -m python.evaluate universal-routed.pt --games 80 --seed 4900000 --baseline greedy --profile classic_generic_2022 --width 19 --height 15 --players 5 --action-limit 2400 --procedural --generator-schema-version 2 --route-generator procedural_v1 --device cpu",
+  "all_seats": {
+    "games": 80,
+    "games_per_seat": 16,
+    "policy_wins": 17,
+    "greedy_self_play_reference_wins": 16,
+    "policy_wins_by_seat": [4, 3, 6, 3, 1],
+    "greedy_reference_wins_by_seat": [5, 4, 3, 3, 1],
+    "paired_better": 8,
+    "paired_worse": 7,
+    "paired_same": 65,
+    "exact_two_sided_sign_test_p": 1.0,
+    "policy_truncations": 1,
+    "greedy_reference_truncations": 0,
+    "raw_result_sha256": "5c2a4c10faf806fd1b8d6ad1e3406b0307cd823cb0ef71e10bafc15d0fed67de"
+  },
+  "seat_4_reproduction": {
+    "command_difference": "--games 16 --model-seat 4, with the same seed window and all other settings unchanged",
+    "policy_wins": 1,
+    "greedy_reference_wins": 1,
+    "paired_better": 1,
+    "paired_worse": 1,
+    "paired_same": 14,
+    "exact_two_sided_sign_test_p": 1.0,
+    "raw_result_sha256": "3b615a23e7de7c6b0e6f915c24774e2f6b813567b1c083561b1fcd3b82bd1c45"
+  },
+  "decision": "The frozen routed v6 five-player expert is not promoted as a strong universal procedural agent. Its 17 wins across 80 games barely differ from 16 baseline greedy wins, with eight paired improvements versus seven regressions; the weakest seat ties greedy at one win in 16 maps. The fixed-duel Elo ladder is a different pool and cannot be extrapolated to this domain.",
+  "limitations": "This is one 16-map CPU scout, not a high-confidence strength gate or an absolute human Elo. The same v1 five-player expert was explicitly routed into v2 maps to avoid silently falling back to the bundle's profile-level expert. All-seat outcomes reuse maps across five seat assignments, so those games are correlated."
+}
