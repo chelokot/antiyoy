@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_starting_position_fairness_audit",
+  "implementation_commit": "fd1ac230ccb29dc68063adefbb384846bb1524b9",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 2,
+    "process_priority": "nice 19",
+    "gpu_used": false
+  },
+  "domain": {
+    "generator_schema_version": 1,
+    "rules": "classic_generic_2022",
+    "policy": "native deterministic greedy on every seat",
+    "players": 5,
+    "width": 19,
+    "height": 15,
+    "action_limit": 2400,
+    "land_density_per_million": 650000,
+    "starting_province_size": 5,
+    "starting_money": 10,
+    "tree_density_per_million": 150000,
+    "neutral_tower_density_per_million": 20000,
+    "neutral_capital_density_per_million": 10000,
+    "grave_density_per_million": 15000
+  },
+  "unrotated_geometry": {
+    "command_template": "OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 RAYON_NUM_THREADS=2 nice -n 19 python -m python.benchmark_seat_balance --games 256 --batch-size 32 --seed {seed} --width 19 --height 15 --players 5 --action-limit 2400",
+    "runs": [
+      {
+        "seed_first": 4300000,
+        "maps": 256,
+        "wins_by_seat": [67, 73, 61, 40, 15],
+        "initial_voronoi_region_mean_by_seat": [70.4140625, 24.25390625, 28.17578125, 34.07421875, 29.08203125],
+        "truncations": 1,
+        "raw_result_sha256": "81f46916cb33509a2e40d3217f989a73cd14097127698e24ad3a561d75e83c5c"
+      },
+      {
+        "seed_first": 4400000,
+        "maps": 256,
+        "wins_by_seat": [76, 78, 45, 44, 13],
+        "initial_voronoi_region_mean_by_seat": [72.30078125, 23.08984375, 28.41015625, 32.06640625, 30.1328125],
+        "truncations": 3,
+        "raw_result_sha256": "16edaeaf405e8a63f49abf01a75ca856d4f764c9e231a8e4d670149c3fe5fc32"
+      }
+    ],
+    "combined_maps": 512,
+    "combined_wins_by_seat": [143, 151, 106, 84, 28],
+    "combined_initial_voronoi_region_mean_by_seat": [71.357421875, 23.671875, 28.29296875, 33.0703125, 29.607421875]
+  },
+  "controlled_start_rotation": {
+    "command_template": "RAYON_NUM_THREADS=2 nice -n 19 cargo run --release -q -p antiyoy-cli -- seat-audit --map procedural --width 19 --height 15 --players 5 --maps 64 --seed {seed} --action-limit 2400 --rotate-starts --json",
+    "method": "Generate each map once, then play it five times with cyclic player-ID relabelling of the unchanged starting provinces; the same greedy agent controls all seats; terminal winners and adjudicated truncations are counted by assigned seat and by original starting position.",
+    "runs": [
+      {
+        "seed_first": 4500000,
+        "maps": 64,
+        "games": 320,
+        "wins_by_seat": [71, 70, 62, 66, 51],
+        "wins_by_original_start": [91, 96, 72, 43, 18],
+        "draws": 0,
+        "truncations": 2,
+        "actions": 238181,
+        "elapsed_seconds": 139.424675902
+      },
+      {
+        "seed_first": 4600000,
+        "maps": 64,
+        "games": 320,
+        "wins_by_seat": [79, 77, 61, 60, 43],
+        "wins_by_original_start": [96, 76, 74, 44, 30],
+        "draws": 0,
+        "truncations": 2,
+        "actions": 252099,
+        "elapsed_seconds": 145.502440322,
+        "raw_result_sha256": "8b81fc8a5da807b9b297e7d16457781a285d2da6ef6a6bf40c450e077a59a2e1"
+      }
+    ],
+    "combined_maps": 128,
+    "combined_games": 640,
+    "combined_wins_by_seat": [150, 147, 123, 126, 94],
+    "combined_wins_by_original_start": [187, 172, 146, 87, 48]
+  },
+  "interpretation": "The first randomly chosen farthest-point seed is systematically allocated to player zero, and subsequent seeds retain insertion order as player IDs. On these map windows the original starting positions differ much more in outcomes than the cyclically averaged player seats: original position four wins 48 of 640 rotations, versus 94 of 640 for seat four. Initial Voronoi area is also highly asymmetric, although area alone does not explain the entire outcome order. These are descriptive measurements with five correlated games per map, not independent Elo trials or a causal attribution to region size alone.",
+  "decision": "Do not use unrotated procedural self-play win rate or a single seat's raw score as a universal model-strength claim. Preserve schema-v1 map determinism; design a versioned fairer assignment or mirrored evaluation and verify it on fresh seeds before adoption."
+}
