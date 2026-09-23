@@ -7,6 +7,8 @@
   "reply_score_terminal_preference_concordant_pairs": 335,
   "reply_score_terminal_preference_discordant_pairs": 204,
   "reply_score_tied_informative_pairs": 49,
+  "maps_with_informative_pairs": 44,
+  "maps_without_informative_pairs": 20,
   "independent_maps_with_more_concordant_pairs": 31,
   "independent_maps_with_more_discordant_pairs": 12,
   "independent_maps_tied": 1,
