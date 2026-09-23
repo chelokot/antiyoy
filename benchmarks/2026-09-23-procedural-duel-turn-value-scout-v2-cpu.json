@@ -1,0 +1,295 @@
+{
+  "decision": "Rejected: the fitted head is worse than the plain static selector and the reply-search teacher on the map-disjoint offline validation. It was not integrated into an agent, rated, or published; the predeclared full-game gate remains unused.",
+  "interpretation": "The head sees only root-conditioned aggregate material and economy. Among candidate pairs with different persistent-teacher terminal outcomes, 408/2963 training pairs and 193/1390 validation pairs have exactly identical feature vectors, so this representation cannot order them. Approximate pairwise agreement transfers from training to validation, but top-choice improvement does not: the validation head changes 15/256 static choices and yields 1 better versus 5 worse conditional outcomes, concentrated in seat one. The reply-search teacher itself yields 4 better versus 5 worse single-turn conditional outcomes on validation despite its separately established stronger complete-game policy. This is evidence that pointwise conditional labels and aggregate features are insufficient for the intended distillation, not proof that search is weak or that another model is strong. Candidate pairs share positions and maps; they are diagnostic, not independent games or Elo.",
+  "predeclared_protocol": "benchmarks/protocols/2026-09-23-duel-turn-value-v1.json",
+  "sampling": {
+    "training_positions": 512,
+    "training_candidate_states": 3626,
+    "training_outcome_diverse_positions": 316,
+    "training_teacher_censored_positions": 10,
+    "training_teacher_censored_states": 14,
+    "validation_positions": 256,
+    "validation_candidate_states": 1847,
+    "validation_outcome_diverse_positions": 150,
+    "validation_teacher_censored_positions": 4,
+    "validation_teacher_censored_states": 4
+  },
+  "feature_names": [
+    "static_score",
+    "territory_delta",
+    "unit_one_delta",
+    "unit_two_delta",
+    "unit_three_delta",
+    "unit_four_delta",
+    "ready_strength_delta",
+    "capital_delta",
+    "farm_delta",
+    "tower_delta",
+    "strong_tower_delta",
+    "tree_delta",
+    "defense_delta",
+    "treasury_delta",
+    "province_profit_delta",
+    "province_count_delta",
+    "largest_province_delta"
+  ],
+  "feature_scales": [
+    0.35482946038246155,
+    2.547304153442383,
+    0.8305686712265015,
+    0.4747019410133362,
+    0.09519535303115845,
+    0.009999999776482582,
+    0.6523600816726685,
+    0.26312077045440674,
+    0.19595284759998322,
+    0.11172180622816086,
+    0.009999999776482582,
+    0.6609718799591064,
+    3.2633888721466064,
+    9.36534595489502,
+    3.133927822113037,
+    0.26312077045440674,
+    2.97599458694458
+  ],
+  "kind": "procedural_duel_persistent_teacher_turn_value_scout",
+  "qualification": "Offline deterministic teacher continuations only; no full-game or policy-strength claim",
+  "training": {
+    "reply_search_versus_static": {
+      "better": 13,
+      "by_seat": {
+        "0": {
+          "better": 8,
+          "censored": 0,
+          "same": 245,
+          "worse": 3
+        },
+        "1": {
+          "better": 5,
+          "censored": 0,
+          "same": 246,
+          "worse": 5
+        }
+      },
+      "censored": 0,
+      "changed_choices": 66,
+      "independent_maps": {
+        "baseline_better": 7,
+        "candidate_better": 12,
+        "censored": 0,
+        "discordant": 19,
+        "exact_two_sided_sign_test_p": 0.359283447265625,
+        "net_improvements": 5,
+        "same": 237
+      },
+      "positions": 512,
+      "same": 491,
+      "worse": 8
+    },
+    "versus_reply_search": {
+      "better": 12,
+      "by_seat": {
+        "0": {
+          "better": 5,
+          "censored": 0,
+          "same": 244,
+          "worse": 7
+        },
+        "1": {
+          "better": 7,
+          "censored": 1,
+          "same": 240,
+          "worse": 8
+        }
+      },
+      "censored": 1,
+      "changed_choices": 84,
+      "independent_maps": {
+        "baseline_better": 12,
+        "candidate_better": 9,
+        "censored": 1,
+        "discordant": 21,
+        "exact_two_sided_sign_test_p": 0.6636238098144531,
+        "net_improvements": -3,
+        "same": 234
+      },
+      "positions": 512,
+      "same": 484,
+      "worse": 15
+    },
+    "versus_static": {
+      "better": 8,
+      "by_seat": {
+        "0": {
+          "better": 4,
+          "censored": 0,
+          "same": 251,
+          "worse": 1
+        },
+        "1": {
+          "better": 4,
+          "censored": 1,
+          "same": 246,
+          "worse": 5
+        }
+      },
+      "censored": 1,
+      "changed_choices": 39,
+      "independent_maps": {
+        "baseline_better": 6,
+        "candidate_better": 8,
+        "censored": 1,
+        "discordant": 14,
+        "exact_two_sided_sign_test_p": 0.79052734375,
+        "net_improvements": 2,
+        "same": 241
+      },
+      "positions": 512,
+      "same": 497,
+      "worse": 6
+    }
+  },
+  "training_files": [
+    {
+      "name": "procedural-duel-reply-teacher-train-6265000.json.gz",
+      "sha256": "b92df35695bb33a428dec4f287252f026a41270e2db8408556be7c35953617ef"
+    }
+  ],
+  "training_informative_pairs": 2963,
+  "training_maps": 256,
+  "training_pairwise_agreement": {
+    "concordant": 1567,
+    "discordant": 988,
+    "indistinguishable_features": 408,
+    "informative_pairs": 2963,
+    "tied": 408
+  },
+  "validation": {
+    "reply_search_versus_static": {
+      "better": 4,
+      "by_seat": {
+        "0": {
+          "better": 2,
+          "censored": 0,
+          "same": 125,
+          "worse": 1
+        },
+        "1": {
+          "better": 2,
+          "censored": 0,
+          "same": 122,
+          "worse": 4
+        }
+      },
+      "censored": 0,
+      "changed_choices": 31,
+      "independent_maps": {
+        "baseline_better": 5,
+        "candidate_better": 4,
+        "censored": 0,
+        "discordant": 9,
+        "exact_two_sided_sign_test_p": 1.0,
+        "net_improvements": -1,
+        "same": 119
+      },
+      "positions": 256,
+      "same": 247,
+      "worse": 5
+    },
+    "versus_reply_search": {
+      "better": 5,
+      "by_seat": {
+        "0": {
+          "better": 1,
+          "censored": 0,
+          "same": 125,
+          "worse": 2
+        },
+        "1": {
+          "better": 4,
+          "censored": 0,
+          "same": 118,
+          "worse": 6
+        }
+      },
+      "censored": 0,
+      "changed_choices": 44,
+      "independent_maps": {
+        "baseline_better": 8,
+        "candidate_better": 5,
+        "censored": 0,
+        "discordant": 13,
+        "exact_two_sided_sign_test_p": 0.5810546875,
+        "net_improvements": -3,
+        "same": 115
+      },
+      "positions": 256,
+      "same": 243,
+      "worse": 8
+    },
+    "versus_static": {
+      "better": 1,
+      "by_seat": {
+        "0": {
+          "better": 0,
+          "censored": 0,
+          "same": 128,
+          "worse": 0
+        },
+        "1": {
+          "better": 1,
+          "censored": 0,
+          "same": 122,
+          "worse": 5
+        }
+      },
+      "censored": 0,
+      "changed_choices": 15,
+      "independent_maps": {
+        "baseline_better": 5,
+        "candidate_better": 1,
+        "censored": 0,
+        "discordant": 6,
+        "exact_two_sided_sign_test_p": 0.21875,
+        "net_improvements": -4,
+        "same": 122
+      },
+      "positions": 256,
+      "same": 250,
+      "worse": 5
+    }
+  },
+  "validation_files": [
+    {
+      "name": "procedural-duel-reply-teacher-validation-6268000.json.gz",
+      "sha256": "e840fd985d4bfd59d004ae33e6a52b18334fd788f42365dfc2b5fb2c8c130898"
+    }
+  ],
+  "validation_maps": 128,
+  "validation_pairwise_agreement": {
+    "concordant": 726,
+    "discordant": 471,
+    "indistinguishable_features": 193,
+    "informative_pairs": 1390,
+    "tied": 193
+  },
+  "weights": [
+    0.2703826427459717,
+    0.24661885201931,
+    0.018844235688447952,
+    0.13648581504821777,
+    -0.12458838522434235,
+    0.0,
+    0.4445505738258362,
+    -0.056322723627090454,
+    0.020793892443180084,
+    -0.07090422511100769,
+    0.0,
+    0.006519732065498829,
+    0.21127645671367645,
+    0.29935315251350403,
+    0.07886036485433578,
+    -0.056322723627090454,
+    -0.02295863814651966
+  ]
+}
