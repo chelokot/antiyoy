@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_source_vs_native_reply_candidate_ranking_diagnostic",
+  "status": "post_hoc_read_only_no_policy_promotion",
+  "source_dataset": "Already-inspected corrective-autonomous validation: Classic Generic procedural_v2 11x9 two-player, 32 independent maps seed6351000, 154 sampled positions, candidate replies complete",
+  "source_dataset_sha256": "2bcd070af4f61f8363c8972aecde459a566eeb25c407d71311bdb88ea9221c65",
+  "frozen_routed_v6_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "raw_candidate_audit_sha256": "df2dd5657b5058f4e0a675b59770b139c517fd0380b8a96f9f8638698bb7f6ac",
+  "raw_ranking_audit_sha256": "6bd52dec30c311e7d7d87c177f227d45ae30eb1f97d676b1584b99fee8da121f",
+  "verification": "The native selected index maximized the stored searched opponent-reply score in every paired slate. Every frozen-source autonomous reply and root choice was uncensored. The audit only reread existing candidate records and ran no game, training, or new native search.",
+  "aggregate": {
+    "sampled_positions": 154,
+    "censored_positions": 0,
+    "independent_maps": 32,
+    "native_teacher_nonstatic_choices": 32,
+    "source_nonstatic_choices": 29,
+    "exact_native_teacher_index_matches": 132,
+    "exact_native_nonstatic_choice_matches": 16,
+    "strict_native_reply_score_regret_positions": 22,
+    "maps_with_strict_regret": 19,
+    "missed_native_nonstatic_choices_by_staying_static": 9,
+    "source_nonstatic_choices_worse_than_static_under_native_reply": 7,
+    "candidate_pair_rankings": {
+      "concordant": 2603,
+      "discordant": 293,
+      "source_tied": 36
+    }
+  },
+  "by_root_seat": {
+    "0": {
+      "positions": 79,
+      "exact_native_index_matches": 67,
+      "native_nonstatic_choices": 14,
+      "exact_native_nonstatic_choice_matches": 6,
+      "strict_native_reply_score_regret_positions": 12,
+      "missed_nonstatic_by_staying_static": 5,
+      "source_nonstatic_choices_worse_than_static": 4,
+      "candidate_pairs_concordant": 1324,
+      "candidate_pairs_discordant": 155,
+      "candidate_pairs_source_tied": 11
+    },
+    "1": {
+      "positions": 75,
+      "exact_native_index_matches": 65,
+      "native_nonstatic_choices": 18,
+      "exact_native_nonstatic_choice_matches": 10,
+      "strict_native_reply_score_regret_positions": 10,
+      "missed_nonstatic_by_staying_static": 4,
+      "source_nonstatic_choices_worse_than_static": 3,
+      "candidate_pairs_concordant": 1279,
+      "candidate_pairs_discordant": 138,
+      "candidate_pairs_source_tied": 25
+    }
+  },
+  "interpretation": "High aggregate pair ranking and 132 exact choices conceal missed consequential native overrides: only 16 of 32 nonstatic teacher indices are reproduced, with strict searched-reply-score regret at 22 positions across 19 independent maps. This sampled diagnostic does not exhibit a seat-one-specific ranking collapse: seat one has 10 regret positions in 75 versus seat zero 12 in 79. Pair comparisons and positions within a map are correlated, and native one-turn reply score is not terminal outcome. These data cannot explain the prior hybrid's seat-one complete-game regression on their own; policy-induced states and persistent strategy remain unmeasured boundaries.",
+  "decision": "Do not tune, rate, or deploy the failed hybrid or students on these already-used maps. A subsequent experiment must measure candidate ranking on each policy's actual complete-game state distribution with fresh predeclared independent maps and both-seat complete-game and runtime gates before promotion."
+}
