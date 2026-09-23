@@ -1,0 +1,335 @@
+{
+  "decision": "Rejected. The head was not integrated into an agent, rated, or published; the predeclared full-game gate remains unused.",
+  "interpretation": "On map-disjoint validation the teacher overrides static rank zero in 31/256 positions, changing the first action in 17. The balanced linear head predicts 19 overrides but exactly matches only two teacher overrides and makes 17 false overrides. Exact teacher-choice agreement is 214/256 versus 225/256 for always taking static rank zero; independent maps favor the head on two and the baseline on 13, with 113 tied (two-sided exact sign-test p=0.007385). First-action agreement is 229/256 versus 239/256 for static. Conditional persistent-teacher terminal outcomes also favor static, one better versus six worse for the head. Nearly every teacher override is distinguishable by these aggregate inputs from static rank zero, but the mapping does not transfer from training maps. This is an offline imitation failure, not evidence against the teacher's separately validated full-game strength. Candidate positions and maps are correlated; only the grouped-map counts are independent units here.",
+  "predeclared_protocol": "benchmarks/protocols/2026-09-23-duel-teacher-choice-v1.json",
+  "feature_names": [
+    "static_score",
+    "territory_delta",
+    "unit_one_delta",
+    "unit_two_delta",
+    "unit_three_delta",
+    "unit_four_delta",
+    "ready_strength_delta",
+    "capital_delta",
+    "farm_delta",
+    "tower_delta",
+    "strong_tower_delta",
+    "tree_delta",
+    "defense_delta",
+    "treasury_delta",
+    "province_profit_delta",
+    "province_count_delta",
+    "largest_province_delta"
+  ],
+  "feature_scales": [
+    0.29404884576797485,
+    2.13936710357666,
+    0.8442649245262146,
+    0.4697894752025604,
+    0.07149605453014374,
+    0.009999999776482582,
+    0.6440966725349426,
+    0.2960740327835083,
+    0.18857026100158691,
+    0.09451058506965637,
+    0.009999999776482582,
+    0.8629012107849121,
+    3.2406437397003174,
+    7.501559734344482,
+    3.016645669937134,
+    0.2960740327835083,
+    2.6861703395843506
+  ],
+  "kind": "procedural_duel_reply_search_teacher_choice_scout",
+  "qualification": "Offline teacher-choice imitation and conditional outcomes only; no complete-game or policy-strength claim",
+  "training_agreement": {
+    "by_seat": {
+      "0": {
+        "correct_overrides": 3,
+        "false_overrides": 11,
+        "positions": 256,
+        "teacher_overrides": 29
+      },
+      "1": {
+        "correct_overrides": 12,
+        "false_overrides": 18,
+        "positions": 256,
+        "teacher_overrides": 37
+      }
+    },
+    "correct_overrides": 15,
+    "false_overrides": 29,
+    "first_action_matches": 458,
+    "independent_maps": {
+      "baseline_better": 20,
+      "candidate_better": 15,
+      "discordant": 35,
+      "exact_two_sided_sign_test_p": 0.49955983320251107,
+      "net_improvements": -5,
+      "same": 221
+    },
+    "positions": 512,
+    "predicted_overrides": 44,
+    "static_first_action_matches": 466,
+    "static_matches": 446,
+    "teacher_matches": 440,
+    "teacher_overrides": 66
+  },
+  "training_files": [
+    {
+      "name": "procedural-duel-reply-teacher-train-6265000.json.gz",
+      "sha256": "b92df35695bb33a428dec4f287252f026a41270e2db8408556be7c35953617ef"
+    }
+  ],
+  "training_maps": 256,
+  "training_pairs": 3114,
+  "training_terminal_outcomes": {
+    "reply_search_versus_static": {
+      "better": 13,
+      "by_seat": {
+        "0": {
+          "better": 8,
+          "censored": 0,
+          "same": 245,
+          "worse": 3
+        },
+        "1": {
+          "better": 5,
+          "censored": 0,
+          "same": 246,
+          "worse": 5
+        }
+      },
+      "censored": 0,
+      "changed_choices": 66,
+      "independent_maps": {
+        "baseline_better": 7,
+        "candidate_better": 12,
+        "censored": 0,
+        "discordant": 19,
+        "exact_two_sided_sign_test_p": 0.359283447265625,
+        "net_improvements": 5,
+        "same": 237
+      },
+      "positions": 512,
+      "same": 491,
+      "worse": 8
+    },
+    "versus_reply_search": {
+      "better": 12,
+      "by_seat": {
+        "0": {
+          "better": 5,
+          "censored": 1,
+          "same": 241,
+          "worse": 9
+        },
+        "1": {
+          "better": 7,
+          "censored": 0,
+          "same": 242,
+          "worse": 7
+        }
+      },
+      "censored": 1,
+      "changed_choices": 72,
+      "independent_maps": {
+        "baseline_better": 13,
+        "candidate_better": 9,
+        "censored": 1,
+        "discordant": 22,
+        "exact_two_sided_sign_test_p": 0.5234670639038086,
+        "net_improvements": -4,
+        "same": 233
+      },
+      "positions": 512,
+      "same": 483,
+      "worse": 16
+    },
+    "versus_static": {
+      "better": 10,
+      "by_seat": {
+        "0": {
+          "better": 3,
+          "censored": 1,
+          "same": 250,
+          "worse": 2
+        },
+        "1": {
+          "better": 7,
+          "censored": 0,
+          "same": 242,
+          "worse": 7
+        }
+      },
+      "censored": 1,
+      "changed_choices": 44,
+      "independent_maps": {
+        "baseline_better": 9,
+        "candidate_better": 10,
+        "censored": 1,
+        "discordant": 19,
+        "exact_two_sided_sign_test_p": 1.0,
+        "net_improvements": 1,
+        "same": 236
+      },
+      "positions": 512,
+      "same": 492,
+      "worse": 9
+    }
+  },
+  "validation_agreement": {
+    "by_seat": {
+      "0": {
+        "correct_overrides": 1,
+        "false_overrides": 7,
+        "positions": 128,
+        "teacher_overrides": 14
+      },
+      "1": {
+        "correct_overrides": 1,
+        "false_overrides": 10,
+        "positions": 128,
+        "teacher_overrides": 17
+      }
+    },
+    "correct_overrides": 2,
+    "false_overrides": 17,
+    "first_action_matches": 229,
+    "independent_maps": {
+      "baseline_better": 13,
+      "candidate_better": 2,
+      "discordant": 15,
+      "exact_two_sided_sign_test_p": 0.00738525390625,
+      "net_improvements": -11,
+      "same": 113
+    },
+    "positions": 256,
+    "predicted_overrides": 19,
+    "static_first_action_matches": 239,
+    "static_matches": 225,
+    "teacher_matches": 214,
+    "teacher_overrides": 31
+  },
+  "validation_files": [
+    {
+      "name": "procedural-duel-reply-teacher-validation-6268000.json.gz",
+      "sha256": "e840fd985d4bfd59d004ae33e6a52b18334fd788f42365dfc2b5fb2c8c130898"
+    }
+  ],
+  "validation_maps": 128,
+  "validation_terminal_outcomes": {
+    "reply_search_versus_static": {
+      "better": 4,
+      "by_seat": {
+        "0": {
+          "better": 2,
+          "censored": 0,
+          "same": 125,
+          "worse": 1
+        },
+        "1": {
+          "better": 2,
+          "censored": 0,
+          "same": 122,
+          "worse": 4
+        }
+      },
+      "censored": 0,
+      "changed_choices": 31,
+      "independent_maps": {
+        "baseline_better": 5,
+        "candidate_better": 4,
+        "censored": 0,
+        "discordant": 9,
+        "exact_two_sided_sign_test_p": 1.0,
+        "net_improvements": -1,
+        "same": 119
+      },
+      "positions": 256,
+      "same": 247,
+      "worse": 5
+    },
+    "versus_reply_search": {
+      "better": 4,
+      "by_seat": {
+        "0": {
+          "better": 1,
+          "censored": 0,
+          "same": 124,
+          "worse": 3
+        },
+        "1": {
+          "better": 3,
+          "censored": 0,
+          "same": 120,
+          "worse": 5
+        }
+      },
+      "censored": 0,
+      "changed_choices": 42,
+      "independent_maps": {
+        "baseline_better": 8,
+        "candidate_better": 4,
+        "censored": 0,
+        "discordant": 12,
+        "exact_two_sided_sign_test_p": 0.3876953125,
+        "net_improvements": -4,
+        "same": 116
+      },
+      "positions": 256,
+      "same": 244,
+      "worse": 8
+    },
+    "versus_static": {
+      "better": 1,
+      "by_seat": {
+        "0": {
+          "better": 0,
+          "censored": 0,
+          "same": 127,
+          "worse": 1
+        },
+        "1": {
+          "better": 1,
+          "censored": 0,
+          "same": 122,
+          "worse": 5
+        }
+      },
+      "censored": 0,
+      "changed_choices": 19,
+      "independent_maps": {
+        "baseline_better": 6,
+        "candidate_better": 1,
+        "censored": 0,
+        "discordant": 7,
+        "exact_two_sided_sign_test_p": 0.125,
+        "net_improvements": -5,
+        "same": 121
+      },
+      "positions": 256,
+      "same": 249,
+      "worse": 6
+    }
+  },
+  "weights": [
+    0.4615178108215332,
+    0.39808714389801025,
+    0.52695631980896,
+    -0.03842809423804283,
+    0.16855035722255707,
+    0.0,
+    0.9410907626152039,
+    0.03316672891378403,
+    -0.1253134310245514,
+    -0.36513063311576843,
+    0.0,
+    -0.27700942754745483,
+    0.6660582423210144,
+    0.13620419800281525,
+    0.1356782168149948,
+    0.03316672891378403,
+    0.2601335048675537
+  ]
+}
