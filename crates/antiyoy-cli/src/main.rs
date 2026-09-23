@@ -193,6 +193,8 @@ struct TurnCreditArgs {
     include_observations: bool,
     #[arg(long, requires = "include_observations")]
     opponent_search_nodes: Option<usize>,
+    #[arg(long, requires = "include_observations")]
+    root_search_nodes: Option<usize>,
     #[arg(long, default_value_t = 24)]
     maximum_actions_per_turn: usize,
     #[arg(long, value_enum, default_value_t = RulesKind::ClassicGeneric)]

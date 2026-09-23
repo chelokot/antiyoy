@@ -4,6 +4,7 @@ import argparse
 import json
 from collections import Counter
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 
@@ -11,17 +12,29 @@ from antiyoy_rl.turn_credit import TurnCreditPosition, load_turn_credit_position
 
 from .build_bundle import digest
 
+ProbeRole = Literal["root", "opponent"]
+
+
+def probe_values(
+    position: TurnCreditPosition, role: ProbeRole
+) -> tuple[int | None, np.ndarray | None]:
+    if role == "root":
+        return position.root_search_nodes, position.root_search_scores
+    return position.opponent_search_nodes, position.opponent_search_scores
+
 
 def preference(candidate: int, baseline: int) -> int:
     return (candidate > baseline) - (candidate < baseline)
 
 
-def summarize(positions: list[TurnCreditPosition]) -> dict[str, object]:
+def summarize(
+    positions: list[TurnCreditPosition], role: ProbeRole = "opponent"
+) -> dict[str, object]:
     if not positions:
         raise ValueError("audit requires sampled positions")
-    probe_nodes = {position.opponent_search_nodes for position in positions}
+    probe_nodes = {probe_values(position, role)[0] for position in positions}
     if None in probe_nodes or len(probe_nodes) != 1:
-        raise ValueError("audit requires one opponent search budget in every position")
+        raise ValueError(f"audit requires one {role} search budget in every position")
     state_counts: Counter[str] = Counter()
     comparison_counts: Counter[str] = Counter()
     affected_state_maps = set()
@@ -39,9 +52,9 @@ def summarize(positions: list[TurnCreditPosition]) -> dict[str, object]:
     strict_reversal_positions = 0
     robust_better_positions = 0
     for position in positions:
-        probe = position.opponent_search_scores
+        _, probe = probe_values(position, role)
         if probe is None or len(probe) != len(position.outcome_scores):
-            raise ValueError("opponent search labels must align with completed states")
+            raise ValueError(f"{role} search labels must align with completed states")
         greedy = position.outcome_scores
         seat_counts[position.seat]["positions"] += 1
         round_count = round_counts.setdefault(10 * (position.round // 10), Counter())
@@ -113,7 +126,7 @@ def summarize(positions: list[TurnCreditPosition]) -> dict[str, object]:
             robust_better_maps.add(position.seed)
             robust_better_positions += 1
     return {
-        "opponent_search_nodes": probe_nodes.pop(),
+        f"{role}_search_nodes": probe_nodes.pop(),
         "positions": len(positions),
         "independent_maps": len({position.seed for position in positions}),
         "distinct_states": sum(len(position.outcome_scores) for position in positions),
@@ -131,7 +144,9 @@ def summarize(positions: list[TurnCreditPosition]) -> dict[str, object]:
         "maps_with_robust_better_candidate": len(robust_better_maps),
         "maps_with_better_candidate": {
             "greedy_continuation": len(greedy_opportunity_maps),
-            "search_opponents": len(probe_opportunity_maps),
+            "search_root" if role == "root" else "search_opponents": len(
+                probe_opportunity_maps
+            ),
         },
         "by_seat": {str(seat): dict(counts) for seat, counts in seat_counts.items()},
         "by_round_decade": {
@@ -141,15 +156,19 @@ def summarize(positions: list[TurnCreditPosition]) -> dict[str, object]:
     }
 
 
-def audit(paths: list[Path]) -> dict[str, object]:
+def audit(paths: list[Path], role: ProbeRole = "opponent") -> dict[str, object]:
     positions = [
         position for path in paths for position in load_turn_credit_positions(path)
     ]
     return {
-        "kind": "whole_turn_opponent_continuation_label_stability",
+        "kind": f"whole_turn_{role}_continuation_label_stability",
         "source_files": [{"name": path.name, "sha256": digest(path)} for path in paths],
-        "comparison": "greedy root and opponents versus greedy root with searched opponents",
-        **summarize(positions),
+        "comparison": (
+            "greedy root and opponents versus searched root with greedy opponents"
+            if role == "root"
+            else "greedy root and opponents versus greedy root with searched opponents"
+        ),
+        **summarize(positions, role),
         "qualification": "conditional terminal labels only; no policy promotion",
     }
 
@@ -157,9 +176,12 @@ def audit(paths: list[Path]) -> dict[str, object]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True, action="append", type=Path)
+    parser.add_argument("--probe", choices=("root", "opponent"), default="opponent")
     parser.add_argument("--output", required=True, type=Path)
     arguments = parser.parse_args()
-    arguments.output.write_text(json.dumps(audit(arguments.input), indent=2) + "\n")
+    arguments.output.write_text(
+        json.dumps(audit(arguments.input, arguments.probe), indent=2) + "\n"
+    )
 
 
 if __name__ == "__main__":

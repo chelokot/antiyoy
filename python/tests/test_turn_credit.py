@@ -30,7 +30,9 @@ def observation(states: int) -> dict[str, object]:
     return exported
 
 
-def branch(index: int, winner: int | None, truncated: bool = False) -> dict[str, object]:
+def branch(
+    index: int, winner: int | None, truncated: bool = False
+) -> dict[str, object]:
     return {
         "state_index": index,
         "static_score": 100 + index,
@@ -125,10 +127,26 @@ def test_loader_accepts_compressed_reports(tmp_path: Path) -> None:
     np.testing.assert_array_equal(position.outcome_scores, [0, 2, -1])
 
 
-def test_loader_aligns_opponent_search_labels_with_distinct_states(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("nodes_field", "continuations_field", "scores_field"),
+    [
+        (
+            "opponent_search_nodes",
+            "opponent_search_continuations",
+            "opponent_search_scores",
+        ),
+        ("root_search_nodes", "root_search_continuations", "root_search_scores"),
+    ],
+)
+def test_loader_aligns_search_probe_labels_with_distinct_states(
+    tmp_path: Path,
+    nodes_field: str,
+    continuations_field: str,
+    scores_field: str,
+) -> None:
     value = report()
-    value["opponent_search_nodes"] = 32
-    value["records"][0]["opponent_search_continuations"] = [
+    value[nodes_field] = 32
+    value["records"][0][continuations_field] = [
         {"winner": 0, "truncated": False},
         {"winner": 1, "truncated": False},
         {"winner": None, "truncated": True},
@@ -138,16 +156,25 @@ def test_loader_aligns_opponent_search_labels_with_distinct_states(tmp_path: Pat
 
     [position] = load_turn_credit_positions(path)
 
-    np.testing.assert_array_equal(position.opponent_search_scores, [2, 0, -1])
-    assert position.opponent_search_nodes == 32
+    np.testing.assert_array_equal(getattr(position, scores_field), [2, 0, -1])
+    assert getattr(position, nodes_field) == 32
 
 
-def test_loader_rejects_missing_opponent_search_state(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("nodes_field", "continuations_field"),
+    [
+        ("opponent_search_nodes", "opponent_search_continuations"),
+        ("root_search_nodes", "root_search_continuations"),
+    ],
+)
+def test_loader_rejects_missing_search_probe_state(
+    tmp_path: Path,
+    nodes_field: str,
+    continuations_field: str,
+) -> None:
     value = report()
-    value["opponent_search_nodes"] = 32
-    value["records"][0]["opponent_search_continuations"] = [
-        {"winner": 0, "truncated": False}
-    ]
+    value[nodes_field] = 32
+    value["records"][0][continuations_field] = [{"winner": 0, "truncated": False}]
     path = tmp_path / "incomplete-probe.json"
     write_report(path, value)
 

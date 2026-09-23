@@ -11,6 +11,7 @@ def position(
     greedy: list[int],
     opponent_search: list[int] | None,
     round_number: int = 4,
+    root_search: list[int] | None = None,
 ) -> TurnCreditPosition:
     return TurnCreditPosition(
         seed=seed,
@@ -24,6 +25,10 @@ def position(
         static_scores=np.zeros(len(greedy), dtype=np.int64),
         search_index=0,
         greedy_index=0,
+        root_search_scores=(
+            np.asarray(root_search, dtype=np.int8) if root_search is not None else None
+        ),
+        root_search_nodes=32 if root_search is not None else None,
         opponent_search_scores=(
             np.asarray(opponent_search, dtype=np.int8)
             if opponent_search is not None
@@ -98,3 +103,18 @@ def test_audit_round_bucket_includes_uninformative_positions() -> None:
 
     assert summary["by_round_decade"] == {"20-29": {"positions": 1}}
     assert summary["positions_with_robust_better_candidate"] == 0
+
+
+def test_audit_root_probe_uses_root_labels_without_opponent_labels() -> None:
+    summary = summarize(
+        [position(13, 2, [0, 2], [2, 0], root_search=[0, 2])],
+        role="root",
+    )
+
+    assert summary["root_search_nodes"] == 32
+    assert summary["paired_state_outcomes"] == {"same": 2}
+    assert summary["positions_with_changed_candidate_preference"] == 0
+    assert summary["maps_with_better_candidate"] == {
+        "greedy_continuation": 1,
+        "search_root": 1,
+    }

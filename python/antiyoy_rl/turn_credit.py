@@ -66,6 +66,8 @@ class TurnCreditPosition:
     static_scores: np.ndarray
     search_index: int
     greedy_index: int
+    root_search_scores: np.ndarray | None = None
+    root_search_nodes: int | None = None
     opponent_search_scores: np.ndarray | None = None
     opponent_search_nodes: int | None = None
 
@@ -107,6 +109,30 @@ def outcome_score(continuation: dict[str, object], seat: int) -> int:
     return 2 if winner == seat else 0
 
 
+def continuation_probe_scores(
+    record: dict[str, object],
+    report: dict[str, object],
+    seat: int,
+    state_count: int,
+    nodes_field: str,
+    continuations_field: str,
+) -> np.ndarray | None:
+    continuations = cast(
+        list[dict[str, object]] | None,
+        record.get(continuations_field),
+    )
+    if (continuations is None) != (report.get(nodes_field) is None):
+        raise ValueError(f"{continuations_field} configuration and labels disagree")
+    if continuations is None:
+        return None
+    if len(continuations) != state_count:
+        raise ValueError(f"{continuations_field} probe count differs from end states")
+    return np.asarray(
+        [outcome_score(continuation, seat) for continuation in continuations],
+        dtype=np.int8,
+    )
+
+
 def load_turn_credit_positions(path: Path) -> list[TurnCreditPosition]:
     if path.suffix == ".gz":
         source = gzip.open(path, "rt", encoding="utf-8")
@@ -123,7 +149,9 @@ def load_turn_credit_positions(path: Path) -> list[TurnCreditPosition]:
         post_turn, post_rules = model_observation(observations["post_turn"])
         state_count = len(post_turn["widths"])
         if state_count != record["distinct_end_states"]:
-            raise ValueError("post-turn observation count differs from distinct end states")
+            raise ValueError(
+                "post-turn observation count differs from distinct end states"
+            )
         if len(root["widths"]) != 1 or len(post_rules) != state_count:
             raise ValueError("turn-credit observations have inconsistent batch sizes")
         scores = np.full(state_count, -1, dtype=np.int8)
@@ -134,7 +162,9 @@ def load_turn_credit_positions(path: Path) -> list[TurnCreditPosition]:
         branches = [greedy, search]
         alternatives = cast(list[dict[str, object]], record["alternatives"])
         candidates = cast(list[dict[str, object]], record["beam_candidates"])
-        branches.extend(cast(dict[str, object], item["branch"]) for item in alternatives)
+        branches.extend(
+            cast(dict[str, object], item["branch"]) for item in alternatives
+        )
         branches.extend(cast(dict[str, object], item["branch"]) for item in candidates)
         seat = cast(int, record["seat"])
         for branch in branches:
@@ -142,29 +172,35 @@ def load_turn_credit_positions(path: Path) -> list[TurnCreditPosition]:
             continuation = cast(dict[str, object], branch["continuation"])
             score = outcome_score(continuation, seat)
             if seen[index] and scores[index] != score:
-                raise ValueError("branches sharing a post-turn state disagree on outcome")
+                raise ValueError(
+                    "branches sharing a post-turn state disagree on outcome"
+                )
             static_score = cast(int, branch["static_score"])
             if seen[index] and static_scores[index] != static_score:
-                raise ValueError("branches sharing a post-turn state disagree on static score")
+                raise ValueError(
+                    "branches sharing a post-turn state disagree on static score"
+                )
             scores[index] = score
             static_scores[index] = static_score
             seen[index] = True
         if not seen.all():
             raise ValueError("a post-turn state has no outcome label")
-        probe_continuations = cast(
-            list[dict[str, object]] | None,
-            record.get("opponent_search_continuations"),
+        root_search_scores = continuation_probe_scores(
+            record,
+            report,
+            seat,
+            state_count,
+            "root_search_nodes",
+            "root_search_continuations",
         )
-        if (probe_continuations is None) != (report.get("opponent_search_nodes") is None):
-            raise ValueError("opponent search probe configuration and labels disagree")
-        opponent_search_scores = None
-        if probe_continuations is not None:
-            if len(probe_continuations) != state_count:
-                raise ValueError("opponent search probe count differs from end states")
-            opponent_search_scores = np.asarray(
-                [outcome_score(continuation, seat) for continuation in probe_continuations],
-                dtype=np.int8,
-            )
+        opponent_search_scores = continuation_probe_scores(
+            record,
+            report,
+            seat,
+            state_count,
+            "opponent_search_nodes",
+            "opponent_search_continuations",
+        )
         positions.append(
             TurnCreditPosition(
                 seed=cast(int, record["seed"]),
@@ -178,8 +214,12 @@ def load_turn_credit_positions(path: Path) -> list[TurnCreditPosition]:
                 static_scores=static_scores,
                 search_index=cast(int, search["state_index"]),
                 greedy_index=cast(int, greedy["state_index"]),
+                root_search_scores=root_search_scores,
+                root_search_nodes=cast(int | None, report.get("root_search_nodes")),
                 opponent_search_scores=opponent_search_scores,
-                opponent_search_nodes=cast(int | None, report.get("opponent_search_nodes")),
+                opponent_search_nodes=cast(
+                    int | None, report.get("opponent_search_nodes")
+                ),
             )
         )
     return positions
