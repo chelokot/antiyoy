@@ -3,15 +3,16 @@ from __future__ import annotations
 import argparse
 import json
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 import torch
 from torch import Tensor
 from torch.nn import functional
 
-from antiyoy_rl.slate_dataset import load_teacher_slates
+from antiyoy_rl.slate_dataset import TeacherSlatePosition, load_teacher_slates
 
 from .build_bundle import digest
 from .evaluate import load_policy, paired_comparison_summary
@@ -30,14 +31,30 @@ class ScoredTurn:
     static_scores: np.ndarray | None = None
 
 
-def load_scored_turns(paths: list[Path], encoder: torch.nn.Module) -> list[ScoredTurn]:
+def position_at_stage(
+    source: TeacherSlatePosition, stage: Literal["post_turn", "post_reply"]
+) -> TeacherSlatePosition:
+    if stage == "post_turn":
+        return source
+    if source.post_reply is None:
+        raise ValueError("teacher slate has no post-reply observation")
+    return replace(source, post_turn=source.post_reply)
+
+
+def load_scored_turns(
+    paths: list[Path],
+    encoder: torch.nn.Module,
+    stage: Literal["post_turn", "post_reply"] = "post_turn",
+    perspective: Literal["root", "next_active"] = "next_active",
+) -> list[ScoredTurn]:
     turns = []
     for path in paths:
-        for source in load_teacher_slates(path):
+        for loaded in load_teacher_slates(path):
+            source = position_at_stage(loaded, stage)
             scores = source.opponent_reply_scores
             turns.append(
                 ScoredTurn(
-                    embedding=embed_spatial(source, encoder, "next_active"),
+                    embedding=embed_spatial(source, encoder, perspective),
                     reply_scores=scores,
                     target=torch.as_tensor(
                         np.arcsinh(scores / 1000), dtype=torch.float32

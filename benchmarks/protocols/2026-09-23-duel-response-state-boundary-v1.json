@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_opponent_response_state_boundary",
+  "question": "How much of the native searched-reply-score error is attributable to predicting the opponent's full-turn transition rather than valuing its observed successor state?",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, action limit1000, reply-search root256/slate8/opponent64 self-play, completed turns sampled at round modulo4 equals0",
+  "datasets": {
+    "fit": {"first_seed": 6343000, "maps": 64},
+    "validation": {"first_seed": 6343100, "maps": 32},
+    "candidate_export": "Opt-in exact post-root-turn and post-searched-opponent-turn BatchObservations from the same search. Include opponent action sequences. Gzip the tiny outputs in remote scratch; no recomputation of replies."
+  },
+  "comparison": "Use the same frozen routed-v6 expert SHA256 68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867, same root-seat perspective, same 17 root material/static features, same 2x128 ReLU head, asinh(reply_score/1000) relative-to-static target, map-balanced pairs, optimizer, epochs and random seed. Train one head on post-root-turn state and another on post-opponent-turn state with exactly the same candidate labels and map split. Report transformed relative MAE, sign of rare better alternatives, positive precision, exact native teacher choice and selected native better/worse by seat and independent map. Count terminal-magnitude targets; do not select a margin or policy threshold.",
+  "interpretation": "An observed post-reply advantage would localize the missing information to opponent transition prediction, subject to this architecture and small sample. Similar failures would leave both representation and transition modeling unresolved. The post-reply state is an offline diagnostic oracle, never available to a deployed instantaneous student without simulation. No Elo, rating, full-game strength or student promotion from this probe.",
+  "resource_limit": "SSH server only after aggregate resource check; sequential nice19 single-CPU collection and fitting, each bounded by 15 minutes, no GPU or competing heavy job, compressed scratch outputs under about50MB total.",
+  "reserved_windows": "These fresh exploratory fit/validation maps are disjoint from all prior diagnostics. Do not use reserved final complete-game promotion seed6300000 or previously rejected student windows. Any policy candidate requires separate calibration and fresh all-seat complete-game gates."
+}
