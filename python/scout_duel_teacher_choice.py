@@ -26,7 +26,9 @@ from .scout_duel_turn_value import (
 from .scout_turn_value import train_head
 
 
-def teacher_choice_examples(positions: list[DuelEmbedding]) -> tuple[Tensor, Tensor]:
+def teacher_choice_pairs(
+    positions: list[DuelEmbedding],
+) -> tuple[Tensor, Tensor, Tensor]:
     groups = [position.reply_index != 0 for position in positions]
     maps_by_group = {
         group: {
@@ -44,7 +46,8 @@ def teacher_choice_examples(positions: list[DuelEmbedding]) -> tuple[Tensor, Ten
         (group, position.position.seed)
         for position, group in zip(positions, groups, strict=True)
     )
-    differences = []
+    chosen_features = []
+    alternative_features = []
     weights = []
     for position, group in zip(positions, groups, strict=True):
         features = position.position.features
@@ -59,23 +62,44 @@ def teacher_choice_examples(positions: list[DuelEmbedding]) -> tuple[Tensor, Ten
             * len(alternatives)
         )
         for index in alternatives:
-            differences.append(features[chosen] - features[index])
+            chosen_features.append(features[chosen])
+            alternative_features.append(features[index])
             weights.append(position_weight)
-    if not differences:
+    if not chosen_features:
         raise ValueError("teacher-choice training requires competing turn candidates")
-    return torch.stack(differences), torch.as_tensor(weights, dtype=torch.float32)
+    return (
+        torch.stack(chosen_features),
+        torch.stack(alternative_features),
+        torch.as_tensor(weights, dtype=torch.float32),
+    )
+
+
+def teacher_choice_examples(positions: list[DuelEmbedding]) -> tuple[Tensor, Tensor]:
+    chosen, alternative, weights = teacher_choice_pairs(positions)
+    return chosen - alternative, weights
 
 
 def agreement(
     positions: list[DuelEmbedding], weight: Tensor, scales: Tensor
 ) -> dict[str, object]:
+    choices = [
+        int(prediction_scores(position, weight, scales).argmax())
+        for position in positions
+    ]
+    return agreement_for_choices(positions, choices)
+
+
+def agreement_for_choices(
+    positions: list[DuelEmbedding], choices: list[int]
+) -> dict[str, object]:
+    if len(positions) != len(choices):
+        raise ValueError("predicted choices must align with positions")
     counts: Counter[str] = Counter()
     by_seat: dict[int, Counter[str]] = {}
     map_deltas: dict[int, int] = {}
-    for position in positions:
+    for position, predicted in zip(positions, choices, strict=True):
         example = position.position
         teacher = position.reply_index
-        predicted = int(prediction_scores(position, weight, scales).argmax())
         baseline = 0
         seat = by_seat.setdefault(example.seat, Counter())
         counts["positions"] += 1

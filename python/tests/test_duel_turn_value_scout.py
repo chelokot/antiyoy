@@ -8,7 +8,13 @@ pytest.importorskip("torch")
 import torch
 from antiyoy_rl.turn_credit import TurnCreditPosition
 import python.scout_duel_teacher_choice as teacher_choice
-from python.scout_duel_teacher_choice import agreement, teacher_choice_examples
+from python.scout_duel_nonlinear_choice import choices, train_scorer
+from python.scout_duel_teacher_choice import (
+    agreement,
+    agreement_for_choices,
+    teacher_choice_examples,
+    teacher_choice_pairs,
+)
 from python.scout_duel_turn_value import (
     FEATURE_NAMES,
     compare_choices,
@@ -120,9 +126,12 @@ def test_teacher_choice_training_balances_static_and_override_positions() -> Non
     )
 
     differences, weights = teacher_choice_examples([override, static])
+    chosen, alternatives, pair_weights = teacher_choice_pairs([override, static])
 
     assert differences.shape == (2, len(FEATURE_NAMES))
     np.testing.assert_allclose(weights.numpy(), [0.5, 0.5])
+    torch.testing.assert_close(chosen - alternatives, differences)
+    torch.testing.assert_close(pair_weights, weights)
     static_weight = torch.zeros(len(FEATURE_NAMES))
     static_weight[0] = 1
     report = agreement(
@@ -132,6 +141,33 @@ def test_teacher_choice_training_balances_static_and_override_positions() -> Non
     assert report["static_matches"] == 1
     assert report["teacher_overrides"] == 1
     assert report["correct_overrides"] == 0
+    assert agreement_for_choices([override, static], [1, 0])["teacher_matches"] == 2
+
+
+def test_nonlinear_teacher_scorer_fits_separable_turn_choices() -> None:
+    torch.set_num_threads(1)
+    base = embed_position(duel_position())
+
+    def position(seed: int, first: float, second: float, selected: int):
+        features = torch.zeros((2, len(FEATURE_NAMES)))
+        features[:, 0] = torch.as_tensor([first, second])
+        return replace(
+            base,
+            position=replace(base.position, seed=seed, features=features),
+            reply_index=selected,
+        )
+
+    training = [
+        position(71, 0, 1, 1),
+        position(72, 2, 0, 0),
+        position(73, 0, 1, 1),
+        position(74, 2, 0, 0),
+    ]
+    scorer, mean, scale, losses, pair_count = train_scorer(training, epochs=20)
+
+    assert pair_count == 4
+    assert losses[-1] < losses[0]
+    assert choices(training, scorer, mean, scale) == [1, 0, 1, 0]
 
 
 def test_spatial_embedding_uses_root_seat_and_preserves_slate_order(

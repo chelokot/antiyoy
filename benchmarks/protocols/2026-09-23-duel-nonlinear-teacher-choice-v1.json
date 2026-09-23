@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_nonlinear_teacher_choice_diagnostic",
+  "arena": "classic_generic_2022 procedural_v2 11x9 two-player reply-search-256/8/64 self-play, sample every fourth round",
+  "fit_first_seed": 6280000,
+  "fit_maps": 768,
+  "internal_holdout_first_seed": 6280768,
+  "internal_holdout_maps": 256,
+  "new_offline_validation_first_seed": 6310000,
+  "new_offline_validation_maps": 256,
+  "untouched_full_game_gate_first_seed": 6300000,
+  "untouched_full_game_gate_maps": 256,
+  "hypothesis": "The failed fixed linear head lacks capacity to model tactical opponent-response choices from root-conditioned post-turn spatial features. Keep the same frozen routed-v6 expert, 17 aggregate inputs, candidate slates, and hard teacher-choice target; change only the scoring head to a two-hidden-layer MLP.",
+  "candidate": "Two hidden layers of 128 ReLU units, one scalar per candidate, z-score features from fit maps only, deterministic seed 72031, AdamW learning rate 0.001, 20 epochs of shuffled 2048-pair minibatches, weighted logistic chosen-versus-alternative loss with equal teacher-override/non-override and map weights. No threshold or hyperparameter tuning on the used seed6292000 validation.",
+  "diagnostic_gate": "On fit and internal holdout compare exact teacher choice, correct/false overrides, first-action agreement, both seats and independent-map sign test against always selecting static rank zero. If fit is still worse, investigate inputs/labels/objective instead of scaling data or running fresh external validation. If fit improves and holdout is promising, collect the predeclared new offline window seed6310000 before any model promotion.",
+  "promotion": "No rating, deployment, or Elo claim from teacher-choice agreement. Only a frozen inference implementation followed by fresh complete both-seat matched games grouped by independent map and profile/runtime checks can promote a student. Never use the final seed6300000 window for model selection.",
+  "resources": "Compute only on SSH server; inspect aggregate resources first, run one nice-19 CPU process with thread limits, compressed artifacts and no GPU unless safely available."
+}
