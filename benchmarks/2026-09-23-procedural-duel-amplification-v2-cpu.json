@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_amplification_data_scale",
+  "code_commit": "23148f9",
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "route_generator": "procedural_v1",
+    "environment_domain": "e9ab65bc1fb838269e56a193b7f59d0437be2dd23ded16042eef342d24fce3bb",
+    "route_domain": "5d3ba70299240bcb9c72aa85df3bf432adb21216c072eaba21467bdb1032f4c7",
+    "players": 2,
+    "width": 11,
+    "height": 9,
+    "action_limit": 1000,
+    "land_density_per_million": 650000,
+    "starting_province_size": 5,
+    "starting_money": 10,
+    "tree_density_per_million": 150000,
+    "neutral_tower_density_per_million": 20000,
+    "neutral_capital_density_per_million": 10000,
+    "grave_density_per_million": 15000,
+    "fog": false,
+    "diplomacy": false,
+    "initial_relation": "neutral",
+    "pairing": "same_seed_both_model_seats",
+    "baseline": "frozen routed-v6 direct policy"
+  },
+  "source": {
+    "checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "selected_expert": "context:b02423ddd2f8cdf9"
+  },
+  "value_calibration": {
+    "seed_first": 6103200,
+    "seed_last": 6103711,
+    "training_maps": 384,
+    "validation_maps": 128,
+    "sample_stride": 4,
+    "exploration_probability": 0.005,
+    "exploration_top_k": 4,
+    "exploratory_actions": 273,
+    "collected_states": 19036,
+    "validation_states": 4854,
+    "epochs": 8,
+    "batch_size": 128,
+    "learning_rate": 0.0003,
+    "trainable_parameters": "value_head_only",
+    "validation_before": {
+      "rmse": 0.9038739854473977,
+      "sign_accuracy": 0.696332921302019,
+      "correlation": 0.45150720481633455
+    },
+    "validation_after": {
+      "rmse": 0.6976218737002458,
+      "sign_accuracy": 0.8277709105892048,
+      "correlation": 0.7074545145025292
+    },
+    "collection_truncations": 1,
+    "specialist_sha256": "8805c59f990456691c160b6000d36a73bb32e2e18dcc5b5635b544ab7fe16eed",
+    "bundle_sha256": "20393c6615b874f2ed6006722d2ac22acef1c1ad93dfc5403340096578cb5ac5",
+    "raw_report_sha256": "7c2cd905c99e8ca8318316f93e2adf85100496c306e9d972a7cbc6e3ee8c25a9"
+  },
+  "amplifier": {
+    "algorithm": "policy_guided_PUCT",
+    "node_budget": 8,
+    "root_value_weight": 1.0,
+    "leaf_batch_size": 32,
+    "value_perspective": "active",
+    "opponent_horizon": "search",
+    "objective": "scalar"
+  },
+  "development": {
+    "seed_first": 6102000,
+    "maps": 32,
+    "games": 64,
+    "amplified_wins": 35,
+    "baseline_wins": 32,
+    "candidate_better_maps": 5,
+    "baseline_better_maps": 2,
+    "same_maps": 25,
+    "exact_two_sided_sign_test_p": 0.453125,
+    "raw_result_sha256": "d81f297fa4182b55006b998381dad56079fb51e9bcb1e95a65a950dbbc41b343"
+  },
+  "confirmation": {
+    "seed_first": 6105000,
+    "seed_last": 6105127,
+    "maps": 128,
+    "games": 256,
+    "amplified_wins": 124,
+    "baseline_wins": 128,
+    "draws": 0,
+    "truncations": 0,
+    "adjudications": 0,
+    "score_delta": -0.015625,
+    "relative_elo_delta": -10.86089841744591,
+    "map_cluster_bootstrap_95_score_delta": [-0.046875, 0.01953125],
+    "map_cluster_bootstrap_95_relative_elo_delta": [-32.66801858052781, 13.578611811075145],
+    "bootstrap_resamples": 4096,
+    "candidate_better_maps": 7,
+    "baseline_better_maps": 11,
+    "same_maps": 110,
+    "exact_two_sided_sign_test_p": 0.480682373046875,
+    "seat_0": {
+      "amplified_wins": 80,
+      "baseline_wins": 82,
+      "candidate_better_games": 4,
+      "baseline_better_games": 6
+    },
+    "seat_1": {
+      "amplified_wins": 44,
+      "baseline_wins": 46,
+      "candidate_better_games": 3,
+      "baseline_better_games": 5
+    },
+    "root_coverage": {
+      "decisions": 18651,
+      "legal_actions": 1269752,
+      "visited_actions": 50150,
+      "roots_with_multiple_visited_actions": 11489,
+      "selected_unvisited_actions": 24,
+      "direct_policy_action_disagreements": 302
+    },
+    "windows": [
+      {
+        "seed_first": 6105000,
+        "maps": 32,
+        "raw_result_sha256": "76a842cc838d5405cc07ac9a5b6c7671546eb129f9a9c4b9470bed2b12e9112a"
+      },
+      {
+        "seed_first": 6105032,
+        "maps": 32,
+        "raw_result_sha256": "bbacbc379959ec4d2c32d30168e4797ff81bc2267b8bc95584d6cf6ef79bde19"
+      },
+      {
+        "seed_first": 6105064,
+        "maps": 32,
+        "raw_result_sha256": "de77f652c19fc4aa88a256500ab93a02b5e07f39d36b95b29627c1652f24ea3e"
+      },
+      {
+        "seed_first": 6105096,
+        "maps": 32,
+        "raw_result_sha256": "cfaba81d1c300c8aab36f762c7904ac47ace8afe79523f43f0e8db842a019bc1"
+      }
+    ]
+  },
+  "diagnosis": "More near-policy outcome labels improved held-out value prediction and produced a positive development scout, but the predeclared independent all-seat game gate regressed. Search explored alternatives at many roots, yet only 302 of 18651 decisions differed from the direct policy. On-policy RMSE does not establish the ordering or outcome value of search-visited branches.",
+  "decision": "reject_amplifier_no_distillation_or_rating_promotion",
+  "next_test": "Measure value-ranking errors on search-visited alternatives with explicit terminal continuations on fresh procedural duels; then test an outcome-grounded correction in separate map windows."
+}
