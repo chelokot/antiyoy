@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_opponent_plan_imitation_scout",
+  "question": "Can searched full-turn opponent action supervision improve a cheap policy's whole-plan agreement on previously unseen procedural maps, especially tactical Move and Build decisions, without changing its frozen spatial encoder?",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, action limit1000, reply-search self-play root256/slate8/opponent64, sample turns whose round modulo8 is zero",
+  "datasets": {
+    "fit": {"first_seed": 6346000, "maps": 64},
+    "validation": {"first_seed": 6347000, "maps": 32},
+    "source": "Opt-in searched opponent pre-action BatchObservations, local legal-action labels, candidate offsets and exact opponent action plans. All maps must finish without action-limit adjudication; count and report otherwise.",
+    "disjointness": "Neither window overlaps the 16-map trajectory pilot seed6345000, earlier scout/validation windows or reserved full-game promotion seed6300000. Do not select a checkpoint or threshold using validation maps."
+  },
+  "student": {
+    "initialization": "Frozen routed-v6 two-player Classic Generic expert SHA256 68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867, selected with procedural_v1 routing as in the earlier source-policy diagnostics",
+    "trainable": "Existing action_head and action_residual if present; freeze cell/spatial/rule/value encoder and all other parameters",
+    "objective": "Mean searched-action cross-entropy across each sampled opponent decision plus0.2 times KL(frozen-source action distribution || student action distribution), averaged over sampled positions and then equally over independent maps. All root-slate candidates with a nonempty searched opponent plan are used. Do not add action-kind weighting, terminal rewards, learned value targets or outcome labels.",
+    "optimizer": "AdamW learning rate0.0001 weight decay0.01, gradient norm clip1.0, deterministic map shuffle seed6346000, exactly4 epochs, one optimizer update per map, no scheduler, no intermediate checkpoint selection",
+    "inference": "Direct action argmax of the resulting policy; the native search and teacher plans are not used by the student at inference. This scout only evaluates teacher-forced held-out states, not autonomous inference yet."
+  },
+  "offline_measurements": "On fit and fresh validation, compare exactly the same frozen source and final student: searched-action top1/top3 agreement, searched-action probability and complete teacher-forced plan agreement, overall, by independent map, root seat, selected root candidate, beneficial nonstatic alternative, decision depth and action kind. Explicitly count terminal candidates, positions, plans, decisions, completed/truncated maps, dataset hashes, checkpoint hash, time and source-KL. Pair per-map whole-plan exact rates and use an exact two-sided sign test on maps with unequal rates.",
+  "offline_gate": "Require final student to improve whole-plan exact rate on fresh validation with map-grouped two-sided sign p<0.05, no decrease in either root-seat stratum, at least one additional exact beneficial-alternative plan, and no more than2 percentage-point drop in top1 agreement on non-tactical EndTurn actions. Otherwise reject this student and do not run a complete-game promotion gate or tune on validation seeds.",
+  "next_gate_if_passed": "Offline teacher-forced improvement is not strength. First measure autonomous full-opponent-turn successor-score fidelity on another fresh map window with no searched-plan actions at student inference. Only then freeze an actual candidate agent and run fresh complete BOTH-seat matched independent-map games against direct source and validated reply-search teacher with wall-time/profile checks, keeping seed6300000 untouched until then.",
+  "resource_limit": "Heavy work only on SSH server after aggregate resource check. Sequential nice19 single-CPU collection, each under15 minutes and combined gzip under100MB. Training one nice19 CPU process with30-minute hard timeout, no GPU, checkpoint under30MB; avoid other user workloads and private data. Stop on disk or memory pressure."
+}
