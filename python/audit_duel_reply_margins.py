@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import torch
+from antiyoy_rl.model import UniversalPolicy
 
 from .build_bundle import digest
 from .evaluate import load_policy, paired_comparison_summary
@@ -35,6 +36,52 @@ class ResponsePattern:
     candidate_length: int
     first_kind_changed: bool
     plan_changed: bool
+
+
+@dataclass(frozen=True)
+class FrozenReplyModel:
+    scorer: TurnScorer
+    mean: torch.Tensor
+    scale: torch.Tensor
+    encoder: UniversalPolicy
+    encoder_sha256: str
+    selected_expert: str
+    checkpoint_sha256: str
+
+
+def load_frozen_reply_model(
+    encoder_path: Path, checkpoint_path: Path
+) -> FrozenReplyModel:
+    torch.set_num_threads(1)
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+    encoder_sha256 = digest(encoder_path)
+    if (
+        checkpoint["encoder_sha256"] != encoder_sha256
+        or checkpoint["spatial_perspective"] != "next_active"
+        or checkpoint["target"] != "asinh(reply_score/1000)"
+    ):
+        raise ValueError("checkpoint does not match reply-score audit contract")
+    mean = checkpoint["mean"]
+    scale = checkpoint["scale"]
+    scorer = TurnScorer(len(mean))
+    scorer.load_state_dict(checkpoint["state_dict"])
+    scorer.eval()
+    encoder, config = load_policy(
+        encoder_path,
+        torch.device("cpu"),
+        profile="classic_generic_2022",
+        generator="procedural_v1",
+        players=2,
+    )
+    return FrozenReplyModel(
+        scorer=scorer,
+        mean=mean,
+        scale=scale,
+        encoder=encoder,
+        encoder_sha256=encoder_sha256,
+        selected_expert=str(config["selected_expert"]),
+        checkpoint_sha256=digest(checkpoint_path),
+    )
 
 
 def action_kind(action: str) -> str:
@@ -182,28 +229,8 @@ def audit(
     checkpoint_path: Path,
     minimum_margin: float | None = None,
 ) -> dict[str, object]:
-    torch.set_num_threads(1)
-    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
-    encoder_sha256 = digest(encoder_path)
-    if (
-        checkpoint["encoder_sha256"] != encoder_sha256
-        or checkpoint["spatial_perspective"] != "next_active"
-        or checkpoint["target"] != "asinh(reply_score/1000)"
-    ):
-        raise ValueError("checkpoint does not match reply-score audit contract")
-    mean = checkpoint["mean"]
-    scale = checkpoint["scale"]
-    scorer = TurnScorer(len(mean))
-    scorer.load_state_dict(checkpoint["state_dict"])
-    scorer.eval()
-    encoder, config = load_policy(
-        encoder_path,
-        torch.device("cpu"),
-        profile="classic_generic_2022",
-        generator="procedural_v1",
-        players=2,
-    )
-    turns = load_scored_turns(dataset_paths, encoder)
+    frozen = load_frozen_reply_model(encoder_path, checkpoint_path)
+    turns = load_scored_turns(dataset_paths, frozen.encoder)
     overrides = []
     selected_choices = []
     response_patterns = []
@@ -213,7 +240,7 @@ def audit(
     with torch.inference_mode():
         for turn in turns:
             features = turn.embedding.position.features
-            predictions = scorer((features - mean) / scale)
+            predictions = frozen.scorer((features - frozen.mean) / frozen.scale)
             selected = int(predictions.argmax())
             if minimum_margin is not None:
                 selected_choices.append(gated_choice(predictions, minimum_margin))
@@ -259,9 +286,9 @@ def audit(
         "dataset_files": [
             {"name": path.name, "sha256": digest(path)} for path in dataset_paths
         ],
-        "encoder_sha256": encoder_sha256,
-        "selected_expert": config["selected_expert"],
-        "checkpoint_sha256": digest(checkpoint_path),
+        "encoder_sha256": frozen.encoder_sha256,
+        "selected_expert": frozen.selected_expert,
+        "checkpoint_sha256": frozen.checkpoint_sha256,
         "maps": len({turn.embedding.position.seed for turn in turns}),
         "positions": len(turns),
         "model_overrides": len(overrides),

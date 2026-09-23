@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_reply_score_decomposition",
+  "source": "Existing 32-map seed6316000 procedural_v2 Classic Generic 11x9 two-player opponent-plan diagnostic; no new maps or training",
+  "frozen_model": "procedural-v2-duel-reply-score-768-audit.pt, unchanged weights and routed-v6 next-active-player encoder",
+  "definitions": "For every non-static frozen-model choice, root_static_gap = selected static score minus rank-zero static score (never positive), terminal_reply_gap = selected native score after the searched opponent full turn minus rank-zero reply score, response_swing = terminal_reply_gap minus root_static_gap. Compare exact serialized opponent action sequences, but do not treat equal sequences as equal effects on different board states.",
+  "measurements": "Report model override better/worse/same native reply outcomes by identical-versus-changed opponent action sequence and by both seats, median root_static_gap and median response_swing with terminal magnitudes counted separately, count static-score ties, and teacher non-static choices by whether the opponent plan differs from rank zero. Keep all independent map denominators explicit.",
+  "decision": "This is post hoc read-only localization on already-inspected maps, not an independent strength test or policy-selection window. Do not tune thresholds, train on these maps, use reserved selective seed6315000 or final full-game seed6300000, or infer Elo from it. Use findings only to specify a later predeclared representation experiment with fresh map windows.",
+  "resources": "Inference only through SSH server, bounded nice-19 single CPU, no GPU, no new large artifact, avoid other workloads/private data."
+}
