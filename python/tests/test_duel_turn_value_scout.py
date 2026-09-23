@@ -180,14 +180,25 @@ def test_spatial_embedding_uses_root_seat_and_preserves_slate_order(
     )
 
     class Encoder:
+        def __init__(self, expected_active: int):
+            self.expected_active = expected_active
+
         def forward_with_value_features(self, observation, rules):
-            np.testing.assert_array_equal(observation["active_players"], [0, 0])
+            np.testing.assert_array_equal(
+                observation["active_players"], [self.expected_active] * 2
+            )
             assert rules.shape == (2, 1)
             return None, None, torch.as_tensor([[1.0, 2.0], [3.0, 4.0]])
 
-    embedded = teacher_choice.embed_spatial(duel_position(), Encoder())
+    embedded = teacher_choice.embed_spatial(duel_position(), Encoder(0))
+    next_player = teacher_choice.embed_spatial(
+        duel_position(), Encoder(1), "next_active"
+    )
 
     assert embedded.position.features.shape == (2, len(FEATURE_NAMES) + 2)
+    torch.testing.assert_close(
+        next_player.position.features, embedded.position.features
+    )
     np.testing.assert_array_equal(
         embedded.position.features[:, -2:].numpy(), [[1, 2], [3, 4]]
     )

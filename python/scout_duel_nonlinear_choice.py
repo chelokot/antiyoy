@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Literal
 
 import torch
 from torch import Tensor, nn
@@ -83,6 +84,7 @@ def scout(
     holdout_paths: list[Path],
     encoder_path: Path,
     checkpoint_path: Path,
+    spatial_perspective: Literal["root", "next_active"] = "root",
 ) -> dict[str, object]:
     torch.set_num_threads(1)
     encoder, config = load_policy(
@@ -93,12 +95,12 @@ def scout(
         players=2,
     )
     fit = [
-        embed_spatial(position, encoder)
+        embed_spatial(position, encoder, spatial_perspective)
         for path in fit_paths
         for position in load_teacher_slates(path)
     ]
     holdout = [
-        embed_spatial(position, encoder)
+        embed_spatial(position, encoder, spatial_perspective)
         for path in holdout_paths
         for position in load_teacher_slates(path)
     ]
@@ -113,6 +115,7 @@ def scout(
             "mean": mean,
             "scale": scale,
             "encoder_sha256": digest(encoder_path),
+            "spatial_perspective": spatial_perspective,
         },
         checkpoint_path,
     )
@@ -126,6 +129,7 @@ def scout(
         ],
         "encoder_sha256": digest(encoder_path),
         "selected_expert": config["selected_expert"],
+        "spatial_perspective": spatial_perspective,
         "fit_maps": len(fit_maps),
         "holdout_maps": len(holdout_maps),
         "fit_pairs": pair_count,
@@ -147,6 +151,9 @@ def main() -> None:
     parser.add_argument("--holdout", required=True, action="append", type=Path)
     parser.add_argument("--encoder", required=True, type=Path)
     parser.add_argument("--checkpoint-out", required=True, type=Path)
+    parser.add_argument(
+        "--spatial-perspective", choices=("root", "next_active"), default="root"
+    )
     arguments = parser.parse_args()
     print(
         json.dumps(
@@ -155,6 +162,7 @@ def main() -> None:
                 arguments.holdout,
                 arguments.encoder,
                 arguments.checkpoint_out,
+                arguments.spatial_perspective,
             ),
             sort_keys=True,
         )

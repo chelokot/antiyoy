@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_next_player_spatial_diagnostic",
+  "hypothesis": "The frozen routed-v6 encoder was trained on genuine active-player observations. Previous teacher-choice scouts changed post-turn active_players to the just-finished root seat while leaving exhausted-unit state intact, creating a perspective absent from policy training. Encode the post-turn state from its real next-active-player perspective, while retaining root-conditioned material features and the same head and objective.",
+  "arena": "classic_generic_2022 procedural_v2 11x9 two-player reply-search-256/8/64 self-play, sample every fourth round",
+  "fit_first_seed": 6280000,
+  "fit_maps": 768,
+  "new_offline_validation_first_seed": 6310000,
+  "new_offline_validation_maps": 256,
+  "used_diagnostic_windows": [6280768, 6292000],
+  "untouched_full_game_gate_first_seed": 6300000,
+  "untouched_full_game_gate_maps": 256,
+  "candidate": "Frozen routed-v6 spatial encoder on genuine post-turn active-player observations plus the same 17 root-conditioned features, two hidden 128-unit ReLU layers, map/override-balanced pairwise hard-choice loss, AdamW learning rate0.001 weight_decay0.01, 20 shuffled epochs with2048-pair minibatches and deterministic seed72031. No threshold, early stopping, or hyperparameter change.",
+  "diagnostic_gate": "Evaluate exact teacher choice, correct/false overrides, first-action agreement, both seats and independent-map sign test against always selecting static rank zero on the fresh seed6310000 window. A promising offline result is still not a strength claim.",
+  "promotion": "No rating or deployment without frozen inference and fresh complete both-seat matched games grouped by independent map against plain beam and reply-search teacher, profile and runtime checks. Keep seed6300000 full-game window unused during offline selection.",
+  "resources": "Compute only on SSH server after aggregate resource check; one nice-19 CPU process, thread limits, compressed files, no GPU unless safely free."
+}

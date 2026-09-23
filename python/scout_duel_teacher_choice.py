@@ -5,6 +5,7 @@ import json
 from collections import Counter
 from dataclasses import replace
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 import torch
@@ -161,13 +162,19 @@ def agreement_for_choices(
 
 
 def embed_spatial(
-    source: TurnCreditPosition | TeacherSlatePosition, model: UniversalPolicy
+    source: TurnCreditPosition | TeacherSlatePosition,
+    model: UniversalPolicy,
+    perspective: Literal["root", "next_active"] = "root",
 ) -> DuelEmbedding:
     base = embed_position(source)
-    observation = {
-        **source.post_turn,
-        "active_players": np.full_like(source.post_turn["active_players"], source.seat),
-    }
+    observation = source.post_turn
+    if perspective == "root":
+        observation = {
+            **source.post_turn,
+            "active_players": np.full_like(
+                source.post_turn["active_players"], source.seat
+            ),
+        }
     rules = encode_rules_batch(list(source.post_turn_rules_json), torch.device("cpu"))
     with torch.inference_mode():
         _, _, spatial = model.forward_with_value_features(observation, rules)
