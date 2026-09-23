@@ -111,5 +111,18 @@
     "student_deviates_when_teacher_matches_source": 632,
     "raw_result_sha256": "5c84cb9fb9a92809ea7c2d8cb29a98393575f87edaaa8cff6c9d15dd0ae90c35"
   },
-  "interpretation": "The teacher was a stronger search agent, but the first policy-rollin imitation student became significantly weaker than its routed-v6 initialization on disjoint procedural duel maps. A same-state audit found that it learned fewer than one-third of teacher-versus-source corrections and also introduced new disagreements where teacher and source agreed. A predeclared second experiment upweighted corrections and strengthened source KL, yet remained below the source on a different fresh 64-map gate and still matched only 31.5% of teacher corrections. Neither checkpoint is promoted. Imitation accuracy did not predict online strength; this is a failed distillation stage, not evidence against the independently validated teacher."
+  "whole_turn_fidelity_audit": {
+    "seed_first": 6238000,
+    "maps": 16,
+    "games_per_policy": 32,
+    "student_completed_turns": 564,
+    "student_first_action_matches_teacher": 349,
+    "student_entire_turn_matches_teacher": 207,
+    "source_completed_turns": 556,
+    "source_first_action_matches_teacher": 297,
+    "source_entire_turn_matches_teacher": 160,
+    "student_raw_result_sha256": "a84894048c915fb7f54aef66524e90fbe4990d9a49aa0aeec9881ce34406e32b",
+    "source_raw_result_sha256": "d39c3f749e092935ddd36fbdf087f1041cd9b7a7a5786c0a7fccc4bf583c9fe2"
+  },
+  "interpretation": "The teacher was a stronger search agent, but the first policy-rollin imitation student became significantly weaker than its routed-v6 initialization on disjoint procedural duel maps. A same-state audit found that it learned fewer than one-third of teacher-versus-source corrections and also introduced new disagreements where teacher and source agreed. A predeclared second experiment upweighted corrections and strengthened source KL, yet remained below the source on a different fresh 64-map gate and still matched only 31.5% of teacher corrections. In a separate same-map audit, the second student matched more of the teacher's first actions and complete turns than the source, despite its worse game outcome. Thus plan fidelity alone is not the missing metric; action imitation is not an outcome-grounded training target. Neither checkpoint is promoted. This is a failed distillation stage, not evidence against the independently validated teacher."
 }
