@@ -1,0 +1,50 @@
+{
+  "kind": "procedural_duel_nonlinear_teacher_choice_diagnostic",
+  "protocol": "benchmarks/protocols/2026-09-23-duel-nonlinear-teacher-choice-v1.json",
+  "arena": "classic_generic_2022 procedural_v2 11x9 two-player reply-search-256/8/64 self-play, sample every fourth round",
+  "candidate": "Two-layer 128-unit ReLU candidate scorer on frozen routed-v6 spatial features and 17 aggregate features; 20 epochs of map- and override-balanced hard-choice pairwise logistic training",
+  "fit": {
+    "first_seed": 6280000,
+    "maps": 768,
+    "positions": 8632,
+    "teacher_overrides": 1401,
+    "pairs": 51933,
+    "first_epoch_loss": 0.57347293683196,
+    "final_epoch_loss": 0.14425939366534132,
+    "student_teacher_matches": 7244,
+    "static_teacher_matches": 7231,
+    "student_correct_overrides": 880,
+    "student_false_overrides": 1170,
+    "independent_maps_student_better": 276,
+    "independent_maps_static_better": 212,
+    "independent_maps_same": 280,
+    "map_sign_test_p": 0.0042986666355534645
+  },
+  "internal_holdout": {
+    "first_seed": 6280768,
+    "maps": 256,
+    "positions": 2722,
+    "teacher_overrides": 425,
+    "student_teacher_matches": 2057,
+    "static_teacher_matches": 2297,
+    "student_correct_overrides": 101,
+    "student_false_overrides": 506,
+    "student_first_action_matches": 2226,
+    "static_first_action_matches": 2469,
+    "independent_maps_student_better": 32,
+    "independent_maps_static_better": 142,
+    "independent_maps_same": 82,
+    "map_sign_test_p": 9.718725894710974e-18
+  },
+  "inputs_sha256": [
+    "a64b0614ae8320ddc80a3cf28eec591f0751178d886918e393eb94b7084a1be0",
+    "c90898894708da1ae3d4bafcd92a561ec495090ccaa7f4a89657fbee36eda56b",
+    "63513ba7179674ed334a98ccd62a8d09deb3d30c9cd3b05c2c9bd5cc20e40e83",
+    "38e1c74309dceae0a65da47dacb5fd0c050379c2dba905e960690adf375b3aee"
+  ],
+  "encoder_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "remote_checkpoint_sha256": "8d86bf6f1b1fbd487cf01eed68cf6d3775613731ab28341f798d79f51dc82aaa",
+  "remote_report_sha256": "0fe60d6c377c613ceb66039e12cd92928c6657ccbff4900bf287663512a9d5c9",
+  "decision": "Reject. No new external offline validation, full-game gate, rating or deployment was attempted. The fresh seed6300000 full-game window remains untouched.",
+  "interpretation": "Changing only the linear head to a two-layer MLP sharply reduced weighted pairwise training loss, but barely improved training top-choice agreement and catastrophically worsened internal-holdout teacher-choice and first-action agreement. Many false overrides persisted. Head capacity alone is not the missing ingredient; further work must localize feature generalization, teacher-score target and imbalance rather than re-tune this failed hard-choice model on its holdout maps."
+}
