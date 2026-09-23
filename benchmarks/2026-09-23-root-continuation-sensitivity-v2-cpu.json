@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "kind": "whole_turn_root_vs_opponent_continuation_sensitivity",
+  "engine_commit": "750711a",
+  "rules": "classic_generic_2022",
+  "map": {
+    "generator_schema_version": 2,
+    "width": 19,
+    "height": 15,
+    "players": 5
+  },
+  "sampling": "all surviving seats at the start of round 8 after an all-greedy roll-in",
+  "search_nodes": 256,
+  "beam_slate_size": 8,
+  "rollout_action_limit": 2400,
+  "continuations": {
+    "baseline": "greedy root and greedy opponents",
+    "root_probe": "search-32 root and greedy opponents",
+    "opponent_probe": "greedy root and search-32 opponents"
+  },
+  "outcome_score": "2 for root winner, 1 for draw, 0 for another winner, -1 for censored rollout",
+  "pilot": {
+    "seed_start": 5202800,
+    "maps": 2,
+    "positions": 10,
+    "distinct_post_turn_states": 73,
+    "elapsed_seconds": 110.98,
+    "root_probe": {
+      "paired_complete_states": 72,
+      "changed_root_outcome_states": 0,
+      "changed_candidate_preference_positions": 0,
+      "changed_action_count_states": 24
+    },
+    "opponent_probe": {
+      "paired_complete_states": 71,
+      "changed_root_outcome_states": 6,
+      "changed_candidate_preference_positions": 4,
+      "changed_action_count_states": 62
+    },
+    "source_file": "root-probe-v2-maps2.json.gz",
+    "sha256": "bd33e2ae9b98cd961e1a9961830295ddf5b33017b9ce3ce772ed72f47186ec0f"
+  },
+  "fresh_scout": {
+    "seed_start": 5202900,
+    "maps": 8,
+    "positions": 40,
+    "distinct_post_turn_states": 292,
+    "elapsed_seconds": 398.26,
+    "root_probe": {
+      "paired_complete_states": 291,
+      "censored_states": 1,
+      "changed_root_outcome_states": 0,
+      "changed_candidate_preference_positions": 0,
+      "robust_better_candidate_positions": 7,
+      "changed_action_count_states": 113,
+      "changed_winner_id_states": 7
+    },
+    "opponent_probe": {
+      "paired_complete_states": 290,
+      "censored_states": 2,
+      "changed_root_outcome_states": 5,
+      "changed_candidate_preference_positions": 3,
+      "robust_better_candidate_positions": 5,
+      "changed_action_count_states": 252,
+      "changed_winner_id_states": 17
+    },
+    "source_file": "root-probe-v2-maps8.json.gz",
+    "sha256": "094a625c3f74ee59c67d5dd894ac5059f673d7cfa5646242dd9b6bf7217c0aab"
+  },
+  "qualification": "Exploratory early-round sample only. Search-32 may change actions and the identity of a losing opponent without changing the root player's win/draw/loss label. No conclusion that searched-root continuations are generally equivalent, that search-32 is stronger, or that a policy should be promoted. No rated or browser agent changed."
+}

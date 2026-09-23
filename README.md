@@ -104,6 +104,14 @@ positions, but only 13 versus 7 candidates were strictly better under both
 opponent continuations; the latter difference was inconclusive
 ([sampling study](benchmarks/2026-09-23-turn-credit-sampling-v2-cpu.json)).
 These conditional labels have not been used to change a rated agent.
+An opt-in [continuation-policy probe](benchmarks/2026-09-23-root-continuation-sensitivity-v2-cpu.json)
+tests the other side of that assumption: after each sampled turn, let the root
+player use search-32 while opponents stay greedy. Across ten fresh early-round
+maps, no complete root win/draw/loss label changed, even though many rollout
+action counts did. Searching the opponents instead changed eleven complete
+root labels on those maps. This small diagnostic does not establish that root
+policy is irrelevant; it isolates opponent response as the larger observed
+source of label sensitivity in this setting.
 
 ## Auditable leagues
 
