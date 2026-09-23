@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "kind": "post_rejection_hybrid_full_turn_reply_ranking_diagnostic",
+  "question": "Did one-in-eight sampled turns miss consequential native-reply ranking errors during complete hybrid games?",
+  "status": "predeclared_before_new_maps",
+  "arena": "Classic Generic procedural_v2 11x9 two players, action limit2400, route_generator procedural_v1",
+  "seed": 6361000,
+  "independent_maps": 32,
+  "seat_rotation": "Both frozen-hybrid model seats on every map versus the fixed native reply-search teacher",
+  "frozen_model": "routed-v6 checkpoint SHA256 68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "hybrid": "Unchanged root full-turn beam256/top8, autonomous frozen model complete-opponent-turn reply and native root-perspective position_score; no parameters or online choices changed by auditing",
+  "offline_reference": "At EVERY hybrid root turn, native search64 scores the identical candidate slate after the online choice; never use it for action selection",
+  "predeclared_readout": "Complete game wins/truncations, every root turn and candidate count, exact native preferred-turn agreement, native score-regret positions and independent maps, each seat, paired seat map comparison, and loss-map overlap with at least one strict audited regret. Report approximate selected-turn rank quality and correlated-pair caveat separately from game outcomes.",
+  "interpretation_limit": "Still a descriptive diagnostic of a rejected policy, not counterfactual terminal value, causality, Elo, or a new promotion gate. Do not tune on these maps, revive this slower hybrid, run reserved hybrid confirmation seed6357000 or final seed6300000, or deploy/rate it. If regret is frequent, the next test should measure exact whole-game counterfactual outcomes at divergent turns on a new predeclared seed window.",
+  "resource_limit": "SSH server only after aggregate resource check; nice19 single CPU process, timeout45 minutes, compact JSON, no GPU, no interference with other user workloads."
+}
