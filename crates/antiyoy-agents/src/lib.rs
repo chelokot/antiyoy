@@ -7,6 +7,7 @@ mod search;
 use antiyoy_core::{Action, DiplomacyCommand, Game};
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 
+pub use evaluation::position_score;
 pub use puct::{PuctConfig, PuctError, PuctLeaf, PuctSearch, PuctStats, PuctValueMode};
 pub use search::{SearchAgent, SearchConfig, SearchConfigError, SearchStats};
 

@@ -5,7 +5,7 @@ use antiyoy_core::{Game, GeneratorConfig, PlayerId, Rules, Scenario, adjudicate}
 use anyhow::{Result, ensure};
 use serde::Serialize;
 
-use crate::{RlMapArgs, RlMapKind, RulesKind, print_value};
+use crate::{RlMapKind, SeatAuditArgs, print_value};
 
 #[derive(Debug, Serialize)]
 struct SeatAuditSummary {
@@ -23,28 +23,20 @@ struct SeatAuditSummary {
     elapsed_seconds: f64,
 }
 
-pub(super) fn run(
-    maps: u32,
-    seed: u64,
-    action_limit: u32,
-    map: &RlMapArgs,
-    rules: RulesKind,
-    rotate_starts: bool,
-    json: bool,
-) -> Result<()> {
+pub(super) fn run(arguments: &SeatAuditArgs) -> Result<()> {
     ensure!(
-        map.map == RlMapKind::Procedural,
+        arguments.map.map == RlMapKind::Procedural,
         "seat audit requires a procedural map"
     );
     let result = audit(
-        map.generator_config(seed),
-        &rules.rules(),
-        rules.name(),
-        maps,
-        action_limit,
-        rotate_starts,
+        arguments.map.generator_config(arguments.seed),
+        &arguments.rules.rules(),
+        arguments.rules.name(),
+        arguments.maps,
+        arguments.action_limit,
+        arguments.rotate_starts,
     )?;
-    print_value(&result, json)
+    print_value(&result, arguments.json)
 }
 
 fn audit(

@@ -83,6 +83,32 @@ truncations, and per-seat wins. Reference wins are replicated across seats for
 the paired comparison, but the baseline game is simulated only once per seed.
 These correlated games are a method comparison, not independent Elo matches.
 
+Diagnose whether the first whole-turn search decision on a search-controlled
+trajectory deserves its static score improvement:
+
+```bash
+cargo run --release -p antiyoy-cli -- turn-credit \
+  --map procedural --generator-schema-version 2 \
+  --width 19 --height 15 --players 5 \
+  --maps 16 --seed 5200300 --rollin-seat 0 --target-round 100 \
+  --search-nodes 256 --rollout-limit 2400 --json
+```
+
+The selected seat uses search until its first completed turn that differs from
+the greedy alternative; other seats use greedy. From that identical pre-turn
+state, both complete turns are continued with the same greedy policy to a
+terminal winner. `positions` may be smaller than `maps` because some search
+trajectories never diverge before the target round. `truncated` continuations
+are adjudications at the action limit, not observed terminal wins. This
+counterfactual diagnoses local turn credit under a fixed continuation policy;
+it is neither an independent game evaluation nor a proof that choosing the
+same turn repeatedly improves the search agent. Better/worse/same refer to the
+sampled seat's win/draw/loss outcome, so a different opponent winning can
+still count as same.
+Each branch also records `reply_score`, the unchanged static evaluator's score
+when the searched seat next gets a turn, after greedy opponent replies. It is
+absent if the game ends or that seat is eliminated first.
+
 Training smoke tests are also checked in as metadata-only records. They include
 the model hash and held-out results but never commit checkpoints. A smoke test
 validates the learning path; it is not a release candidate or a calibrated

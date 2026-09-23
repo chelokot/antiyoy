@@ -15,6 +15,7 @@ use serde::Serialize;
 
 mod multi_compare;
 mod seat_audit;
+mod turn_credit;
 
 #[derive(Debug, Parser)]
 #[command(name = "antiyoy", version, about)]
@@ -123,23 +124,9 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    SeatAudit {
-        #[arg(long, default_value_t = 64)]
-        maps: u32,
-        #[arg(long, default_value_t = 1)]
-        seed: u64,
-        #[arg(long, default_value_t = 2_400)]
-        action_limit: u32,
-        #[command(flatten)]
-        map: RlMapArgs,
-        #[arg(long, value_enum, default_value_t = RulesKind::ClassicGeneric)]
-        rules: RulesKind,
-        #[arg(long)]
-        rotate_starts: bool,
-        #[arg(long)]
-        json: bool,
-    },
+    SeatAudit(SeatAuditArgs),
     MultiCompare(MultiCompareArgs),
+    TurnCredit(TurnCreditArgs),
 }
 
 #[derive(Clone, Debug, Args)]
@@ -158,6 +145,48 @@ struct MultiCompareArgs {
     baseline: AgentKind,
     #[arg(long, default_value_t = 256)]
     search_nodes: usize,
+    #[arg(long, value_enum, default_value_t = RulesKind::ClassicGeneric)]
+    rules: RulesKind,
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Clone, Debug, Args)]
+struct SeatAuditArgs {
+    #[arg(long, default_value_t = 64)]
+    maps: u32,
+    #[arg(long, default_value_t = 1)]
+    seed: u64,
+    #[arg(long, default_value_t = 2_400)]
+    action_limit: u32,
+    #[command(flatten)]
+    map: RlMapArgs,
+    #[arg(long, value_enum, default_value_t = RulesKind::ClassicGeneric)]
+    rules: RulesKind,
+    #[arg(long)]
+    rotate_starts: bool,
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Clone, Debug, Args)]
+struct TurnCreditArgs {
+    #[arg(long, default_value_t = 16)]
+    maps: u32,
+    #[arg(long, default_value_t = 1)]
+    seed: u64,
+    #[arg(long, default_value_t = 8)]
+    target_round: u32,
+    #[arg(long)]
+    rollin_seat: Option<u8>,
+    #[arg(long, default_value_t = 2_400)]
+    rollout_limit: u32,
+    #[command(flatten)]
+    map: RlMapArgs,
+    #[arg(long, default_value_t = 256)]
+    search_nodes: usize,
+    #[arg(long, default_value_t = 24)]
+    maximum_actions_per_turn: usize,
     #[arg(long, value_enum, default_value_t = RulesKind::ClassicGeneric)]
     rules: RulesKind,
     #[arg(long)]
@@ -465,16 +494,9 @@ fn main() -> Result<()> {
             map,
             json,
         } => rl_bench(environments, transitions, action_limit, &map, json)?,
-        Command::SeatAudit {
-            maps,
-            seed,
-            action_limit,
-            map,
-            rules,
-            rotate_starts,
-            json,
-        } => seat_audit::run(maps, seed, action_limit, &map, rules, rotate_starts, json)?,
+        Command::SeatAudit(arguments) => seat_audit::run(&arguments)?,
         Command::MultiCompare(arguments) => multi_compare::run(&arguments)?,
+        Command::TurnCredit(arguments) => turn_credit::run(&arguments)?,
     }
     Ok(())
 }
@@ -540,6 +562,14 @@ fn create_agent(
         ),
     };
     Ok(agent)
+}
+
+fn outcome_score(winner: Option<u8>, seat: u8) -> u8 {
+    match winner {
+        Some(player) if player == seat => 2,
+        None => 1,
+        Some(_) => 0,
+    }
 }
 
 fn tournament(

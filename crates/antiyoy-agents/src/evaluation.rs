@@ -2,7 +2,7 @@ use antiyoy_core::{Game, Object, PlayerId};
 
 const WIN_SCORE: i64 = 1_000_000_000_000;
 
-pub(crate) fn position_score(game: &Game, player: PlayerId) -> i64 {
+pub fn position_score(game: &Game, player: PlayerId) -> i64 {
     if game.is_terminal() {
         return if game.winner() == Some(player) {
             WIN_SCORE

@@ -5,7 +5,7 @@ use antiyoy_core::{Game, GeneratorConfig, Rules, Scenario, adjudicate};
 use anyhow::{Result, ensure};
 use serde::Serialize;
 
-use crate::{AgentKind, MultiCompareArgs, RlMapKind, create_agent, print_value};
+use crate::{AgentKind, MultiCompareArgs, RlMapKind, create_agent, outcome_score, print_value};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 struct Episode {
@@ -127,7 +127,9 @@ fn compare(
             candidate_truncations += u32::from(outcome.truncated);
             candidate_wins_by_seat[seat] += u32::from(outcome.winner == Some(player));
             baseline_wins_by_seat[seat] += u32::from(reference.winner == Some(player));
-            match score(outcome.winner, seat).cmp(&score(reference.winner, seat)) {
+            match outcome_score(outcome.winner, player)
+                .cmp(&outcome_score(reference.winner, player))
+            {
                 std::cmp::Ordering::Greater => paired_better += 1,
                 std::cmp::Ordering::Less => paired_worse += 1,
                 std::cmp::Ordering::Equal => paired_same += 1,
@@ -162,14 +164,6 @@ fn compare(
         elapsed_seconds: started.elapsed().as_secs_f64(),
         records,
     })
-}
-
-fn score(winner: Option<u8>, seat: usize) -> u8 {
-    match winner {
-        Some(player) if usize::from(player) == seat => 2,
-        None => 1,
-        Some(_) => 0,
-    }
 }
 
 fn play_episode(
@@ -220,7 +214,8 @@ fn play_episode(
 mod tests {
     use antiyoy_core::{GeneratorConfig, Rules};
 
-    use super::{AgentKind, compare, play_episode, score};
+    use super::{AgentKind, compare, play_episode};
+    use crate::outcome_score;
 
     #[test]
     fn identical_agents_reproduce_the_reference_for_every_seat() {
@@ -287,8 +282,8 @@ mod tests {
 
     #[test]
     fn draw_scores_between_win_and_loss() {
-        assert_eq!(score(Some(2), 2), 2);
-        assert_eq!(score(None, 2), 1);
-        assert_eq!(score(Some(1), 2), 0);
+        assert_eq!(outcome_score(Some(2), 2), 2);
+        assert_eq!(outcome_score(None, 2), 1);
+        assert_eq!(outcome_score(Some(1), 2), 0);
     }
 }
