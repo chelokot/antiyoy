@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_autonomous_opponent_reply_probe",
+  "status": "failed_predeclared_autonomous_fidelity_gate_student_not_promoted",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-autonomous-response-v1.json",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, search root256/slate8/opponent64, round modulo8 zero, action limit2400",
+  "fresh_dataset": {
+    "first_seed": 6348000,
+    "maps": 16,
+    "completed_maps": 16,
+    "truncated_maps": 0,
+    "sampled_positions": 80,
+    "candidate_post_turn_states": 561,
+    "gzip_sha256": "445fde915816dc1ee2421dd39b532b93dd2e6e89637414d0b0f23378688e91d9"
+  },
+  "policies": {
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "frozen_student_head_sha256": "b92e0e9739f44728ee1724ad36dc248b41d4d2a9b258925544eb3c78043865b5",
+    "inference": "Each policy chose its own argmax actions for the complete opponent turn, without teacher actions or native search"
+  },
+  "autonomous_reply": {
+    "candidate_states_verified_against_native_observation": 561,
+    "paired_non_censored_responses": 561,
+    "source_censored": 0,
+    "student_censored": 0,
+    "maps_student_lower_mean_transformed_score_error": 10,
+    "maps_source_lower_mean_transformed_score_error": 6,
+    "maps_same": 0,
+    "exact_two_sided_map_sign_p": 0.454498291015625,
+    "root_seat_zero": {
+      "paired_candidates": 296,
+      "source_mean_absolute_asinh_score_error": 0.03674809936353699,
+      "student_mean_absolute_asinh_score_error": 0.015760727953488228
+    },
+    "root_seat_one": {
+      "paired_candidates": 265,
+      "source_mean_absolute_asinh_score_error": 0.049467088953715724,
+      "student_mean_absolute_asinh_score_error": 0.038760301539978254
+    },
+    "complete_candidate_slates": 80,
+    "native_teacher_selected_root_turn_matches": {"source": 71, "student": 70},
+    "raw_audit_sha256": "ed7efa25c01ab860c846394b19618706e6b9b88f7b195ce96f42188c484bcbdc"
+  },
+  "gate_result": "FAIL: transformed successor-score error was lower on only10 versus6 independent maps (p=.454), and native teacher root-turn choice agreement fell from71/80 to70/80 despite lower pooled error for both root seats. No fresh full-game promotion gate, rating, browser deployment, or threshold tuning on this map window.",
+  "interpretation": "The supervised searched-action student did improve held-out teacher-forced complete-plan agreement on32 other maps (165/1095 to212/1095; independent maps14 better/2 worse), but that improvement did not transfer convincingly to autonomous one-turn search-objective fidelity. Even this objective is not terminal game strength or Elo. Data are correlated candidates within16 independent maps.",
+  "verification": "Roll-in and candidate turns were reconstructed from exact legal-action indices in the Python vector environment; all561 candidate observations matched native Rust exports. Rust workspace tests and Clippy -D warnings, Python Ruff and352 Python tests passed on SSH server. The published game, rated agents and reserved full-game promotion seed6300000 remain unchanged.",
+  "next_step": "Investigate divergence between teacher-forced plan imitation and autonomous rollout at the first policy mismatch, preferably by a read-only analysis on this existing dataset before allocating new training. Do not scale or retune this rejected student on the fresh probe maps."
+}
