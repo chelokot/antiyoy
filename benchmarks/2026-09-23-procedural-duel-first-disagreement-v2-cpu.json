@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_single_puct_intervention",
+  "code_commit": "27b3696",
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "route_generator": "procedural_v1",
+    "players": 2,
+    "width": 11,
+    "height": 9,
+    "action_limit": 1000,
+    "source_bundle_sha256": "20393c6615b874f2ed6006722d2ac22acef1c1ad93dfc5403340096578cb5ac5"
+  },
+  "protocol": {
+    "algorithm": "policy_guided_PUCT",
+    "node_budget": 8,
+    "root_value_weight": 1.0,
+    "value_source": "calibrated_model",
+    "intervention": "use PUCT only until its first action disagreement with the identical frozen direct policy in each game; thereafter use direct policy",
+    "reference": "direct-policy self-play on each identical map and both seats"
+  },
+  "exploration": {
+    "seed_first": 6107600,
+    "maps": 32,
+    "games": 64,
+    "model_wins": 34,
+    "direct_reference_wins": 32,
+    "independent_maps_better": 2,
+    "independent_maps_worse": 0,
+    "independent_maps_same": 30,
+    "exact_two_sided_sign_test_p": 0.5,
+    "intervened_games": 39,
+    "raw_result_sha256": "1c20c9c4fc710f8459845be5a425e9acac2caac5f6e59f684048a1521155cc13"
+  },
+  "confirmation": {
+    "seed_first": 6108000,
+    "seed_last": 6108127,
+    "maps": 128,
+    "games": 256,
+    "model_wins": 134,
+    "direct_reference_wins": 128,
+    "independent_maps_better": 11,
+    "independent_maps_worse": 5,
+    "independent_maps_same": 112,
+    "exact_two_sided_sign_test_p": 0.210113525390625,
+    "score_delta": 0.0234375,
+    "relative_elo_delta": 16.297987076023777,
+    "map_cluster_bootstrap_95_score_delta": [-0.0078125, 0.0546875],
+    "map_cluster_bootstrap_95_relative_elo_delta": [-5.429122875709548, 38.153397218633565],
+    "seat_0_model_wins": 67,
+    "seat_0_direct_reference_wins": 64,
+    "seat_1_model_wins": 67,
+    "seat_1_direct_reference_wins": 64,
+    "intervened_games": 162,
+    "puct_searched_roots": 10401,
+    "truncations": 0,
+    "windows": [
+      {"seed_first": 6108000, "maps": 32, "raw_result_sha256": "67d0bf641d73709a52f86afae3bc85f4531c52f7c8ccc68a73ea241f7f08ca9f"},
+      {"seed_first": 6108032, "maps": 32, "raw_result_sha256": "e936e11033b1889334a82c8860233cc8c404aebd398e02688663bbb89b0274fa"},
+      {"seed_first": 6108064, "maps": 32, "raw_result_sha256": "4c1e80b174121a370a035a837260441fce1bf3e350d0af4463de261e87d591cd"},
+      {"seed_first": 6108096, "maps": 32, "raw_result_sha256": "9b2fab752be7bc1f5e10e05325d400063e504599585e8faadc75e6f4ddc2ba3c"}
+    ]
+  },
+  "interpretation": "A first divergent PUCT action has a positive but statistically unresolved paired effect when all later actions use the direct policy. The interval includes no gain. This is a diagnostic intervention, not a deployable policy; it cannot establish that repeatedly searching is stronger, and the earlier independent 128-map full-PUCT gate regressed. No Elo or distillation promotion."
+}

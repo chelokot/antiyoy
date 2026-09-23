@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_puct_leaf_value_source_ablation",
+  "code_commit": "be0aaef",
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "route_generator": "procedural_v1",
+    "players": 2,
+    "width": 11,
+    "height": 9,
+    "action_limit": 1000,
+    "source_bundle_sha256": "20393c6615b874f2ed6006722d2ac22acef1c1ad93dfc5403340096578cb5ac5",
+    "seed_first": 6204000,
+    "maps": 32,
+    "games": 64,
+    "baseline": "same frozen direct-policy self-play on both model seats"
+  },
+  "shared_search": {
+    "algorithm": "policy_guided_PUCT",
+    "node_budget": 8,
+    "root_value_weight": 1.0,
+    "leaf_batch_size": 32,
+    "opponent_horizon": "search",
+    "objective": "scalar"
+  },
+  "model_value": {
+    "source": "held-out-calibrated neural value head",
+    "wins": 33,
+    "baseline_wins": 32,
+    "better_maps": 2,
+    "worse_maps": 1,
+    "same_maps": 29,
+    "policy_action_disagreements": 70,
+    "searched_roots": 4578,
+    "legal_root_actions": 340313,
+    "visited_root_actions": 11968,
+    "truncations": 0,
+    "raw_result_sha256": "81cec9fbbe51a3fc07f514bd82875c479356172e8cedeea36948c4b6d99fc7a8"
+  },
+  "heuristic_value": {
+    "source": "native full-turn territory/economy position_score, tanh(score / 2048)",
+    "wins": 33,
+    "baseline_wins": 32,
+    "better_maps": 1,
+    "worse_maps": 0,
+    "same_maps": 31,
+    "policy_action_disagreements": 17,
+    "searched_roots": 4493,
+    "legal_root_actions": 328293,
+    "visited_root_actions": 11617,
+    "truncations": 0,
+    "raw_result_sha256": "4f5e05e4d550283cd782677e224d06f9fbf758667eb6036f3ea5db1cc4886ea1"
+  },
+  "interpretation": "This small matched ablation does not establish either PUCT variant as stronger than direct policy. Replacing neural leaf values with the same transparent heuristic used by the successful whole-turn search did not rescue eight-node atomic PUCT. Each root had about 73 to 74 legal actions but only 2.6 distinct actions visited on average. The more consequential algorithmic gap is search granularity and root coverage, not demonstrated to be neural value alone. Do not select an agent or tune a scale from this pilot."
+}

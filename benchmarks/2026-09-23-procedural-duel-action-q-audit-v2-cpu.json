@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_puct_disagreement_terminal_audit",
+  "code_commit": "f4e9069",
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "route_generator": "procedural_v1",
+    "players": 2,
+    "width": 11,
+    "height": 9,
+    "action_limit": 1000,
+    "source_bundle_sha256": "20393c6615b874f2ed6006722d2ac22acef1c1ad93dfc5403340096578cb5ac5"
+  },
+  "search": {
+    "algorithm": "policy_guided_PUCT",
+    "node_budget": 8,
+    "root_value_weight": 1.0,
+    "leaf_batch_size": 32,
+    "value_perspective": "active",
+    "opponent_horizon": "search",
+    "objective": "scalar"
+  },
+  "protocol": {
+    "rollin": "direct_policy_self_play",
+    "sample": "only roots where PUCT and the direct policy select different legal actions",
+    "branch": "replay the exact recorded prefix and apply either selected action",
+    "continuation": "identical frozen direct policy for both seats after the branch",
+    "horizon": "exact_terminal",
+    "censoring": "reported explicitly",
+    "interpretation": "conditional action credit, not full-game PUCT strength or a deployment gate"
+  },
+  "pilot": {
+    "seed_first": 6107100,
+    "environments": 16,
+    "updates": 256,
+    "sampled_positions": 82,
+    "distinct_episode_seeds": 30,
+    "search_better": 5,
+    "direct_better": 8,
+    "same_outcome": 69,
+    "adjudicated_branches": 0,
+    "dataset_sha256": "96da19271b1c103401d350cf36aa19c55713f060481729afcfad2b6d02631a23",
+    "audit_sha256": "a3cf719c6f9470536d07cf3601f441883f0f66b560e48484af342251d42c7b38"
+  },
+  "expanded": {
+    "seed_first": 6107300,
+    "environments": 64,
+    "updates": 256,
+    "sampled_positions": 253,
+    "distinct_episode_seeds": 115,
+    "complete_positions": 253,
+    "censored_positions": 0,
+    "search_better": 14,
+    "direct_better": 15,
+    "same_outcome": 224,
+    "adjudicated_branches": 0,
+    "seat_0_search_better": 2,
+    "seat_0_direct_better": 11,
+    "seat_1_search_better": 12,
+    "seat_1_direct_better": 4,
+    "maps_with_any_search_better": 12,
+    "maps_with_any_direct_better": 14,
+    "maps_with_both": 3,
+    "root_q_prefers_search_on_all_sampled_pairs": true,
+    "dataset_sha256": "8854cdb26f4ab3efe8ae903aa9dd70333bb6e51c37d44c2b30f1690480a2d0a1",
+    "audit_sha256": "3bdb2ba8527b8a84654831a58a1ff060987d419a183c312e7cfdd22a0ba900e8"
+  },
+  "diagnosis": "Search value preferences do not reliably predict which divergent action improves the terminal result under frozen direct-policy continuation. These branches are selected and correlated within maps; a root-Q disagreement with this conditional target does not prove the tree evaluation itself is wrong, because PUCT assumes searched future play. The seat asymmetry also requires a separate both-seat online game gate.",
+  "decision": "do_not_train_on_these_sparse_labels_or_promote_puct"
+}
