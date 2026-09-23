@@ -939,6 +939,14 @@ def optimize_fixed_opponent_episodes(
         ],
         dtype=np.float32,
     )
+    paired_deltas = np.asarray(
+        [
+            episode.terminal_outcome - episode.baseline_outcome
+            for episode in episodes
+            if episode.baseline_outcome is not None
+        ],
+        dtype=np.float32,
+    )
     return {
         "episodes": len(episodes),
         "decisions": len(samples),
@@ -951,6 +959,9 @@ def optimize_fixed_opponent_episodes(
         "baseline_wins": int(np.count_nonzero(baseline_outcomes == 1)),
         "baseline_draws": int(np.count_nonzero(baseline_outcomes == 0)),
         "baseline_losses": int(np.count_nonzero(baseline_outcomes == -1)),
+        "paired_candidate_better": int(np.count_nonzero(paired_deltas > 0)),
+        "paired_baseline_better": int(np.count_nonzero(paired_deltas < 0)),
+        "paired_same": int(np.count_nonzero(paired_deltas == 0)),
         "baseline_mean_outcome": (
             float(baseline_outcomes.mean()) if len(baseline_outcomes) > 0 else 0.0
         ),
@@ -1357,6 +1368,9 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     opponent_baseline_wins = 0
     opponent_baseline_draws = 0
     opponent_baseline_losses = 0
+    opponent_paired_candidate_better = 0
+    opponent_paired_baseline_better = 0
+    opponent_paired_same = 0
     for update in range(1, config.updates + 1):
         if config.fixed_opponent is None:
             rollout, reset_seed = collect_rollout(
@@ -1403,6 +1417,9 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             opponent_baseline_wins += int(metrics["baseline_wins"])
             opponent_baseline_draws += int(metrics["baseline_draws"])
             opponent_baseline_losses += int(metrics["baseline_losses"])
+            opponent_paired_candidate_better += int(metrics["paired_candidate_better"])
+            opponent_paired_baseline_better += int(metrics["paired_baseline_better"])
+            opponent_paired_same += int(metrics["paired_same"])
             progress = {
                 "episodes": metrics["episodes"],
                 "decisions": metrics["decisions"],
@@ -1414,6 +1431,9 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
                 "baseline_wins": metrics["baseline_wins"],
                 "baseline_draws": metrics["baseline_draws"],
                 "baseline_losses": metrics["baseline_losses"],
+                "paired_candidate_better": metrics["paired_candidate_better"],
+                "paired_baseline_better": metrics["paired_baseline_better"],
+                "paired_same": metrics["paired_same"],
                 "entropy": metrics["entropy"],
                 "retention_kl": metrics["retention_kl"],
             }
@@ -1520,6 +1540,9 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "opponent_baseline_wins": opponent_baseline_wins,
         "opponent_baseline_draws": opponent_baseline_draws,
         "opponent_baseline_losses": opponent_baseline_losses,
+        "opponent_paired_candidate_better": opponent_paired_candidate_better,
+        "opponent_paired_baseline_better": opponent_paired_baseline_better,
+        "opponent_paired_same": opponent_paired_same,
         "imitation_updates": config.imitation_updates,
         "imitation_reset_interval": config.imitation_reset_interval,
         "imitation_environment_resets": imitation_environment_resets,

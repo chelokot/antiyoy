@@ -446,6 +446,15 @@ def test_counterfactual_fixed_opponent_training_pairs_frozen_policy_games() -> N
         + metrics["baseline_losses"]
         == config.environments // 2
     )
+    assert (
+        metrics["paired_candidate_better"]
+        + metrics["paired_baseline_better"]
+        + metrics["paired_same"]
+        == config.environments // 2
+    )
+    assert metrics["paired_candidate_better"] == sum(
+        episode.terminal_outcome > episode.baseline_outcome for episode in episodes
+    )
 
 
 def test_reply_search_fixed_opponent_collects_paired_duel_episodes() -> None:
