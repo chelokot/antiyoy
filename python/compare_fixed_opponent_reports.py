@@ -61,6 +61,9 @@ def compare(
         [winner_score(winner, seat) for winner in reference_winners]
     )
     comparison = paired_method_comparison(candidate_scores, reference_scores)
+    all_games_complete = (
+        candidate["truncations"] == 0 and reference["truncations"] == 0
+    )
     return {
         "kind": "matched_fixed_opponent_policy_comparison",
         "baseline": candidate["baseline"],
@@ -82,12 +85,15 @@ def compare(
         "map_bootstrap_95": paired_map_bootstrap_interval(
             candidate_scores, reference_scores, 2, seat, cast(int, candidate["seed"])
         ),
-        "all_games_complete": (
-            candidate["truncations"] == 0 and reference["truncations"] == 0
-        ),
+        "all_games_complete": all_games_complete,
         "qualification": (
-            "Fresh fixed-seat matched complete-game comparison against one frozen "
-            "opponent. This is not global Elo or all-seat strength."
+            "Fresh fixed-seat matched comparison against one frozen opponent. "
+            + (
+                "All compared games reached a terminal state. "
+                if all_games_complete
+                else "At least one game was action-limit adjudicated. "
+            )
+            + "This is not global Elo or all-seat strength."
         ),
     }
 

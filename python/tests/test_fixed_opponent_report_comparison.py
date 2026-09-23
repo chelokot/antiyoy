@@ -44,6 +44,21 @@ def test_paired_comparison_uses_same_map_winner_ledgers() -> None:
     assert result["candidate_score"] == 0.625
     assert result["reference_score"] == 0.625
     assert result["pool_relative_elo_delta"] == 0
+    assert result["all_games_complete"] is True
+    assert "All compared games reached a terminal state" in result["qualification"]
+
+
+def test_paired_comparison_discloses_action_limit_adjudication() -> None:
+    candidate = report("student.pt", [1, 1, 0, 0])
+    reference = report("source.pt", [0, 1, 1, 0])
+    reference["truncations"] = 1
+
+    result = compare(candidate, reference)
+
+    assert result["all_games_complete"] is False
+    assert result["reference_truncations"] == 1
+    assert "action-limit adjudicated" in result["qualification"]
+    assert "complete-game" not in result["qualification"]
 
 
 def test_paired_comparison_rejects_different_frozen_opponent_ledgers() -> None:
