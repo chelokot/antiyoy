@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_policy_sampling_gap_audit",
+  "hypothesis": "Independent sampling at every low-level action may disrupt a multi-action Antiyoy turn compared with the deterministic argmax policy used for rating. Measure that distribution shift without changing the source weights or opponent.",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, action limit1000, seat1 against fixed reply-search root256/slate8/opponent64",
+  "source": "Frozen routed-v6 procedural_v1 two-player classic_generic_2022 seat1 expert, SHA256 68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "comparison": {
+    "first_seed": 6340000,
+    "paired_maps": 256,
+    "environments": 8,
+    "updates": 64,
+    "sampled_source_games_per_update": 4,
+    "argmax_source_games_per_update": 4,
+    "map_pairing": "The existing fixed-opponent counterfactual collector resets sampled and argmax environments with the same map seed; both face the same deterministic reply-search opponent.",
+    "learning_rate": 0,
+    "fixed_opponent": "reply_search",
+    "reference_weight": 0.25,
+    "unchanged_settings": "Keep the prior terminal-PPO architecture, initialization, gamma, epochs, minibatch, clipping and map settings; only the seed, number of rollout updates and learning rate differ. AdamW with zero learning rate leaves the model weights unchanged. No checkpoint is needed."
+  },
+  "measurements": "Aggregate sampled versus argmax wins and paired better/worse/same by independent map, exact two-sided sign test, truncations where available, mean action entropy and decisions per game. This is a diagnostic of rollout distribution mismatch, not trained-policy strength. If sampling is materially worse, investigate coherent whole-turn exploration before another PPO training run; if not, focus on sparse credit and representation.",
+  "resource_limit": "SSH server only after aggregate load check; one nice19 CPU process, one-hour hard timeout, OMP/BLAS/MKL thread limits, no GPU, tiny JSONL output in /tmp/antiyoy-residual.n17QTu; no other heavy job concurrently.",
+  "reserved_windows": "Seed6340000 is exploratory. Do not reuse prior validation seeds or untouched full-game promotion seed6300000. Any policy change still needs a new predeclared fit/calibration/final split and fresh matched complete both-seat games."
+}
