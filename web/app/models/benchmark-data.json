@@ -48,6 +48,10 @@
     "rotated-seat-generator": {
       "file": "2026-09-23-rotated-seat-generator-cpu.json",
       "sha256": "2426f204d1918730117598ba569b8b04e737b5c5555f52353fc34b201bd25751"
+    },
+    "routed-rotated-scout": {
+      "file": "2026-09-23-routed-v6-rotated-map-cpu-scout.json",
+      "sha256": "138bcd0fb3dadc291d9be89e222bd362d12c29985bc00ff2950f89ec99124b64"
     }
   },
   "seatAudit": {

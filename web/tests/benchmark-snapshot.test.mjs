@@ -106,10 +106,11 @@ test("model arena snapshot preserves the measured search and value gates", async
 });
 
 test("model arena seat audit stays separate from Elo and matches both reports", async () => {
-  const [snapshot, bias, rotation] = await Promise.all([
+  const [snapshot, bias, rotation, policyScout] = await Promise.all([
     readJson(snapshotUrl),
     readJson(new URL("2026-09-23-procedural-seat-bias-cpu.json", benchmarkRoot)),
     readJson(new URL("2026-09-23-rotated-seat-generator-cpu.json", benchmarkRoot)),
+    readJson(new URL("2026-09-23-routed-v6-rotated-map-cpu-scout.json", benchmarkRoot)),
   ]);
   assert.equal(snapshot.seatAudit.mapsPerSchema, rotation.combined.maps_per_schema);
   assert.deepEqual(bias.controlled_start_rotation.combined_wins_by_original_start, [187, 172, 146, 87, 48]);
@@ -121,4 +122,11 @@ test("model arena seat audit stays separate from Elo and matches both reports", 
     assert.equal(row.rotatedRegion, Number(rotation.combined.schema_2.initial_voronoi_region_mean_by_seat[seat].toFixed(2)));
   }
   assert.ok(snapshot.comparisons.every((row) => row.evidence !== "rotated-seat-generator"));
+  assert.equal(policyScout.all_seats.games, 80);
+  assert.equal(policyScout.all_seats.policy_wins, 17);
+  assert.equal(policyScout.all_seats.greedy_self_play_reference_wins, 16);
+  assert.equal(policyScout.all_seats.paired_better, 8);
+  assert.equal(policyScout.all_seats.paired_worse, 7);
+  assert.equal(policyScout.all_seats.exact_two_sided_sign_test_p, 1);
+  assert.ok(snapshot.comparisons.every((row) => row.evidence !== "routed-rotated-scout"));
 });

@@ -160,6 +160,9 @@ test("renders the benchmark-backed model arena", async () => {
   assert.match(html, /self-play wins, not Elo or model-versus-model results/);
   assert.match(html, /2026-09-23-procedural-seat-bias-cpu\.json/);
   assert.match(html, /2026-09-23-rotated-seat-generator-cpu\.json/);
+  assert.match(html, /won 17 of 80 games on v2 maps, versus 16 for greedy/);
+  assert.match(html, /8 paired improvements, 7 regressions, p=1\.0/);
+  assert.match(html, /2026-09-23-routed-v6-rotated-map-cpu-scout\.json/);
   assert.match(html, /Test whole-turn or multi-action outcome credit/);
   assert.match(html, /Play either promoted Soft-PUCT seat now/);
   assert.match(html, /280–0–232/);
