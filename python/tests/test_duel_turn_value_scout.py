@@ -5,8 +5,15 @@ import pytest
 
 pytest.importorskip("torch")
 
+import torch
 from antiyoy_rl.turn_credit import TurnCreditPosition
-from python.scout_duel_turn_value import FEATURE_NAMES, compare_choices, embed_position
+from python.scout_duel_turn_value import (
+    FEATURE_NAMES,
+    compare_choices,
+    embed_position,
+    pairwise_agreement,
+    prediction_scores,
+)
 
 
 def duel_position() -> TurnCreditPosition:
@@ -75,3 +82,28 @@ def test_duel_choice_comparison_groups_by_independent_map() -> None:
     assert report["better"] == 0
     assert report["worse"] == 1
     assert report["by_seat"][0]["worse"] == 1
+    weight = torch.zeros(len(FEATURE_NAMES))
+    weight[0] = 1
+    assert pairwise_agreement([position], weight, torch.ones_like(weight)) == {
+        "informative_pairs": 1,
+        "concordant": 1,
+        "discordant": 0,
+        "tied": 0,
+        "indistinguishable_features": 0,
+    }
+
+
+def test_identical_features_have_identical_prediction_scores() -> None:
+    position = embed_position(duel_position())
+    identical = replace(
+        position,
+        position=replace(
+            position.position,
+            features=position.position.features[[0, 0]],
+        ),
+    )
+    weight = torch.arange(len(FEATURE_NAMES), dtype=torch.float32)
+
+    scores = prediction_scores(identical, weight, torch.ones_like(weight))
+
+    assert scores[0] == scores[1]

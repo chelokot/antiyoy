@@ -175,7 +175,7 @@ def evaluate(
     positions: list[DuelEmbedding], weight: Tensor, scales: Tensor
 ) -> dict[str, object]:
     choices = [
-        int(((position.position.features / scales) @ weight).argmax())
+        int(prediction_scores(position, weight, scales).argmax())
         for position in positions
     ]
     static = [0] * len(positions)
@@ -184,6 +184,53 @@ def evaluate(
         "versus_static": compare_choices(positions, choices, static),
         "versus_reply_search": compare_choices(positions, choices, reply),
         "reply_search_versus_static": compare_choices(positions, reply, static),
+    }
+
+
+def prediction_scores(
+    position: DuelEmbedding, weight: Tensor, scales: Tensor
+) -> Tensor:
+    features = position.position.features
+    scores = ((features / scales) @ weight).clone()
+    for index in range(len(scores)):
+        for previous in range(index):
+            if torch.equal(features[index], features[previous]):
+                scores[index] = scores[previous]
+                break
+    return scores
+
+
+def pairwise_agreement(
+    positions: list[DuelEmbedding], weight: Tensor, scales: Tensor
+) -> dict[str, int]:
+    informative = concordant = discordant = tied = indistinguishable = 0
+    for position in positions:
+        outcomes = position.position.outcomes
+        scores = prediction_scores(position, weight, scales).numpy()
+        for left in range(len(outcomes)):
+            for right in range(left + 1, len(outcomes)):
+                if min(outcomes[left], outcomes[right]) < 0:
+                    continue
+                preference = int(np.sign(int(outcomes[left] - outcomes[right])))
+                if preference == 0:
+                    continue
+                informative += 1
+                indistinguishable += bool(
+                    torch.equal(
+                        position.position.features[left],
+                        position.position.features[right],
+                    )
+                )
+                prediction = int(np.sign(scores[left] - scores[right]))
+                concordant += prediction == preference
+                discordant += prediction == -preference
+                tied += prediction == 0
+    return {
+        "informative_pairs": informative,
+        "concordant": concordant,
+        "discordant": discordant,
+        "tied": tied,
+        "indistinguishable_features": indistinguishable,
     }
 
 
@@ -221,6 +268,8 @@ def scout(
         "training_maps": len(training_maps),
         "validation_maps": len(validation_maps),
         "training_informative_pairs": len(differences),
+        "training_pairwise_agreement": pairwise_agreement(training, weight, scales),
+        "validation_pairwise_agreement": pairwise_agreement(validation, weight, scales),
         "weights": weight.tolist(),
         "feature_scales": scales.tolist(),
         "training": evaluate(training, weight, scales),
