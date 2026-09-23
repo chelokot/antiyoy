@@ -185,6 +185,8 @@ struct TurnCreditArgs {
     target_round: u32,
     #[arg(long)]
     rollin_seat: Option<u8>,
+    #[arg(long)]
+    reply_rollin: bool,
     #[arg(long, default_value_t = 2_400)]
     rollout_limit: u32,
     #[command(flatten)]

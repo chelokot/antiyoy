@@ -78,6 +78,7 @@ struct TurnCreditSummary {
     maps_with_samples: u32,
     target_round: u32,
     rollin_seat: Option<u8>,
+    reply_rollin: bool,
     rollout_limit: u32,
     search_nodes: usize,
     alternative_search_nodes: Vec<usize>,
@@ -105,6 +106,7 @@ struct TurnCreditSummary {
 struct CreditConfig {
     target_round: u32,
     rollin_seat: Option<u8>,
+    reply_rollin: bool,
     rollout_limit: u32,
     search: SearchConfig,
     alternative_search_nodes: Vec<usize>,
@@ -132,6 +134,7 @@ pub(super) fn run(arguments: &TurnCreditArgs) -> Result<()> {
         CreditConfig {
             target_round: arguments.target_round,
             rollin_seat: arguments.rollin_seat,
+            reply_rollin: arguments.reply_rollin,
             rollout_limit: arguments.rollout_limit,
             search: SearchConfig {
                 node_budget: arguments.search_nodes,
@@ -208,6 +211,7 @@ fn diagnose(
         maps_with_samples,
         target_round: config.target_round,
         rollin_seat: config.rollin_seat,
+        reply_rollin: config.reply_rollin,
         rollout_limit: config.rollout_limit,
         search_nodes: config.search.node_budget,
         alternative_search_nodes: config.alternative_search_nodes,
@@ -239,6 +243,15 @@ fn validate_credit_config(
     ensure!(maps > 0, "map count must be positive");
     ensure!(config.target_round > 0, "target round must be positive");
     ensure!(config.rollout_limit > 0, "rollout limit must be positive");
+    ensure!(
+        !config.reply_rollin || config.rollin_seat.is_none(),
+        "reply roll-in cannot be combined with a fixed divergence seat"
+    );
+    ensure!(
+        !config.reply_rollin
+            || (config.beam_slate_size > 0 && config.opponent_search_nodes.is_some()),
+        "reply roll-in requires a beam slate and opponent search nodes"
+    );
     ensure!(
         config
             .rollin_seat
@@ -288,8 +301,24 @@ fn sample_states(game: Game, config: &CreditConfig) -> Result<Vec<Game>> {
         Ok(sample_first_search_divergence(game, seat, config)?
             .into_iter()
             .collect())
+    } else if config.reply_rollin {
+        let mut agent = SearchAgent::with_reply_search(
+            "reply-rollin",
+            config.search,
+            config.beam_slate_size,
+            config
+                .opponent_search_nodes
+                .expect("reply roll-in requires opponent search nodes"),
+        )
+        .context("invalid reply roll-in search configuration")?;
+        sample_round_states(game, config.target_round, config.rollout_limit, &mut agent)
     } else {
-        sample_round_states(game, config.target_round, config.rollout_limit)
+        sample_round_states(
+            game,
+            config.target_round,
+            config.rollout_limit,
+            &mut GreedyAgent::new("greedy-sampling"),
+        )
     }
 }
 
@@ -536,9 +565,13 @@ fn observe_states(root: &Game, states: &[(Game, Continuation)]) -> ObservationRe
     }
 }
 
-fn sample_round_states(mut game: Game, target_round: u32, action_limit: u32) -> Result<Vec<Game>> {
+fn sample_round_states(
+    mut game: Game,
+    target_round: u32,
+    action_limit: u32,
+    agent: &mut dyn Agent,
+) -> Result<Vec<Game>> {
     let mut samples = vec![None; usize::from(game.player_count())];
-    let mut greedy = GreedyAgent::new("greedy-sampling");
     let mut legal_actions = Vec::new();
     for _ in 0..action_limit {
         if game.is_terminal() || game.round() > target_round {
@@ -549,7 +582,7 @@ fn sample_round_states(mut game: Game, target_round: u32, action_limit: u32) -> 
             samples[seat] = Some(game.clone());
         }
         game.legal_actions(&mut legal_actions);
-        let action = greedy.select_action(&game, &legal_actions);
+        let action = agent.select_action(&game, &legal_actions);
         game.step(action)?;
     }
     Ok(samples.into_iter().flatten().collect())
@@ -713,12 +746,81 @@ mod tests {
             .expect("valid map"),
         )
         .expect("valid game");
-        let states = sample_round_states(game, 1, 100).expect("valid sampling");
+        let states = sample_round_states(game, 1, 100, &mut GreedyAgent::new("greedy-sampling"))
+            .expect("valid sampling");
         assert_eq!(states.len(), 3);
         for (seat, state) in states.iter().enumerate() {
             assert_eq!(state.round(), 1);
             assert_eq!(state.active_player().index(), seat);
         }
+    }
+
+    #[test]
+    fn reply_rollin_samples_each_surviving_seat_at_the_target_round() {
+        let game = Game::new(
+            Rules::classic_generic(),
+            GeneratorConfig {
+                schema_version: 2,
+                width: 11,
+                height: 9,
+                players: 2,
+                seed: 6260000,
+                ..GeneratorConfig::default()
+            }
+            .generate()
+            .expect("valid map"),
+        )
+        .expect("valid game");
+        let config = SearchConfig {
+            node_budget: 32,
+            maximum_actions_per_turn: 8,
+            ..SearchConfig::default()
+        };
+        let mut agent = SearchAgent::with_reply_search("reply-rollin", config, 4, 8)
+            .expect("valid reply search");
+        let states = sample_round_states(game, 1, 100, &mut agent).expect("valid sampling");
+        assert_eq!(states.len(), 2);
+        for (seat, state) in states.iter().enumerate() {
+            assert_eq!(state.round(), 1);
+            assert_eq!(state.active_player().index(), seat);
+        }
+    }
+
+    #[test]
+    fn reply_rollin_diagnostic_records_the_sampling_policy() {
+        let report = diagnose(
+            GeneratorConfig {
+                schema_version: 2,
+                width: 11,
+                height: 9,
+                players: 2,
+                seed: 6260000,
+                ..GeneratorConfig::default()
+            },
+            &Rules::classic_generic(),
+            "classic_generic_2022",
+            1,
+            CreditConfig {
+                target_round: 1,
+                rollin_seat: None,
+                reply_rollin: true,
+                rollout_limit: 64,
+                search: SearchConfig {
+                    node_budget: 32,
+                    maximum_actions_per_turn: 8,
+                    ..SearchConfig::default()
+                },
+                alternative_search_nodes: Vec::new(),
+                beam_slate_size: 4,
+                include_observations: true,
+                root_search_nodes: None,
+                opponent_search_nodes: Some(8),
+            },
+        )
+        .expect("valid reply roll-in diagnostic");
+        assert!(report.reply_rollin);
+        assert_eq!(report.positions, 2);
+        assert!(report.records.iter().all(|record| record.round == 1));
     }
 
     #[test]
@@ -777,6 +879,7 @@ mod tests {
             CreditConfig {
                 target_round: 1,
                 rollin_seat: None,
+                reply_rollin: false,
                 rollout_limit: 32,
                 search: SearchConfig {
                     node_budget: 2,
@@ -877,6 +980,7 @@ mod tests {
             CreditConfig {
                 target_round: 1,
                 rollin_seat: None,
+                reply_rollin: false,
                 rollout_limit: 32,
                 search: SearchConfig {
                     node_budget: 2,
@@ -941,6 +1045,7 @@ mod tests {
             CreditConfig {
                 target_round: 1,
                 rollin_seat: Some(3),
+                reply_rollin: false,
                 rollout_limit: 32,
                 search: SearchConfig::default(),
                 alternative_search_nodes: Vec::new(),
@@ -970,6 +1075,7 @@ mod tests {
                 CreditConfig {
                     target_round: 1,
                     rollin_seat: None,
+                    reply_rollin: false,
                     rollout_limit: 32,
                     search: SearchConfig {
                         node_budget: 2,
@@ -1008,6 +1114,7 @@ mod tests {
             &CreditConfig {
                 target_round: 100,
                 rollin_seat: Some(0),
+                reply_rollin: false,
                 rollout_limit: 1,
                 search: SearchConfig::default(),
                 alternative_search_nodes: Vec::new(),
