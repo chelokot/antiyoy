@@ -1,0 +1,85 @@
+{
+  "kind": "whole_turn_opponent_continuation_label_stability",
+  "source_files": [
+    {
+      "name": "opponent-probe-v2-seat0.json.gz",
+      "sha256": "c3f36139749e200abb9a1a1e08aba15e641d39f17abef0be7fff3ce254c854a5"
+    },
+    {
+      "name": "opponent-probe-v2-seat1.json.gz",
+      "sha256": "b517ac5082967e188856ee727e148a2956c17356ebb4d5e6be4f33b7db6b86ec"
+    },
+    {
+      "name": "opponent-probe-v2-seat2.json.gz",
+      "sha256": "b3ade463bf864ca287da00890588d5b325111d01cdbc5cdcc34b6d9d6d204d67"
+    },
+    {
+      "name": "opponent-probe-v2-seat3.json.gz",
+      "sha256": "61347228bf57200deed0b4619c9f2ea203c97427b7ca99fd82ee1cb7b995156f"
+    },
+    {
+      "name": "opponent-probe-v2-seat4.json.gz",
+      "sha256": "840d1e2bddbe59ddce90a288014194a62af645e9c2dce68ca4be22e0ea6b8771"
+    }
+  ],
+  "comparison": "greedy root and opponents versus greedy root with searched opponents",
+  "opponent_search_nodes": 32,
+  "positions": 93,
+  "independent_maps": 32,
+  "distinct_states": 709,
+  "paired_state_outcomes": {
+    "same": 676,
+    "censored": 7,
+    "changed": 26
+  },
+  "candidate_vs_search": {
+    "complete": 604,
+    "same": 566,
+    "informative": 60,
+    "censored": 12,
+    "changed": 38,
+    "probe_better_greedy_not": 5,
+    "greedy_better_probe_not": 13,
+    "strict_reversals": 8
+  },
+  "positions_with_changed_state_outcome": 10,
+  "positions_with_informative_candidate": 19,
+  "positions_with_changed_candidate_preference": 9,
+  "positions_with_strict_preference_reversal": 4,
+  "maps_with_changed_state_outcome": 9,
+  "maps_with_informative_candidate": 13,
+  "maps_with_changed_candidate_preference": 8,
+  "maps_with_strict_preference_reversal": 4,
+  "maps_with_better_candidate": {
+    "greedy_continuation": 11,
+    "search_opponents": 10
+  },
+  "by_seat": {
+    "0": {
+      "positions": 18,
+      "changed_outcome_positions": 1,
+      "changed_preference_positions": 1
+    },
+    "1": {
+      "positions": 17,
+      "changed_outcome_positions": 2,
+      "changed_preference_positions": 2
+    },
+    "2": {
+      "positions": 19,
+      "changed_outcome_positions": 3,
+      "changed_preference_positions": 3
+    },
+    "3": {
+      "positions": 15,
+      "changed_outcome_positions": 1,
+      "changed_preference_positions": 1
+    },
+    "4": {
+      "positions": 24,
+      "changed_outcome_positions": 3,
+      "changed_preference_positions": 2
+    }
+  },
+  "qualification": "conditional terminal labels only; no policy promotion"
+}

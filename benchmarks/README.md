@@ -192,6 +192,20 @@ four outcomes, and worsened nine. Grouping all five seats by independent map
 gave three better, eight worse, 112 unchanged, and three censored maps
 (`p=0.227`). The conservative margin changed no choices. The apparent scout
 gain did not replicate, so this reranker is rejected and remains undeployed.
+The [opponent-response label audit](2026-09-23-opponent-response-label-stability-v2-cpu.json)
+uses 32 new procedural-v2 maps from seed 5202100, all five roll-in seats,
+Classic Generic 19×15, search-256 with eight completed-turn candidates, and
+action limit 2400. For each deduplicated post-turn state it compares a greedy
+continuation with one where only the opponents use search-32. Among 709 states
+from 93 sampled positions, 676 paired terminal outcomes agreed, 26 differed,
+and seven were censored. Yet only 19 positions on 13 maps had an informative
+candidate-versus-search outcome comparison under either response policy; the
+preference changed in nine positions on eight maps, including four strict
+reversals on four maps. The 38 changed comparisons out of 60 informative
+comparisons are correlated within positions and maps, not independent trials.
+This shows why greedy-only terminal labels are fragile in the decision-relevant
+subset; it does not establish that search-32 opponents are stronger or promote
+an agent.
 
 An offline minimum-score-gain gate can be audited from these records by keeping
 only search turns whose `search.static_score - greedy.static_score` reaches a

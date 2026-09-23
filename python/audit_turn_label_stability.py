@@ -25,11 +25,16 @@ def summarize(positions: list[TurnCreditPosition]) -> dict[str, object]:
     state_counts: Counter[str] = Counter()
     comparison_counts: Counter[str] = Counter()
     affected_state_maps = set()
+    informative_maps = set()
     affected_preference_maps = set()
     strict_reversal_maps = set()
     greedy_opportunity_maps = set()
     probe_opportunity_maps = set()
     seat_counts: dict[int, Counter[str]] = {seat: Counter() for seat in range(5)}
+    informative_positions = 0
+    changed_outcome_positions = 0
+    changed_preference_positions = 0
+    strict_reversal_positions = 0
     for position in positions:
         probe = position.opponent_search_scores
         if probe is None or len(probe) != len(position.outcome_scores):
@@ -37,6 +42,7 @@ def summarize(positions: list[TurnCreditPosition]) -> dict[str, object]:
         greedy = position.outcome_scores
         seat_counts[position.seat]["positions"] += 1
         state_changed = False
+        informative = False
         preference_changed = False
         strict_reversal = False
         for greedy_score, probe_score in zip(greedy, probe, strict=True):
@@ -63,6 +69,7 @@ def summarize(positions: list[TurnCreditPosition]) -> dict[str, object]:
             probe_preference = preference(int(probe[index]), int(probe[baseline]))
             if greedy_preference != 0 or probe_preference != 0:
                 comparison_counts["informative"] += 1
+                informative = True
             if greedy_preference == probe_preference:
                 comparison_counts["same"] += 1
             else:
@@ -77,12 +84,18 @@ def summarize(positions: list[TurnCreditPosition]) -> dict[str, object]:
                 comparison_counts["probe_better_greedy_not"] += 1
         if state_changed:
             affected_state_maps.add(position.seed)
+            changed_outcome_positions += 1
             seat_counts[position.seat]["changed_outcome_positions"] += 1
+        if informative:
+            informative_maps.add(position.seed)
+            informative_positions += 1
         if preference_changed:
             affected_preference_maps.add(position.seed)
+            changed_preference_positions += 1
             seat_counts[position.seat]["changed_preference_positions"] += 1
         if strict_reversal:
             strict_reversal_maps.add(position.seed)
+            strict_reversal_positions += 1
     return {
         "opponent_search_nodes": probe_nodes.pop(),
         "positions": len(positions),
@@ -90,7 +103,12 @@ def summarize(positions: list[TurnCreditPosition]) -> dict[str, object]:
         "distinct_states": sum(len(position.outcome_scores) for position in positions),
         "paired_state_outcomes": dict(state_counts),
         "candidate_vs_search": dict(comparison_counts),
+        "positions_with_changed_state_outcome": changed_outcome_positions,
+        "positions_with_informative_candidate": informative_positions,
+        "positions_with_changed_candidate_preference": changed_preference_positions,
+        "positions_with_strict_preference_reversal": strict_reversal_positions,
         "maps_with_changed_state_outcome": len(affected_state_maps),
+        "maps_with_informative_candidate": len(informative_maps),
         "maps_with_changed_candidate_preference": len(affected_preference_maps),
         "maps_with_strict_preference_reversal": len(strict_reversal_maps),
         "maps_with_better_candidate": {

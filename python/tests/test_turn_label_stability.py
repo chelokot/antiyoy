@@ -58,6 +58,11 @@ def test_audit_distinguishes_outcome_changes_from_preference_reversals() -> None
         "censored": 1,
     }
     assert summary["maps_with_changed_state_outcome"] == 2
+    assert summary["positions_with_changed_state_outcome"] == 2
+    assert summary["positions_with_informative_candidate"] == 3
+    assert summary["positions_with_changed_candidate_preference"] == 2
+    assert summary["positions_with_strict_preference_reversal"] == 1
+    assert summary["maps_with_informative_candidate"] == 2
     assert summary["maps_with_changed_candidate_preference"] == 2
     assert summary["maps_with_strict_preference_reversal"] == 1
     assert summary["maps_with_better_candidate"] == {
