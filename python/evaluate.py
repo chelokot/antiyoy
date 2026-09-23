@@ -99,6 +99,75 @@ def paired_method_comparison(
     return paired_comparison_summary(candidate_better, baseline_better, same)
 
 
+def paired_map_comparison(
+    candidate_scores: np.ndarray,
+    baseline_scores: np.ndarray,
+    players: int,
+    model_seat: int | None,
+) -> dict[str, float | int]:
+    candidate_maps, baseline_maps = paired_map_scores(
+        candidate_scores, baseline_scores, players, model_seat
+    )
+    return paired_method_comparison(candidate_maps, baseline_maps)
+
+
+def paired_map_scores(
+    candidate_scores: np.ndarray,
+    baseline_scores: np.ndarray,
+    players: int,
+    model_seat: int | None,
+) -> tuple[np.ndarray, np.ndarray]:
+    if candidate_scores.shape != baseline_scores.shape or candidate_scores.ndim != 1:
+        raise ValueError("paired map scores require equal score vectors")
+    if model_seat is not None:
+        return candidate_scores, baseline_scores
+    if players < 2 or candidate_scores.size % players != 0:
+        raise ValueError("paired map comparison requires complete seat rotations")
+    return (
+        candidate_scores.reshape(-1, players).mean(axis=1),
+        baseline_scores.reshape(-1, players).mean(axis=1),
+    )
+
+
+def paired_map_bootstrap_interval(
+    candidate_scores: np.ndarray,
+    baseline_scores: np.ndarray,
+    players: int,
+    model_seat: int | None,
+    seed: int,
+    resamples: int = 4_096,
+) -> dict[str, object]:
+    candidate_maps, baseline_maps = paired_map_scores(
+        candidate_scores, baseline_scores, players, model_seat
+    )
+    if candidate_maps.size == 0 or resamples < 1:
+        raise ValueError("paired bootstrap requires maps and resamples")
+    random = np.random.default_rng(seed ^ 0xB0057A)
+    minimum_score = 0.5 / candidate_scores.size
+    score_deltas = np.empty(resamples, dtype=np.float64)
+    elo_deltas = np.empty(resamples, dtype=np.float64)
+    for start in range(0, resamples, 256):
+        end = min(start + 256, resamples)
+        indices = random.integers(
+            0, candidate_maps.size, size=(end - start, candidate_maps.size)
+        )
+        candidate_means = candidate_maps[indices].mean(axis=1)
+        baseline_means = baseline_maps[indices].mean(axis=1)
+        score_deltas[start:end] = candidate_means - baseline_means
+        candidate_odds = np.clip(candidate_means, minimum_score, 1 - minimum_score)
+        baseline_odds = np.clip(baseline_means, minimum_score, 1 - minimum_score)
+        elo_deltas[start:end] = 400 * np.log10(
+            candidate_odds
+            * (1 - baseline_odds)
+            / (baseline_odds * (1 - candidate_odds))
+        )
+    return {
+        "resamples": resamples,
+        "score_delta": np.quantile(score_deltas, [0.025, 0.975]).tolist(),
+        "baseline_adjusted_elo_delta": np.quantile(elo_deltas, [0.025, 0.975]).tolist(),
+    }
+
+
 def paired_comparison_summary(
     candidate_better: int, baseline_better: int, same: int
 ) -> dict[str, float | int]:
@@ -630,6 +699,8 @@ def evaluate(
     puct_total_nodes = 0
     puct_total_root_visits = 0
     puct_maximum_reached_depth = 0
+    model_baseline_action_disagreements = 0
+    model_policy_decisions = 0
     puct_config = PolicySearchConfig(
         node_budget=puct_nodes,
         exploration=puct_exploration,
@@ -687,6 +758,13 @@ def evaluate(
         actions = np.where(
             active_players == model_seats, model_actions, baseline_actions
         )
+        if baseline == "policy":
+            model_policy_decisions += int(model_turns.sum())
+            model_baseline_action_disagreements += int(
+                np.count_nonzero(
+                    model_actions[model_turns] != baseline_actions[model_turns]
+                )
+            )
         action_kinds = selected_action_kinds(observation, actions)
         baseline_turns = np.logical_and(active, active_players != model_seats)
         model_action_counts += np.bincount(
@@ -832,6 +910,12 @@ def evaluate(
         "paired_method_comparison": paired_method_comparison(
             game_scores, baseline_scores
         ),
+        "paired_map_comparison": paired_map_comparison(
+            game_scores, baseline_scores, players, model_seat
+        ),
+        "paired_map_bootstrap_95": paired_map_bootstrap_interval(
+            game_scores, baseline_scores, players, model_seat, seed
+        ),
         "seed": seed,
         "generator": generator_name,
         "domain": evaluation_domain,
@@ -858,6 +942,19 @@ def evaluate(
         ),
         "model_action_counts": named_action_counts(model_action_counts),
         "baseline_action_counts": named_action_counts(baseline_action_counts),
+        "model_baseline_policy_actions": (
+            {
+                "decisions": model_policy_decisions,
+                "disagreements": model_baseline_action_disagreements,
+                "disagreement_rate": (
+                    model_baseline_action_disagreements / model_policy_decisions
+                    if model_policy_decisions
+                    else 0.0
+                ),
+            }
+            if baseline == "policy"
+            else None
+        ),
         "model_agent": model_agent,
         "policy_search": {
             "node_budget": puct_nodes if model_agent == "puct" else 0,

@@ -320,16 +320,18 @@ player's perspective and freezes every policy and trunk parameter:
 ```bash
 python calibrate_value.py ../models/universal-routed.pt \
   ../models/classic-generic-duel-value.pt --profile classic_generic_2022 \
-  --games 256 --validation-games 64 --seed 600000 --device cuda \
-  --exploration-probability 0.15 --exploration-top-k 4
+  --games 128 --validation-games 32 --seed 600000 --device cuda \
+  --exploration-probability 0.005 --exploration-top-k 4
 ```
 
 The emitted specialist checkpoint includes before/after train and held-out
 MAE, RMSE, sign accuracy, and correlation, plus source and output SHA-256
-digests. Controlled exploration replaces 15% of actions with a sampled rank
-2–4 policy action, so the value head sees plausible off-policy successors that
-PUCT will actually visit. Procedural calibration accepts the same generator
-contract as evaluation, including `--generator procedural_v1`, `--players 2..8`,
+digests. Controlled exploration replaces 0.5% of actions with a sampled rank
+2–4 policy action. This preserves mostly on-policy outcome labels while exposing
+the value head to plausible off-policy successors; higher exploration rates
+must pass a separate outcome gate. Procedural calibration accepts the same generator
+contract as evaluation, including `--generator procedural_v1` or
+`procedural_v2`, `--players 2..8`,
 map dimensions, density controls, and action limit. It routes every active seat
 through the source bundle. Add `--training-seat` to collect loss and held-out
 metrics only for one player's states and emit that seat's exact routed expert;
@@ -356,6 +358,14 @@ python build_bundle.py ../models/universal-routed.pt \
   --context-route classic_generic_2022:symmetric_duel_v1:2=\
 ../models/classic-generic-duel-value.pt
 ```
+
+For seat-rotated procedural duels, use `--generator procedural_v2 --players 2`.
+When an existing checkpoint routes its procedural expert under `procedural_v1`,
+also pass `--route-generator procedural_v1` to calibration and distillation,
+and `--generator-schema-version 2 --route-generator procedural_v1` to
+evaluation. The generated maps use schema 2 throughout; only expert selection
+reuses the old route. Both the environment and route domain hashes are recorded
+in the training reports.
 
 Then repeat the direct `--baseline policy` arena on fresh seeds. Accept the
 overlay only when held-out value metrics improve and PUCT beats the unchanged
@@ -461,18 +471,20 @@ the evaluator calibrates the result against baseline self-play on the same
 seed window. This reduces a six-player specialist scout to one sixth of the
 games without evaluating unrelated routes. It is a selection tool, not a
 release gate: a promoted bundle still requires the held-out all-seat suite.
-The result includes both absolute multiplayer `elo_delta`, measured against the
-equal-player win expectation, and `baseline_adjusted_elo_delta`, the edge-corrected
+The result includes `elo_delta`, measured against the equal-player win
+expectation, and `baseline_adjusted_elo_delta`, the edge-corrected
 log-odds improvement over the source policy at the same seat. Method comparisons
 must use the latter or the raw `score_delta`; a weak starting seat can improve
-while its absolute multiplayer rating remains negative.
+while its equal-player-relative estimate remains negative. Neither number is a
+pool-independent Elo rating.
 `paired_method_comparison` additionally compares candidate and baseline outcome
-on every identical seed and seat. It reports maps improved, maps regressed,
-unchanged maps, net improvements, and an exact two-sided sign-test p-value over
-discordant maps. This distinguishes a method that flips specific failures from
-two agents whose aggregate win counts happen to differ on unrelated maps. Suite
-reports pool these matched-map counts across seed windows and recompute the
-sign test, including separate totals for every seat.
+on every identical seed and seat. `paired_map_comparison` first groups all seat
+rotations of one procedural map, then reports improved, regressed, and unchanged
+independent maps with an exact two-sided sign test. The map-clustered bootstrap
+adds 95% intervals for `score_delta` and pool-relative Elo; overlapping zero is
+not evidence of a successful amplification. Suite reports pool matched-map
+counts across seed windows and recompute the sign test, including separate
+totals for every seat.
 Every result also preserves the ordered `game_seeds`, `model_seats`, and
 candidate `winners` vectors. Evaluations with different search settings can
 therefore be compared map by map when these schedules and the arena

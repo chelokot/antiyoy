@@ -24,6 +24,8 @@ from python.evaluate import (
     named_action_counts,
     outcome_summary,
     paired_comparison_summary,
+    paired_map_bootstrap_interval,
+    paired_map_comparison,
     paired_method_comparison,
     paired_elo,
     paired_seeds,
@@ -96,6 +98,9 @@ def test_policy_self_match_is_an_exact_zero_delta(tmp_path: Path) -> None:
     assert result["model_seats"] == [0, 1]
     assert result["winners"] == result["baseline_self_play"]["winners"] * 2
     assert result["policy_search"]["decisions"] == 0
+    assert result["paired_map_comparison"]["same"] == 1
+    assert result["paired_map_bootstrap_95"]["score_delta"] == [0.0, 0.0]
+    assert result["model_baseline_policy_actions"]["disagreements"] == 0
     assert [seat["paired_method_comparison"] for seat in result["seats"]] == [
         {
             "candidate_better": 0,
@@ -468,6 +473,39 @@ def test_paired_method_comparison_counts_discordant_maps() -> None:
     }
 
 
+def test_paired_map_comparison_groups_both_seats_before_sign_test() -> None:
+    candidate = np.array([1.0, 1.0, 0.0, 0.0, 1.0, 0.0])
+    baseline = np.array([0.0, 0.0, 1.0, 0.0, 0.0, 1.0])
+
+    assert paired_method_comparison(candidate, baseline)["candidate_better"] == 3
+    assert paired_map_comparison(candidate, baseline, 2, None) == {
+        "candidate_better": 1,
+        "baseline_better": 1,
+        "same": 1,
+        "discordant": 2,
+        "net_improvements": 0,
+        "exact_two_sided_sign_test_p": 1.0,
+    }
+    assert paired_map_comparison(candidate, baseline, 2, 0) == (
+        paired_method_comparison(candidate, baseline)
+    )
+
+
+def test_paired_map_bootstrap_preserves_seat_clusters_and_is_reproducible() -> None:
+    candidate = np.array([1.0, 1.0, 0.0, 0.0, 1.0, 0.0])
+    baseline = np.array([0.0, 0.0, 1.0, 0.0, 0.0, 1.0])
+
+    interval = paired_map_bootstrap_interval(candidate, baseline, 2, None, 901, 128)
+
+    assert interval == paired_map_bootstrap_interval(
+        candidate, baseline, 2, None, 901, 128
+    )
+    assert interval["resamples"] == 128
+    assert interval["score_delta"][0] < 0 < interval["score_delta"][1]
+    assert interval["baseline_adjusted_elo_delta"][0] < 0
+    assert interval["baseline_adjusted_elo_delta"][1] > 0
+
+
 def test_suite_aggregate_counts_draws_and_truncations() -> None:
     aggregate = aggregate_results(
         [
@@ -622,7 +660,7 @@ def test_suite_aggregate_preserves_self_play_calibration() -> None:
     assert aggregate["seats"][2]["score_delta"] == pytest.approx(0.0)
 
 
-def test_suite_aggregate_pools_matched_map_comparisons() -> None:
+def test_suite_aggregate_pools_matched_game_and_map_comparisons() -> None:
     outcomes = [
         {
             "players": 5,
@@ -635,6 +673,11 @@ def test_suite_aggregate_pools_matched_map_comparisons() -> None:
             "paired_method_comparison": {
                 "candidate_better": 2,
                 "baseline_better": 1,
+                "same": 1,
+            },
+            "paired_map_comparison": {
+                "candidate_better": 1,
+                "baseline_better": 0,
                 "same": 1,
             },
         },
@@ -651,6 +694,11 @@ def test_suite_aggregate_pools_matched_map_comparisons() -> None:
                 "baseline_better": 2,
                 "same": 1,
             },
+            "paired_map_comparison": {
+                "candidate_better": 0,
+                "baseline_better": 1,
+                "same": 1,
+            },
         },
     ]
 
@@ -661,6 +709,14 @@ def test_suite_aggregate_pools_matched_map_comparisons() -> None:
         "baseline_better": 3,
         "same": 2,
         "discordant": 6,
+        "net_improvements": 0,
+        "exact_two_sided_sign_test_p": 1.0,
+    }
+    assert aggregate["paired_map_comparison"] == {
+        "candidate_better": 1,
+        "baseline_better": 1,
+        "same": 2,
+        "discordant": 2,
         "net_improvements": 0,
         "exact_two_sided_sign_test_p": 1.0,
     }
@@ -687,6 +743,13 @@ def test_suite_aggregate_rejects_partial_matched_map_evidence() -> None:
 
     with pytest.raises(ValueError, match="cannot mix paired and unpaired"):
         aggregate_outcomes([paired, unpaired])
+    with pytest.raises(ValueError, match="cannot mix paired and unpaired map"):
+        aggregate_outcomes(
+            [
+                paired,
+                {**paired, "paired_map_comparison": paired["paired_method_comparison"]},
+            ]
+        )
 
 
 def test_procedural_puct_report_combines_every_matched_map_window() -> None:

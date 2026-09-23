@@ -112,6 +112,21 @@ def aggregate_outcomes(
             ),
             sum(int(result["paired_method_comparison"]["same"]) for result in outcomes),
         )
+    paired_maps = ["paired_map_comparison" in result for result in outcomes]
+    if any(paired_maps) and not all(paired_maps):
+        raise ValueError("cannot mix paired and unpaired map comparisons")
+    if all(paired_maps):
+        aggregate["paired_map_comparison"] = paired_comparison_summary(
+            sum(
+                int(result["paired_map_comparison"]["candidate_better"])
+                for result in outcomes
+            ),
+            sum(
+                int(result["paired_map_comparison"]["baseline_better"])
+                for result in outcomes
+            ),
+            sum(int(result["paired_map_comparison"]["same"]) for result in outcomes),
+        )
     return aggregate
 
 
