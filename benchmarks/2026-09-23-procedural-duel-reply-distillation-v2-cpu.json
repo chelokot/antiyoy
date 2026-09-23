@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_reply_search_distillation_gate",
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "action_limit": 1000,
+    "pairing": "identical map with both student seats"
+  },
+  "teacher_provenance": {
+    "agent": "native reply-search 256 root nodes, eight completed-turn candidates, 64 opponent reply nodes",
+    "teacher_match_report": "2026-09-23-procedural-duel-reply-search-v2-cpu.json",
+    "teacher_better_independent_maps_against_source": 81,
+    "source_better_independent_maps": 39,
+    "same_independent_maps": 136
+  },
+  "training": {
+    "initial_checkpoint": "routed-v6.pt",
+    "initial_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "seed_first": 6231000,
+    "imitation_updates": 512,
+    "environments": 32,
+    "imitation_reset_interval": 64,
+    "imitation_rollin": "policy",
+    "imitation_search_replan": false,
+    "imitation_reference_weight": 0.1,
+    "learning_rate": 0.0001,
+    "teacher_labels": 16384,
+    "environment_resets": 260,
+    "average_imitation_accuracy": 0.7307128906250003,
+    "imitation_seconds": 234.93718898994848,
+    "student_checkpoint_sha256": "95f57060eb1ba56c9a35088e8c2d5c3f43cf9b8eed702bc142e165fd15b6a22b",
+    "training_log_sha256": "978866c8442d9c078d149ed39977c5977e869002699860d044956e7abcf43f2b"
+  },
+  "development_gate": {
+    "seed_first": 6232000,
+    "maps": 64,
+    "games": 128,
+    "student_wins": 53,
+    "source_wins": 75,
+    "frozen_source_self_play_reference_wins": 64,
+    "student_better_independent_maps": 4,
+    "source_better_independent_maps": 15,
+    "same_independent_maps": 45,
+    "exact_two_sided_sign_test_p": 0.0192108154296875,
+    "score_delta": -0.0859375,
+    "map_cluster_bootstrap_95_score_delta": [-0.1484375, -0.0234375],
+    "student_policy_action_disagreements": 2460,
+    "student_policy_decisions": 9366,
+    "student_truncations": 1,
+    "source_truncations": 0,
+    "seat_0_student_wins": 35,
+    "seat_0_source_reference_wins": 35,
+    "seat_1_student_wins": 18,
+    "seat_1_source_reference_wins": 29,
+    "raw_result_sha256": "86063341dd0333c22cfd5937f2f5143d564c2fb0407753958cf5479b16eec7ed"
+  },
+  "held_out_teacher_agreement_audit": {
+    "seed_first": 6234000,
+    "maps": 16,
+    "games": 32,
+    "teacher_comparisons_on_student_match_states": 2105,
+    "teacher_source_disagreements": 870,
+    "student_matches_teacher_on_disagreements": 255,
+    "student_matches_source_on_disagreements": 422,
+    "student_matches_neither_on_disagreements": 193,
+    "student_deviates_when_teacher_matches_source": 124,
+    "seat_0": {
+      "decisions": 1084,
+      "teacher_source_disagreements": 450,
+      "student_matches_teacher_on_disagreements": 127,
+      "student_deviates_when_teacher_matches_source": 67
+    },
+    "seat_1": {
+      "decisions": 1021,
+      "teacher_source_disagreements": 420,
+      "student_matches_teacher_on_disagreements": 128,
+      "student_deviates_when_teacher_matches_source": 57
+    },
+    "raw_result_sha256": "5133159f542b23351f07b0f03cfc023cb3d4432ece5e756ac80d680677d32036"
+  },
+  "interpretation": "The teacher was a stronger search agent, but the first policy-rollin imitation student became significantly weaker than its routed-v6 initialization on disjoint procedural duel maps. The loss was concentrated in the second seat. In a separate same-state audit, it learned fewer than one-third of teacher-versus-source corrections and also introduced new disagreements where teacher and source agreed. Imitation accuracy did not predict online strength; this checkpoint is rejected and not promoted. This is a failed distillation stage, not evidence against the independently validated teacher."
+}

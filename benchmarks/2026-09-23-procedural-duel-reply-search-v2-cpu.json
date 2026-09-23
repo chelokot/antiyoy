@@ -140,6 +140,8 @@
     "same_maps": 136,
     "exact_two_sided_sign_test_p": 0.0001580340306025685,
     "score_delta": -0.08203125,
+    "model_baseline_adjusted_elo_delta": -57.520996290825764,
+    "model_map_cluster_bootstrap_95_elo_delta": [-87.29334961976292, -28.564762717084925],
     "map_cluster_bootstrap_95_score_delta": [-0.123046875, -0.041015625],
     "model_truncations": 0,
     "reply_search_reference_truncations": 0,
