@@ -468,8 +468,10 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("imitation_reference_weight must not be negative")
     if config.opponent_reference_weight < 0:
         raise ValueError("opponent_reference_weight must not be negative")
-    if config.fixed_opponent not in {None, "greedy", "search"}:
-        raise ValueError("fixed_opponent must be greedy, search, or omitted")
+    if config.fixed_opponent not in {None, "greedy", "search", "reply_search"}:
+        raise ValueError(
+            "fixed_opponent must be greedy, search, reply_search, or omitted"
+        )
     if config.opponent_counterfactual_baseline:
         if config.fixed_opponent is None:
             raise ValueError(
@@ -501,6 +503,13 @@ def validate_config(config: TrainingConfig) -> None:
         if any(players < 2 or players > 8 for players in config.players_schedule):
             raise ValueError("players schedule values must be between two and eight")
     player_counts = config.players_schedule or [config.players]
+    if config.fixed_opponent == "reply_search":
+        if any(players != 2 for players in player_counts):
+            raise ValueError("reply search opponent requires two-player games")
+        if config.fog:
+            raise ValueError("reply search opponent requires full information")
+        if config.reply_search_nodes < 2 or config.reply_slate_size < 1:
+            raise ValueError("reply search opponent budget is invalid")
     if config.learner_seat < 0 or config.learner_seat >= min(player_counts):
         raise ValueError("learner_seat must exist in every scheduled domain")
     if config.map_size_schedule is not None:
@@ -717,7 +726,22 @@ def collect_fixed_opponent_episodes(
                     .numpy()
                     .astype(np.uint64)
                 )
-        if config.fixed_opponent == "search":
+        if config.fixed_opponent == "reply_search":
+            opponent_actions = np.asarray(
+                environment.reply_search_actions(
+                    node_budget=config.search_nodes,
+                    reply_nodes=config.reply_search_nodes,
+                    slate_size=config.reply_slate_size,
+                    beam_width=config.search_beam_width,
+                    branch_width=config.search_branch_width,
+                    maximum_actions_per_turn=config.search_maximum_actions_per_turn,
+                    active_mask=np.asarray(
+                        np.logical_and(~learner_active, ~finished), dtype=np.uint8
+                    ),
+                ),
+                dtype=np.uint64,
+            )
+        elif config.fixed_opponent == "search":
             opponent_actions = np.asarray(
                 environment.search_actions(
                     node_budget=config.search_nodes,
@@ -1503,9 +1527,11 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "imitation_search_replan": config.imitation_search_replan,
         "reply_search_nodes": config.reply_search_nodes
         if config.imitation_teacher == "reply_search"
+        or config.fixed_opponent == "reply_search"
         else 0,
         "reply_slate_size": config.reply_slate_size
         if config.imitation_teacher == "reply_search"
+        or config.fixed_opponent == "reply_search"
         else 0,
         "imitation_rollin": config.imitation_rollin,
         "imitation_symmetry_augmentation": config.imitation_symmetry_augmentation,
@@ -1645,7 +1671,9 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--territory-weight", type=float, default=0.03)
     parser.add_argument("--treasury-weight", type=float, default=0.002)
     parser.add_argument("--unit-weight", type=float, default=0.01)
-    parser.add_argument("--fixed-opponent", choices=("greedy", "search"))
+    parser.add_argument(
+        "--fixed-opponent", choices=("greedy", "search", "reply_search")
+    )
     parser.add_argument("--learner-seat", type=int, default=0)
     parser.add_argument("--opponent-minibatch", type=int, default=256)
     parser.add_argument("--opponent-reference-weight", type=float, default=0.0)

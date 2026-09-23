@@ -168,8 +168,9 @@ increases map diversity without increasing the transition budget; zero keeps
 natural episode boundaries only. The checkpoint summary records the exact
 number of environment resets.
 
-For long-horizon best-response training, set `--fixed-opponent greedy` or
-`--fixed-opponent search` with `--learner-seat SEAT`. Every batch worker runs a
+For long-horizon best-response training, set `--fixed-opponent greedy`,
+`--fixed-opponent search`, or `--fixed-opponent reply_search` with
+`--learner-seat SEAT`. Every batch worker runs a
 complete game in which the policy controls only that seat and the named frozen
 agent controls every opponent. The trainer retains the behavior log-probability
 and value for each learner decision, then applies clipped PPO from the terminal
@@ -188,6 +189,13 @@ so maps where both policies win or both lose contribute zero credit instead of
 gradient noise. The checkpoint reports learner and frozen-baseline records
 separately. This doubles simulation per learner episode and is intended for
 sparse multiplayer outcomes.
+
+The `reply_search` fixed opponent uses a completed-turn beam and a searched
+whole-turn response. It requires a two-player, full-information arena, and
+shares `--search-nodes`, `--reply-search-nodes`, `--reply-slate-size`, and beam
+parameters with the imitation teacher. This supports outcome-grounded
+fine-tuning against a frozen strong search agent; it does not assume the
+search's individual actions are useful imitation labels.
 
 ```bash
 python train.py --environments 24 --updates 8 --device cuda \
@@ -285,6 +293,20 @@ disagreements; it requires `--initialize` so the source is frozen. The
 reference-policy KL remains weighted by the ordinary sample weights, not the
 correction multiplier. The multiplier is a training hypothesis, not a strength
 claim, and needs fresh complete-game gates.
+
+For exact whole-turn credit under a fixed direct-policy continuation:
+
+```bash
+python -m python.audit_turn_intervention ../models/routed-v6.pt \
+  --maps 64 --seed 6241000 --target-round 8 --width 11 --height 9 \
+  --search-nodes 256 --reply-search-nodes 64 --reply-slate-size 8
+```
+
+The report forks each sampled state, plays one branch entirely with the frozen
+policy, and gives reply-search one completed turn in the other before returning
+to that same policy. It records both terminal outcomes, adjudications,
+censoring, and independent-map summaries. This is conditional causal credit
+for one intervention, not the strength of persistent online search.
 
 Policy-guided PUCT is a separate model-side amplifier. Rust owns the cloned
 search trees, exact legal transitions, virtual visits, and deterministic

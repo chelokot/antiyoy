@@ -342,6 +342,14 @@ def test_training_rejects_invalid_fixed_opponent_configuration() -> None:
                 opponent_counterfactual_baseline=True,
             )
         )
+    with pytest.raises(ValueError, match="two-player games"):
+        validate_config(
+            replace(training_config(), fixed_opponent="reply_search", players=3)
+        )
+    with pytest.raises(ValueError, match="full information"):
+        validate_config(
+            replace(training_config(), fixed_opponent="reply_search", fog=True)
+        )
 
 
 def test_fixed_opponent_training_collects_complete_episodes_and_optimizes() -> None:
@@ -438,6 +446,43 @@ def test_counterfactual_fixed_opponent_training_pairs_frozen_policy_games() -> N
         + metrics["baseline_losses"]
         == config.environments // 2
     )
+
+
+def test_reply_search_fixed_opponent_collects_paired_duel_episodes() -> None:
+    config = replace(
+        training_config(),
+        environments=4,
+        procedural=True,
+        generator_schema_version=2,
+        action_limit=24,
+        fixed_opponent="reply_search",
+        learner_seat=1,
+        search_nodes=32,
+        reply_search_nodes=8,
+        reply_slate_size=4,
+        opponent_counterfactual_baseline=True,
+    )
+    device = torch.device("cpu")
+    environment = make_environment(config)
+    model = UniversalPolicy(hidden=config.hidden, layers=config.layers)
+    reference = copy.deepcopy(model).eval()
+    reference.requires_grad_(False)
+    rules = encode_rules_batch(environment.rules_jsons(), device)
+
+    episodes, _, steps = collect_fixed_opponent_episodes(
+        environment,
+        model,
+        rules,
+        config,
+        device,
+        config.seed + config.environments,
+        reference,
+    )
+
+    assert len(episodes) == 2
+    assert all(episode.baseline_outcome is not None for episode in episodes)
+    assert all(episode.decisions for episode in episodes)
+    assert steps >= config.environments
 
 
 def test_counterfactual_advantages_preserve_zero_credit() -> None:
