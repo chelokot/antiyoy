@@ -13,6 +13,7 @@ use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde::Serialize;
 
+mod multi_compare;
 mod seat_audit;
 
 #[derive(Debug, Parser)]
@@ -138,6 +139,29 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    MultiCompare(MultiCompareArgs),
+}
+
+#[derive(Clone, Debug, Args)]
+struct MultiCompareArgs {
+    #[arg(long, default_value_t = 16)]
+    maps: u32,
+    #[arg(long, default_value_t = 1)]
+    seed: u64,
+    #[arg(long, default_value_t = 2_400)]
+    action_limit: u32,
+    #[command(flatten)]
+    map: RlMapArgs,
+    #[arg(long, value_enum, default_value_t = AgentKind::Search)]
+    candidate: AgentKind,
+    #[arg(long, value_enum, default_value_t = AgentKind::Greedy)]
+    baseline: AgentKind,
+    #[arg(long, default_value_t = 256)]
+    search_nodes: usize,
+    #[arg(long, value_enum, default_value_t = RulesKind::ClassicGeneric)]
+    rules: RulesKind,
+    #[arg(long)]
+    json: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -450,6 +474,7 @@ fn main() -> Result<()> {
             rotate_starts,
             json,
         } => seat_audit::run(maps, seed, action_limit, &map, rules, rotate_starts, json)?,
+        Command::MultiCompare(arguments) => multi_compare::run(&arguments)?,
     }
     Ok(())
 }

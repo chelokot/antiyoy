@@ -66,6 +66,23 @@ symmetric. Schema 1 remains the default, so existing replays and model domains
 do not silently change. Compare both versions on fresh, identical seed
 windows before using schema 2 for training or a rated queue.
 
+Compare native agents on the same procedural maps with every candidate seat:
+
+```bash
+cargo run --release -p antiyoy-cli -- multi-compare \
+  --map procedural --generator-schema-version 2 \
+  --width 19 --height 15 --players 5 \
+  --maps 16 --seed 5000000 --action-limit 2400 \
+  --candidate search --baseline greedy --search-nodes 256 --json
+```
+
+Each seed first receives one all-baseline reference game. The candidate then
+replaces each seat in turn while the other seats retain the same baseline.
+The report retains seed/seat outcomes, paired better/worse/same counts,
+truncations, and per-seat wins. Reference wins are replicated across seats for
+the paired comparison, but the baseline game is simulated only once per seed.
+These correlated games are a method comparison, not independent Elo matches.
+
 Training smoke tests are also checked in as metadata-only records. They include
 the model hash and held-out results but never commit checkpoints. A smoke test
 validates the learning path; it is not a release candidate or a calibrated
