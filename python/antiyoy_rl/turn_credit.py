@@ -4,7 +4,7 @@ import gzip
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import Literal, TypedDict, cast
 
 import numpy as np
 
@@ -70,6 +70,8 @@ class TurnCreditPosition:
     root_search_nodes: int | None = None
     opponent_search_scores: np.ndarray | None = None
     opponent_search_nodes: int | None = None
+    opponent_reply_scores: np.ndarray | None = None
+    slate_indices: tuple[int, ...] = ()
 
     @property
     def complete(self) -> np.ndarray:
@@ -133,7 +135,9 @@ def continuation_probe_scores(
     )
 
 
-def load_turn_credit_positions(path: Path) -> list[TurnCreditPosition]:
+def load_turn_credit_positions(
+    path: Path, outcome_probe: Literal["greedy", "teacher"] = "greedy"
+) -> list[TurnCreditPosition]:
     if path.suffix == ".gz":
         source = gzip.open(path, "rt", encoding="utf-8")
     else:
@@ -142,6 +146,8 @@ def load_turn_credit_positions(path: Path) -> list[TurnCreditPosition]:
         report = cast(dict[str, object], json.load(source))
     if report["include_observations"] is not True:
         raise ValueError("turn-credit report requires --include-observations")
+    if outcome_probe == "teacher" and report.get("teacher_continuations") is not True:
+        raise ValueError("teacher outcomes require --teacher-continuations")
     positions = []
     for record in cast(list[dict[str, object]], report["records"]):
         observations = cast(dict[str, dict[str, object]], record["observations"])
@@ -185,6 +191,14 @@ def load_turn_credit_positions(path: Path) -> list[TurnCreditPosition]:
             seen[index] = True
         if not seen.all():
             raise ValueError("a post-turn state has no outcome label")
+        if outcome_probe == "teacher":
+            teacher = cast(list[dict[str, object]], record["teacher_continuations"])
+            if len(teacher) != state_count:
+                raise ValueError("teacher continuation count differs from end states")
+            scores = np.asarray(
+                [outcome_score(continuation, seat) for continuation in teacher],
+                dtype=np.int8,
+            )
         root_search_scores = continuation_probe_scores(
             record,
             report,
@@ -200,6 +214,23 @@ def load_turn_credit_positions(path: Path) -> list[TurnCreditPosition]:
             state_count,
             "opponent_search_nodes",
             "opponent_search_continuations",
+        )
+        opponent_continuations = cast(
+            list[dict[str, object]] | None,
+            record.get("opponent_search_continuations"),
+        )
+        opponent_reply_scores = (
+            np.asarray(
+                [
+                    float(continuation["reply_score"])
+                    if continuation["reply_score"] is not None
+                    else np.nan
+                    for continuation in opponent_continuations
+                ],
+                dtype=np.float64,
+            )
+            if opponent_continuations is not None
+            else None
         )
         positions.append(
             TurnCreditPosition(
@@ -219,6 +250,19 @@ def load_turn_credit_positions(path: Path) -> list[TurnCreditPosition]:
                 opponent_search_scores=opponent_search_scores,
                 opponent_search_nodes=cast(
                     int | None, report.get("opponent_search_nodes")
+                ),
+                opponent_reply_scores=opponent_reply_scores,
+                slate_indices=tuple(
+                    dict.fromkeys(
+                        [cast(int, search["state_index"])]
+                        + [
+                            cast(
+                                int,
+                                cast(dict[str, object], item["branch"])["state_index"],
+                            )
+                            for item in candidates
+                        ]
+                    )
                 ),
             )
         )

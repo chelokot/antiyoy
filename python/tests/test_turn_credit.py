@@ -75,6 +75,7 @@ def test_load_turn_credit_preserves_state_labels_and_censoring(tmp_path: Path) -
     np.testing.assert_array_equal(position.complete, [True, True, False])
     np.testing.assert_array_equal(position.post_turn["action_kinds"], [0, 0, 0])
     np.testing.assert_array_equal(position.post_turn["action_offsets"], [0, 1, 2, 3])
+    assert position.slate_indices == (1, 2)
     assert position.post_turn_rules_json == ('{"profile":"ClassicGeneric"}',) * 3
 
 
@@ -147,9 +148,9 @@ def test_loader_aligns_search_probe_labels_with_distinct_states(
     value = report()
     value[nodes_field] = 32
     value["records"][0][continuations_field] = [
-        {"winner": 0, "truncated": False},
-        {"winner": 1, "truncated": False},
-        {"winner": None, "truncated": True},
+        {"winner": 0, "truncated": False, "reply_score": 100},
+        {"winner": 1, "truncated": False, "reply_score": 200},
+        {"winner": None, "truncated": True, "reply_score": None},
     ]
     path = tmp_path / "probed.json"
     write_report(path, value)
@@ -158,6 +159,28 @@ def test_loader_aligns_search_probe_labels_with_distinct_states(
 
     np.testing.assert_array_equal(getattr(position, scores_field), [2, 0, -1])
     assert getattr(position, nodes_field) == 32
+    if nodes_field == "opponent_search_nodes":
+        np.testing.assert_array_equal(position.opponent_reply_scores[:2], [100, 200])
+        assert np.isnan(position.opponent_reply_scores[2])
+
+
+def test_loader_can_use_persistent_teacher_outcomes(tmp_path: Path) -> None:
+    value = report()
+    value["teacher_continuations"] = True
+    value["records"][0]["teacher_continuations"] = [
+        {"winner": 0, "truncated": False},
+        {"winner": 1, "truncated": False},
+        {"winner": None, "truncated": True},
+    ]
+    path = tmp_path / "teacher.json"
+    write_report(path, value)
+
+    [position] = load_turn_credit_positions(path, "teacher")
+
+    np.testing.assert_array_equal(position.outcome_scores, [2, 0, -1])
+    write_report(tmp_path / "missing.json", report())
+    with pytest.raises(ValueError, match="teacher outcomes require"):
+        load_turn_credit_positions(tmp_path / "missing.json", "teacher")
 
 
 @pytest.mark.parametrize(
