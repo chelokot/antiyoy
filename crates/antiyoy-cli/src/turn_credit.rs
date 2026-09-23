@@ -144,46 +144,7 @@ fn diagnose(
     maps: u32,
     config: CreditConfig,
 ) -> Result<TurnCreditSummary> {
-    ensure!(maps > 0, "map count must be positive");
-    ensure!(config.target_round > 0, "target round must be positive");
-    ensure!(config.rollout_limit > 0, "rollout limit must be positive");
-    ensure!(
-        config
-            .rollin_seat
-            .is_none_or(|seat| seat < generator.players),
-        "roll-in seat must belong to the player range"
-    );
-    SearchAgent::with_config("validation", config.search)
-        .context("invalid search configuration")?;
-    if let Some(nodes) = config.opponent_search_nodes {
-        ensure!(
-            config.include_observations,
-            "opponent search probes require post-turn observations"
-        );
-        SearchAgent::with_config(
-            "opponent-search-validation",
-            SearchConfig {
-                node_budget: nodes,
-                ..config.search
-            },
-        )
-        .context("invalid opponent search configuration")?;
-    }
-    let mut alternative_budgets = HashSet::new();
-    for &budget in &config.alternative_search_nodes {
-        ensure!(
-            budget != config.search.node_budget && alternative_budgets.insert(budget),
-            "alternative search budgets must be unique and differ from the primary budget"
-        );
-        SearchAgent::with_config(
-            "alternative-validation",
-            SearchConfig {
-                node_budget: budget,
-                ..config.search
-            },
-        )
-        .context("invalid alternative search configuration")?;
-    }
+    validate_credit_config(&generator, maps, &config)?;
     let mut records = Vec::new();
     let mut maps_with_samples = 0;
     let mut different_end_states = 0;
@@ -256,6 +217,54 @@ fn diagnose(
         elapsed_seconds: started.elapsed().as_secs_f64(),
         records,
     })
+}
+
+fn validate_credit_config(
+    generator: &GeneratorConfig,
+    maps: u32,
+    config: &CreditConfig,
+) -> Result<()> {
+    ensure!(maps > 0, "map count must be positive");
+    ensure!(config.target_round > 0, "target round must be positive");
+    ensure!(config.rollout_limit > 0, "rollout limit must be positive");
+    ensure!(
+        config
+            .rollin_seat
+            .is_none_or(|seat| seat < generator.players),
+        "roll-in seat must belong to the player range"
+    );
+    SearchAgent::with_config("validation", config.search)
+        .context("invalid search configuration")?;
+    if let Some(nodes) = config.opponent_search_nodes {
+        ensure!(
+            config.include_observations,
+            "opponent search probes require post-turn observations"
+        );
+        SearchAgent::with_config(
+            "opponent-search-validation",
+            SearchConfig {
+                node_budget: nodes,
+                ..config.search
+            },
+        )
+        .context("invalid opponent search configuration")?;
+    }
+    let mut alternative_budgets = HashSet::new();
+    for &budget in &config.alternative_search_nodes {
+        ensure!(
+            budget != config.search.node_budget && alternative_budgets.insert(budget),
+            "alternative search budgets must be unique and differ from the primary budget"
+        );
+        SearchAgent::with_config(
+            "alternative-validation",
+            SearchConfig {
+                node_budget: budget,
+                ..config.search
+            },
+        )
+        .context("invalid alternative search configuration")?;
+    }
+    Ok(())
 }
 
 fn sample_states(game: Game, config: &CreditConfig) -> Result<Vec<Game>> {
@@ -345,25 +354,8 @@ fn analyze_turn(state: &Game, seed: u64, config: &CreditConfig) -> Result<Credit
     let observations = config
         .include_observations
         .then(|| observe_states(state, &completed_states));
-    let opponent_search_continuations = config
-        .opponent_search_nodes
-        .map(|nodes| {
-            completed_states
-                .iter()
-                .map(|(game, _)| {
-                    continue_with_policy(
-                        game.clone(),
-                        PlayerId(seat),
-                        config.rollout_limit,
-                        Some(SearchConfig {
-                            node_budget: nodes,
-                            ..config.search
-                        }),
-                    )
-                })
-                .collect::<Result<Vec<_>>>()
-        })
-        .transpose()?;
+    let opponent_search_continuations =
+        probe_completed_states(&completed_states, PlayerId(seat), config)?;
     Ok(CreditRecord {
         seed,
         seat,
@@ -390,6 +382,32 @@ fn analyze_turn(state: &Game, seed: u64, config: &CreditConfig) -> Result<Credit
         opponent_search_continuations,
         observations,
     })
+}
+
+fn probe_completed_states(
+    states: &[(Game, Continuation)],
+    player: PlayerId,
+    config: &CreditConfig,
+) -> Result<Option<Vec<Continuation>>> {
+    config
+        .opponent_search_nodes
+        .map(|nodes| {
+            states
+                .iter()
+                .map(|(game, _)| {
+                    continue_with_policy(
+                        game.clone(),
+                        player,
+                        config.rollout_limit,
+                        Some(SearchConfig {
+                            node_budget: nodes,
+                            ..config.search
+                        }),
+                    )
+                })
+                .collect::<Result<Vec<_>>>()
+        })
+        .transpose()
 }
 
 fn compare_alternative_budgets(
@@ -594,12 +612,10 @@ fn continue_with_policy(
     let mut reply_score = None;
     for action_index in 0..action_limit {
         game.legal_actions(&mut legal_actions);
-        let action = if game.active_player() != player {
-            if let Some(search) = search.as_mut() {
-                search.select_action(&game, &legal_actions)
-            } else {
-                greedy.select_action(&game, &legal_actions)
-            }
+        let action = if game.active_player() == player {
+            greedy.select_action(&game, &legal_actions)
+        } else if let Some(search) = search.as_mut() {
+            search.select_action(&game, &legal_actions)
         } else {
             greedy.select_action(&game, &legal_actions)
         };
