@@ -149,6 +149,12 @@ const experiments = [
     description: "Space search labels across complete procedural games, then calibrate only one multiplayer value head from game outcomes.",
     result: "600 roots covered 13 completed games. Holdout value correlation rose from 0.663 to 0.788, but PUCT-8 changed just four of 64 paired outcomes: 3 better, 1 worse, p=0.625.",
   },
+  {
+    method: "Exact-state counterfactual lookahead",
+    status: "not promoted",
+    description: "Fork a live Rust state, try the policy's top three actions, and finish each branch under the same frozen policy. A separate gate changes only one early decision per game.",
+    result: "96-step territory differed in 15/19 sampled states, but 57/57 full continuations still lost for the target seat. On 64 fresh paired maps: 8 wins versus 7 direct-policy wins, with 3 better, 2 worse, p=1.0.",
+  },
 ] as const;
 
 function EvidenceLink({ file }: { file: string }) {
@@ -191,14 +197,14 @@ export default function ModelsPage() {
       <section className="models-section">
         <div className="section-heading"><div><p>Research loop</p><h2>Intuition, amplification, distillation</h2></div><p>The loop is viable, but each arrow needs a paired outcome test. Imitation accuracy alone has already produced rejected regressions in this project.</p></div>
         <ol className="experiment-ledger">{experiments.map((experiment, index) => <li key={experiment.method}><span>{String(index + 1).padStart(2, "0")}</span><div><div className="experiment-title"><h3>{experiment.method}</h3><b>{experiment.status}</b></div><p>{experiment.description}</p><strong>{experiment.result}</strong></div></li>)}</ol>
-        <p className="method-note">Latest raw reports: phase-spread collection <EvidenceLink file="2026-09-23-phase-spread-slate-pilot-cpu.json" /> · value scout <EvidenceLink file="2026-09-23-seat4-ranking-value-cpu-scout.json" />.</p>
+        <p className="method-note">Latest raw reports: phase-spread collection <EvidenceLink file="2026-09-23-phase-spread-slate-pilot-cpu.json" /> · value scout <EvidenceLink file="2026-09-23-seat4-ranking-value-cpu-scout.json" /> · exact-state counterfactuals <EvidenceLink file="2026-09-23-counterfactual-fork-cpu-scout.json" />.</p>
         <p className="method-note">Correction: the source action head was already nonlinear. The full-slate failure does not prove a linear-head limitation. <EvidenceLink file="2026-09-23-action-head-erratum.json" /></p>
       </section>
 
       <section className="models-section report-section">
         <div className="section-heading"><div><p>Promotion gate</p><h2>How a model earns the top row</h2></div></div>
         <div className="promotion-flow"><div><b>AMPLIFY</b><span>Search or PUCT labels policy-visited states.</span></div><i>→</i><div><b>DISTILL</b><span>A compact policy learns priors and values.</span></div><i>→</i><div><b>ATTACK</b><span>Fresh seeds, both seats, every rules profile.</span></div><i>→</i><div><b>PROMOTE</b><span>Only if the weakest slice does not regress.</span></div></div>
-        <footer><span>Next controlled experiment</span><strong>Calibrate multiplayer values, label complete games at spaced PUCT roots, then test the interaction residual offline and in fresh paired matches.</strong></footer>
+        <footer><span>Next controlled experiment</span><strong>Test whole-turn or multi-action outcome credit on fresh procedural maps; the current one-action lookahead and shallow PUCT signals are not enough.</strong></footer>
       </section>
     </main>
   );

@@ -30,7 +30,7 @@ test("model arena snapshot is bound to immutable benchmark contents", async () =
 });
 
 test("model arena snapshot preserves the measured search and value gates", async () => {
-  const [snapshot, procedural, vector, outcomes, regret, actionQ, actionSlate, cpuScout] = await Promise.all([
+  const [snapshot, procedural, vector, outcomes, regret, actionQ, actionSlate, cpuScout, counterfactual] = await Promise.all([
     readJson(snapshotUrl),
     readJson(new URL("2026-08-31-procedural-5p-puct-loop-rocm.json", benchmarkRoot)),
     readJson(new URL("2026-08-31-one-pass-maxn-vector-distillation-rocm.json", benchmarkRoot)),
@@ -39,6 +39,7 @@ test("model arena snapshot preserves the measured search and value gates", async
     readJson(new URL("2026-08-31-replayable-action-q-distillation-rocm.json", benchmarkRoot)),
     readJson(new URL("2026-08-31-conservative-action-slate-distillation-rocm.json", benchmarkRoot)),
     readJson(new URL("2026-09-23-seat4-ranking-value-cpu-scout.json", benchmarkRoot)),
+    readJson(new URL("2026-09-23-counterfactual-fork-cpu-scout.json", benchmarkRoot)),
   ]);
   const rows = new Map(snapshot.comparisons.map((row) => [row.method, row]));
 
@@ -50,6 +51,11 @@ test("model arena snapshot preserves the measured search and value gates", async
   assert.equal(rows.get("Ranking-value PUCT-8 · CPU scout").relativeElo, `+${cpuScout.fresh_outcome_scout.baseline_adjusted_elo_delta.toFixed(2)} (unstable)`);
   assert.equal(rows.get("Ranking-value PUCT-8 · CPU scout").pairedFlips, `${cpuScout.fresh_outcome_scout.candidate_better}–${cpuScout.fresh_outcome_scout.baseline_better}`);
   assert.equal(rows.get("Ranking-value PUCT-8 · CPU scout").significance, `p=${cpuScout.fresh_outcome_scout.exact_two_sided_sign_test_p.toFixed(3)} · 4 flips`);
+  assert.equal(counterfactual.state_scout.frozen_policy_to_terminal.root_seat_wins_across_all_57_branches, 0);
+  assert.equal(counterfactual.paired_single_intervention.fresh_gate.games, 64);
+  assert.equal(counterfactual.paired_single_intervention.fresh_gate.direct_policy_seat_4_wins, 7);
+  assert.equal(counterfactual.paired_single_intervention.fresh_gate.intervention_seat_4_wins, 8);
+  assert.equal(counterfactual.paired_single_intervention.fresh_gate.exact_two_sided_sign_test_p, 1);
   assert.equal(
     rows.get("Exact MaxN PUCT-8").record,
     `${procedural.ranking_maxn_puct_ablation.combined.maxn_wins}–0–${128 - procedural.ranking_maxn_puct_ablation.combined.maxn_wins} vs ${procedural.ranking_maxn_puct_ablation.combined.source_policy_wins}–0–${128 - procedural.ranking_maxn_puct_ablation.combined.source_policy_wins}`,
