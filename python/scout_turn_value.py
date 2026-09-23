@@ -241,6 +241,10 @@ def scout(
     if representation == "root_value_static":
         unit_scales = torch.ones(2)
         report["representation"] = representation
+        report["fitted_head"] = {
+            "weight": weight.tolist(),
+            "feature_scales": scales.tolist(),
+        }
         report["root_critic_only"] = {
             "training": evaluate_head(training, torch.tensor([1.0, 0.0]), unit_scales),
             "validation": evaluate_head(validation, torch.tensor([1.0, 0.0]), unit_scales),
