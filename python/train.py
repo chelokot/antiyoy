@@ -92,6 +92,8 @@ class TrainingConfig:
     search_beam_width: int
     search_branch_width: int
     search_maximum_actions_per_turn: int
+    reply_search_nodes: int
+    reply_slate_size: int
     entropy_weight: float
     value_weight: float
     territory_weight: float
@@ -511,10 +513,19 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("at least one PPO or imitation update is required")
     if config.fixed_opponent is not None and config.updates == 0:
         raise ValueError("fixed-opponent training requires at least one update")
-    if config.imitation_teacher not in {"greedy", "search"}:
-        raise ValueError("imitation_teacher must be greedy or search")
+    if config.imitation_teacher not in {"greedy", "search", "reply_search"}:
+        raise ValueError("imitation_teacher must be greedy, search, or reply_search")
     if config.imitation_search_replan and config.imitation_teacher != "search":
         raise ValueError("imitation_search_replan requires the search teacher")
+    if config.imitation_teacher == "reply_search":
+        if config.reply_search_nodes < 2 or config.reply_slate_size < 1:
+            raise ValueError(
+                "reply search requires at least two reply nodes and a positive slate"
+            )
+        if any(players != 2 for players in player_counts):
+            raise ValueError("reply search teacher requires two-player games")
+        if config.fog:
+            raise ValueError("reply search teacher requires full information")
     if config.imitation_rollin not in {"teacher", "policy"}:
         raise ValueError("imitation_rollin must be teacher or policy")
     if config.search_nodes < 2:
@@ -924,6 +935,15 @@ def pretrain_teacher(
         observation = environment.observe()
         if config.imitation_teacher == "greedy":
             selected = environment.greedy_actions()
+        elif config.imitation_teacher == "reply_search":
+            selected = environment.reply_search_actions(
+                node_budget=config.search_nodes,
+                reply_nodes=config.reply_search_nodes,
+                slate_size=config.reply_slate_size,
+                beam_width=config.search_beam_width,
+                branch_width=config.search_branch_width,
+                maximum_actions_per_turn=config.search_maximum_actions_per_turn,
+            )
         elif config.imitation_search_replan:
             selected = environment.search_actions_replanned(
                 node_budget=config.search_nodes,
@@ -1448,6 +1468,12 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "imitation_environment_resets": imitation_environment_resets,
         "imitation_teacher": config.imitation_teacher,
         "imitation_search_replan": config.imitation_search_replan,
+        "reply_search_nodes": config.reply_search_nodes
+        if config.imitation_teacher == "reply_search"
+        else 0,
+        "reply_slate_size": config.reply_slate_size
+        if config.imitation_teacher == "reply_search"
+        else 0,
         "imitation_rollin": config.imitation_rollin,
         "imitation_symmetry_augmentation": config.imitation_symmetry_augmentation,
         "imitation_reference_weight": config.imitation_reference_weight,
@@ -1541,7 +1567,9 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--imitation-updates", type=int, default=0)
     parser.add_argument("--imitation-reset-interval", type=int, default=0)
     parser.add_argument(
-        "--imitation-teacher", choices=("greedy", "search"), default="greedy"
+        "--imitation-teacher",
+        choices=("greedy", "search", "reply_search"),
+        default="greedy",
     )
     parser.add_argument("--imitation-search-replan", action="store_true")
     parser.add_argument(
@@ -1575,6 +1603,8 @@ def parse_args() -> TrainingConfig:
     parser.add_argument("--search-beam-width", type=int, default=32)
     parser.add_argument("--search-branch-width", type=int, default=48)
     parser.add_argument("--search-maximum-actions-per-turn", type=int, default=24)
+    parser.add_argument("--reply-search-nodes", type=int, default=64)
+    parser.add_argument("--reply-slate-size", type=int, default=8)
     parser.add_argument("--entropy-weight", type=float, default=0.01)
     parser.add_argument("--value-weight", type=float, default=0.5)
     parser.add_argument("--territory-weight", type=float, default=0.03)

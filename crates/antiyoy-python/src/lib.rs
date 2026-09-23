@@ -479,8 +479,15 @@ impl ScenarioObjective {
 struct VectorEnv {
     batch: BatchEnv,
     observation: BatchObservation,
-    search_config: Option<SearchConfig>,
+    search_config: Option<SearchSetup>,
     search_agents: Vec<SearchAgent>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct SearchSetup {
+    config: SearchConfig,
+    reply_nodes: usize,
+    slate_size: usize,
 }
 
 #[pymethods]
@@ -827,7 +834,52 @@ impl VectorEnv {
             maximum_actions_per_turn,
         };
         let active = active_mask_values(active_mask, self.batch.len())?;
-        self.select_search_actions(py, config, Some(&active), true)
+        self.select_search_actions(
+            py,
+            SearchSetup {
+                config,
+                reply_nodes: 0,
+                slate_size: 1,
+            },
+            Some(&active),
+            true,
+        )
+    }
+
+    #[pyo3(signature = (node_budget=256, reply_nodes=64, slate_size=8, beam_width=32, branch_width=48, maximum_actions_per_turn=24, active_mask=None))]
+    #[expect(clippy::too_many_arguments)]
+    fn reply_search_actions<'py>(
+        &mut self,
+        py: Python<'py>,
+        node_budget: usize,
+        reply_nodes: usize,
+        slate_size: usize,
+        beam_width: usize,
+        branch_width: usize,
+        maximum_actions_per_turn: usize,
+        active_mask: Option<PyReadonlyArray1<'py, u8>>,
+    ) -> PyResult<Bound<'py, PyArray1<u64>>> {
+        if reply_nodes < 2 || slate_size == 0 {
+            return Err(PyValueError::new_err(
+                "reply search requires at least two reply nodes and a positive slate size",
+            ));
+        }
+        let active = active_mask_values(active_mask, self.batch.len())?;
+        self.select_search_actions(
+            py,
+            SearchSetup {
+                config: SearchConfig {
+                    node_budget,
+                    beam_width,
+                    branch_width,
+                    maximum_actions_per_turn,
+                },
+                reply_nodes,
+                slate_size,
+            },
+            Some(&active),
+            true,
+        )
     }
 
     #[pyo3(signature = (node_budget=2048, beam_width=32, branch_width=48, maximum_actions_per_turn=24))]
@@ -841,11 +893,15 @@ impl VectorEnv {
     ) -> PyResult<Bound<'py, PyArray1<u64>>> {
         self.select_search_actions(
             py,
-            SearchConfig {
-                node_budget,
-                beam_width,
-                branch_width,
-                maximum_actions_per_turn,
+            SearchSetup {
+                config: SearchConfig {
+                    node_budget,
+                    beam_width,
+                    branch_width,
+                    maximum_actions_per_turn,
+                },
+                reply_nodes: 0,
+                slate_size: 1,
             },
             None,
             false,
@@ -867,16 +923,27 @@ impl VectorEnv {
     fn select_search_actions<'py>(
         &mut self,
         py: Python<'py>,
-        config: SearchConfig,
+        setup: SearchSetup,
         active: Option<&[bool]>,
         reuse_plan: bool,
     ) -> PyResult<Bound<'py, PyArray1<u64>>> {
-        if self.search_config != Some(config) {
+        if self.search_config != Some(setup) {
             self.search_agents = (0..self.batch.len())
-                .map(|index| SearchAgent::with_config(format!("search-{index}"), config))
+                .map(|index| {
+                    if setup.reply_nodes > 0 {
+                        SearchAgent::with_reply_search(
+                            format!("reply-search-{index}"),
+                            setup.config,
+                            setup.slate_size,
+                            setup.reply_nodes,
+                        )
+                    } else {
+                        SearchAgent::with_config(format!("search-{index}"), setup.config)
+                    }
+                })
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|error| PyValueError::new_err(error.to_string()))?;
-            self.search_config = Some(config);
+            self.search_config = Some(setup);
         }
         let batch = &self.batch;
         let indices = py.detach(|| {

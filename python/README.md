@@ -243,6 +243,36 @@ Use `--baseline search --search-nodes 2048` for the stronger deterministic
 teacher. Search beam, branch, and maximum turn depth are independently
 configurable and emitted in the result.
 
+Use `--baseline reply_search` with `--search-nodes 256`,
+`--reply-search-nodes 64`, and `--reply-slate-size 8` to test the opt-in
+whole-turn opponent-response agent against a checkpoint. The reference is a
+self-match of that same search agent;
+evaluate disjoint procedural map seeds with both model seats. A positive
+search-vs-search result alone does not establish that this search is a stronger
+neural-policy teacher.
+
+Once a search teacher has beaten the frozen source on a disjoint all-seat
+arena, it can supply policy-rollin imitation labels without changing the
+environment or the source checkpoint:
+
+```bash
+python train.py --updates 0 --imitation-updates 512 --environments 32 \
+  --imitation-reset-interval 64 --imitation-teacher reply_search \
+  --imitation-rollin policy --search-nodes 256 \
+  --reply-search-nodes 64 --reply-slate-size 8 \
+  --initialize ../models/routed-v6.pt \
+  --initialize-profile classic_generic_2022 \
+  --initialize-generator procedural_v1 --initialize-players 2 \
+  --profile classic_generic_2022 --procedural \
+  --generator-schema-version 2 --width 11 --height 9 --players 2 \
+  --device cpu --checkpoint ../models/reply-distilled.pt
+```
+
+The teacher retains its exact planned turn while the student follows its own
+actions; divergence invalidates the plan and triggers a new search. Imitation
+accuracy is only a training diagnostic. A student becomes a stronger model
+only after a fresh paired full-game comparison against the frozen source.
+
 Policy-guided PUCT is a separate model-side amplifier. Rust owns the cloned
 search trees, exact legal transitions, virtual visits, and deterministic
 backup; Python batches pending leaves into a single policy/value inference.

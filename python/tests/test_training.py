@@ -76,6 +76,8 @@ def training_config() -> TrainingConfig:
         search_beam_width=12,
         search_branch_width=20,
         search_maximum_actions_per_turn=12,
+        reply_search_nodes=16,
+        reply_slate_size=4,
         entropy_weight=0.01,
         value_weight=0.5,
         territory_weight=0.03,
@@ -582,6 +584,21 @@ def test_training_rejects_invalid_search_teacher_configuration() -> None:
         validate_config(replace(training_config(), imitation_search_replan=True))
     with pytest.raises(ValueError, match="search_nodes"):
         validate_config(replace(training_config(), search_nodes=1))
+
+
+def test_reply_search_teacher_requires_a_valid_duel_configuration() -> None:
+    valid = replace(training_config(), imitation_teacher="reply_search")
+    validate_config(valid)
+    with pytest.raises(ValueError, match="at least two reply nodes"):
+        validate_config(replace(valid, reply_search_nodes=1))
+    with pytest.raises(ValueError, match="positive slate"):
+        validate_config(replace(valid, reply_slate_size=0))
+    with pytest.raises(ValueError, match="two-player games"):
+        validate_config(replace(valid, players=3))
+    with pytest.raises(ValueError, match="full information"):
+        validate_config(replace(valid, fog=True))
+    with pytest.raises(ValueError, match="requires the search teacher"):
+        validate_config(replace(valid, imitation_search_replan=True))
 
 
 def test_training_rejects_initialize_with_resume() -> None:

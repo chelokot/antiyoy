@@ -296,12 +296,14 @@ def choose_baseline_actions(
     environment: VectorEnv,
     observation: dict[str, np.ndarray],
     baseline: str,
-    finished: np.ndarray,
+    active_mask: np.ndarray,
     random: np.random.Generator,
     search_nodes: int,
     search_beam_width: int,
     search_branch_width: int,
     search_maximum_actions_per_turn: int,
+    reply_search_nodes: int,
+    reply_slate_size: int,
 ) -> np.ndarray:
     if baseline == "search":
         return np.asarray(
@@ -310,7 +312,20 @@ def choose_baseline_actions(
                 beam_width=search_beam_width,
                 branch_width=search_branch_width,
                 maximum_actions_per_turn=search_maximum_actions_per_turn,
-                active_mask=np.logical_not(finished).astype(np.uint8),
+                active_mask=active_mask.astype(np.uint8),
+            ),
+            dtype=np.uint64,
+        )
+    if baseline == "reply_search":
+        return np.asarray(
+            environment.reply_search_actions(
+                node_budget=search_nodes,
+                reply_nodes=reply_search_nodes,
+                slate_size=reply_slate_size,
+                beam_width=search_beam_width,
+                branch_width=search_branch_width,
+                maximum_actions_per_turn=search_maximum_actions_per_turn,
+                active_mask=active_mask.astype(np.uint8),
             ),
             dtype=np.uint64,
         )
@@ -439,6 +454,8 @@ def evaluate(
     single_disagreement: bool = False,
     puct_value_source: ValueSource = "model",
     puct_heuristic_scale: float = 2048.0,
+    reply_search_nodes: int = 64,
+    reply_slate_size: int = 8,
 ) -> dict[str, object]:
     if generator_schema_version not in (
         GENERATOR_SCHEMA_VERSION,
@@ -465,6 +482,12 @@ def evaluate(
         )
     if puct_value_source == "heuristic" and (model_agent != "puct" or players != 2):
         raise ValueError("heuristic PUCT requires a two-player PUCT model agent")
+    if baseline == "reply_search" and (reply_search_nodes < 2 or reply_slate_size < 1):
+        raise ValueError(
+            "reply search requires at least two reply nodes and a positive slate"
+        )
+    if baseline == "reply_search" and players != 2:
+        raise ValueError("reply search baseline requires two-player games")
     if baseline_checkpoint_path is not None and baseline != "policy":
         raise ValueError("a baseline checkpoint requires the policy baseline")
     if maxn_value_head_path is not None and (
@@ -654,12 +677,14 @@ def evaluate(
                     reference_environment,
                     reference_observation,
                     baseline,
-                    reference_finished,
+                    np.logical_not(reference_finished),
                     reference_random,
                     search_nodes,
                     search_beam_width,
                     search_branch_width,
                     search_maximum_actions_per_turn,
+                    reply_search_nodes,
+                    reply_slate_size,
                 )
             )
             reference_result = reference_environment.step(reference_actions)
@@ -738,6 +763,7 @@ def evaluate(
         active_players = observation["active_players"]
         active = np.logical_not(finished)
         model_turns = np.logical_and(active, active_players == model_seats)
+        baseline_turns = np.logical_and(active, active_players != model_seats)
         model_search_turns = (
             np.logical_and(model_turns, np.logical_not(intervened))
             if single_disagreement
@@ -798,12 +824,14 @@ def evaluate(
                 environment,
                 observation,
                 baseline,
-                finished,
+                baseline_turns,
                 random,
                 search_nodes,
                 search_beam_width,
                 search_branch_width,
                 search_maximum_actions_per_turn,
+                reply_search_nodes,
+                reply_slate_size,
             )
         if single_disagreement:
             disagreements = np.logical_and(
@@ -822,7 +850,6 @@ def evaluate(
                 )
             )
         action_kinds = selected_action_kinds(observation, actions)
-        baseline_turns = np.logical_and(active, active_players != model_seats)
         model_action_counts += np.bincount(
             action_kinds[model_turns], minlength=len(ACTION_KIND_NAMES)
         )
@@ -1054,12 +1081,20 @@ def evaluate(
                 for seat in range(players)
             ],
         },
-        "search_nodes": search_nodes if baseline == "search" else 0,
-        "search_beam_width": search_beam_width if baseline == "search" else 0,
-        "search_branch_width": search_branch_width if baseline == "search" else 0,
-        "search_maximum_actions_per_turn": (
-            search_maximum_actions_per_turn if baseline == "search" else 0
+        "search_nodes": search_nodes if baseline in ("search", "reply_search") else 0,
+        "search_beam_width": (
+            search_beam_width if baseline in ("search", "reply_search") else 0
         ),
+        "search_branch_width": (
+            search_branch_width if baseline in ("search", "reply_search") else 0
+        ),
+        "search_maximum_actions_per_turn": (
+            search_maximum_actions_per_turn
+            if baseline in ("search", "reply_search")
+            else 0
+        ),
+        "reply_search_nodes": reply_search_nodes if baseline == "reply_search" else 0,
+        "reply_slate_size": reply_slate_size if baseline == "reply_search" else 0,
     }
 
 
@@ -1073,7 +1108,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--baseline",
-        choices=("policy", "search", "greedy", "random"),
+        choices=("policy", "search", "reply_search", "greedy", "random"),
         default="greedy",
     )
     parser.add_argument("--baseline-checkpoint", type=Path)
@@ -1082,6 +1117,8 @@ def main() -> None:
     parser.add_argument("--search-beam-width", type=int, default=32)
     parser.add_argument("--search-branch-width", type=int, default=48)
     parser.add_argument("--search-maximum-actions-per-turn", type=int, default=24)
+    parser.add_argument("--reply-search-nodes", type=int, default=64)
+    parser.add_argument("--reply-slate-size", type=int, default=8)
     parser.add_argument("--width", type=int)
     parser.add_argument("--height", type=int)
     parser.add_argument("--action-limit", type=int)
@@ -1202,6 +1239,8 @@ def main() -> None:
                 arguments.single_disagreement,
                 arguments.puct_value_source,
                 arguments.puct_heuristic_scale,
+                arguments.reply_search_nodes,
+                arguments.reply_slate_size,
             ),
             sort_keys=True,
         )

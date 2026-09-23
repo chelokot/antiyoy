@@ -122,6 +122,65 @@ def test_policy_self_match_is_an_exact_zero_delta(tmp_path: Path) -> None:
     ]
 
 
+def test_reply_search_baseline_runs_rotated_procedural_duel(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "policy.pt"
+    write_checkpoint(checkpoint, 1.0)
+
+    result = evaluate(
+        checkpoint,
+        games=2,
+        seed=91_004,
+        device_name="cpu",
+        baseline="reply_search",
+        profile="classic_generic_2022",
+        search_nodes=32,
+        search_beam_width=12,
+        search_branch_width=20,
+        search_maximum_actions_per_turn=12,
+        reply_search_nodes=8,
+        reply_slate_size=4,
+        width=7,
+        height=5,
+        action_limit=40,
+        procedural=True,
+        generator_schema_version=2,
+        players=2,
+        model_agent="policy",
+    )
+
+    assert result["baseline"] == "reply_search"
+    assert result["games"] == 2
+    assert result["game_seeds"] == [91_004, 91_004]
+    assert result["model_seats"] == [0, 1]
+    assert result["search_nodes"] == 32
+    assert result["search_maximum_actions_per_turn"] == 12
+    assert result["reply_search_nodes"] == 8
+    assert result["reply_slate_size"] == 4
+
+
+def test_reply_search_baseline_rejects_multiplayer(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "policy.pt"
+    write_checkpoint(checkpoint, 1.0)
+    with pytest.raises(ValueError, match="two-player games"):
+        evaluate(
+            checkpoint,
+            games=3,
+            seed=91_005,
+            device_name="cpu",
+            baseline="reply_search",
+            profile="classic_generic_2022",
+            search_nodes=32,
+            search_beam_width=12,
+            search_branch_width=20,
+            search_maximum_actions_per_turn=12,
+            width=7,
+            height=5,
+            action_limit=40,
+            procedural=True,
+            players=3,
+        )
+
+
 def test_rotated_procedural_evaluation_has_a_distinct_domain(tmp_path: Path) -> None:
     checkpoint = tmp_path / "policy.pt"
     write_checkpoint(checkpoint, 1.0)

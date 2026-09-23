@@ -175,6 +175,43 @@ def test_search_teacher_rejects_wrong_active_mask_length() -> None:
         environment.search_actions(active_mask=np.array([1], dtype=np.uint8))
 
 
+def test_reply_search_returns_deterministic_legal_actions_for_selected_games() -> None:
+    environment = VectorEnv(2, width=7, height=5, seed=43)
+    environment.reset(1, 43)
+    observation = environment.observe()
+    first = np.asarray(
+        environment.reply_search_actions(
+            node_budget=64,
+            reply_nodes=16,
+            slate_size=4,
+            beam_width=12,
+            branch_width=20,
+            maximum_actions_per_turn=12,
+        ),
+        dtype=np.uint64,
+    )
+    assert first[0] == first[1]
+    assert np.all(first < np.diff(observation["action_offsets"]))
+    assert environment.search_counts().tolist() == [1, 1]
+
+    selected = environment.reply_search_actions(
+        node_budget=64,
+        reply_nodes=16,
+        slate_size=4,
+        active_mask=np.array([0, 1], dtype=np.uint8),
+    )
+    assert selected[0] == 0
+    assert environment.search_counts().tolist() == [0, 1]
+
+
+def test_reply_search_rejects_invalid_response_budget() -> None:
+    environment = VectorEnv(1, width=7, height=5, seed=45)
+    with pytest.raises(ValueError, match="at least two reply nodes"):
+        environment.reply_search_actions(reply_nodes=1)
+    with pytest.raises(ValueError, match="positive slate size"):
+        environment.reply_search_actions(slate_size=0)
+
+
 @pytest.mark.parametrize(
     ("profile", "expected_profile"),
     [
@@ -187,7 +224,9 @@ def test_search_teacher_rejects_wrong_active_mask_length() -> None:
         ("online_experimental_v2_260801", "OnlineExperimentalV2_260801"),
     ],
 )
-def test_all_versioned_profiles_are_available(profile: str, expected_profile: str) -> None:
+def test_all_versioned_profiles_are_available(
+    profile: str, expected_profile: str
+) -> None:
     environment = VectorEnv(1, width=7, height=5, profile=profile)
     assert json.loads(environment.rules_json())["profile"] == expected_profile
 
