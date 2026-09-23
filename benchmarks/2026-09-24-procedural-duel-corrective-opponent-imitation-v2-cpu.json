@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_corrective_opponent_imitation_scout",
+  "status": "failed_predeclared_autonomous_gate_student_not_promoted",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-corrective-opponent-imitation-v1.json",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, root beam256/slate8/opponent beam64, sampled round modulo8 zero, action limit2400",
+  "controls": {
+    "source_routed_v6_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "first_student_head_sha256": "b92e0e9739f44728ee1724ad36dc248b41d4d2a9b258925544eb3c78043865b5",
+    "old_teacher_forced_fit_maps": 64,
+    "old_teacher_forced_fit_first_seed": 6346000,
+    "old_training_refactor_reproduced_action_head_exactly": true
+  },
+  "corrective_fit": {
+    "first_seed": 6350000,
+    "maps": 64,
+    "completed_maps": 64,
+    "truncated_maps": 0,
+    "sampled_positions": 309,
+    "candidate_post_turn_states": 2064,
+    "student_visited_pre_action_states": 9876,
+    "actions_where_student_matched_replanned_search_teacher": 6075,
+    "actions_needing_correction": 3801,
+    "censored_candidate_replies": 0,
+    "native_slate_gzip_sha256": "030c94adbd09042880a20617d74068cc625336c3e55198e9008cd2bff30802ef",
+    "corrective_labels_gzip_sha256": "ee66c9cd280678eb5d6753028365ae76d47cc375f3313ed701021234bf337585",
+    "training": "Initialize first student head; freeze shared spatial/rule/value encoder; combine old64 and new64 independent maps; map-balanced searched-action cross-entropy plus0.2 source KL; AdamW learning rate0.0001; exactly2 epochs, no intermediate selection",
+    "map_updates_per_epoch": 128,
+    "training_elapsed_seconds": 90.88227789616212,
+    "final_head_sha256": "f19dd174613debd8b7ebdb5ec7dfe776ae423bf8dc5bd2e1cd23a93d804f50ef",
+    "raw_training_report_sha256": "fd24d466b7c0b272987d56caeeb72cd6443c44648327ee3831f5c4dba701550c"
+  },
+  "fresh_autonomous_validation": {
+    "first_seed": 6351000,
+    "independent_maps": 32,
+    "completed_maps": 32,
+    "truncated_maps": 0,
+    "sampled_positions": 154,
+    "paired_complete_candidate_responses": 1054,
+    "source_censored_responses": 0,
+    "first_student_censored_responses": 0,
+    "corrective_student_censored_responses": 0,
+    "native_slate_gzip_sha256": "2bcd070af4f61f8363c8972aecde459a566eeb25c407d71311bdb88ea9221c65",
+    "corrective_versus_first_student_per_map_mean_absolute_asinh_score_error": {
+      "corrective_lower": 12,
+      "first_student_lower": 14,
+      "same": 6,
+      "exact_two_sided_sign_p": 0.8450189828872681
+    },
+    "root_seat_zero_mean_error": {"first_student": 0.057710098809674676, "corrective_student": 0.058513443581248485, "paired_candidates": 545},
+    "root_seat_one_mean_error": {"first_student": 0.0361466201976977, "corrective_student": 0.03541957732944066, "paired_candidates": 509},
+    "native_teacher_selected_root_turn_matches": {"source": 132, "first_student": 133, "corrective_student": 136},
+    "raw_first_student_audit_sha256": "642e3fc3a5493b9e59e5256d555920041dedec3baa967df2f05c27134d509cba",
+    "raw_corrective_student_audit_sha256": "be8de846324fc8310cc6fb57ead8ed8bcc832cdd168195679a5cb0cda28cbb6b",
+    "raw_paired_comparison_sha256": "eeba437b2fa36284abdb2569189c883f1d12435277b95d94e0eefb8fea8c0869"
+  },
+  "gate_result": "FAIL: independent-map error 12 better/14 worse/6 same, p=.845 rather than <.05, and seat-zero aggregate error increased. Better root-turn agreement alone does not meet the predeclared gate.",
+  "interpretation": "Corrective labels cover 3801 genuine disagreements on student-visited states, but one fixed, map-balanced head update did not improve autonomous whole-turn successor fidelity on fresh maps. All candidate decisions within a map are correlated; the per-map gate is primary. This is not a complete-game, Elo or universal-strength result and does not prove that further data or a different architecture would fail.",
+  "decision": "Reject this corrective student. Do not tune it on validation seed6351000, collect reserved confirmation seed6352000, run reserved final complete-game seed6300000, rate it or deploy it. Revisit the assumption that a direct action head can capture a full-turn search response before another imitation scale-up. The owner-private playable Site and rated/browser agent remain unchanged.",
+  "verification": "All64 fit and32 validation maps completed; exact candidate replay and local teacher legality checked during collection; the old action-head training reproduced its original checkpoint tensors exactly after shared-code extraction. Python Ruff and359 tests passed on SSH server with final code."
+}
