@@ -2,7 +2,7 @@
 
 use antiyoy_agents::{
     Agent, GreedyAgent, PuctConfig, PuctSearch, PuctValueMode, SearchAgent, SearchConfig,
-    position_score,
+    position_score, search_plan_indices, search_turn_slate,
 };
 use antiyoy_core::{
     EconomyMetric, GeneratorConfig, Objective, PlayerId, Relation, Rules, VictoryCondition,
@@ -13,6 +13,8 @@ use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 use rayon::prelude::*;
+
+type IndexedTurnPlans = (Vec<Vec<Vec<u64>>>, Vec<Vec<i64>>);
 
 #[pyfunction]
 fn encode_rule_features<'py>(
@@ -928,6 +930,62 @@ impl VectorEnv {
             None,
             false,
         )
+    }
+
+    #[pyo3(signature = (node_budget=256, slate_size=8, beam_width=32, branch_width=48, maximum_actions_per_turn=24, active_mask=None))]
+    #[expect(clippy::too_many_arguments)]
+    fn search_turn_plans(
+        &self,
+        py: Python<'_>,
+        node_budget: usize,
+        slate_size: usize,
+        beam_width: usize,
+        branch_width: usize,
+        maximum_actions_per_turn: usize,
+        active_mask: Option<PyReadonlyArray1<'_, u8>>,
+    ) -> PyResult<IndexedTurnPlans> {
+        if self.batch.fog_enabled() {
+            return Err(PyValueError::new_err(
+                "full-state search turn plans are unavailable in fog games",
+            ));
+        }
+        let config = SearchConfig {
+            node_budget,
+            beam_width,
+            branch_width,
+            maximum_actions_per_turn,
+        };
+        let active = active_mask_values(active_mask, self.batch.len())?;
+        let slates = py.detach(|| {
+            (0..self.batch.len())
+                .map(|index| {
+                    if !active[index] || self.batch.is_done(index).unwrap_or(true) {
+                        return Ok((Vec::new(), Vec::new()));
+                    }
+                    let game = self
+                        .batch
+                        .game(index)
+                        .expect("batch index must have a game");
+                    let slate = search_turn_slate(game, config, slate_size)
+                        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+                    let plans = slate
+                        .turns
+                        .iter()
+                        .map(|turn| {
+                            search_plan_indices(game, &turn.actions, &turn.game)
+                                .into_iter()
+                                .map(|value| {
+                                    u64::try_from(value).expect("action index must fit u64")
+                                })
+                                .collect()
+                        })
+                        .collect();
+                    let scores = slate.turns.iter().map(|turn| turn.score).collect();
+                    Ok((plans, scores))
+                })
+                .collect::<PyResult<Vec<(Vec<Vec<u64>>, Vec<i64>)>>>()
+        })?;
+        Ok(slates.into_iter().unzip())
     }
 
     fn search_counts<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<u64>> {

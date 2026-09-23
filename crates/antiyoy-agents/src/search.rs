@@ -231,6 +231,29 @@ pub fn search_turn_slate(
     Ok(build_search_turn_slate(game, config, size))
 }
 
+#[expect(clippy::missing_panics_doc)]
+pub fn search_plan_indices(game: &Game, actions: &[Action], expected: &Game) -> Vec<usize> {
+    let mut replay = game.clone();
+    let mut legal = Vec::new();
+    let mut indices = Vec::with_capacity(actions.len());
+    for action in actions {
+        replay.legal_actions(&mut legal);
+        let index = legal
+            .iter()
+            .position(|candidate| candidate == action)
+            .expect("searched turn action must be legal");
+        indices.push(index);
+        replay
+            .step(*action)
+            .expect("searched turn action must apply");
+    }
+    assert_eq!(
+        replay, *expected,
+        "indexed searched turn must replay exactly"
+    );
+    indices
+}
+
 fn build_search_turn_slate(game: &Game, config: SearchConfig, size: usize) -> SearchTurnSlate {
     let player = game.active_player();
     let mut frontier = vec![Candidate {

@@ -11,7 +11,7 @@ pub use evaluation::position_score;
 pub use puct::{PuctConfig, PuctError, PuctLeaf, PuctSearch, PuctStats, PuctValueMode};
 pub use search::{
     SearchAgent, SearchConfig, SearchConfigError, SearchReply, SearchStats, SearchTurn,
-    SearchTurnSlate, reply_score, search_reply, search_turn_slate,
+    SearchTurnSlate, reply_score, search_plan_indices, search_reply, search_turn_slate,
 };
 
 pub trait Agent {

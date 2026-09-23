@@ -159,6 +159,51 @@ def test_search_teacher_can_replan_each_observed_state() -> None:
     np.testing.assert_array_equal(replanned, fresh_action)
 
 
+def test_search_turn_plans_replay_to_exact_static_scores() -> None:
+    environment = VectorEnv(1, width=7, height=5, seed=29)
+    plans, scores = environment.search_turn_plans(node_budget=64, slate_size=4)
+
+    assert len(plans) == len(scores) == 1
+    assert 1 <= len(plans[0]) <= 4
+    assert environment.search_counts().tolist() == []
+    root = int(environment.observe()["active_players"][0])
+    first = int(environment.search_actions(node_budget=64)[0])
+    assert plans[0][0][0] == first
+
+    for plan, score in zip(plans[0], scores[0]):
+        branch = environment.fork(np.asarray([0], dtype=np.uint64))
+        for action in plan:
+            offsets = branch.observe()["action_offsets"]
+            assert 0 <= action < int(offsets[1] - offsets[0])
+            branch.step(np.asarray([action], dtype=np.uint64))
+        assert branch.done()[0] or int(branch.observe()["active_players"][0]) != root
+        assert int(branch.position_scores(root)[0]) == score
+
+
+def test_search_turn_plans_reject_invalid_configuration_and_fog() -> None:
+    environment = VectorEnv(1, width=7, height=5)
+    with pytest.raises(ValueError, match="node budget"):
+        environment.search_turn_plans(node_budget=1)
+    with pytest.raises(ValueError, match="slate size"):
+        environment.search_turn_plans(slate_size=0)
+    with pytest.raises(ValueError, match="unavailable in fog"):
+        VectorEnv(1, width=7, height=5, fog=True).search_turn_plans()
+
+
+def test_search_turn_plans_skip_inactive_environments() -> None:
+    environment = VectorEnv(2, width=7, height=5, seed=29)
+    plans, scores = environment.search_turn_plans(
+        node_budget=64,
+        slate_size=4,
+        active_mask=np.asarray([0, 1], dtype=np.uint8),
+    )
+
+    assert plans[0] == scores[0] == []
+    assert len(plans[1]) == len(scores[1]) > 0
+    with pytest.raises(ValueError, match="active mask has length 1, expected 2"):
+        environment.search_turn_plans(active_mask=np.asarray([1], dtype=np.uint8))
+
+
 def test_search_teacher_rejects_invalid_configuration() -> None:
     environment = VectorEnv(1, width=7, height=5, seed=31)
     with pytest.raises(ValueError, match="node budget"):

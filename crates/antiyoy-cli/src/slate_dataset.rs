@@ -2,7 +2,8 @@ use std::cmp::Reverse;
 use std::time::Instant;
 
 use antiyoy_agents::{
-    SearchAgent, SearchConfig, SearchReply, SearchTurnSlate, search_reply, search_turn_slate,
+    SearchAgent, SearchConfig, SearchReply, SearchTurnSlate, search_plan_indices, search_reply,
+    search_turn_slate,
 };
 use antiyoy_core::{Action, Game, GeneratorConfig, Rules};
 use antiyoy_rl::BatchObservation;
@@ -293,32 +294,10 @@ fn record_slate(
                 .slate
                 .turns
                 .iter()
-                .map(|turn| replay_action_indices(game, &turn.actions, &turn.game))
+                .map(|turn| search_plan_indices(game, &turn.actions, &turn.game))
                 .collect()
         }),
     }
-}
-
-fn replay_action_indices(game: &Game, actions: &[Action], expected: &Game) -> Vec<usize> {
-    let mut replay = game.clone();
-    let mut legal = Vec::new();
-    let mut indices = Vec::with_capacity(actions.len());
-    for action in actions {
-        replay.legal_actions(&mut legal);
-        let index = legal
-            .iter()
-            .position(|candidate| candidate == action)
-            .expect("searched turn action must be legal");
-        indices.push(index);
-        replay
-            .step(*action)
-            .expect("searched turn action must apply");
-    }
-    assert_eq!(
-        replay, *expected,
-        "indexed searched turn must replay exactly"
-    );
-    indices
 }
 
 fn append_rollin_indices(
@@ -329,7 +308,7 @@ fn append_rollin_indices(
     expected: &Game,
 ) {
     if enabled {
-        history.extend(replay_action_indices(game, actions, expected));
+        history.extend(search_plan_indices(game, actions, expected));
     }
 }
 
