@@ -10,6 +10,7 @@ import torch
 
 import python.evaluate as evaluate_module
 from antiyoy_rl.model import UniversalPolicy
+from antiyoy_rl.routed import RoutedPolicy
 from antiyoy_rl.vector_value import (
     VECTOR_VALUE_ARTIFACT_KIND,
     VECTOR_VALUE_ARTIFACT_VERSION,
@@ -156,6 +157,48 @@ def test_reply_search_baseline_runs_rotated_procedural_duel(tmp_path: Path) -> N
     assert result["search_maximum_actions_per_turn"] == 12
     assert result["reply_search_nodes"] == 8
     assert result["reply_slate_size"] == 4
+
+
+def test_model_reply_search_completes_matched_rotated_games(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkpoint = tmp_path / "policy.pt"
+    write_checkpoint(checkpoint, 1.0)
+    monkeypatch.setattr(
+        RoutedPolicy,
+        "actions",
+        lambda self, observation, rules: np.zeros(
+            len(observation["widths"]), dtype=np.uint64
+        ),
+    )
+
+    result = evaluate(
+        checkpoint,
+        games=2,
+        seed=91_005,
+        device_name="cpu",
+        baseline="search",
+        profile="classic_generic_2022",
+        search_nodes=32,
+        search_beam_width=12,
+        search_branch_width=20,
+        search_maximum_actions_per_turn=24,
+        reply_slate_size=4,
+        width=7,
+        height=5,
+        action_limit=500,
+        procedural=True,
+        generator_schema_version=2,
+        players=2,
+        model_agent="model_reply_search",
+    )
+
+    assert result["game_seeds"] == [91_005, 91_005]
+    assert result["model_seats"] == [0, 1]
+    assert result["truncations"] == 0
+    assert result["model_reply_search"]["root_turns"] > 0
+    assert result["model_reply_search"]["candidate_replies"] > 0
+    assert result["model_reply_search"]["slate_size"] == 4
 
 
 def test_reply_search_baseline_rejects_multiplayer(tmp_path: Path) -> None:

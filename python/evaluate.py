@@ -24,6 +24,7 @@ from antiyoy_rl.model import (
     encode_rules_batch,
     load_policy_state,
 )
+from antiyoy_rl.model_reply_search import ModelReplySearch
 from antiyoy_rl.puct import (
     OpponentHorizon,
     PolicySearchConfig,
@@ -471,8 +472,12 @@ def evaluate(
         "procedural_v2",
     ):
         raise ValueError("unsupported policy route generator")
-    if model_agent not in ("policy", "puct"):
+    if model_agent not in ("policy", "puct", "model_reply_search"):
         raise ValueError(f"unsupported model agent: {model_agent}")
+    if model_agent == "model_reply_search" and players != 2:
+        raise ValueError("model reply search requires two-player games")
+    if model_agent == "model_reply_search" and reply_slate_size < 1:
+        raise ValueError("model reply search requires a positive slate size")
     if single_disagreement and (
         model_agent != "puct"
         or baseline != "policy"
@@ -513,8 +518,10 @@ def evaluate(
     )
     checkpoint = load_policy_checkpoint(checkpoint_path, device)
     base_config = dict(checkpoint["config"])
-    if audit_reply_teacher and base_config["fog"]:
-        raise ValueError("reply teacher audit requires full information")
+    if (audit_reply_teacher or model_agent == "model_reply_search") and base_config[
+        "fog"
+    ]:
+        raise ValueError("searched opponent replies require full information")
     evaluation_profile = profile or base_config["profile"] or base_config["profiles"][0]
     evaluation_width = base_config["width"] if width is None else width
     evaluation_height = base_config["height"] if height is None else height
@@ -608,6 +615,17 @@ def evaluate(
     rules = encode_rules_batch(environment.rules_jsons(), device)
 
     routed_policy = RoutedPolicy(models, selected_experts)
+    model_reply_search = (
+        ModelReplySearch(
+            node_budget=search_nodes,
+            slate_size=reply_slate_size,
+            beam_width=search_beam_width,
+            branch_width=search_branch_width,
+            maximum_actions_per_turn=search_maximum_actions_per_turn,
+        )
+        if model_agent == "model_reply_search"
+        else None
+    )
     maxn_value_head = None
     if maxn_value_head_path is not None:
         artifact = torch.load(
@@ -847,6 +865,10 @@ def evaluate(
             ] + model_actions[model_search_turns].astype(np.intp, copy=False)
             puct_selected_unvisited_actions += int(
                 np.count_nonzero(root_action_visits[selected_root_indices] == 0)
+            )
+        elif model_reply_search is not None:
+            model_actions = model_reply_search.actions(
+                environment, routed_policy, rules, model_turns
             )
         else:
             model_actions = routed_policy.actions(observation, rules)
@@ -1158,6 +1180,25 @@ def evaluate(
             else None
         ),
         "model_agent": model_agent,
+        "model_reply_search": (
+            {
+                "node_budget": model_reply_search.node_budget,
+                "slate_size": model_reply_search.slate_size,
+                "beam_width": model_reply_search.beam_width,
+                "branch_width": model_reply_search.branch_width,
+                "maximum_actions_per_turn": (
+                    model_reply_search.maximum_actions_per_turn
+                ),
+                "root_turns": model_reply_search.root_turns,
+                "candidate_replies": model_reply_search.candidate_replies,
+                "opponent_actions": model_reply_search.opponent_actions,
+                "median_amortized_decision_wall_seconds": float(
+                    np.median(model_reply_search.decision_times_seconds)
+                ),
+            }
+            if model_reply_search is not None
+            else None
+        ),
         "policy_search": {
             "node_budget": puct_nodes if model_agent == "puct" else 0,
             "exploration": puct_exploration if model_agent == "puct" else 0.0,
@@ -1255,7 +1296,11 @@ def main() -> None:
     )
     parser.add_argument("--players", type=int, default=2)
     parser.add_argument("--model-seat", type=int)
-    parser.add_argument("--model-agent", choices=("policy", "puct"), default="policy")
+    parser.add_argument(
+        "--model-agent",
+        choices=("policy", "puct", "model_reply_search"),
+        default="policy",
+    )
     parser.add_argument("--single-disagreement", action="store_true")
     parser.add_argument("--puct-nodes", type=int, default=256)
     parser.add_argument("--puct-exploration", type=float, default=1.5)
