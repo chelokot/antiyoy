@@ -136,3 +136,9 @@ They retain intervening actions in the exact replay, report completed games
 and sampled episode-step coverage, and compare search budgets on identical
 policy rollouts. A change in search-decision frequency is a teacher diagnostic,
 not evidence of stronger play.
+
+Multiplayer value-calibration scouts report game-disjoint prediction metrics
+and fresh matched-map outcomes separately. A lower holdout error or a positive
+finite-sample Elo estimate does not promote the value head when only a few
+paired maps change result; the full discordant count and exact sign test remain
+visible.

@@ -15,7 +15,7 @@ test("model arena snapshot is bound to immutable benchmark contents", async () =
   const evidenceNames = new Set(Object.keys(snapshot.evidence));
 
   assert.equal(snapshot.schemaVersion, 1);
-  assert.equal(snapshot.comparisons.length, 13);
+  assert.equal(snapshot.comparisons.length, 14);
   for (const [name, evidence] of Object.entries(snapshot.evidence)) {
     const contents = await readFile(new URL(evidence.file, benchmarkRoot));
     assert.equal(
@@ -30,7 +30,7 @@ test("model arena snapshot is bound to immutable benchmark contents", async () =
 });
 
 test("model arena snapshot preserves the measured search and value gates", async () => {
-  const [snapshot, procedural, vector, outcomes, regret, actionQ, actionSlate] = await Promise.all([
+  const [snapshot, procedural, vector, outcomes, regret, actionQ, actionSlate, cpuScout] = await Promise.all([
     readJson(snapshotUrl),
     readJson(new URL("2026-08-31-procedural-5p-puct-loop-rocm.json", benchmarkRoot)),
     readJson(new URL("2026-08-31-one-pass-maxn-vector-distillation-rocm.json", benchmarkRoot)),
@@ -38,6 +38,7 @@ test("model arena snapshot preserves the measured search and value gates", async
     readJson(new URL("2026-08-31-positive-regret-distillation-rocm.json", benchmarkRoot)),
     readJson(new URL("2026-08-31-replayable-action-q-distillation-rocm.json", benchmarkRoot)),
     readJson(new URL("2026-08-31-conservative-action-slate-distillation-rocm.json", benchmarkRoot)),
+    readJson(new URL("2026-09-23-seat4-ranking-value-cpu-scout.json", benchmarkRoot)),
   ]);
   const rows = new Map(snapshot.comparisons.map((row) => [row.method, row]));
 
@@ -45,6 +46,10 @@ test("model arena snapshot preserves the measured search and value gates", async
     rows.get("Ranking-value PUCT-8").relativeElo,
     `+${procedural.ranking_value_ablation.combined.baseline_adjusted_elo_delta.toFixed(2)}`,
   );
+  assert.equal(rows.get("Ranking-value PUCT-8 · CPU scout").games, cpuScout.fresh_outcome_scout.games);
+  assert.equal(rows.get("Ranking-value PUCT-8 · CPU scout").relativeElo, `+${cpuScout.fresh_outcome_scout.baseline_adjusted_elo_delta.toFixed(2)} (unstable)`);
+  assert.equal(rows.get("Ranking-value PUCT-8 · CPU scout").pairedFlips, `${cpuScout.fresh_outcome_scout.candidate_better}–${cpuScout.fresh_outcome_scout.baseline_better}`);
+  assert.equal(rows.get("Ranking-value PUCT-8 · CPU scout").significance, `p=${cpuScout.fresh_outcome_scout.exact_two_sided_sign_test_p.toFixed(3)} · 4 flips`);
   assert.equal(
     rows.get("Exact MaxN PUCT-8").record,
     `${procedural.ranking_maxn_puct_ablation.combined.maxn_wins}–0–${128 - procedural.ranking_maxn_puct_ablation.combined.maxn_wins} vs ${procedural.ranking_maxn_puct_ablation.combined.source_policy_wins}–0–${128 - procedural.ranking_maxn_puct_ablation.combined.source_policy_wins}`,

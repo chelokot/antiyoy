@@ -36,6 +36,10 @@
     "conservative-action-slate": {
       "file": "2026-08-31-conservative-action-slate-distillation-rocm.json",
       "sha256": "87efd43a016af7b4c2383f1c03d58c905137bbe467514e3da12e816e028aa8da"
+    },
+    "ranking-value-cpu": {
+      "file": "2026-09-23-seat4-ranking-value-cpu-scout.json",
+      "sha256": "02d96deca84f39a4921dcd482192751787d24eeeaf3f686662cd1799c42f8fbe"
     }
   },
   "comparisons": [
@@ -90,6 +94,19 @@
       "significance": "p=0.377",
       "verdict": "unconfirmed",
       "evidence": "procedural-puct"
+    },
+    {
+      "pool": "Procedural 5-player · seat 4",
+      "method": "Ranking-value PUCT-8 · CPU scout",
+      "compute": "policy + 8 nodes",
+      "opponent": "direct routed policy",
+      "games": 64,
+      "record": "5–0–59 vs 3–0–61",
+      "relativeElo": "+94.53 (unstable)",
+      "pairedFlips": "3–1",
+      "significance": "p=0.625 · 4 flips",
+      "verdict": "unconfirmed",
+      "evidence": "ranking-value-cpu"
     },
     {
       "pool": "Procedural 5-player · seat 4",

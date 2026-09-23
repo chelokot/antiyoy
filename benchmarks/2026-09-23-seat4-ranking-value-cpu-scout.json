@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_multiplayer_ranking_value_cpu_scout",
+  "implementation_commit": "64fc15961ac012457bcf51b5b921b5fe2078423c",
+  "system": {
+    "cpu": "Intel Core i9-11900K",
+    "allocated_cpu_threads": 2,
+    "process_priority": "nice 19",
+    "gpu_used": false
+  },
+  "source": {
+    "artifact": "universal-routed-2to8p-engine-v6-2026-08-31.pt",
+    "sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "selected_expert": "context:ea1a83a813d1f57f"
+  },
+  "domain": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v1",
+    "players": 5,
+    "seat": 4,
+    "width": 19,
+    "height": 15,
+    "action_limit": 2400,
+    "land_density_per_million": 650000,
+    "tree_density_per_million": 150000,
+    "starting_province_size": 5,
+    "starting_money": 10,
+    "neutral_tower_density_per_million": 20000,
+    "neutral_capital_density_per_million": 10000,
+    "grave_density_per_million": 15000,
+    "domain_sha256": "41d82824f87de88e890a32bb0218861d61dea2dfeafaa00f6523a9408df50a23"
+  },
+  "calibration": {
+    "command": "OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 RAYON_NUM_THREADS=2 nice -n 19 python -m python.calibrate_value universal-routed.pt ranking-seat4-cpu.pt --profile classic_generic_2022 --generator procedural_v1 --players 5 --width 19 --height 15 --action-limit 2400 --land-density-per-million 650000 --tree-density-per-million 150000 --games 64 --validation-games 16 --sample-stride 2 --epochs 16 --loss-mode ranking --training-seat 4 --seed 3800000 --device cpu",
+    "bundle_command": "python -m python.build_bundle universal-routed.pt ranking-seat4-bundle.pt --overlay --seat-context-route classic_generic_2022:procedural_v1:5:4=ranking-seat4-cpu.pt",
+    "seed": 3800000,
+    "training_games": 48,
+    "validation_games": 16,
+    "sample_stride": 2,
+    "loss_mode": "ranking",
+    "epochs": 16,
+    "batch_size": 128,
+    "learning_rate": 0.0003,
+    "exploration_probability": 0.15,
+    "exploration_top_k": 4,
+    "collection_samples": 2812,
+    "collection_transitions": 87744,
+    "validation_samples": 774,
+    "validation_before": {
+      "mae": 0.8136744665208174,
+      "rmse": 0.8407895848584798,
+      "sign_accuracy": 0.8488372093023255,
+      "correlation": 0.6627196134613234
+    },
+    "validation_after": {
+      "mae": 0.33941508593754866,
+      "rmse": 0.6395320167491567,
+      "sign_accuracy": 0.8708010335917312,
+      "correlation": 0.7879370100789856
+    },
+    "policy_parameters_frozen": true,
+    "candidate_sha256": "a55d156203b2f7ac1d74c57a09961a11ba6ac91fa2cb031872c40defaaf50c48",
+    "routed_bundle_sha256": "d5ac740fd1f2ef57b2743a9ea2ee3342363f5eb11de39d5e9759af0d408a1cc7"
+  },
+  "fresh_outcome_scout": {
+    "command": "OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 RAYON_NUM_THREADS=2 nice -n 19 python -m python.evaluate ranking-seat4-bundle.pt --games 64 --seed 3900000 --device cpu --baseline policy --baseline-checkpoint universal-routed.pt --profile classic_generic_2022 --width 19 --height 15 --action-limit 2400 --procedural --players 5 --model-seat 4 --model-agent puct --puct-nodes 8 --puct-root-value-weight 1 --puct-leaf-batch-size 64 --land-density-per-million 650000 --tree-density-per-million 150000",
+    "seed_first": 3900000,
+    "games": 64,
+    "candidate": "calibrated seat-4 PUCT-8 against the frozen direct policy",
+    "baseline": "frozen direct policy self-play on the identical map seeds",
+    "candidate_wins": 5,
+    "baseline_wins": 3,
+    "candidate_better": 3,
+    "baseline_better": 1,
+    "same": 60,
+    "exact_two_sided_sign_test_p": 0.625,
+    "baseline_adjusted_elo_delta": 94.53062919399167,
+    "truncations": 2,
+    "baseline_truncations": 2,
+    "puct_nodes": 8,
+    "puct_root_value_weight": 1.0,
+    "puct_decisions": 6076,
+    "puct_evaluated_leaves": 48525
+  },
+  "decision": "not promoted: only four of 64 paired maps changed outcome and the result is far from statistically persuasive; no confirmation or student-training compute spent",
+  "conclusion": "The value head fits disjoint self-play outcomes substantially better offline, but the fresh matched-map scout provides only weak evidence of stronger strategy. The +94.53 relative Elo estimate is unstable with three versus one discordant maps and must not be presented as a verified rating."
+}

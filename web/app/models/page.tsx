@@ -143,6 +143,12 @@ const experiments = [
     description: "Retain every legal alternative at 51,200 replayable PUCT roots, preserve unvisited source logits, and train exact-seat action heads with game-disjoint listwise targets.",
     result: "4.96M actions reduced held-out target KL, but scale 1 and scale 2 each finished 18–20 on the paired development gate. Neither spent confirmation compute.",
   },
+  {
+    method: "Phase-spread value scout",
+    status: "unconfirmed",
+    description: "Space search labels across complete procedural games, then calibrate only one multiplayer value head from game outcomes.",
+    result: "600 roots covered 13 completed games. Holdout value correlation rose from 0.663 to 0.788, but PUCT-8 changed just four of 64 paired outcomes: 3 better, 1 worse, p=0.625.",
+  },
 ] as const;
 
 function EvidenceLink({ file }: { file: string }) {
@@ -185,6 +191,7 @@ export default function ModelsPage() {
       <section className="models-section">
         <div className="section-heading"><div><p>Research loop</p><h2>Intuition, amplification, distillation</h2></div><p>The loop is viable, but each arrow needs a paired outcome test. Imitation accuracy alone has already produced rejected regressions in this project.</p></div>
         <ol className="experiment-ledger">{experiments.map((experiment, index) => <li key={experiment.method}><span>{String(index + 1).padStart(2, "0")}</span><div><div className="experiment-title"><h3>{experiment.method}</h3><b>{experiment.status}</b></div><p>{experiment.description}</p><strong>{experiment.result}</strong></div></li>)}</ol>
+        <p className="method-note">Latest raw reports: phase-spread collection <EvidenceLink file="2026-09-23-phase-spread-slate-pilot-cpu.json" /> · value scout <EvidenceLink file="2026-09-23-seat4-ranking-value-cpu-scout.json" />.</p>
         <p className="method-note">Correction: the source action head was already nonlinear. The full-slate failure does not prove a linear-head limitation. <EvidenceLink file="2026-09-23-action-head-erratum.json" /></p>
       </section>
 
