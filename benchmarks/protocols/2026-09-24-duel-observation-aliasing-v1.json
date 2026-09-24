@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "kind": "exploratory_search_observation_aliasing",
+  "question": "Can the native three-turn teacher choose different actions at exactly the same exported policy observation when only the hidden game RNG state changes?",
+  "arena": "Fresh 64 independent Classic Generic procedural_v2 11x9 two-player maps, seeds 6520000 through 6520063",
+  "sampling": "Greedy-agent self-play to the first nonterminal decision for each root seat in round 4; skip and report maps that terminate before sampling. Record one state per root seat per map.",
+  "intervention": "Clone each sampled Game through serde JSON and change only random.state by adding the fixed odd constant 11400714819323198485 modulo 2^64. Require the complete BatchObservation and legal-action sequence to match exactly before querying either teacher. The changed RNG is a diagnostic hypothetical, not a playable policy intervention.",
+  "teacher": "Native replan-each-action three-turn SearchAgent, root beam256/top8/opponent full-turn beam64/root followup beam32, default beam width32/branch width48/maximum24 actions per turn. Query one action from each same-observation state.",
+  "analysis": "Report sampled and skipped maps by seat, exact observation/legal-action matches, teacher first-action changes grouped by independent map and root seat, plus action-kind transitions. An observed change proves this exact teacher is not a pure function of the exported policy observation; no change at these samples does not prove full observability. This is not student strength, an estimate of hidden-state causal effect on complete games, or a basis for changing the core rules.",
+  "resources": "Only on the SSH server in fedora-toolbox, one pinned CPU with nice19 and Rayon/BLAS thread caps, a 20-minute hard timeout, tiny JSON output. Do not touch other users' jobs or the dirty original remote checkout."
+}
