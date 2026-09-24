@@ -39,21 +39,31 @@ class Snapshot:
     label: int
 
 
-def first_records(dataset: dict[str, object]) -> list[dict[str, object]]:
-    selected: dict[int, dict[str, object]] = {}
+def first_records(
+    dataset: dict[str, object], both_seats: bool = False
+) -> list[dict[str, object]]:
+    selected: dict[tuple[int, int], dict[str, object]] = {}
     for record in cast(list[dict[str, object]], dataset["records"]):
         seed = cast(int, record["seed"])
-        if seed not in selected:
-            selected[seed] = record
-    expected = set(range(FIT_SEED, FIT_SEED + FIT_MAPS))
+        seat = cast(int, record["seat"]) if both_seats else 0
+        key = (seed, seat)
+        if key not in selected:
+            selected[key] = record
+    expected = {
+        (seed, seat)
+        for seed in range(FIT_SEED, FIT_SEED + FIT_MAPS)
+        for seat in (range(2) if both_seats else range(1))
+    }
     if selected.keys() != expected:
-        raise ValueError("fit data must contain every predeclared map")
-    return [selected[seed] for seed in sorted(selected)]
+        raise ValueError("fit data must contain every predeclared map and seat")
+    return [selected[key] for key in sorted(selected)]
 
 
-def fixed_snapshots(dataset: dict[str, object]) -> list[Snapshot]:
+def fixed_snapshots(
+    dataset: dict[str, object], both_seats: bool = False
+) -> list[Snapshot]:
     selected = dict(dataset)
-    selected["records"] = first_records(dataset)
+    selected["records"] = first_records(dataset, both_seats)
     snapshots = []
     for position in replay_slate_positions(selected):
         record = position.record
@@ -119,13 +129,15 @@ def measure(
     }
 
 
-def run(fit_path: Path, source_path: Path) -> dict[str, object]:
+def run(
+    fit_path: Path, source_path: Path, both_seats: bool = False
+) -> dict[str, object]:
     if digest(fit_path) != FIT_SHA256 or digest(source_path) != SOURCE_SHA256:
         raise ValueError("diagnostic inputs disagree with the predeclared hashes")
     torch.set_num_threads(1)
     torch.manual_seed(FIT_SEED)
     dataset = checked_dataset(fit_path, FIT_SEED, FIT_MAPS)
-    snapshots = fixed_snapshots(dataset)
+    snapshots = fixed_snapshots(dataset, both_seats)
     model, config = load_policy(
         source_path,
         torch.device("cpu"),
@@ -156,7 +168,11 @@ def run(fit_path: Path, source_path: Path) -> dict[str, object]:
             if update in READOUTS:
                 readouts.append(measure(model, snapshots, update))
     return {
-        "kind": "fixed_snapshot_teacher_action_memorization_diagnostic",
+        "kind": (
+            "fixed_snapshot_teacher_action_memorization_both_seats"
+            if both_seats
+            else "fixed_snapshot_teacher_action_memorization_diagnostic"
+        ),
         "fit_sha256": digest(fit_path),
         "source_sha256": digest(source_path),
         "selected_expert": config["selected_expert"],
@@ -171,8 +187,13 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("fit", type=Path)
     parser.add_argument("source", type=Path)
+    parser.add_argument("--both-seats", action="store_true")
     arguments = parser.parse_args()
-    print(json.dumps(run(arguments.fit, arguments.source), sort_keys=True))
+    print(
+        json.dumps(
+            run(arguments.fit, arguments.source, arguments.both_seats), sort_keys=True
+        )
+    )
 
 
 if __name__ == "__main__":

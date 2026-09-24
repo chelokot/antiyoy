@@ -27,3 +27,31 @@ def test_first_records_rejects_missing_map() -> None:
 
     with pytest.raises(ValueError, match="predeclared map"):
         first_records({"records": records})
+
+
+def test_first_records_selects_first_position_in_each_map_and_seat() -> None:
+    records: list[dict[str, object]] = []
+    for seed in reversed(range(FIT_SEED, FIT_SEED + FIT_MAPS)):
+        for seat in (1, 0):
+            records.extend(
+                [
+                    {"seed": seed, "seat": seat, "round": 8},
+                    {"seed": seed, "seat": seat, "round": 16},
+                ]
+            )
+
+    selected = first_records({"records": records}, both_seats=True)
+
+    assert [(record["seed"], record["seat"]) for record in selected] == [
+        (seed, seat) for seed in range(FIT_SEED, FIT_SEED + FIT_MAPS) for seat in (0, 1)
+    ]
+    assert all(record["round"] == 8 for record in selected)
+
+
+def test_first_records_rejects_missing_seat() -> None:
+    records = [
+        {"seed": seed, "seat": 0} for seed in range(FIT_SEED, FIT_SEED + FIT_MAPS)
+    ]
+
+    with pytest.raises(ValueError, match="predeclared map and seat"):
+        first_records({"records": records}, both_seats=True)
