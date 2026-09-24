@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_fresh_shared_stop_opponent_stability_diagnostic",
+  "question": "Does the terminal preference for an identical-prefix searched early EndTurn survive a change in the frozen opponent continuation policy?",
+  "dataset": {
+    "first_seed": 6460000,
+    "maps": 64,
+    "map": "Classic Generic procedural_v2 11x9, two players",
+    "action_limit": 2400,
+    "teacher": "Native root whole-turn beam256, top8 distinct completed turns, opponent full-turn beam64, root followup beam32",
+    "sample": "Round modulo8 remainder0 on teacher self-play, with exact pre-turn roll-in and candidate local action indices. Complete collection once without replacing incomplete maps or modifying the seed window."
+  },
+  "selection": "Visit maps in ascending seed and records in their original order. Select the first teacher-selected nonstatic completed turn per map whose pre-EndTurn action indices exactly match the prefix of a longer static rank-zero completed turn. Stop after24 distinct eligible maps, or use all eligible maps if fewer. Do not select by score margin, seat, terminal outcome, or validation result.",
+  "branches": "From the identical replayed pre-turn state force either the selected early-stop whole turn or the longer static whole turn, verifying the exact exported post-turn observation. For each forced branch, persistently play the root with the frozen native three-turn teacher. Independently repeat with two frozen opponent policies: routed-v6 direct checkpoint SHA256 68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867, and native two-turn reply-search beam256/top8/opponent beam64 with no root followup. Each branch continues to terminal or the original 2400-action limit; do not use terminal outcomes at inference.",
+  "analysis": "Report exact winners, truncations and action counts for all four branches per position. Compare early-stop and static terminal outcomes only within each opponent policy when both are terminal, with independent-map exact paired signs and root-seat strata. Across positions terminal under both policies, report strict preference agreement, strict reversal, one-policy-only differences and ties. Censored positions are excluded from preference comparisons, shown separately, and never silently scored by material adjudication. This is a descriptive conditional probe, not a policy-strength/Elo estimate.",
+  "resource_limit": "Use SSH server fedora-toolbox only, one pinned CPU at nice19 with Rayon and BLAS capped to one thread, no GPU, at most45 minutes for dataset collection and60 minutes for the outcome probe, tiny compressed/raw outputs. Inspect aggregate resources; never preempt other users.",
+  "qualification": "Fresh exploratory maps disjoint from previous fit, validation and reserved game windows. Do not train, select a model, tune a search rule or rate from these results. Any later training requires a separately predeclared disjoint fit/calibration/validation/game protocol and full both-seat game gates."
+}
