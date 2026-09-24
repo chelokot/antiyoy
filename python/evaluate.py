@@ -98,6 +98,38 @@ def record_reply_teacher_action(
         counts["student_matches_neither_on_disagreements"] += 1
 
 
+def selective_reply_search_actions(
+    environment: VectorEnv,
+    student_actions: np.ndarray,
+    source_actions: np.ndarray,
+    active_mask: np.ndarray,
+    search_nodes: int,
+    reply_search_nodes: int,
+    reply_slate_size: int,
+    search_beam_width: int,
+    search_branch_width: int,
+    search_maximum_actions_per_turn: int,
+    followup_search_nodes: int,
+) -> tuple[np.ndarray, int]:
+    disagreements = np.logical_and(active_mask, student_actions != source_actions)
+    selected = source_actions.copy()
+    queries = int(np.count_nonzero(disagreements))
+    if queries:
+        teacher = environment.reply_search_actions(
+            node_budget=search_nodes,
+            reply_nodes=reply_search_nodes,
+            slate_size=reply_slate_size,
+            beam_width=search_beam_width,
+            branch_width=search_branch_width,
+            maximum_actions_per_turn=search_maximum_actions_per_turn,
+            followup_nodes=followup_search_nodes,
+            active_mask=disagreements.astype(np.uint8),
+            replan_each_action=True,
+        )
+        selected[disagreements] = teacher[disagreements]
+    return selected, queries
+
+
 def paired_elo(score: float, games: int) -> float:
     return relative_skill_delta(score, games, 2)
 
@@ -514,8 +546,23 @@ def evaluate(
         "procedural_v2",
     ):
         raise ValueError("unsupported policy route generator")
-    if model_agent not in ("policy", "puct", "model_reply_search"):
+    if model_agent not in (
+        "policy",
+        "puct",
+        "model_reply_search",
+        "selective_reply_search",
+    ):
         raise ValueError(f"unsupported model agent: {model_agent}")
+    if model_agent == "selective_reply_search" and (
+        players != 2
+        or baseline != "policy"
+        or baseline_checkpoint_path is None
+        or not replan_reply_search
+        or followup_search_nodes < 1
+    ):
+        raise ValueError(
+            "selective reply search requires two-player source policy baseline and replanned followup search"
+        )
     if model_agent == "model_reply_search" and players != 2:
         raise ValueError("model reply search requires two-player games")
     if model_agent == "model_reply_search" and reply_slate_size < 1:
@@ -534,18 +581,26 @@ def evaluate(
         )
     if puct_value_source == "heuristic" and (model_agent != "puct" or players != 2):
         raise ValueError("heuristic PUCT requires a two-player PUCT model agent")
-    if baseline == "reply_search" and (reply_search_nodes < 2 or reply_slate_size < 1):
+    if (baseline == "reply_search" or model_agent == "selective_reply_search") and (
+        reply_search_nodes < 2 or reply_slate_size < 1
+    ):
         raise ValueError(
             "reply search requires at least two reply nodes and a positive slate"
         )
     if baseline == "reply_search" and players != 2:
         raise ValueError("reply search baseline requires two-player games")
-    if replan_reply_search and baseline != "reply_search" and not audit_reply_teacher:
+    if (
+        replan_reply_search
+        and baseline != "reply_search"
+        and not audit_reply_teacher
+        and model_agent != "selective_reply_search"
+    ):
         raise ValueError("replanning requires a reply-search baseline or teacher audit")
     if followup_search_nodes < 0 or (
         followup_search_nodes > 0
         and baseline != "reply_search"
         and not audit_reply_teacher
+        and model_agent != "selective_reply_search"
     ):
         raise ValueError(
             "followup search requires a reply-search baseline or teacher audit"
@@ -574,9 +629,10 @@ def evaluate(
     )
     checkpoint = load_policy_checkpoint(checkpoint_path, device)
     base_config = dict(checkpoint["config"])
-    if (audit_reply_teacher or model_agent == "model_reply_search") and base_config[
-        "fog"
-    ]:
+    if (
+        audit_reply_teacher
+        or model_agent in ("model_reply_search", "selective_reply_search")
+    ) and base_config["fog"]:
         raise ValueError("searched opponent replies require full information")
     evaluation_profile = profile or base_config["profile"] or base_config["profiles"][0]
     evaluation_width = base_config["width"] if width is None else width
@@ -839,6 +895,7 @@ def evaluate(
     puct_selected_unvisited_actions = 0
     model_baseline_action_disagreements = 0
     model_policy_decisions = 0
+    selective_reply_queries = 0
     reply_teacher_agreement = [empty_reply_teacher_agreement() for _ in range(players)]
     reply_teacher_game_agreement = [
         empty_reply_teacher_agreement() for _ in range(games)
@@ -950,6 +1007,21 @@ def evaluate(
                 followup_search_nodes,
                 replan_reply_search,
             )
+        if model_agent == "selective_reply_search":
+            model_actions, queries = selective_reply_search_actions(
+                environment,
+                model_actions,
+                baseline_actions,
+                model_turns,
+                search_nodes,
+                reply_search_nodes,
+                reply_slate_size,
+                search_beam_width,
+                search_branch_width,
+                search_maximum_actions_per_turn,
+                followup_search_nodes,
+            )
+            selective_reply_queries += queries
         if single_disagreement:
             disagreements = np.logical_and(
                 model_search_turns, model_actions != baseline_actions
@@ -1120,8 +1192,16 @@ def evaluate(
                 ),
             }
         )
-    search_used = baseline in ("search", "reply_search") or audit_reply_teacher
-    reply_search_used = baseline == "reply_search" or audit_reply_teacher
+    search_used = (
+        baseline in ("search", "reply_search")
+        or audit_reply_teacher
+        or model_agent == "selective_reply_search"
+    )
+    reply_search_used = (
+        baseline == "reply_search"
+        or audit_reply_teacher
+        or model_agent == "selective_reply_search"
+    )
     report = {
         "checkpoint": str(checkpoint_path),
         "baseline": baseline,
@@ -1298,6 +1378,12 @@ def evaluate(
     }
     if replan_reply_search:
         report["replan_reply_search"] = True
+    if model_agent == "selective_reply_search":
+        report["selective_reply_search"] = {
+            "queries": selective_reply_queries,
+            "candidate_decisions": model_policy_decisions,
+            "query_fraction": selective_reply_queries / model_policy_decisions,
+        }
     if audit_model_replies and model_reply_search is not None:
         report["model_reply_audit_round_modulus"] = audit_model_reply_round_modulus
         report["model_reply_native_audit"] = [
@@ -1354,7 +1440,7 @@ def main() -> None:
     parser.add_argument("--model-seat", type=int)
     parser.add_argument(
         "--model-agent",
-        choices=("policy", "puct", "model_reply_search"),
+        choices=("policy", "puct", "model_reply_search", "selective_reply_search"),
         default="policy",
     )
     parser.add_argument("--single-disagreement", action="store_true")
