@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "kind": "exploratory_search_rng_foresight_game_test",
+  "question": "Does native three-turn search gain complete-game strength from planning with the live game's hidden RNG state rather than a fixed counterfactual RNG state?",
+  "arena": "Fresh 64 independent Classic Generic procedural_v2 11x9 two-player maps, seeds 6521000 through 6521063, both root seats, action limit 2400",
+  "controllers": "Both agents replan native three-turn search at every atomic action with identical root beam256/top8/opponent beam64/followup beam32, beam width32/branch width48/maximum24 actions per turn. Exact uses the live Game. Counterfactual uses a serde clone with only random.state shifted by 11400714819323198485 modulo 2^64 at each decision, then applies the selected legal action to the unmodified live Game. Assert identical BatchObservation and legal-action order before every counterfactual query.",
+  "analysis": "Record every seed, seat, winner, action count and terminal versus action-limit adjudication. Report exact-controller wins by seat and independent-map exact-better/counterfactual-better/same with exact two-sided map sign p. Present terminal-only and worst-case censoring sensitivity if any game is adjudicated. This is a diagnostic of one fixed planning perturbation, not a calibrated RNG-blind agent, a neural student test, global Elo or a causal decomposition of the failed distillation run.",
+  "decision": "No student or playable-agent promotion, rating or search-parameter retuning based on this exploratory result. If exact wins decisively, investigate observation-conditioned stochastic planning and information fairness separately before a new distillation attempt; if not, deprioritize hidden RNG as a major strength explanation.",
+  "resources": "Only on the SSH server in fedora-toolbox, one pinned CPU with nice19 and Rayon/BLAS thread caps, a 30-minute hard timeout, tiny JSON output. Do not touch other users' jobs or the dirty original remote checkout."
+}
