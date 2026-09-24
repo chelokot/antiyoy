@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "kind": "exploratory_search_rng_foresight_game_result",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-rng-foresight-v1.json",
+  "code_commit": "61eb837",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, action limit 2400",
+  "controllers": "Both agents use the same replanned native three-turn search root256/top8/opponent64/followup32 at every atomic action. Only the planning Game.random.state differs by the fixed predeclared shift for the counterfactual controller; every selected action is applied to the unmodified live Game.",
+  "sample": {
+    "first_seed": 6521000,
+    "independent_maps": 64,
+    "both_seat_games": 128,
+    "terminal_games": 128,
+    "action_limit_adjudications": 0,
+    "exact_seed_seat_ledger": true,
+    "maximum_actions_in_game": 322
+  },
+  "result": {
+    "exact_rng_search_wins": 75,
+    "counterfactual_rng_search_wins": 53,
+    "exact_wins_by_own_seat": [44, 31],
+    "counterfactual_wins_by_own_seat": [20, 33],
+    "paired_independent_maps": {
+      "exact_better": 20,
+      "counterfactual_better": 9,
+      "same": 35,
+      "exact_two_sided_sign_test_p": 0.06142834573984146
+    },
+    "terminal_only_and_worst_case_censor_sensitivity": "Identical to the full result because all 128 games ended terminally."
+  },
+  "raw_report": "/tmp/antiyoy-residual.n17QTu/rng-foresight-6521000.json on the SSH server",
+  "raw_report_sha256": "8259d9d044288195ce77b26744374dbbc13e9a23aa641b3c71576730fd51ae95",
+  "runner_sha256": "c1efedbf22b9fafb5a23a878e9c2f166a1ca6feb2a2d35bdd505a94290b2b692",
+  "example_source_sha256": "e875108882fd0ad0c5909b21ea34eba3cc081c44ce07fd333e53a89a377352da",
+  "verification": "The initial unoptimized local-debug server run was stopped before producing any game record. The same predeclared seeds, search parameters and 30-minute cap were then run in an optimized build on one nice19 pinned CPU; exit marker 0, zero stderr bytes. All 64 seeds have exactly one game in each root seat. Complete BatchObservation and legal-action order were asserted equal before every counterfactual query. Code CI passed Rust formatting, Clippy -D warnings, workspace tests and WASM; Python/web CI also passed.",
+  "interpretation": "The exploratory point result favors planning with the live hidden RNG, but the independent-map two-sided sign p is 0.061 and the effect is not positive in both seats. This does not establish a robust complete-game advantage, a global Elo, or that hidden RNG caused the rejected neural student's failure. The separate same-observation audit proved search labels can differ with hidden RNG; this game result limits the strength claim for one fixed planning perturbation. No search parameter, game rule, student, rated bot or playable Site was changed."
+}
