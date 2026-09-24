@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_three_turn_search_terminal_and_runtime_followup",
+  "reason": "The frozen three-turn method passed the 32-map pilot and was 83 better/25 worse by independent map on the predeclared 256-map confirmation, but one candidate game was action-limit adjudicated under the 1000-action cap, violating the zero-censor gate. No search hyperparameter or evaluator is changed.",
+  "candidate": "root beam256/top8 distinct completed turns, opponent full-turn beam64, root followup full-turn beam32",
+  "baseline": "root beam256/top8 distinct completed turns, opponent full-turn beam64",
+  "primary_arena": "Classic Generic procedural_v2 11x9 two players, action limit2400",
+  "primary_window": {"seed_first": 6390000, "independent_maps": 256, "both_seats": true},
+  "runtime": "Measure both methods on exactly the same baseline-self-play root states from the first32 maps of the already-completed seed6381000 window, all turns until terminal or action limit2400, alternating measurement order. Report median and p95 root-decision time, sample counts by seat, and any censored roll-ins.",
+  "runtime_gate": "Median full-game-state candidate root-decision latency at most three times the baseline median on one pinned CPU. Report p95 even though it is not a promotion threshold.",
+  "primary_gate": "No candidate or baseline action-limit adjudications, independent-map paired exact two-sided sign p<0.05 favoring candidate, and candidate win count not below baseline reference in either seat. Do not use the previous confirmation maps for this gate.",
+  "profile_windows_if_primary_passes": [
+    {"rules": "classic_slay_2022", "seed_first": 6400000, "independent_maps": 64, "both_seats": true, "action_limit": 2400},
+    {"rules": "online_default_v1", "seed_first": 6401000, "independent_maps": 64, "both_seats": true, "action_limit": 2400}
+  ],
+  "profile_gate": "For each profile, no action-limit adjudication, candidate independent-map better count at least baseline-better count, and no seat win count below its baseline reference. A profile failure prevents any cross-profile strength or browser promotion claim; a Classic-specific experimental option may be considered separately with honest scope.",
+  "decision": "Do not promote or rate before all applicable gates, code tests and CI. If the 2400-action primary window still censors a game, inspect the loop rather than increasing the cap again. No terminal oracle is used online.",
+  "resources": "All heavy work only on SSH server, nice19 and one pinned CPU with Rayon/BLAS capped, bounded jobs, tiny JSON outputs. Reinspect aggregate resources; avoid others' private data and workload preemption."
+}
