@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "kind": "two_turn_student_same_state_error_outcome_diagnostic",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-student-error-localization-v1.json",
+  "protocol_commit": "c4ee6ef",
+  "code_commit": "2e05f61",
+  "status": "old_student_regression_not_reproduced_on_this_small_window",
+  "arena": "Classic Generic procedural_v2 11x9, two players, 1000-action limit",
+  "seed_first": 6441000,
+  "independent_maps": 32,
+  "games": 64,
+  "terminal_games": 64,
+  "candidate": "Rejected policy-rollin behavioral-cloning student trained against the two-turn search teacher",
+  "candidate_checkpoint_sha256": "95f57060eb1ba56c9a35088e8c2d5c3f43cf9b8eed702bc142e165fd15b6a22b",
+  "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "teacher": "Native two-turn root beam256/top8 distinct completed turns/opponent full-turn beam64; queried without changing online student actions",
+  "game_outcomes": {
+    "student_wins": 34,
+    "frozen_source_reference_wins": 32,
+    "student_wins_by_seat": [21, 13],
+    "source_reference_wins_by_seat": [20, 12],
+    "paired_independent_maps_student_better": 6,
+    "paired_independent_maps_source_better": 4,
+    "paired_independent_maps_same": 22,
+    "descriptive_exact_two_sided_map_sign_p": 0.75390625,
+    "candidate_action_limit_adjudications": 0,
+    "source_action_limit_adjudications": 0
+  },
+  "same_state_action_counts": {
+    "student_decisions": 4716,
+    "source_matches_teacher": 2659,
+    "student_matches_teacher": 2958,
+    "source_teacher_disagreements": 2057,
+    "student_exact_teacher_corrections": 594,
+    "student_retains_source_when_teacher_differs": 1005,
+    "student_matches_neither_when_teacher_differs": 458,
+    "student_deviates_when_source_and_teacher_agree": 295,
+    "student_changes_from_source": 1347,
+    "exact_teacher_corrections_among_student_changes": 594,
+    "off_target_student_changes": 753,
+    "exact_correction_precision_among_changes": 0.44097995545657015
+  },
+  "seat_action_counts": [
+    {"seat": 0, "decisions": 2421, "exact_teacher_corrections": 311, "retained_source_when_teacher_differs": 539, "matches_neither": 233, "breaks_source_teacher_agreement": 158},
+    {"seat": 1, "decisions": 2295, "exact_teacher_corrections": 283, "retained_source_when_teacher_differs": 466, "matches_neither": 225, "breaks_source_teacher_agreement": 137}
+  ],
+  "descriptive_game_outcome_groups": [
+    {"paired_game_outcome": "student_better", "games": 10, "student_decisions": 1038, "exact_teacher_corrections": 110, "off_target_student_changes": 150, "off_target_changes_per_100_decisions": 14.45086705202312},
+    {"paired_game_outcome": "source_better", "games": 8, "student_decisions": 428, "exact_teacher_corrections": 55, "off_target_student_changes": 69, "off_target_changes_per_100_decisions": 16.121495327102803},
+    {"paired_game_outcome": "same", "games": 46, "student_decisions": 3250, "exact_teacher_corrections": 429, "off_target_student_changes": 534, "off_target_changes_per_100_decisions": 16.43076923076923}
+  ],
+  "interpretation": "The student increased exact two-turn teacher action agreement on its own visited states but more than half of its departures from the source were not exact teacher corrections. This fresh 32-map window did not reproduce the earlier student loss: 34 versus 32 wins and a 6 versus 4 independent-map comparison are statistically unresolved. Off-target change rates in paired better/worse/same game groups are close, and game lengths differ substantially; neither category counts nor these post-treatment associations identify harmful actions or establish a causal explanation for the previous failed gate. The two-turn teacher here also differs from the validated three-turn teacher in the separate exact-coverage experiment. Do not tune on this window or promote the rejected checkpoint. Future work needs a position- or plan-level outcome-aligned target and fresh full-game gates, not a claim based on teacher-action agreement alone.",
+  "raw_report": {"remote_path": "/tmp/antiyoy-residual.n17QTu/procedural-duel-student-error-6441000.json", "sha256": "4983e1d36c1a38e8033ab428aa3f069fe1741efccaa779878ef2f314bd1cb434"},
+  "verification": {"python_tests": 404, "ruff": "passed", "resource_policy": "SSH server fedora-toolbox, pinned one CPU, nice19, no GPU"},
+  "decision": "Keep student, source, rated agents and owner-private Site unchanged. Do not infer correction causality or promote any policy from this descriptive audit."
+}
