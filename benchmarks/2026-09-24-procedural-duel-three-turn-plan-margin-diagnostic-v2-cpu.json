@@ -1,0 +1,66 @@
+{
+  "kind": "read_only_fit_only_three_turn_plan_margin_diagnostic",
+  "parent_protocol": "benchmarks/protocols/2026-09-24-duel-three-turn-plan-distillation-v1.json",
+  "parent_result": "benchmarks/2026-09-24-procedural-duel-three-turn-whole-plan-distillation-v2-cpu.json",
+  "question": "Did the failed student learn no teacher-plan preference, or did its complete-plan scores move toward teacher choices without changing top-ranked plans?",
+  "scope": {
+    "fit_first_seed": 6451000,
+    "fit_maps": 128,
+    "sampled_positions": 587,
+    "teacher_override_positions": 236,
+    "independent_maps_with_overrides": 101,
+    "validation_maps_examined": 0,
+    "new_training": false,
+    "new_games": false
+  },
+  "inputs": {
+    "fit_gzip_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "frozen_source_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "rejected_student_head_sha256": "97f243654304a37b1488f00e6bb0428a9fdec83de1255a0ae0bb21e2b978fe71"
+  },
+  "method": "Replay every candidate complete turn on fit maps, compute its mean legal-action log probability under frozen source and rejected student, compare the teacher-selected plan with static rank zero, and group by independent map, root seat, first action and plan length. No model weights, thresholds or labels are changed.",
+  "override_positions": {
+    "source_selects_static": 203,
+    "student_selects_static": 196,
+    "source_selects_teacher": 9,
+    "student_selects_teacher": 10,
+    "source_teacher_minus_static_logprob_quantiles_10_50_90": [-8.006232470273972, -4.844912230968475, -0.3030613660812378],
+    "student_teacher_minus_static_logprob_quantiles_10_50_90": [-3.9797444194555283, -2.116374671459198, -0.08792723715305328],
+    "student_margin_increased": 213,
+    "student_margin_decreased": 23,
+    "source_teacher_margin_positive": 16,
+    "student_teacher_margin_positive": 19,
+    "teacher_plan_shorter_than_static": 202,
+    "teacher_plan_same_length": 30,
+    "teacher_plan_longer_than_static": 4,
+    "teacher_plan_length_counts": {"1": 19, "2": 203, "3": 12, "4": 2},
+    "static_plan_mean_actions": 5.313559322033898,
+    "teacher_plan_mean_actions": 1.9872881355932204
+  },
+  "first_action_relation": {
+    "same_first_action": {
+      "positions": 59,
+      "source_teacher_choice": 2,
+      "student_teacher_choice": 4
+    },
+    "different_first_action": {
+      "positions": 177,
+      "source_teacher_choice": 7,
+      "student_teacher_choice": 6
+    }
+  },
+  "interpretation": [
+    "The exact objective did shift teacher-vs-static plan log-probability in the intended direction on most fit overrides; the hypothesis of no fitted signal is contradicted.",
+    "The shift almost never changed the top-ranked complete plan, and the held-out offline gate still failed. This fit-only diagnostic does not rehabilitate the rejected checkpoint.",
+    "Teacher-selected override plans are usually shorter than static rank-zero plans, so longer teacher plans are not the explanation for their low model probability in this sample.",
+    "The audit does not establish that low EndTurn probability, KL retention, sample size, optimization, representation or the searched teacher target caused the failure; these require distinct tests."
+  ],
+  "artifacts": {
+    "audit_script": "python/audit_three_turn_plan_margins.py",
+    "audit_script_sha256": "6ec7f2d4f05f09761d0e9772f62ef4df043e725bc67edcf2cfee34c15e34e52f",
+    "audit_runner_sha256": "d9804de6c521c9654752d95bcd323ad01707b6b55c1ba9ff7ee431f6a48f47a3",
+    "raw_audit_sha256": "7fa6e8258790b3e8faad515cc15be9f4186dc3d1aa3f2fc01552c84905bdf628",
+    "remote_scratch": "/tmp/antiyoy-residual.n17QTu/three-turn-plan-fit-margins-6451000-v2.json"
+  },
+  "qualification": "Exploratory read-only analysis on already-used FIT maps. Correlated positions and score margins are neither autonomous game strength nor Elo; the prior independent validation failure remains decisive."
+}
