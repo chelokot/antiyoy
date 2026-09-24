@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "kind": "fixed_snapshot_teacher_action_memorization_diagnostic",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-fixed-snapshot-memorization-v1.json",
+  "implementation": "python/audit_duel_fixed_snapshot_memorization.py",
+  "arena": "Existing Classic Generic procedural_v2 11x9 two-player three-turn-teacher fit data; no new maps or game evaluation",
+  "input": {
+    "fit_maps": 128,
+    "fit_seed": 6451000,
+    "fit_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "fixed_examples": 128,
+    "root_seat_counts": {"0": 128, "1": 0},
+    "label": "First legal action index of selected native three-turn complete plan at the first sampled root position per fit map"
+  },
+  "training": {
+    "trainable": "All parameters of the routed-v6 UniversalPolicy, unlike the prior frozen-encoder student",
+    "objective": "Teacher first-action cross-entropy on unchanged copied observations and legal-action ordering; no source KL, augmentation, terminal reward, or student roll-in",
+    "optimizer": "AdamW lr0.0003 weight_decay0, 16 examples per batch, 1024 deterministic updates, gradient norm clip1.0",
+    "one_cpu_seconds": 299.3486959822476,
+    "checkpoint_retained": false
+  },
+  "same_training_snapshot_readouts": [
+    {"update": 0, "correct": 56, "total": 128, "mean_teacher_nll": 1.8752682358026505},
+    {"update": 128, "correct": 128, "total": 128, "mean_teacher_nll": 0.00011736713349819183},
+    {"update": 256, "correct": 128, "total": 128, "mean_teacher_nll": 0.000045940279960632324},
+    {"update": 512, "correct": 128, "total": 128, "mean_teacher_nll": 0.000016578473150730133},
+    {"update": 1024, "correct": 128, "total": 128, "mean_teacher_nll": 0.000005019828677177429}
+  ],
+  "gate": "The predeclared 95% same-snapshot memorization criterion passed by update128 and remained passed through update1024.",
+  "limitations": [
+    "The first sampled position on every fit map was seat0; this probe gives no seat1 memorization evidence.",
+    "The model saw the identical 128 observations repeatedly. The result says nothing about unseen maps, student-visited states, complete-turn choices, autonomous game strength, or Elo.",
+    "This full-network no-KL diagnostic does not reproduce the prior frozen-encoder imitation recipe, so it does not isolate which ingredient caused that student's failed held-out gate.",
+    "Previously observed RNG-dependent searched labels and source/student state-distribution differences remain possible generalization boundaries. This run does not causally attribute failure to either."
+  ],
+  "raw": {
+    "path": "/tmp/antiyoy-residual.n17QTu/fixed-snapshot-memorization.json",
+    "sha256": "3532433a58b40924eeda18a10b516c4151528355be403f91e3c4114826d39df2",
+    "runner_sha256": "9512bde34a19bb5d87e919c7cae9818dc56b895c3365932d062f2de36f83aea9",
+    "exit_code": 0
+  },
+  "qualification": "Diagnostic training fit only; no neural policy promoted, rated, or deployed"
+}
