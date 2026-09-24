@@ -283,6 +283,36 @@ def test_reply_search_rejects_invalid_response_budget() -> None:
         environment.reply_search_actions(slate_size=0)
 
 
+def test_three_turn_reply_search_selects_deterministic_legal_action() -> None:
+    environment = VectorEnv(1, width=7, height=5, seed=46)
+    duplicate = VectorEnv(1, width=7, height=5, seed=46)
+    observation = environment.observe()
+    first = environment.reply_search_actions(
+        node_budget=64,
+        reply_nodes=16,
+        followup_nodes=8,
+        slate_size=4,
+        beam_width=12,
+        branch_width=20,
+        maximum_actions_per_turn=12,
+    )
+    assert 0 <= first[0] < np.diff(observation["action_offsets"])[0]
+    assert (
+        duplicate.reply_search_actions(
+            node_budget=64,
+            reply_nodes=16,
+            followup_nodes=8,
+            slate_size=4,
+            beam_width=12,
+            branch_width=20,
+            maximum_actions_per_turn=12,
+        )[0]
+        == first[0]
+    )
+    assert environment.search_counts().tolist() == [1]
+    assert duplicate.search_counts().tolist() == [1]
+
+
 @pytest.mark.parametrize(
     ("profile", "expected_profile"),
     [

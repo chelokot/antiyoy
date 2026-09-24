@@ -101,9 +101,10 @@ def test_policy_self_match_is_an_exact_zero_delta(tmp_path: Path) -> None:
     assert result["winners"] == result["baseline_self_play"]["winners"] * 2
     assert len(result["game_truncated"]) == 2
     assert sum(result["game_truncated"]) == result["truncations"]
-    assert sum(result["baseline_self_play"]["game_truncated"]) == result[
-        "baseline_self_play"
-    ]["truncations"]
+    assert (
+        sum(result["baseline_self_play"]["game_truncated"])
+        == result["baseline_self_play"]["truncations"]
+    )
     assert result["policy_search"]["decisions"] == 0
     assert result["paired_map_comparison"]["same"] == 1
     assert result["paired_map_bootstrap_95"]["score_delta"] == [0.0, 0.0]
@@ -156,7 +157,10 @@ def test_evaluation_identifies_each_action_limit_adjudication(tmp_path: Path) ->
     assert result["baseline_self_play"]["game_truncated"] == [True]
 
 
-def test_reply_search_baseline_runs_rotated_procedural_duel(tmp_path: Path) -> None:
+@pytest.mark.parametrize("followup_nodes", [0, 8])
+def test_reply_search_baseline_runs_rotated_procedural_duel(
+    tmp_path: Path, followup_nodes: int
+) -> None:
     checkpoint = tmp_path / "policy.pt"
     write_checkpoint(checkpoint, 1.0)
 
@@ -173,6 +177,7 @@ def test_reply_search_baseline_runs_rotated_procedural_duel(tmp_path: Path) -> N
         search_maximum_actions_per_turn=12,
         reply_search_nodes=8,
         reply_slate_size=4,
+        followup_search_nodes=followup_nodes,
         width=7,
         height=5,
         action_limit=40,
@@ -190,6 +195,7 @@ def test_reply_search_baseline_runs_rotated_procedural_duel(tmp_path: Path) -> N
     assert result["search_maximum_actions_per_turn"] == 12
     assert result["reply_search_nodes"] == 8
     assert result["reply_slate_size"] == 4
+    assert result["followup_search_nodes"] == followup_nodes
 
 
 def test_model_reply_search_completes_matched_rotated_games(

@@ -306,6 +306,7 @@ def choose_baseline_actions(
     search_maximum_actions_per_turn: int,
     reply_search_nodes: int,
     reply_slate_size: int,
+    followup_search_nodes: int = 0,
 ) -> np.ndarray:
     if baseline == "search":
         return np.asarray(
@@ -327,6 +328,7 @@ def choose_baseline_actions(
                 beam_width=search_beam_width,
                 branch_width=search_branch_width,
                 maximum_actions_per_turn=search_maximum_actions_per_turn,
+                followup_nodes=followup_search_nodes,
                 active_mask=active_mask.astype(np.uint8),
             ),
             dtype=np.uint64,
@@ -461,6 +463,7 @@ def evaluate(
     audit_reply_teacher: bool = False,
     audit_model_replies: bool = False,
     audit_model_reply_round_modulus: int = 8,
+    followup_search_nodes: int = 0,
 ) -> dict[str, object]:
     if generator_schema_version not in (
         GENERATOR_SCHEMA_VERSION,
@@ -501,6 +504,10 @@ def evaluate(
         )
     if baseline == "reply_search" and players != 2:
         raise ValueError("reply search baseline requires two-player games")
+    if followup_search_nodes < 0 or (
+        followup_search_nodes > 0 and baseline != "reply_search"
+    ):
+        raise ValueError("followup search requires the reply search baseline")
     if audit_reply_teacher and (
         baseline != "policy"
         or baseline_checkpoint_path is None
@@ -726,6 +733,7 @@ def evaluate(
                     search_maximum_actions_per_turn,
                     reply_search_nodes,
                     reply_slate_size,
+                    followup_search_nodes,
                 )
             )
             reference_result = reference_environment.step(reference_actions)
@@ -905,6 +913,7 @@ def evaluate(
                 search_maximum_actions_per_turn,
                 reply_search_nodes,
                 reply_slate_size,
+                followup_search_nodes,
             )
         if single_disagreement:
             disagreements = np.logical_and(
@@ -1271,6 +1280,9 @@ def evaluate(
         ),
         "reply_search_nodes": reply_search_nodes if baseline == "reply_search" else 0,
         "reply_slate_size": reply_slate_size if baseline == "reply_search" else 0,
+        "followup_search_nodes": (
+            followup_search_nodes if baseline == "reply_search" else 0
+        ),
     }
     if audit_model_replies and model_reply_search is not None:
         report["model_reply_audit_round_modulus"] = audit_model_reply_round_modulus
@@ -1305,6 +1317,7 @@ def main() -> None:
     parser.add_argument("--search-maximum-actions-per-turn", type=int, default=24)
     parser.add_argument("--reply-search-nodes", type=int, default=64)
     parser.add_argument("--reply-slate-size", type=int, default=8)
+    parser.add_argument("--followup-search-nodes", type=int, default=0)
     parser.add_argument("--audit-reply-teacher", action="store_true")
     parser.add_argument("--audit-model-replies", action="store_true")
     parser.add_argument("--audit-model-reply-round-modulus", type=int, default=8)
@@ -1437,6 +1450,7 @@ def main() -> None:
                 arguments.audit_reply_teacher,
                 arguments.audit_model_replies,
                 arguments.audit_model_reply_round_modulus,
+                arguments.followup_search_nodes,
             ),
             sort_keys=True,
         )

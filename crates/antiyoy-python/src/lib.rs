@@ -489,6 +489,7 @@ struct VectorEnv {
 struct SearchSetup {
     config: SearchConfig,
     reply_nodes: usize,
+    followup_nodes: usize,
     slate_size: usize,
 }
 
@@ -872,6 +873,7 @@ impl VectorEnv {
             SearchSetup {
                 config,
                 reply_nodes: 0,
+                followup_nodes: 0,
                 slate_size: 1,
             },
             Some(&active),
@@ -879,7 +881,7 @@ impl VectorEnv {
         )
     }
 
-    #[pyo3(signature = (node_budget=256, reply_nodes=64, slate_size=8, beam_width=32, branch_width=48, maximum_actions_per_turn=24, active_mask=None))]
+    #[pyo3(signature = (node_budget=256, reply_nodes=64, slate_size=8, beam_width=32, branch_width=48, maximum_actions_per_turn=24, followup_nodes=0, active_mask=None))]
     #[expect(clippy::too_many_arguments)]
     fn reply_search_actions<'py>(
         &mut self,
@@ -890,6 +892,7 @@ impl VectorEnv {
         beam_width: usize,
         branch_width: usize,
         maximum_actions_per_turn: usize,
+        followup_nodes: usize,
         active_mask: Option<PyReadonlyArray1<'py, u8>>,
     ) -> PyResult<Bound<'py, PyArray1<u64>>> {
         if reply_nodes < 2 || slate_size == 0 {
@@ -908,6 +911,7 @@ impl VectorEnv {
                     maximum_actions_per_turn,
                 },
                 reply_nodes,
+                followup_nodes,
                 slate_size,
             },
             Some(&active),
@@ -934,6 +938,7 @@ impl VectorEnv {
                     maximum_actions_per_turn,
                 },
                 reply_nodes: 0,
+                followup_nodes: 0,
                 slate_size: 1,
             },
             None,
@@ -1019,7 +1024,15 @@ impl VectorEnv {
         if self.search_config != Some(setup) {
             self.search_agents = (0..self.batch.len())
                 .map(|index| {
-                    if setup.reply_nodes > 0 {
+                    if setup.followup_nodes > 0 {
+                        SearchAgent::with_three_turn_search(
+                            format!("three-turn-search-{index}"),
+                            setup.config,
+                            setup.slate_size,
+                            setup.reply_nodes,
+                            setup.followup_nodes,
+                        )
+                    } else if setup.reply_nodes > 0 {
                         SearchAgent::with_reply_search(
                             format!("reply-search-{index}"),
                             setup.config,
