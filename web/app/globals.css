@@ -270,6 +270,24 @@ button { font: inherit; }
 .duel-loop-arrow { display: grid; place-items: center; border-inline: 0.125rem solid #202221; padding: 1rem; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; white-space: nowrap; }
 .duel-loop-distill { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(0, 3fr); gap: 1rem; border-bottom: 0.125rem solid #202221; padding: 1rem 0; }
 .duel-loop-distill p { margin: 0; }
+.paired-map-explorer { margin-top: 1.5rem; border: 0.125rem solid #202221; padding: clamp(1rem, 3vw, 2rem); background: #f0ecdf; }
+.paired-map-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem 2rem; margin-bottom: 1rem; }
+.paired-map-heading h3 { margin: 0; font-family: Georgia, serif; font-size: 1.6rem; font-weight: 400; }
+.paired-map-heading p { max-width: 38rem; margin: 0; color: #555752; font-size: 0.82rem; }
+.paired-map-grid { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 0.2rem; width: min(100%, 34rem); }
+.paired-map-cell { aspect-ratio: 1; min-width: 0; border: 0.0625rem solid #202221; padding: 0; cursor: pointer; }
+.paired-map-cell[aria-pressed="true"] { outline: 0.18rem solid #202221; outline-offset: 0.1rem; z-index: 1; }
+.paired-map-cell:focus-visible { outline: 0.18rem solid #202221; outline-offset: 0.1rem; z-index: 1; }
+.paired-map-cell[data-outcome="B"], .paired-map-legend i[data-outcome="B"] { background: #246b60; }
+.paired-map-cell[data-outcome="0"], .paired-map-legend i[data-outcome="0"] { background: #e7c758; }
+.paired-map-cell[data-outcome="1"], .paired-map-legend i[data-outcome="1"] { background: #39779a; }
+.paired-map-cell[data-outcome="N"], .paired-map-legend i[data-outcome="N"] { background: #8b2f28; }
+.paired-map-details { display: grid; gap: 0.5rem; max-width: 34rem; margin-top: 1.2rem; font-size: 0.82rem; }
+.paired-map-details strong { display: block; margin-top: 0.25rem; font-size: 1rem; }
+.paired-map-details input { width: 100%; accent-color: #202221; }
+.paired-map-legend { display: flex; flex-wrap: wrap; gap: 0.6rem 1.25rem; margin-top: 1rem; font-size: 0.72rem; }
+.paired-map-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+.paired-map-legend i { display: inline-block; width: 0.8rem; height: 0.8rem; border: 0.0625rem solid #202221; }
 .section-heading { display: grid; grid-template-columns: minmax(16rem, 1fr) minmax(20rem, 1fr); gap: 2rem; margin-bottom: 2rem; align-items: end; }
 .section-heading h2 { margin: 0.35rem 0 0; font-family: Georgia, serif; font-size: clamp(2rem, 4vw, 4.5rem); font-weight: 400; letter-spacing: -0.035em; line-height: 0.95; }
 .section-heading > p { max-width: 42rem; margin: 0; color: #555752; font-size: 0.9rem; line-height: 1.55; }

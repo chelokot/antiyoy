@@ -106,15 +106,17 @@ test("model arena snapshot preserves the measured search and value gates", async
 });
 
 test("procedural duel amplification stays bound to its own head-to-head pool", async () => {
-  const [snapshot, search, distillation] = await Promise.all([
+  const [snapshot, search, distillation, ledger] = await Promise.all([
     readJson(snapshotUrl),
     readJson(new URL("2026-09-24-procedural-duel-replan-direct-model-v2-cpu.json", benchmarkRoot)),
     readJson(new URL("2026-09-24-procedural-duel-three-turn-whole-plan-distillation-v2-cpu.json", benchmarkRoot)),
+    readJson(new URL("2026-09-25-procedural-duel-replan-map-ledger-v2-cpu.json", benchmarkRoot)),
   ]);
   const duel = snapshot.currentDuel;
   const headToHead = search;
 
   assert.equal(duel.maps, headToHead.fresh_independent_maps);
+  assert.equal(duel.firstSeed, headToHead.seed_first);
   assert.equal(duel.games, headToHead.rotated_seat_games);
   assert.equal(duel.nativeWins, headToHead.replanned_search_total_wins);
   assert.equal(duel.directWins, headToHead.direct_model_total_wins);
@@ -129,6 +131,22 @@ test("procedural duel amplification stays bound to its own head-to-head pool", a
   assert.equal(duel.sourcePlanMatches, distillation.complete_plan_agreement.validation.source);
   assert.equal(duel.planValidationPositions, distillation.complete_plan_agreement.validation.positions);
   assert.equal(distillation.predeclared_offline_gate.result, "failed");
+  assert.equal(ledger.source_raw_sha256, headToHead.raw_report_sha256);
+  assert.equal(ledger.seed_first, duel.firstSeed);
+  assert.equal(ledger.maps, duel.maps);
+  assert.equal(ledger.games, duel.games);
+  assert.equal(ledger.terminal_games, duel.games - duel.nonterminalGames);
+  assert.equal(duel.mapOutcomes, ledger.map_outcomes);
+  assert.equal(duel.mapOutcomes.length, duel.maps);
+  const counts = Object.fromEntries(["B", "0", "1", "N"].map((outcome) => [outcome, [...duel.mapOutcomes].filter((value) => value === outcome).length]));
+  assert.deepEqual(counts, { B: ledger.counts.both_seats, "0": ledger.counts.seat_0_only, "1": ledger.counts.seat_1_only, N: ledger.counts.neither_seat });
+  assert.equal(counts.B, duel.betterMaps);
+  assert.equal(counts.N, duel.worseMaps);
+  assert.equal(counts["0"] + counts["1"], duel.sameMaps);
+  assert.equal(2 * counts.B + counts["0"] + counts["1"], duel.nativeWins);
+  assert.equal(2 * counts.N + counts["0"] + counts["1"], duel.directWins);
+  assert.equal(counts.B + counts["0"], headToHead.replanned_search_wins_by_model_seat[1]);
+  assert.equal(counts.B + counts["1"], headToHead.replanned_search_wins_by_model_seat[0]);
 });
 
 test("model arena seat audit stays separate from Elo and matches both reports", async () => {

@@ -65,12 +65,17 @@
       "file": "2026-09-24-procedural-duel-replan-direct-model-v2-cpu.json",
       "sha256": "52978c54b05c1eade8bfac952a5c92e128fd032fedce59b326b406cb9aa1ff12"
     },
+    "three-turn-replanned-map-ledger": {
+      "file": "2026-09-25-procedural-duel-replan-map-ledger-v2-cpu.json",
+      "sha256": "2cbd1e9c8c646092d60cf37d2910b696901877bc23dcd080357d6c105ccaa94a"
+    },
     "three-turn-distillation": {
       "file": "2026-09-24-procedural-duel-three-turn-whole-plan-distillation-v2-cpu.json",
       "sha256": "ac384e4db9763f322e5fd765d3f3cb19aa0a95099930c3ce18bedea2723aa924"
     }
   },
   "currentDuel": {
+    "firstSeed": 6494000,
     "maps": 256,
     "games": 512,
     "nativeWins": 447,
@@ -84,7 +89,8 @@
     "nonterminalGames": 0,
     "distilledPlanMatches": 186,
     "sourcePlanMatches": 185,
-    "planValidationPositions": 273
+    "planValidationPositions": 273,
+    "mapOutcomes": "BBBBB01BB0BBB0BBBBBBBB1B0B01B11BBBBB01BBBBB01BBNBBB0BBB1BBB0BB0BBBBB0BBBBBBBBBB0B0BBB01BBBBB0BB0BBBBBB0BBB001BBBBB110BBBBBBBBBBB11B0BBB00BBBBB0BB0BBBBBB1BB0BBB0BBBB0BBBBBBBBBBB00BBBBBBBBBBBBBBBBBBB1B0BBBBBBBBBBBBBBB1B1B10BBB0BBBBBBB100B0BBB010BBB1B00BBB0BB"
   },
   "multiplayerSearch": {
     "maps": 128,

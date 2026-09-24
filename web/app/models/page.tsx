@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import benchmarkData from "./benchmark-data.json";
+import PairedMapExplorer from "./PairedMapExplorer";
 
 export const metadata: Metadata = {
   title: "Model Arena · Antiyoy",
@@ -186,7 +187,8 @@ export default function ModelsPage() {
           <div className="duel-loop-node duel-loop-node-search"><span>Planning at every action</span><h3>Replanned three-turn search</h3><strong>+{currentDuel.headToHeadElo}</strong><p>Relative Elo · 95% map bootstrap +{currentDuel.eloCiLow} to +{currentDuel.eloCiHigh}</p></div>
         </div>
         <div className="duel-loop-distill"><strong>← DISTILLATION</strong><p>No new point yet. A whole-plan student matched {currentDuel.distilledPlanMatches}/{currentDuel.planValidationPositions} teacher turns versus {currentDuel.sourcePlanMatches}/{currentDuel.planValidationPositions} for its source and failed the predeclared offline gate. It was not rated or deployed.</p></div>
-        <p className="method-note">Replanned native search won {currentDuel.nativeWins} of {currentDuel.games} terminal games against frozen direct v6; grouped by map, {currentDuel.betterMaps} better / {currentDuel.worseMaps} worse / {currentDuel.sameMaps} unchanged. Nonterminal games: {currentDuel.nonterminalGames}. <SnapshotEvidenceLink evidence="three-turn-replanned-duel" /> · rejected student <SnapshotEvidenceLink evidence="three-turn-distillation" />. This is head-to-head Elo for this opponent and arena, not global or human Elo.</p>
+        <PairedMapExplorer firstSeed={currentDuel.firstSeed} outcomes={currentDuel.mapOutcomes} />
+        <p className="method-note">Replanned native search won {currentDuel.nativeWins} of {currentDuel.games} terminal games against frozen direct v6; grouped by map, {currentDuel.betterMaps} better / {currentDuel.worseMaps} worse / {currentDuel.sameMaps} unchanged. Nonterminal games: {currentDuel.nonterminalGames}. Head-to-head report <SnapshotEvidenceLink evidence="three-turn-replanned-duel" /> · map ledger <SnapshotEvidenceLink evidence="three-turn-replanned-map-ledger" /> · rejected student <SnapshotEvidenceLink evidence="three-turn-distillation" />. This is head-to-head Elo for this opponent and arena, not global or human Elo.</p>
       </section>
 
       <section className="models-section">

@@ -1,0 +1,24 @@
+{
+  "kind": "replanned_three_turn_vs_frozen_direct_model_map_outcome_ledger",
+  "source_report": "benchmarks/2026-09-24-procedural-duel-replan-direct-model-v2-cpu.json",
+  "source_raw_sha256": "3e6637e5cdb381f14b14cd6ff01f639e23de54a9d3b26e32c64e91b242d3cbd8",
+  "seed_first": 6494000,
+  "maps": 256,
+  "games": 512,
+  "model_seats_per_map": [0, 1],
+  "outcome_encoding": {
+    "B": "replanned search won from both seats",
+    "0": "replanned search won only from seat 0",
+    "1": "replanned search won only from seat 1",
+    "N": "direct model won from both seats"
+  },
+  "map_outcomes": "BBBBB01BB0BBB0BBBBBBBB1B0B01B11BBBBB01BBBBB01BBNBBB0BBB1BBB0BB0BBBBB0BBBBBBBBBB0B0BBB01BBBBB0BB0BBBBBB0BBB001BBBBB110BBBBBBBBBBB11B0BBB00BBBBB0BB0BBBBBB1BB0BBB0BBBB0BBBBBBBBBBB00BBBBBBBBBBBBBBBBBBB1B0BBBBBBBBBBBBBBB1B1B10BBB0BBBBBBB100B0BBB010BBB1B00BBB0BB",
+  "counts": {
+    "both_seats": 192,
+    "seat_0_only": 41,
+    "seat_1_only": 22,
+    "neither_seat": 1
+  },
+  "terminal_games": 512,
+  "limitations": "Post hoc map-level visualization of the predeclared direct head-to-head; no new games or Elo estimate. Seed order is an index, not a time series."
+}

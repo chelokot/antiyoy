@@ -129,6 +129,9 @@ test("renders the benchmark-backed model arena", async () => {
   assert.match(html, /Replanned three-turn search/);
   assert.match(visibleText, /447–65/);
   assert.match(visibleText, /\+334\.96/);
+  assert.match(html, /Every paired map/);
+  assert.match(html, /Search won from both seats/);
+  assert.match(html, /Map seed 6494000/);
   assert.match(html, /No new point yet/);
   assert.match(html, /Engine-v6 fixed duel/);
   assert.match(html, /Routed v6 candidate/);
