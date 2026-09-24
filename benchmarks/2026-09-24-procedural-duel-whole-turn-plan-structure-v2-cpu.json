@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "kind": "exploratory_existing_two_turn_teacher_plan_structure",
+  "source_report": "benchmarks/2026-09-23-procedural-duel-large-slate-choice-v2-cpu.json",
+  "arena": "Classic Generic procedural_v2 11x9, two players",
+  "teacher": "Native two-turn reply-search-256/8/64 self-play, positions sampled every fourth round",
+  "method": "Read the already-collected candidate action sequences and selected slate indices. Count selected turn lengths and whether a nonstatic teacher-selected turn first differs from the static rank-zero turn at its first action or only later. No new maps, training or policy evaluation.",
+  "training": {
+    "maps": 1024,
+    "sampled_positions": 11354,
+    "selected_turn_mean_atomic_actions": 4.3173330984675005,
+    "selected_turns_with_multiple_atomic_actions": 10322,
+    "teacher_nonstatic_turn_choices": 1826,
+    "nonstatic_turns_with_different_first_action": 1194,
+    "nonstatic_turns_with_same_first_action": 632,
+    "same_first_action_fraction_of_overrides": 0.3461117196056955,
+    "shard_positions": [2770, 3002, 2860, 2722],
+    "shard_nonstatic_choices": [478, 491, 432, 425],
+    "shard_same_first_action_overrides": [167, 149, 144, 172]
+  },
+  "existing_disjoint_validation": {
+    "maps": 256,
+    "sampled_positions": 2782,
+    "selected_turn_mean_atomic_actions": 4.209561466570812,
+    "selected_turns_with_multiple_atomic_actions": 2511,
+    "teacher_nonstatic_turn_choices": 474,
+    "nonstatic_turns_with_different_first_action": 340,
+    "nonstatic_turns_with_same_first_action": 134,
+    "same_first_action_fraction_of_overrides": 0.28270042194092827
+  },
+  "dataset_sha256": {
+    "training_shards": [
+      "a64b0614ae8320ddc80a3cf28eec591f0751178d886918e393eb94b7084a1be0",
+      "c90898894708da1ae3d4bafcd92a561ec495090ccaa7f4a89657fbee36eda56b",
+      "63513ba7179674ed334a98ccd62a8d09deb3d30c9cd3b05c2c9bd5cc20e40e83",
+      "38e1c74309dceae0a65da47dacb5fd0c050379c2dba905e960690adf375b3aee"
+    ],
+    "validation": "f619fa08ab7c908ee8e541c877ff832e2902adbe815e5017cc86305b40f3b0e1"
+  },
+  "interpretation": "The first-action agreement metric is blind to roughly one third of this two-turn teacher's nonstatic whole-turn selections in the existing training data, and to more than one quarter in the existing validation data. Distinct completed-turn candidates can start with the same action and diverge later. This does not show that atomic behavioral cloning cannot learn such sequences: its later observations contain the intermediate states. It does show that first-action accuracy is an incomplete proxy for plan imitation. The analysis is post hoc on previously inspected two-turn teacher data, not evidence of terminal strength, three-turn teacher behavior, student improvement or Elo.",
+  "decision": "Keep policies unchanged. Any plan-level distillation experiment must predeclare fresh disjoint training and game-gate maps, avoid using these old validation maps for tuning, and test complete both-seat games rather than only first-action agreement."
+}
