@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_full_episode_replan_distillation_ablation",
+  "question": "Does allowing complete student-policy roll-ins, instead of forcibly resetting every 64 atomic actions, improve direct game strength when the model, replanned teacher and supervised label budget are held fixed?",
+  "motivation": "The rejected Markov student received 16384 labels, but its 512-update, 32-environment fit forced 256 scheduled resets and could label no state later than 63 prior actions on one map. The retrospective accounting is in benchmarks/2026-09-24-procedural-duel-markov-rollin-coverage-v2-cpu.json. This is a horizon-mismatch hypothesis, not a proven cause of the failed game gate.",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, both seats, 2400-action cap with any material adjudication explicitly nonterminal",
+  "teacher": "Native three-turn reply search root beam256/top8/opponent beam64/followup beam32, replan_each_action=true at every student-visited legal-action state",
+  "arms": {
+    "full_episode": "Initialize the routed-v6 Classic Generic two-player expert SHA256 68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867; 32 procedural_v2 environments, 512 updates, student argmax roll-in, reset on terminal or action-limit only, no scheduled reset.",
+    "reset_64_control": "Use the identical checkpoint, 32 environments, 512 updates, random seed, teacher, optimizer and student argmax roll-in, but force all-environment reset every 64 updates as in the rejected recipe."
+  },
+  "fixed_training": "All UniversalPolicy parameters trainable; teacher-action cross-entropy plus 0.1 frozen-source KL, AdamW learning rate0.0001, no PPO or checkpoint selection, exactly 16384 teacher labels per arm. Search beam width32, branch width48 and maximum24 actions per searched turn. Train both arms independently on the same fresh fit seed window, not on the old rejected student's seeds.",
+  "windows": {
+    "fit_first_seed": 6540000,
+    "fit_seed_ceiling_exclusive": 6549000,
+    "descriptive_offline_first_seed": 6549000,
+    "descriptive_offline_maps": 32,
+    "direct_source_and_arm_comparison_first_seed": 6550000,
+    "direct_source_and_arm_comparison_maps": 128,
+    "teacher_fixed_opponent_first_seed": 6551000,
+    "teacher_fixed_opponent_maps": 128,
+    "final_promotion_first_seed": 6552000,
+    "final_promotion_maps": 256
+  },
+  "fit_integrity": "Record code, runner, source and resulting checkpoint hashes; actual map seeds; teacher-label count; terminal versus action-limit resets; sampled position ages in atomic actions separately by seat; wall time and resource use. Stop if either arm exceeds the fit ceiling, any label is illegal, the two arms differ in an unplanned setting, or resource limits are reached. Do not select intermediate updates.",
+  "analysis": "Offline teacher-action agreement is descriptive only. For each game arm, report every map/seat winner, terminal and nonterminal count, paired independent-map wins versus the same frozen source, exact two-sided sign p and map-bootstrap95 fixed-pool Elo. Compare full_episode to reset_64_control on the same maps as a prespecified ablation; no threshold, epoch or search-budget selection on these windows. Pre-update training accuracy is not final-checkpoint accuracy.",
+  "gates": {
+    "coverage": "Before games, require at least 32 complete terminal fit games and labeled states older than 64 atomic actions in both seats for full_episode; require 16384 legal teacher labels per arm. Failure stops the experiment without changing the recipe.",
+    "direct_source": "On fresh seed6550000 maps, require all 256 full_episode-versus-source direct games terminal, full_episode wins improve in both seats, independent-map exact sign p<0.05, and map-bootstrap95 lower head-to-head Elo above zero. Otherwise reject both checkpoints for promotion and do not query the teacher window.",
+    "ablation": "On the same fresh maps, compare reset_64_control and full_episode separately against the frozen source with identical map/seat/opponent assignments. Require full_episode better than reset_64_control by independent-map exact sign p<0.05 as an additional evidence gate; this is not a direct arm-versus-arm game claim.",
+    "teacher": "Only after the direct and ablation gates pass, evaluate full_episode and source separately against the SAME fixed native replanned teacher on fresh seed6551000 maps, both seats. Require all 512 games terminal, full_episode wins more in each seat, independent-map sign p<0.05 and positive lower map-bootstrap95 pool-relative Elo.",
+    "promotion": "Only after earlier gates pass, freeze the same full_episode checkpoint and repeat both-seat direct-source and fixed-teacher gates on fresh seed6552000 maps. Require zero censor, median direct-action latency <=1.2x source, and later disjoint Online Default/Classic Slay profile checks before any rated or owner-private Site change. Neither previous rejected student nor this control arm is promoted by an offline metric."
+  },
+  "resources": "Heavy jobs only on SSH server fedora-toolbox scratch after current aggregate CPU, RAM, swap and disk check; one pinned CPU nice19, Rayon/BLAS threads capped, sequential bounded runs and tiny outputs, no GPU or preemption. Remote original repository is dirty and must not be touched. If server access or resources are unavailable, defer rather than run heavy compute locally.",
+  "forbidden_reuse": "Do not train on inspected seeds6500000-6500288, 6510000, 6530000, 6531000 or 6532000; do not touch reserved legacy seed6300000 or rejected whole-plan game seeds6453000,6454000,6455000; do not retune any old student or deploy before all promotion gates."
+}
