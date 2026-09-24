@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "kind": "native_three_turn_teacher_cached_plan_vs_fresh_replanning_pilot",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-teacher-plan-cache-v1.json",
+  "code_and_protocol_commit": "3f56999",
+  "status": "cached_plan_is_a_real_non_markov_label_boundary_but_replanning_strength_is_unconfirmed",
+  "arena": "Classic Generic procedural_v2 11x9 two players, frozen routed-v6 direct opponent, 2400-action finite horizon",
+  "fresh_window": {"seed_first": 6490000, "independent_maps": 16, "both_root_seats": true},
+  "completion": {"games": 96, "distinct_seed_seat_arm_keys": 96, "terminal_games": 96, "action_limit_adjudications": 0},
+  "cached_vs_fresh_same_state_actions": {
+    "compared_by_action_position_1_2_3_4plus": [609, 585, 370, 995],
+    "disagreements_by_action_position_1_2_3_4plus": [0, 151, 94, 275],
+    "nonfirst_disagreements": 520,
+    "nonfirst_compared": 1950,
+    "nonfirst_disagreement_fraction": 0.26666666666666666,
+    "interpretation": "At the first action of each root turn, a fresh fork exactly reproduced the cached teacher. After the first action, more than a quarter of cached actions differed from a fresh three-turn search on the identical game state and legal-action indexing. The cached agent retains a whole-turn plan that is not available to the feedforward student observation. This is a real target-definition boundary, not proof it caused previous student losses."
+  },
+  "complete_game_arms": [
+    {"arm": "direct", "wins_by_root_seat": [7, 9], "total_wins": 16, "root_turns": 659, "root_actions": 2825},
+    {"arm": "cached_teacher", "wins_by_root_seat": [10, 9], "total_wins": 19, "root_turns": 609, "root_actions": 2559, "versus_direct_maps_better_worse_same": [6, 3, 7], "descriptive_sign_p": 0.5078125},
+    {"arm": "replanned_teacher", "wins_by_root_seat": [15, 9], "total_wins": 24, "root_turns": 576, "root_actions": 2629, "versus_direct_maps_better_worse_same": [8, 0, 8], "descriptive_sign_p": 0.0078125}
+  ],
+  "cached_vs_replanned_maps_better_worse_same": [4, 7, 5],
+  "cached_vs_replanned_descriptive_sign_p": 0.548828125,
+  "interpretation": "Fresh replanning is a deterministic observation-state teacher and looked promising against the direct model in this small pilot, but its apparent seat0 gain and cached-versus-replanned difference require disjoint confirmation. It performs more native searches per root turn and is not a low-cost student or a new rated agent. Replan's game outcome does not establish why earlier imitation students failed.",
+  "next_decision": "Predeclare a fresh both-seat 64-map confirmation of cached, replanned and direct complete games with explicit censoring and map grouping. If fresh replanning fails to beat direct or regresses a seat, do not adopt it as a new teacher. If it passes, separately design a state-observation imitation target on new disjoint fit/validation/game maps; do not train on this pilot.",
+  "verification": {"focused_python_tests": 2, "full_python_tests": 433, "ruff": "passed", "github_ci_for_code_protocol": "success", "resource_policy": "SSH server fedora-toolbox, one CPU pinned15 nice19, Rayon/BLAS capped, 30-minute hard cap", "runner_sha256": "a7dffd0af189caea6924dee4fbae0ff59eb03fbc3d138a12354be72ac60f1935"},
+  "raw_report": {"remote_path": "/tmp/antiyoy-residual.n17QTu/procedural-duel-teacher-plan-cache-6490000.json", "bytes": 36184, "sha256": "d4368bac97e02a9e36c7768e1e718957463764de61e8e848a57e167ff252784a"},
+  "decision": "No trained model, rated bot, Site, or core rule change."
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_independent_cached_plan_vs_markov_replanning_confirmation",
+  "question": "Does a deterministic observation-state three-turn teacher that freshly replans after every atomic action retain genuine complete-game advantage over the frozen direct model on independent procedural duel maps?",
+  "fresh_window": {"seed_first": 6491000, "independent_maps": 64, "both_root_seats": true},
+  "arena": "Classic Generic procedural_v2 11x9, two players, 2400-action finite horizon with material adjudication flagged nonterminal",
+  "frozen_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "opponent": "Frozen routed-v6 direct policy on every opponent turn",
+  "arms": ["direct", "cached_teacher", "replanned_teacher"],
+  "controllers": "Repeat the previously committed cached and fresh-fork three-turn teachers without changing root beam256/top8, opponent beam64, followup beam32, arena or direct opponent. Cache arm also repeats the read-only same-state fresh-replan action audit, including the first action of each root turn. No new search parameter or stopping rule is selected from pilot outcomes.",
+  "analysis": "Report all 384 games, terminal/action-limit outcomes, both-seat wins, map-grouped exact two-sided sign tests for replanned versus direct and cached versus replanned, and same-state cached/replanned action disagreement by action position. Primary exploratory teacher-target gate: replanned versus direct independent-map sign p<0.05, wins nonnegative in both root seats, and zero censoring for direct and replanned arms. Cached-versus-replanned is a separately reported descriptive contrast, not a formal noninferiority claim. If first-action same-state disagreement is nonzero, stop and diagnose a reproducibility bug before interpreting hidden-plan counts. This gate does not promote any student or replace the validated cached teacher.",
+  "decision_rule": "If primary gate fails, reject freshly replanned search as the next distillation teacher on this arena. If it passes, only then predeclare new disjoint fit, calibration, offline and complete-game windows for a model trained on observation-state replanned labels; do not train on pilot or confirmation maps. Any new teacher or student still needs fresh complete both-seat games versus direct and cached native search, runtime/profile gates and honest fixed-pool Elo before promotion.",
+  "resources": "Run heavy games only on SSH server fedora-toolbox, one pinned CPU nice19, Rayon/BLAS capped, 1800-second hard timeout, tiny JSON, no GPU or preemption. Never touch the remote original repo."
+}

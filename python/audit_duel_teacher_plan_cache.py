@@ -94,7 +94,11 @@ def play_game(
 
 def summarize(records: list[dict[str, object]]) -> dict[str, object]:
     indexed = {
-        (cast(int, row["seed"]), cast(int, row["root_seat"]), cast(str, row["arm"])): row
+        (
+            cast(int, row["seed"]),
+            cast(int, row["root_seat"]),
+            cast(str, row["arm"]),
+        ): row
         for row in records
     }
     maps = sorted({cast(int, row["seed"]) for row in records})
@@ -137,9 +141,9 @@ def summarize(records: list[dict[str, object]]) -> dict[str, object]:
             ],
             "disagreements_by_action_position": [
                 sum(
-                    cast(list[int], row["cache_replan_disagreements_by_action_position"])[
-                        position
-                    ]
+                    cast(
+                        list[int], row["cache_replan_disagreements_by_action_position"]
+                    )[position]
                     for row in cached
                 )
                 for position in range(4)
@@ -151,7 +155,13 @@ def summarize(records: list[dict[str, object]]) -> dict[str, object]:
     }
 
 
-def audit(checkpoint_path: Path) -> dict[str, object]:
+def audit_window(
+    checkpoint_path: Path,
+    seed_first: int,
+    maps: int,
+    protocol: str,
+    kind: str,
+) -> dict[str, object]:
     checkpoint_sha256 = digest(checkpoint_path)
     if checkpoint_sha256 != CHECKPOINT_SHA256:
         raise ValueError("plan-cache audit requires the frozen routed-v6 checkpoint")
@@ -159,15 +169,15 @@ def audit(checkpoint_path: Path) -> dict[str, object]:
     policy, experts = load_routed_policy(checkpoint_path)
     records = [
         play_game(seed, seat, arm, policy)
-        for seed in range(SEED_FIRST, SEED_FIRST + MAPS)
+        for seed in range(seed_first, seed_first + maps)
         for seat in (0, 1)
         for arm in ARMS
     ]
     return {
-        "kind": "native_teacher_plan_cache_and_replanning_diagnostic",
-        "protocol": PROTOCOL,
-        "seed_first": SEED_FIRST,
-        "maps": MAPS,
+        "kind": kind,
+        "protocol": protocol,
+        "seed_first": seed_first,
+        "maps": maps,
         "action_limit": ACTION_LIMIT,
         "checkpoint_sha256": checkpoint_sha256,
         "selected_experts": experts,
@@ -175,6 +185,16 @@ def audit(checkpoint_path: Path) -> dict[str, object]:
         "summary": summarize(records),
         "qualification": "Fresh same-state plan-cache diagnostic and matched complete games, not trained-student strength or global Elo",
     }
+
+
+def audit(checkpoint_path: Path) -> dict[str, object]:
+    return audit_window(
+        checkpoint_path,
+        SEED_FIRST,
+        MAPS,
+        PROTOCOL,
+        "native_teacher_plan_cache_and_replanning_diagnostic",
+    )
 
 
 def main() -> None:
