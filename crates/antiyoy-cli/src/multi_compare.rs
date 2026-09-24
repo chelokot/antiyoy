@@ -19,6 +19,8 @@ struct SearchMatchSettings {
     nodes: usize,
     baseline_nodes: usize,
     reply_nodes: usize,
+    baseline_reply_nodes: usize,
+    followup_nodes: usize,
     slate_size: usize,
 }
 
@@ -39,6 +41,8 @@ struct MultiCompareSummary {
     search_nodes: usize,
     baseline_search_nodes: usize,
     candidate_reply_nodes: usize,
+    baseline_reply_nodes: usize,
+    candidate_followup_nodes: usize,
     candidate_slate_size: usize,
     maps: u32,
     games: u32,
@@ -65,9 +69,11 @@ pub(super) fn run(arguments: &MultiCompareArgs) -> Result<()> {
         arguments.candidate != arguments.baseline
             || (arguments.candidate == AgentKind::Search
                 && (arguments.candidate_reply_nodes > 0
+                    || arguments.candidate_followup_nodes > 0
                     || arguments
                         .baseline_search_nodes
-                        .is_some_and(|nodes| nodes != arguments.search_nodes))),
+                        .is_some_and(|nodes| nodes != arguments.search_nodes)
+                    || arguments.baseline_reply_nodes > 0)),
         "comparison agents must be different"
     );
     ensure!(
@@ -77,6 +83,15 @@ pub(super) fn run(arguments: &MultiCompareArgs) -> Result<()> {
     ensure!(
         arguments.candidate_reply_nodes == 0 || arguments.map.players == 2,
         "reply search requires two-player maps"
+    );
+    ensure!(
+        arguments.baseline_reply_nodes == 0
+            || (arguments.baseline == AgentKind::Search && arguments.map.players == 2),
+        "baseline reply search requires a two-player search baseline"
+    );
+    ensure!(
+        arguments.candidate_followup_nodes == 0 || arguments.candidate_reply_nodes > 0,
+        "followup search requires candidate reply search"
     );
     ensure!(
         arguments.candidate_reply_nodes == 0 || arguments.candidate_slate_size > 0,
@@ -96,6 +111,8 @@ pub(super) fn run(arguments: &MultiCompareArgs) -> Result<()> {
                 .baseline_search_nodes
                 .unwrap_or(arguments.search_nodes),
             reply_nodes: arguments.candidate_reply_nodes,
+            baseline_reply_nodes: arguments.baseline_reply_nodes,
+            followup_nodes: arguments.candidate_followup_nodes,
             slate_size: arguments.candidate_slate_size,
         },
     )?;
@@ -144,6 +161,7 @@ fn compare(
             None,
             SearchMatchSettings {
                 reply_nodes: 0,
+                followup_nodes: 0,
                 ..search
             },
             map_config.seed,
@@ -184,15 +202,13 @@ fn compare(
     Ok(MultiCompareSummary {
         generator,
         rules: rules_name,
-        candidate: if search.reply_nodes > 0 {
-            "reply-search"
-        } else {
-            candidate.name()
-        },
-        baseline: baseline.name(),
+        candidate: candidate_name(candidate, search),
+        baseline: baseline_name(baseline, search),
         search_nodes: search.nodes,
         baseline_search_nodes: search.baseline_nodes,
         candidate_reply_nodes: search.reply_nodes,
+        baseline_reply_nodes: search.baseline_reply_nodes,
+        candidate_followup_nodes: search.followup_nodes,
         candidate_slate_size: search.slate_size,
         maps,
         games,
@@ -211,6 +227,24 @@ fn compare(
     })
 }
 
+fn candidate_name(kind: AgentKind, search: SearchMatchSettings) -> &'static str {
+    if search.followup_nodes > 0 {
+        "three-turn-search"
+    } else if search.reply_nodes > 0 {
+        "reply-search"
+    } else {
+        kind.name()
+    }
+}
+
+fn baseline_name(kind: AgentKind, search: SearchMatchSettings) -> &'static str {
+    if search.baseline_reply_nodes > 0 {
+        "reply-search"
+    } else {
+        kind.name()
+    }
+}
+
 fn play_episode(
     scenario: &Scenario,
     rules: &Rules,
@@ -227,16 +261,34 @@ fn play_episode(
             let kind = candidate
                 .filter(|(candidate_seat, _)| *candidate_seat == seat)
                 .map_or(baseline, |(_, kind)| kind);
-            if candidate == Some((seat, AgentKind::Search)) && search.reply_nodes > 0 {
+            let reply_nodes = if is_candidate {
+                search.reply_nodes
+            } else {
+                search.baseline_reply_nodes
+            };
+            if kind == AgentKind::Search && reply_nodes > 0 {
                 Ok(Box::new(
-                    SearchAgent::with_reply_search(
-                        "reply-search",
+                    SearchAgent::with_three_turn_search(
+                        if is_candidate && search.followup_nodes > 0 {
+                            "three-turn-search"
+                        } else {
+                            "reply-search"
+                        },
                         SearchConfig {
-                            node_budget: search.nodes,
+                            node_budget: if is_candidate {
+                                search.nodes
+                            } else {
+                                search.baseline_nodes
+                            },
                             ..SearchConfig::default()
                         },
                         search.slate_size,
-                        search.reply_nodes,
+                        reply_nodes,
+                        if is_candidate {
+                            search.followup_nodes
+                        } else {
+                            0
+                        },
                     )
                     .map_err(anyhow::Error::from)?,
                 ) as Box<dyn Agent>)
@@ -299,6 +351,8 @@ mod tests {
             nodes: 2,
             baseline_nodes: 2,
             reply_nodes: 0,
+            baseline_reply_nodes: 0,
+            followup_nodes: 0,
             slate_size: 8,
         };
         let reference = play_episode(&scenario, &rules, 100, AgentKind::Greedy, None, search, 503)
@@ -339,6 +393,8 @@ mod tests {
                 nodes: 2,
                 baseline_nodes: 2,
                 reply_nodes: 0,
+                baseline_reply_nodes: 0,
+                followup_nodes: 0,
                 slate_size: 8,
             },
         )
@@ -377,6 +433,8 @@ mod tests {
                 nodes: 32,
                 baseline_nodes: 32,
                 reply_nodes: 8,
+                baseline_reply_nodes: 0,
+                followup_nodes: 0,
                 slate_size: 4,
             },
         )
@@ -388,6 +446,54 @@ mod tests {
         assert_eq!(summary.candidate_reply_nodes, 8);
         assert_eq!(summary.candidate_slate_size, 4);
         assert_eq!(summary.records.len(), 4);
+    }
+
+    #[test]
+    fn three_turn_search_uses_reply_search_as_its_reference() {
+        let generator = GeneratorConfig {
+            schema_version: 2,
+            width: 7,
+            height: 5,
+            players: 2,
+            seed: 506,
+            ..GeneratorConfig::default()
+        };
+        let search = SearchMatchSettings {
+            nodes: 16,
+            baseline_nodes: 16,
+            reply_nodes: 8,
+            baseline_reply_nodes: 8,
+            followup_nodes: 8,
+            slate_size: 4,
+        };
+        let summary = compare(
+            generator.clone(),
+            &Rules::classic_generic(),
+            "classic_generic_2022",
+            1,
+            100,
+            AgentKind::Search,
+            AgentKind::Search,
+            search,
+        )
+        .expect("valid comparison");
+        assert_eq!(summary.candidate, "three-turn-search");
+        assert_eq!(summary.baseline, "reply-search");
+        assert_eq!(summary.candidate_followup_nodes, 8);
+        assert_eq!(summary.baseline_reply_nodes, 8);
+        let scenario = generator.generate().expect("valid map");
+        let reference = play_episode(
+            &scenario,
+            &Rules::classic_generic(),
+            100,
+            AgentKind::Search,
+            None,
+            search,
+            generator.seed,
+        )
+        .expect("valid reply-search reference");
+        assert_eq!(summary.records[0].baseline, reference);
+        assert_eq!(summary.records[1].baseline, reference);
     }
 
     #[test]
@@ -405,6 +511,8 @@ mod tests {
             nodes: 16,
             baseline_nodes: 32,
             reply_nodes: 0,
+            baseline_reply_nodes: 0,
+            followup_nodes: 0,
             slate_size: 1,
         };
         let summary = compare(

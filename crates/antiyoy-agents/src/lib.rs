@@ -324,6 +324,48 @@ mod tests {
     }
 
     #[test]
+    fn three_turn_search_selects_by_the_completed_root_followup() {
+        let scenario = Scenario::symmetric_duel(7, 5, 111).expect("valid duel");
+        let game = antiyoy_core::Game::new(Rules::classic_generic(), scenario).expect("valid game");
+        let config = SearchConfig {
+            node_budget: 64,
+            maximum_actions_per_turn: 12,
+            ..SearchConfig::default()
+        };
+        let reply_config = SearchConfig {
+            node_budget: 16,
+            ..config
+        };
+        let followup_config = SearchConfig {
+            node_budget: 8,
+            ..config
+        };
+        let slate = search_turn_slate(&game, config, 4).expect("valid root slate");
+        let expected = slate
+            .turns
+            .iter()
+            .enumerate()
+            .max_by_key(|(index, turn)| {
+                let reply = search_reply(turn, game.active_player(), reply_config);
+                let score = if reply.game.is_terminal() {
+                    reply.score
+                } else {
+                    let followup =
+                        search_turn_slate(&reply.game, followup_config, 1).expect("valid followup");
+                    position_score(&followup.turns[0].game, game.active_player())
+                };
+                (score, turn.score, std::cmp::Reverse(*index))
+            })
+            .expect("completed turn");
+        let mut legal = Vec::new();
+        game.legal_actions(&mut legal);
+        let mut agent = SearchAgent::with_three_turn_search("three-turn", config, 4, 16, 8)
+            .expect("valid three-turn search");
+        assert_eq!(agent.select_action(&game, &legal), expected.1.actions[0]);
+        assert_eq!(agent.last_stats().selected_score, expected.1.score);
+    }
+
+    #[test]
     fn reply_search_validates_slate_and_reply_budgets() {
         assert!(matches!(
             SearchAgent::with_reply_search("reply", SearchConfig::default(), 0, 16),
@@ -331,6 +373,10 @@ mod tests {
         ));
         assert!(matches!(
             SearchAgent::with_reply_search("reply", SearchConfig::default(), 4, 1),
+            Err(SearchConfigError::NodeBudget)
+        ));
+        assert!(matches!(
+            SearchAgent::with_three_turn_search("three-turn", SearchConfig::default(), 4, 16, 1),
             Err(SearchConfigError::NodeBudget)
         ));
     }

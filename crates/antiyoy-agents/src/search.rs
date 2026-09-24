@@ -86,6 +86,7 @@ pub struct SearchAgent {
     name: String,
     config: SearchConfig,
     reply_nodes: usize,
+    followup_nodes: usize,
     slate_size: usize,
     plan: VecDeque<PlannedAction>,
     last_stats: SearchStats,
@@ -98,6 +99,7 @@ impl SearchAgent {
             name: name.into(),
             config: SearchConfig::default(),
             reply_nodes: 0,
+            followup_nodes: 0,
             slate_size: 1,
             plan: VecDeque::new(),
             last_stats: SearchStats::default(),
@@ -114,6 +116,7 @@ impl SearchAgent {
             name: name.into(),
             config,
             reply_nodes: 0,
+            followup_nodes: 0,
             slate_size: 1,
             plan: VecDeque::new(),
             last_stats: SearchStats::default(),
@@ -131,6 +134,16 @@ impl SearchAgent {
         slate_size: usize,
         reply_nodes: usize,
     ) -> Result<Self, SearchConfigError> {
+        Self::with_three_turn_search(name, config, slate_size, reply_nodes, 0)
+    }
+
+    pub fn with_three_turn_search(
+        name: impl Into<String>,
+        config: SearchConfig,
+        slate_size: usize,
+        reply_nodes: usize,
+        followup_nodes: usize,
+    ) -> Result<Self, SearchConfigError> {
         if slate_size == 0 {
             return Err(SearchConfigError::SlateSize);
         }
@@ -139,8 +152,15 @@ impl SearchAgent {
             ..config
         };
         validate_config(reply_config)?;
+        if followup_nodes > 0 {
+            validate_config(SearchConfig {
+                node_budget: followup_nodes,
+                ..config
+            })?;
+        }
         let mut agent = Self::with_config(name, config)?;
         agent.reply_nodes = reply_nodes;
+        agent.followup_nodes = followup_nodes;
         agent.slate_size = slate_size;
         Ok(agent)
     }
@@ -172,16 +192,21 @@ impl SearchAgent {
                 node_budget: self.reply_nodes,
                 ..self.config
             };
+            let followup_config = SearchConfig {
+                node_budget: self.followup_nodes,
+                ..self.config
+            };
             slate
                 .turns
                 .into_iter()
                 .enumerate()
                 .max_by_key(|(index, turn)| {
-                    (
-                        reply_score(turn, root_player, reply_config),
-                        turn.score,
-                        Reverse(*index),
-                    )
+                    let score = if self.followup_nodes == 0 {
+                        reply_score(turn, root_player, reply_config)
+                    } else {
+                        three_turn_score(turn, root_player, reply_config, followup_config)
+                    };
+                    (score, turn.score, Reverse(*index))
                 })
                 .map(|(_, turn)| turn)
                 .expect("EndTurn always completes at least one candidate turn")
@@ -196,6 +221,20 @@ impl SearchAgent {
 
 pub fn reply_score(turn: &SearchTurn, root_player: PlayerId, reply_config: SearchConfig) -> i64 {
     search_reply(turn, root_player, reply_config).score
+}
+
+fn three_turn_score(
+    turn: &SearchTurn,
+    root_player: PlayerId,
+    reply_config: SearchConfig,
+    followup_config: SearchConfig,
+) -> i64 {
+    let reply = search_reply(turn, root_player, reply_config);
+    if reply.game.is_terminal() || reply.game.active_player() != root_player {
+        return reply.score;
+    }
+    let followup = build_search_turn_slate(&reply.game, followup_config, 1);
+    position_score(&followup.turns[0].game, root_player)
 }
 
 pub fn search_reply(
