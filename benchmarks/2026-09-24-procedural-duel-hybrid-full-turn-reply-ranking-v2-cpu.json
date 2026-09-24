@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "kind": "post_rejection_hybrid_full_turn_reply_ranking_diagnostic",
+  "status": "completed_with_action_limit_adjudications_no_policy_promotion",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-hybrid-full-turn-reply-ranking-v1.json",
+  "arena": "Classic Generic procedural_v2 11x9 two players, action limit2400, route_generator procedural_v1",
+  "sample": "32 independent maps seed6361000, both frozen hybrid seats, every hybrid root turn audited against native search64 on the identical candidate slate",
+  "policies": "Frozen routed-v6 model-reply hybrid root beam256/top8 versus fixed native reply-search root beam256/top8/opponent beam64",
+  "frozen_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "recovery": {
+    "initial_attempt": "Failed before producing a report: hypothetical reply fork inherited the live action limit and truncated in a late position; the empty raw JSON was discarded as evidence.",
+    "fix_commit": "64cd8fd",
+    "fix": "Only hypothetical Python reply-search branches may use an extended action limit; the real game retains its benchmark limit and existing fork calls retain their default behavior.",
+    "verification": "Rust workspace tests and Clippy -D warnings, 379 Python tests and Ruff passed on SSH server. Low-limit fork and native-audited whole-reply regression tests passed; CI for 64cd8fd and c7259a9 was green. The corrected runner completed with exit0.",
+    "corrected_runner_sha256": "d201461147ca4daa1d9bcef3e9a2debbf8bb67ed9fa03ff83f7f8f2437d5e170"
+  },
+  "game_outcomes": {
+    "games": 64,
+    "hybrid_wins": 27,
+    "native_teacher_wins": 37,
+    "draws": 0,
+    "action_limit_adjudications": 2,
+    "hybrid_wins_by_model_seat": [18, 9],
+    "action_limit_adjudications_by_model_seat": [0, 2],
+    "paired_independent_maps": {
+      "hybrid_better": 1,
+      "native_teacher_better": 6,
+      "same": 25,
+      "exact_two_sided_sign_p": 0.125
+    },
+    "qualification": "This is a diagnostic of an already rejected policy, not a complete-terminal-game promotion gate or new Elo rating. The raw evaluator did not persist per-game truncation flags, so the exact adjudicated map IDs cannot be established from this artifact alone."
+  },
+  "full_turn_audit": {
+    "root_positions": 3532,
+    "candidate_states": 17391,
+    "censored_candidate_replies": 0,
+    "hybrid_matches_native_selected_index": 2358,
+    "strict_native_reply_score_regret_positions": 1159,
+    "independent_maps_with_at_least_one_regret": 31,
+    "by_model_seat": {
+      "0": {
+        "positions": 725,
+        "exact_native_selected_index_matches": 667,
+        "strict_regret_positions": 52,
+        "maps_with_strict_regret": 19
+      },
+      "1": {
+        "positions": 2807,
+        "exact_native_selected_index_matches": 1691,
+        "strict_regret_positions": 1107,
+        "maps_with_strict_regret": 25
+      }
+    },
+    "paired_independent_map_seat_mean_transformed_regret": {
+      "seat_one_higher": 21,
+      "seat_zero_higher": 10,
+      "same": 1,
+      "exact_two_sided_sign_p": 0.07075554598122835
+    },
+    "concentration": {
+      "map_6361008_model_seat_1": {
+        "positions": 1078,
+        "strict_regret_positions": 997,
+        "rounds_at_or_after_100_with_identical_candidate_score_vectors": 979,
+        "repeated_hybrid_selected_index": 1,
+        "repeated_native_selected_index": 0
+      },
+      "map_6361017_model_seat_1": {
+        "positions": 1091,
+        "strict_regret_positions": 35,
+        "rounds_at_or_after_100_with_identical_candidate_score_vectors": 992
+      },
+      "two_long_trajectories_positions": 2169,
+      "two_long_trajectories_strict_regrets": 1032,
+      "qualification": "The repeated score vectors show a persistent decision pattern, not proven identical full game states. Neither candidate observations within a game nor turns in one long trajectory are independent samples."
+    },
+    "descriptive_game_outcome_overlap": {
+      "model_seat_0": {
+        "losses_with_regret": 14,
+        "losses_without_regret": 0,
+        "wins_with_regret": 5,
+        "wins_without_regret": 13
+      },
+      "model_seat_1": {
+        "losses_with_regret": 22,
+        "losses_without_regret": 1,
+        "wins_with_regret": 3,
+        "wins_without_regret": 6
+      },
+      "qualification": "Association only; local native reply-score regret is not a counterfactual terminal-outcome label. Adjudicated games are included because the raw evaluator lacks per-game censoring flags."
+    }
+  },
+  "raw_evaluation_sha256": "dea0edb212b933b9a8d6ae6bc50e756c5a64c23f17489ca5916757116884dcc0",
+  "raw_ranking_summary_sha256": "6fe7c2a6e113fd6ab921e9ea69dfe8b8b45cfaa296fb54b2fd9834bc3d996eec",
+  "raw_artifacts": "Remote scratch /tmp/antiyoy-residual.n17QTu/procedural-duel-hybrid-native-full-audit-6361000-fixed{,-summary}.json; outputs are not committed to the repository",
+  "interpretation": "Auditing every turn exposes a repeatable frozen-model-reply ranking error on one long seat-one trajectory that the earlier one-in-eight sample largely obscured. The aggregate 1107 seat-one regrets are dominated by that trajectory; map-paired seat evidence remains inconclusive. A second long trajectory repeats one score pattern without a comparable ranking failure. Neither observation proves that correcting a local ranking would win those games or yield a strong distilled policy.",
+  "decision": "Keep the slower hybrid rejected and unrated. Do not retune on seed6361000, run reserved hybrid confirmation seed6357000 or final promotion seed6300000, or deploy it. A new predeclared study should first capture per-game action-limit censoring and test exact terminal counterfactuals at divergent whole turns on fresh independent maps, then require complete both-seat games and runtime/profile gates before any policy promotion."
+}
