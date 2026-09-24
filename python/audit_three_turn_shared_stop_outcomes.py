@@ -4,7 +4,7 @@ import argparse
 import json
 from collections.abc import Mapping
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
 import numpy as np
 import torch
@@ -69,11 +69,14 @@ def finish_persistently(
     root: int,
     opponent: RoutedPolicy,
     rule_features: torch.Tensor,
+    opponent_mode: Literal["direct", "two_turn"] = "direct",
 ) -> BranchOutcome:
     while not branch.done()[0]:
         observation = branch.observe()
         if int(observation["active_players"][0]) == root:
             selected = native_teacher_action(branch, FOLLOWUP_NODES)
+        elif opponent_mode == "two_turn":
+            selected = native_teacher_action(branch)
         else:
             selected = opponent.actions(observation, rule_features)
         last_result = branch.step(selected)
