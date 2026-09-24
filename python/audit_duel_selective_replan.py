@@ -106,9 +106,13 @@ def audit(raw: dict[str, object]) -> dict[str, object]:
     query_count = cast(int, queries["queries"])
     candidate_decisions = cast(int, queries["candidate_decisions"])
     query_fraction = query_count / candidate_decisions
+    policy_actions = cast(dict[str, int | float], raw["model_baseline_policy_actions"])
+    final_overrides = cast(int, policy_actions["disagreements"])
     if (
         not 0 <= query_count <= candidate_decisions
         or abs(query_fraction - cast(float, queries["query_fraction"])) > 1e-12
+        or policy_actions["decisions"] != candidate_decisions
+        or not 0 <= final_overrides <= query_count
     ):
         raise ValueError("selective search query accounting is inconsistent")
     map_scores = candidate_scores.reshape(MAPS, 2).mean(axis=1)
@@ -149,6 +153,7 @@ def audit(raw: dict[str, object]) -> dict[str, object]:
         "candidate_nonterminal_games": sum(truncated),
         "source_reference_nonterminal_games": sum(reference_truncated),
         "teacher_queries": query_count,
+        "final_actions_different_from_source": final_overrides,
         "candidate_decisions": candidate_decisions,
         "teacher_query_fraction": query_fraction,
         "gate": gate,

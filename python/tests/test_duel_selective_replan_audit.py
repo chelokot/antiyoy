@@ -62,6 +62,11 @@ def report() -> dict[str, object]:
             "candidate_decisions": 256,
             "query_fraction": 100 / 256,
         },
+        "model_baseline_policy_actions": {
+            "decisions": 256,
+            "disagreements": 80,
+            "disagreement_rate": 80 / 256,
+        },
     }
 
 
@@ -70,6 +75,7 @@ def test_selective_audit_verifies_both_seats_and_query_gate() -> None:
 
     assert result["candidate_direct_wins_by_seat"] == [128, 128]
     assert result["source_self_play_reference_wins_by_seat"] == [128, 0]
+    assert result["final_actions_different_from_source"] == 80
     assert result["exploratory_gate_passed"] is False
     assert result["gate"]["positive_source_relative_wins_in_both_seats"] is False
 
