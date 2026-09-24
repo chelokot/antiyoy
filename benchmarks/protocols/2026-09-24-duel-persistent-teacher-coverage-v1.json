@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_persistent_teacher_turn_coverage_diagnostic",
+  "question": "Does the validated native three-turn search require coherent repeated use across a game for its strength to emerge, explaining why increased teacher-action agreement and isolated one-turn interventions did not improve the frozen direct student?",
+  "arena": "Classic Generic procedural_v2 11x9 two players, 2400-action finite horizon; action-limit adjudications explicitly nonterminal",
+  "fresh_window": {"seed_first": 6440000, "independent_maps": 64, "both_candidate_seats": true},
+  "candidate_turn_teacher_percentages": [0, 25, 50, 75, 100],
+  "checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "candidate": "At each start of a candidate-seat turn, choose either the unchanged native three-turn search for the entire turn or frozen routed-v6 direct for the entire turn. Deterministically hash map seed, candidate seat and candidate turn index into a percentage bucket, so a candidate game is reproducible and the choice does not depend on runtime RNG. The chosen policy controls every atomic action until that turn ends. Do not substitute searched actions inside direct turns.",
+  "native_teacher": "Root whole-turn beam256/top8 distinct completed turns, opponent full-turn beam64, root followup beam32, unchanged search implementation.",
+  "opponent": "Frozen routed-v6 direct policy on every opponent turn for every mixture level; same map and rotated candidate seat across levels.",
+  "analysis": "Report actual candidate teacher-turn counts, wins/draws/losses, terminal/nonterminal counts, both seats and independent-map paired outcome versus the zero-percent direct baseline. Use exact two-sided map-level sign tests descriptively, not five uncorrected promotion gates. Disclose whether partial search coverage is monotonic, worse than direct, or statistically unresolved. Keep the 100-percent arm as a reproducibility check against prior teacher strength, but this small window is not a new rating.",
+  "interpretation_limit": "A stochastic whole-turn mixture is not a trained neural student and cannot establish a causal explanation for a particular failed checkpoint. No Elo or playable policy promotion from this diagnostic. Do not tune the percentages on the observed window or touch reserved final seed6300000. Future distillation must have fresh disjoint training and full-game gates.",
+  "resources": "Heavy compute via SSH server fedora-toolbox only, one pinned CPU nice19 with Rayon/BLAS thread caps, bounded wall time and tiny JSON. Reinspect aggregate resources and avoid other users' workloads and the dirty remote original repo."
+}
