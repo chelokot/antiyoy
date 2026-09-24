@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_three_turn_search_ablation",
+  "arena": {
+    "rules": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "action_limit": 1000
+  },
+  "baseline": "native whole-turn root beam256, top8 distinct completed turns, opponent full-turn beam64, choose by root-perspective static score after opponent reply",
+  "candidate": "same root and opponent searches, then for each opponent reply search root's next complete turn with beam32 and choose by root-perspective static score after that turn; no terminal oracle",
+  "pilot": {"seed_first": 6380000, "maps": 32, "both_seats": true},
+  "reserved_confirmation": {"seed_first": 6381000, "maps": 256, "both_seats": true},
+  "pilot_gate": "Only run reserved confirmation if pilot independent-map paired outcomes favor candidate and both seats are nonnegative, with zero candidate/baseline action-limit adjudications and measured median root-decision runtime no more than three times native reply-search.",
+  "confirmation_gate": "Promote only if fresh 256-map independent-map paired exact sign p<0.05, both seats nonnegative, no action-limit adjudication, and median decision runtime at most three times native reply-search on matched arena. Check at least two additional rules profiles and avoid universal strength claims.",
+  "resources": "Use SSH server only, nice19, one pinned CPU with Rayon/BLAS capped, bounded time, tiny JSON outputs. Reinspect aggregate CPU/memory/disk and avoid others' workloads/private data."
+}
