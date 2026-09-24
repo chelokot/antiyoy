@@ -995,11 +995,22 @@ def pretrain_teacher(
     device: torch.device,
     reference_model: UniversalPolicy | None = None,
     checkpoint_callback: Callable[[int, float, float], None] | None = None,
-) -> tuple[int, float, float]:
+) -> tuple[int, float, float, dict[str, int]]:
     loss_average = 0.0
     accuracy_average = 0.0
+    position_ages = np.zeros(config.environments, dtype=np.int64)
+    older_labels_by_seat = np.zeros(maximum_players(config), dtype=np.int64)
+    maximum_labeled_age = 0
+    terminal_games = 0
+    truncated_games = 0
+    scheduled_resets = 0
     for update in range(1, config.imitation_updates + 1):
         observation = environment.observe()
+        active_players = np.asarray(observation["active_players"], dtype=np.int64)
+        older_labels_by_seat += np.bincount(
+            active_players[position_ages >= 64], minlength=len(older_labels_by_seat)
+        )
+        maximum_labeled_age = max(maximum_labeled_age, int(position_ages.max()))
         if config.imitation_teacher == "greedy":
             selected = environment.greedy_actions()
         elif config.imitation_teacher == "reply_search":
@@ -1082,16 +1093,22 @@ def pretrain_teacher(
                 targets if config.imitation_rollin == "teacher" else policy_actions
             )
         result = environment.step(rollin_actions.cpu().numpy().astype(np.uint64))
+        terminal_games += int(np.count_nonzero(result["terminal"]))
+        truncated_games += int(np.count_nonzero(result["truncated"]))
+        position_ages += 1
         done = np.logical_or(result["terminal"], result["truncated"])
         reset_all = (
             config.imitation_reset_interval > 0
             and update % config.imitation_reset_interval == 0
         )
+        if reset_all:
+            scheduled_resets += config.environments
         reset_indices = (
             range(config.environments) if reset_all else np.flatnonzero(done)
         )
         for index in reset_indices:
             environment.reset(int(index), reset_seed)
+            position_ages[int(index)] = 0
             reset_seed += 1
         if checkpoint_callback is not None:
             checkpoint_callback(update, loss_average, accuracy_average)
@@ -1109,7 +1126,17 @@ def pretrain_teacher(
                 ),
                 flush=True,
             )
-    return reset_seed, loss_average, accuracy_average
+    coverage = {
+        "imitation_maximum_labeled_age": maximum_labeled_age,
+        "imitation_terminal_games": terminal_games,
+        "imitation_truncated_games": truncated_games,
+        "imitation_scheduled_resets": scheduled_resets,
+        **{
+            f"imitation_labeled_age_64plus_seat{seat}": int(count)
+            for seat, count in enumerate(older_labels_by_seat)
+        },
+    }
+    return reset_seed, loss_average, accuracy_average, coverage
 
 
 def rollout_targets(rollout: Rollout, config: TrainingConfig) -> tuple[Tensor, Tensor]:
@@ -1333,6 +1360,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
     imitation_reset_seed = reset_seed
     imitation_loss = 0.0
     imitation_accuracy = 0.0
+    imitation_coverage: dict[str, int] = {}
     imitation_started = time.perf_counter()
     recovery_path = (
         recovery_checkpoint_path(config.checkpoint)
@@ -1358,16 +1386,18 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         )
 
     if config.imitation_updates > 0:
-        reset_seed, imitation_loss, imitation_accuracy = pretrain_teacher(
-            environment,
-            model,
-            optimizer,
-            rules,
-            config,
-            reset_seed,
-            device,
-            reference_model,
-            save_imitation_recovery,
+        reset_seed, imitation_loss, imitation_accuracy, imitation_coverage = (
+            pretrain_teacher(
+                environment,
+                model,
+                optimizer,
+                rules,
+                config,
+                reset_seed,
+                device,
+                reference_model,
+                save_imitation_recovery,
+            )
         )
     imitation_environment_resets = reset_seed - imitation_reset_seed
     imitation_seconds = time.perf_counter() - imitation_started
@@ -1595,6 +1625,7 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         ),
         "imitation_loss": imitation_loss,
         "imitation_accuracy": imitation_accuracy,
+        **imitation_coverage,
         "mean_reward": reward_average,
         "mean_loss": loss_average,
         "device": str(device),

@@ -692,6 +692,26 @@ def test_replanned_three_turn_teacher_runs_two_policy_rollin_updates() -> None:
     assert "replanned_reply_labels" in summary["algorithm"]
 
 
+def test_imitation_coverage_tracks_labeled_age_and_scheduled_resets() -> None:
+    base = replace(
+        training_config(),
+        updates=0,
+        imitation_updates=3,
+        action_limit=1000,
+        checkpoint=None,
+    )
+
+    full_episode = train(base)
+    reset_each_action = train(replace(base, imitation_reset_interval=1))
+
+    assert full_episode["imitation_maximum_labeled_age"] == 2
+    assert full_episode["imitation_scheduled_resets"] == 0
+    assert reset_each_action["imitation_maximum_labeled_age"] == 0
+    assert reset_each_action["imitation_scheduled_resets"] == 3
+    assert full_episode["imitation_labeled_age_64plus_seat0"] == 0
+    assert full_episode["imitation_labeled_age_64plus_seat1"] == 0
+
+
 def test_imitation_disagreement_weight_requires_a_frozen_source() -> None:
     with pytest.raises(ValueError, match="requires initialization"):
         validate_config(replace(training_config(), imitation_disagreement_weight=4.0))
