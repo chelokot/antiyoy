@@ -93,6 +93,35 @@ gain after giving plain search more expansion nodes. This does not equate wall
 time, because response search has additional rollout overhead. Results must be
 checked on disjoint maps with both seat assignments before promotion.
 
+The opt-in three-turn variant searches a bounded root followup after each
+opponent response. On 256 fresh Classic Generic procedural-v2 maps with both
+seats, it improved over the two-turn reply agent on 77 independent maps, lost
+on 30, and tied on 149. Its fixed-pool relative Elo was +64.5 with a
+map-bootstrap 95% interval of +38.2 to +90.2. One of 512 games reached the
+2400-action tournament horizon and was already a candidate loss; the
+worst-case timeout analysis leaves the paired result unchanged. Against the
+frozen routed-v6 direct policy on a separate 256-map both-seat window, the
+three-turn agent won 328 of 512 terminal head-to-head games, approximately
++100 head-to-head Elo with a map-bootstrap interval of +70 to +131. The
+[protocol and full ledger summary](benchmarks/2026-09-24-procedural-duel-three-turn-finite-horizon-v2-cpu.json)
+distinguish tournament adjudication from original-game terminal victory.
+Classic Slay had frequent nonterminal games in its profile check, so neither
+this Elo estimate nor the Classic Generic outcome is a universal Antiyoy
+rating. No neural distillation student has passed the corresponding fresh
+game-strength gates, and the browser's rated bot has not changed.
+
+To reproduce the finite-horizon native comparison, run:
+
+```bash
+cargo run --release -p antiyoy-cli -- multi-compare \
+  --map procedural --generator-schema-version 2 --players 2 \
+  --width 11 --height 9 --maps 256 --seed 6410000 \
+  --candidate search --baseline search --search-nodes 256 \
+  --baseline-search-nodes 256 --candidate-reply-nodes 64 \
+  --baseline-reply-nodes 64 --candidate-followup-nodes 32 \
+  --candidate-slate-size 8 --action-limit 2400 --rules classic-generic --json
+```
+
 These duel-relative ratings do not transfer to five-player procedural maps:
 on 128 rotated-start maps, search-256 won 135 of 640 seat trials versus 128
 expected for the greedy reference, but the independent-map comparison was
