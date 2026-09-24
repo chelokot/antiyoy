@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "kind": "exact_three_turn_teacher_contiguous_whole_turn_block_diagnostic",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-teacher-block-length-v1.json",
+  "code_and_protocol_commit": "89e0b70",
+  "status": "four_turn_block_helps_baseline_but_contiguity_not_established",
+  "arena": "Classic Generic procedural_v2 11x9 two players, frozen routed-v6 direct opponent, 2400-action finite horizon",
+  "fresh_window": {"seed_first": 6470000, "independent_maps": 64, "both_root_seats": true},
+  "completion": {"games": 896, "terminal_games": 896, "nonterminal_games": 0, "distinct_seed_seat_arm_keys": 896},
+  "arms": [
+    {"name": "direct", "actual_teacher_turns": 0, "wins_by_root_seat": [41, 23], "total_wins": 64, "median_game_actions": 128.0},
+    {"name": "first_1", "actual_teacher_turns": 128, "wins_by_root_seat": [42, 28], "total_wins": 70, "versus_direct_maps_better_worse_same": [12, 6, 46], "descriptive_map_sign_p": 0.237884521484375, "median_game_actions": 138.0},
+    {"name": "first_2", "actual_teacher_turns": 256, "wins_by_root_seat": [40, 27], "total_wins": 67, "versus_direct_maps_better_worse_same": [9, 6, 49], "descriptive_map_sign_p": 0.60723876953125, "versus_first_1_maps_better_worse_same": [10, 11, 43], "median_game_actions": 137.5},
+    {"name": "first_4", "actual_teacher_turns": 512, "wins_by_root_seat": [45, 33], "total_wins": 78, "versus_direct_maps_better_worse_same": [19, 5, 40], "descriptive_map_sign_p": 0.006610751152038574, "versus_first_1_maps_better_worse_same": [15, 11, 38], "versus_first_1_descriptive_map_sign_p": 0.557197093963623, "median_game_actions": 133.5},
+    {"name": "first_8", "actual_teacher_turns": 1024, "wins_by_root_seat": [41, 28], "total_wins": 69, "versus_direct_maps_better_worse_same": [18, 13, 33], "descriptive_map_sign_p": 0.47312965989112854, "versus_first_1_maps_better_worse_same": [16, 17, 31], "median_game_actions": 140.0},
+    {"name": "distributed_25", "actual_teacher_turns": 618, "wins_by_root_seat": [45, 32], "total_wins": 77, "versus_direct_maps_better_worse_same": [18, 5, 41], "descriptive_map_sign_p": 0.010622024536132812, "median_game_actions": 142.0},
+    {"name": "full_teacher", "actual_teacher_turns": 2374, "wins_by_root_seat": [48, 33], "total_wins": 81, "versus_direct_maps_better_worse_same": [25, 8, 31], "descriptive_map_sign_p": 0.004551384132355452, "median_game_actions": 139.0}
+  ],
+  "schedule_contrast": {
+    "first_4_versus_distributed_25_independent_maps_better_worse_same": [14, 15, 35],
+    "first_4_teacher_turns": 512,
+    "distributed_25_teacher_turns": 618,
+    "interpretation": "The arms do not have exactly matched teacher-turn budgets or state distributions; this is exploratory and does not show a schedule advantage."
+  },
+  "interpretation": "The frozen first-four-turn teacher block improved complete-game outcomes relative to direct on this fresh pool, with gains in both root seats. One and two early teacher turns were unresolved, but the direct first_4 versus first_1 map comparison was also unresolved. Eight early turns were not better than direct, so the benefit is not monotonic with block length. Distributed 25-percent teacher turns matched the first-four-turn win count closely. These seven descriptive contrasts share maps and baselines; their unadjusted p-values are not policy-promotion evidence, an exact macro-plan credit label, or proof that consecutive search is causally necessary.",
+  "next_decision": "Do not train a neural student on this one fresh exploratory window. If testing a temporally coherent distillation target, first independently confirm the first-four-turn benefit and a direct block-versus-distributed contrast on a predeclared disjoint map window, while retaining explicit terminal/censor and both-seat gates. Otherwise investigate state-dependent teacher scheduling rather than treating block length as a monotonic hyperparameter.",
+  "verification": {"focused_python_tests": 5, "full_python_tests": 429, "ruff": "passed", "resource_policy": "SSH server fedora-toolbox, pinned one CPU nice19, no GPU, 218 KiB raw report"},
+  "raw_report": {"remote_path": "/tmp/antiyoy-residual.n17QTu/procedural-duel-teacher-blocks-6470000.json", "sha256": "dd6df2a69d17d3d79f93b92a16794162baf92021ee136a26139c095065cbfe02"},
+  "decision": "No model, rated bot, Site, or core rule change; keep all existing reserved final windows untouched."
+}
