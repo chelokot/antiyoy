@@ -1,0 +1,51 @@
+{
+  "kind": "read_only_fit_only_three_turn_shared_state_stop_audit",
+  "parent_protocol": "benchmarks/protocols/2026-09-24-duel-three-turn-plan-distillation-v1.json",
+  "parent_result": "benchmarks/2026-09-24-procedural-duel-three-turn-whole-plan-distillation-v2-cpu.json",
+  "question": "When the teacher ends earlier than the static plan after exactly the same action prefix, is EndTurn legal and voluntary at that identical state, and which action does the frozen policy prefer instead?",
+  "scope": {
+    "fit_first_seed": 6451000,
+    "fit_maps": 128,
+    "sampled_positions": 587,
+    "teacher_override_positions": 236,
+    "identical_state_stop_continue_positions": 72,
+    "independent_maps": 50,
+    "validation_maps_examined": 0,
+    "new_training": false,
+    "new_games": false
+  },
+  "method": "Replay exported candidate action indices from identical root states. For teacher plans that end sooner and whose entire pre-EndTurn prefix equals the static plan prefix, assert byte-for-byte equality of their full BatchObservations at the decision boundary. Verify unique legal EndTurn and locally indexed static continuation. Compare legal alternatives, frozen source and rejected student action log probabilities at this same state, and already exported three-turn search scores. Preserve all previously reported fit-only margin fields exactly.",
+  "results": {
+    "identical_state_checks_failed": 0,
+    "forced_endturn": 0,
+    "median_other_legal_actions": 65,
+    "median_legal_moves": 36,
+    "median_ready_owned_units": 3,
+    "static_next_action_kinds": {"Move": 62, "Recruit": 5, "Build": 5},
+    "frozen_source_prefers_stop_over_static_next_action": 3,
+    "rejected_student_prefers_stop_over_static_next_action": 7,
+    "median_source_endturn_minus_continue_log_probability": -8.5162935256958,
+    "median_student_endturn_minus_continue_log_probability": -3.3685942888259888,
+    "native_three_turn_score_teacher_better_than_static": 72,
+    "median_native_three_turn_score_gain": 437.5,
+    "seat0_positions": 43,
+    "seat1_positions": 29
+  },
+  "interpretation": [
+    "The exported indices and legal-action mask do not explain these 72 early stops: the two compared actions are available at byte-identical observations, and EndTurn is voluntary in every case.",
+    "The student's fitted preference moved toward stopping but still selected EndTurn over the static continuation action in only 7 of 72 cases. This identifies a same-state stop-versus-continue policy mismatch, not just a comparison between different late-turn states.",
+    "Positive native three-turn score gaps follow from selecting the teacher's preferred plan under that search objective. They are not independent terminal outcome labels or proof that stopping improves complete games.",
+    "This fit-only diagnosis does not rehabilitate the student: its predeclared independent offline validation failed. No policy, rating, browser agent or game rule changed."
+  ],
+  "artifacts": {
+    "fit_gzip_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "frozen_source_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "rejected_student_sha256": "97f243654304a37b1488f00e6bb0428a9fdec83de1255a0ae0bb21e2b978fe71",
+    "audit_script": "python/audit_three_turn_plan_margins.py",
+    "audit_script_sha256": "49538d7ef6f970928f782b92c5d8fac92c5c2cf06f70de667f349630a0356dd7",
+    "raw_audit_sha256": "275238f8e9a2b1212da23028b11fbbd370df788e78368e65fe363bfaff602f77",
+    "remote_scratch": "/tmp/antiyoy-residual.n17QTu/three-turn-plan-fit-margins-6451000-v5.json"
+  },
+  "verification": "Remote nice19 one-core Python: 419 tests passed, Ruff check and format passed. Removing the two new fields from the raw audit reproduces the prior v3 report byte-for-byte after canonical JSON sorting.",
+  "qualification": "Exploratory read-only analysis on already-used fit maps. Positions within a map are correlated. Search scores, action probabilities and same-state preferences are not terminal outcomes, autonomous game strength or Elo."
+}
