@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "kind": "rejected_markov_student_root_fidelity_read_only",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-markov-root-fidelity-v1.json",
+  "implementation": "python/audit_duel_markov_root_fidelity.py",
+  "sample": {
+    "independent_maps": 128,
+    "first_seed": 6451000,
+    "root_positions": 587,
+    "by_root_seat": [297, 290],
+    "provenance": "Existing previously inspected three-turn teacher whole-plan FIT data, independent of the rejected Markov student's own fit seeds6500000-6500288 and game gate seed6510000. No new maps, search or training.",
+    "dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "rejected_student_checkpoint_sha256": "1d6e6530bb2f16d273910fdeb4b2de491d2e115017468eb3f31d3aea43f64fe4",
+    "label": "Only the selected searched plan's first action, which earlier same-state auditing found identical between cached and replanned teachers on2548/2548 first actions. No later hidden-plan action labels."
+  },
+  "same_root_first_action_agreement": {
+    "source_matches_teacher": 227,
+    "rejected_student_matches_teacher": 258,
+    "student_matches_source": 378,
+    "student_departures_from_source": 209,
+    "exact_teacher_corrections_among_departures": 78,
+    "off_target_departures_among_departures": 131,
+    "off_target_breakdown": {
+      "student_matches_neither_on_teacher_source_disagreement": 84,
+      "student_departs_when_source_matches_teacher": 47
+    },
+    "map_net_teacher_agreement": {
+      "student_higher": 48,
+      "source_higher": 21,
+      "same": 59
+    },
+    "by_root_seat": [
+      {"seat": 0, "positions": 297, "source_matches": 113, "student_matches": 131, "exact_corrections": 41, "off_target_departures": 65},
+      {"seat": 1, "positions": 290, "source_matches": 114, "student_matches": 127, "exact_corrections": 37, "off_target_departures": 66}
+    ]
+  },
+  "strata": {
+    "teacher_action_kind": {
+      "move": {"positions": 436, "source_matches": 168, "student_matches": 199},
+      "recruit": {"positions": 87, "source_matches": 31, "student_matches": 29},
+      "end_turn": {"positions": 46, "source_matches": 27, "student_matches": 27, "exact_corrections": 0},
+      "build": {"positions": 18, "source_matches": 1, "student_matches": 3}
+    },
+    "legal_actions": {
+      "1": {"positions": 25, "source_matches": 25, "student_matches": 25},
+      "2-4": {"positions": 10, "source_matches": 5, "student_matches": 6},
+      "5-16": {"positions": 36, "source_matches": 10, "student_matches": 12},
+      "17+": {"positions": 516, "source_matches": 187, "student_matches": 215, "exact_corrections": 74, "off_target_departures": 126}
+    }
+  },
+  "verification": "All sampled seeds were present; both seat totals, teacher action-kind totals and legal-action-bin totals sum to587 positions. Both checkpoints and the dataset matched the predeclared hashes. Python452 tests and Ruff passed on the SSH server.",
+  "raw": {
+    "path": "/tmp/antiyoy-residual.n17QTu/markov-root-fidelity.json",
+    "sha256": "f7f5a1602f8b0205e37755c97e25ea27af08965a6e785969d286eb1b8de30a44",
+    "runner_sha256": "b26343e824305552828c9a9c2bff88b991198fe727ed071ecaf02675a91c99eb",
+    "exit_code": 0
+  },
+  "interpretation": "The rejected student increases same-state first-action agreement with the strong teacher on these previously inspected root states in both seats, but most of its departures from the source are not exact teacher corrections. The 17+-legal-action stratum contains most positions and departures. EndTurn teacher matches did not improve on this sample. These are correlated offline agreements, not terminal outcome labels or a fresh game gate; no causal explanation for the failed full-game student is established. The checkpoint remains rejected, unrated and undeployed."
+}
