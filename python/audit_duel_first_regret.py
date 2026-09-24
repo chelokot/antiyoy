@@ -10,7 +10,12 @@ import numpy as np
 import torch
 
 from antiyoy_rl import ProceduralConfig, VectorEnv
-from antiyoy_rl.model import RULE_FEATURES, UniversalPolicy, domain_key, encode_rules_batch
+from antiyoy_rl.model import (
+    RULE_FEATURES,
+    UniversalPolicy,
+    domain_key,
+    encode_rules_batch,
+)
 from antiyoy_rl.model_reply_search import ModelReplySearch
 from antiyoy_rl.routed import RoutedPolicy
 
@@ -101,7 +106,9 @@ def new_hybrid(audit_native_replies: bool) -> ModelReplySearch:
     )
 
 
-def native_teacher_action(environment: VectorEnv) -> np.ndarray:
+def native_teacher_action(
+    environment: VectorEnv, followup_nodes: int = 0
+) -> np.ndarray:
     return np.asarray(
         environment.reply_search_actions(
             node_budget=SEARCH_NODES,
@@ -110,6 +117,7 @@ def native_teacher_action(environment: VectorEnv) -> np.ndarray:
             beam_width=BEAM_WIDTH,
             branch_width=BRANCH_WIDTH,
             maximum_actions_per_turn=MAXIMUM_ACTIONS_PER_TURN,
+            followup_nodes=followup_nodes,
         ),
         dtype=np.uint64,
     )
@@ -294,7 +302,9 @@ def summarize(samples: list[dict[str, object]]) -> dict[str, object]:
         "positions_with_strict_regret": sampled,
         "by_root_seat": seat_counts,
         "independent_maps_with_uncensored_pairs": len(map_net),
-        "maps_with_both_seats_uncensored": sum(len(values) == 2 for values in by_map.values()),
+        "maps_with_both_seats_uncensored": sum(
+            len(values) == 2 for values in by_map.values()
+        ),
         "map_net_outcome": {
             "native_better": native_better,
             "hybrid_better": hybrid_better,
@@ -315,7 +325,9 @@ def main() -> None:
     arguments = parser.parse_args()
     checkpoint_sha256 = digest(arguments.checkpoint)
     if checkpoint_sha256 != CHECKPOINT_SHA256:
-        raise ValueError("first-regret protocol requires the frozen routed-v6 checkpoint")
+        raise ValueError(
+            "first-regret protocol requires the frozen routed-v6 checkpoint"
+        )
     policy, experts = load_routed_policy(arguments.checkpoint)
     samples = [
         sample_first_regret(seed, seat, policy, arguments.maximum_round)
