@@ -1,0 +1,59 @@
+{
+  "kind": "fresh_shared_stop_opponent_stability_probe",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-shared-stop-opponent-stability-v1.json",
+  "question": "Is the terminal preference for a three-turn search teacher's identical-prefix early EndTurn stable under two frozen opponent continuations?",
+  "inputs": {
+    "first_seed": 6460000,
+    "procedural_v2_maps": 64,
+    "completed_maps": 64,
+    "truncated_maps": 0,
+    "sampled_positions": 302,
+    "teacher_overrides": 121,
+    "selected_first_eligible_independent_maps": 24,
+    "dataset_gzip_sha256": "01bb860735ef4680d65e7a20734d44a966f8ca82bc63e56a1b74ea67891a8fcb",
+    "frozen_routed_v6_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867"
+  },
+  "method": "Force the teacher-selected short completed turn or longer static completed turn from the same exactly replayed pre-turn state on the first eligible position per independent map. Continue both branches with persistent native three-turn root search and either frozen routed-v6 direct opponent or frozen native two-turn reply-search opponent. All 96 branch games were terminal; action-limit adjudications would have been censored.",
+  "results": {
+    "direct_opponent": {
+      "teacher_stop_better": 5,
+      "static_continue_better": 0,
+      "same": 19,
+      "censored": 0,
+      "exact_two_sided_map_sign_p": 0.0625,
+      "root_seat_0": "4 better, 0 worse, 10 same",
+      "root_seat_1": "1 better, 0 worse, 9 same"
+    },
+    "two_turn_search_opponent": {
+      "teacher_stop_better": 5,
+      "static_continue_better": 0,
+      "same": 19,
+      "censored": 0,
+      "exact_two_sided_map_sign_p": 0.0625,
+      "root_seat_0": "3 better, 0 worse, 11 same",
+      "root_seat_1": "2 better, 0 worse, 8 same"
+    },
+    "cross_opponent_terminal_preference": {
+      "strict_better_in_both": 3,
+      "strict_reversals": 0,
+      "better_only_against_direct": 2,
+      "better_only_against_two_turn_search": 2,
+      "tied_under_both": 17,
+      "censored_in_either": 0
+    }
+  },
+  "interpretation": [
+    "Early stopping gave a favorable terminal outcome on seven independent maps under at least one continuation policy and a harmful outcome on none of these 24 selected maps. Each individual opponent-policy sign test remains inconclusive at p=0.0625.",
+    "Only three favorable maps were shared by both opponent policies. The outcome label still depends on how the opponent continues, even though no strict reversal appeared in this small probe.",
+    "Selection conditions on the native teacher choosing an identical-prefix early stop. These results are conditional branch outcomes, not evidence that a learned policy, search teacher or browser bot gained Elo. No student was trained or promoted."
+  ],
+  "artifacts": {
+    "runner_sha256": "0634b57e97065ed341cf9ddf3aeaffcf309441b2677db00c8dcdb03614e0f1db",
+    "audit_runner_sha256": "d609c1fd3e915a1e305deabfd5369d299c9d1a28e3f7e9991c88053e11f3e99e",
+    "audit_script_sha256": "b5b55bfdcef3b261f7749e8a19bbfb398f373a66a57217b4e6c552bf8e473530",
+    "raw_audit_sha256": "f629f5bb82c2226942b472800d49eab750159abc1a1397855a56a29d8721f1c4",
+    "remote_scratch": "/tmp/antiyoy-residual.n17QTu"
+  },
+  "verification": "Predeclared protocol b657c8e was pushed before fresh data collection. All 64 teacher-selfplay maps completed. Replayed forced candidate states matched the native exported post-turn observation exactly. Remote one-core nice19 audit exited zero, five focused and 424 full Python tests and Ruff passed; GitHub CI for audit code 026b039 passed.",
+  "qualification": "Exploratory small conditional terminal-label study on fresh maps. Do not tune or train on these selected positions, quote these conditional signs as an Elo estimate, or infer universal search strength."
+}
