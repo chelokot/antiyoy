@@ -17,6 +17,7 @@ export const wasmgame_step: (a: number, b: number, c: number) => void;
 export const wasmgame_step_bot: (a: number, b: number) => void;
 export const wasmgame_step_search: (a: number, b: number) => void;
 export const wasmgame_step_three_turn_search: (a: number, b: number) => void;
+export const wasmgame_step_three_turn_search_replanned: (a: number, b: number) => void;
 export const wasmgame_step_search_with_budget: (a: number, b: number, c: number) => void;
 export const wasmgame_search_node_budget: (a: number) => number;
 export const wasmgame_search_nodes: (a: number) => number;

@@ -242,6 +242,8 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, /placementMode\s+\? \{ kind: "single" as const, nodes: RATED_SEARCH_NODES \}/);
   assert.match(arena, /instance\.step_search_with_budget\(mode\.nodes\)/);
   assert.match(arena, /instance\.step_three_turn_search\(\)/);
+  assert.match(arena, /instance\.step_three_turn_search_replanned\(\)/);
+  assert.match(arena, /3-turn replan · tested 2P Classic/);
   assert.match(arena, /aria-label="Open game menu"/);
   assert.match(arena, /aria-label="Inspect selected hex"/);
   assert.match(arena, /<GamePiece cell=\{cell\} \/>/);
@@ -322,6 +324,16 @@ test("executes greedy and whole-turn search in the compiled WebAssembly engine",
     JSON.parse(strategicCopy.step_three_turn_search()),
   );
   assert.equal(strategic.three_turn_search_count(), 1n);
+  const replanned = new bindings.WasmGame(11, 9, 49n);
+  const replannedCopy = new bindings.WasmGame(11, 9, 49n);
+  assert.deepEqual(
+    JSON.parse(replanned.step_three_turn_search_replanned()),
+    JSON.parse(replannedCopy.step_three_turn_search()),
+  );
+  replanned.step_three_turn_search_replanned();
+  assert.equal(replanned.three_turn_search_count(), 2n);
+  replanned.free();
+  replannedCopy.free();
   strategic.free();
   strategicCopy.free();
   quickSearch.free();

@@ -21,6 +21,7 @@ export class WasmGame {
     step_search(): string;
     step_search_with_budget(node_budget: number): string;
     step_three_turn_search(): string;
+    step_three_turn_search_replanned(): string;
     three_turn_search_count(): bigint;
     static with_profile(width: number, height: number, seed: bigint, profile: string): WasmGame;
 }
@@ -58,6 +59,7 @@ export interface InitOutput {
     readonly wasmgame_step_bot: (a: number, b: number) => void;
     readonly wasmgame_step_search: (a: number, b: number) => void;
     readonly wasmgame_step_three_turn_search: (a: number, b: number) => void;
+    readonly wasmgame_step_three_turn_search_replanned: (a: number, b: number) => void;
     readonly wasmgame_step_search_with_budget: (a: number, b: number, c: number) => void;
     readonly wasmgame_search_node_budget: (a: number) => number;
     readonly wasmgame_search_nodes: (a: number) => number;

@@ -210,6 +210,11 @@ impl WasmGame {
         self.step_with_policy(BotPolicy::ThreeTurnSearch)
     }
 
+    pub fn step_three_turn_search_replanned(&mut self) -> Result<String, JsError> {
+        self.three_turn_search.clear_plan();
+        self.step_with_policy(BotPolicy::ThreeTurnSearch)
+    }
+
     pub fn step_search_with_budget(&mut self, node_budget: usize) -> Result<String, JsError> {
         if self.search.config().node_budget != node_budget {
             let config = SearchConfig {
