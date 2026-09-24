@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_three_turn_search_pilot",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-three-turn-search-v1.json",
+  "code_commit": "dd4be2b",
+  "arena": "Classic Generic procedural_v2 11x9 two-player maps, action limit1000",
+  "candidate": "root beam256/top8, opponent full-turn beam64, root followup full-turn beam32",
+  "baseline": "root beam256/top8, opponent full-turn beam64",
+  "paired_games": {
+    "seed_first": 6380000,
+    "independent_maps": 32,
+    "both_seat_games": 64,
+    "candidate_wins": 41,
+    "baseline_reference_wins": 32,
+    "candidate_wins_by_seat": [25, 16],
+    "baseline_reference_wins_by_seat": [24, 8],
+    "paired_seat_games_better": 13,
+    "paired_seat_games_worse": 4,
+    "paired_seat_games_same": 47,
+    "independent_maps_better": 10,
+    "independent_maps_worse": 1,
+    "independent_maps_same": 21,
+    "independent_map_exact_two_sided_sign_p": 0.01171875,
+    "candidate_action_limit_adjudications": 0,
+    "baseline_action_limit_adjudications": 0,
+    "elapsed_seconds_for_reference_and_candidate_games": 29.815095522,
+    "raw_json_sha256": "fd7ad4b1776db442053aa1001e0ce5392f891542e1ddab2732172a0a399c03f3"
+  },
+  "control": {
+    "description": "Identical native two-turn reply-search on both sides on the same32 maps",
+    "independent_maps_better": 0,
+    "independent_maps_worse": 0,
+    "independent_maps_same": 32,
+    "candidate_wins_by_seat": [24, 8],
+    "baseline_reference_wins_by_seat": [24, 8],
+    "raw_json_sha256": "6eb6782bf868dac705489330758af5473ced840ac169235b3ff6e6fe1dff24f6"
+  },
+  "matched_root_decision_latency": {
+    "states": "The initial player-zero state and native reply-search's first completed-turn successor for player one on each pilot map; fixed states for both methods, alternating measurement order",
+    "samples_by_seat": [32, 32],
+    "baseline_median_ms": 0.9355310000000001,
+    "candidate_median_ms": 1.1529919999999998,
+    "median_ratio": 1.232446599845435,
+    "raw_json_sha256": "591ce2131c80eb7e36b1ee9f3a39b0488d5a46bcca60315dd210e4e1922c4653"
+  },
+  "resources": "SSH server fedora-toolbox, nice19, one pinned CPU, Rayon/BLAS capped, no GPU. /tmp had17GiB free and /var/home16GiB free when started; no other user processes touched.",
+  "interpretation": "Predeclared pilot gate passed: positive independent-map outcome, nonnegative results in both seats, no adjudications, and median early-root decision latency below3x baseline. This is a small exploratory pool, not global Elo or established strength. The latency sample covers opening states, not entire-game worst cases.",
+  "decision": "Run only the reserved fresh256-map both-seat confirmation seed6381000, then require the predeclared independent-map significance, both-seat, terminal, runtime and rules-profile gates before promotion. Ordinary search agents and browser/rated agents remain unchanged."
+}
