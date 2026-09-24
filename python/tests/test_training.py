@@ -27,6 +27,7 @@ from python.train import (
     policy_rollin_mask,
     recovery_checkpoint_path,
     rollout_targets,
+    train,
     validate_config,
 )
 from antiyoy_rl.model import UniversalPolicy, encode_rules_batch
@@ -66,6 +67,8 @@ def training_config() -> TrainingConfig:
         imitation_reset_interval=0,
         imitation_teacher="greedy",
         imitation_search_replan=False,
+        imitation_reply_replan=False,
+        imitation_reply_followup_nodes=0,
         imitation_rollin="teacher",
         imitation_symmetry_augmentation=False,
         imitation_reference_weight=0.0,
@@ -645,6 +648,9 @@ def test_training_rejects_invalid_search_teacher_configuration() -> None:
 def test_reply_search_teacher_requires_a_valid_duel_configuration() -> None:
     valid = replace(training_config(), imitation_teacher="reply_search")
     validate_config(valid)
+    validate_config(
+        replace(valid, imitation_reply_replan=True, imitation_reply_followup_nodes=32)
+    )
     with pytest.raises(ValueError, match="at least two reply nodes"):
         validate_config(replace(valid, reply_search_nodes=1))
     with pytest.raises(ValueError, match="positive slate"):
@@ -655,6 +661,35 @@ def test_reply_search_teacher_requires_a_valid_duel_configuration() -> None:
         validate_config(replace(valid, fog=True))
     with pytest.raises(ValueError, match="requires the search teacher"):
         validate_config(replace(valid, imitation_search_replan=True))
+    with pytest.raises(ValueError, match="must not be negative"):
+        validate_config(replace(valid, imitation_reply_followup_nodes=-1))
+    with pytest.raises(ValueError, match="requires the reply search teacher"):
+        validate_config(replace(training_config(), imitation_reply_replan=True))
+    with pytest.raises(ValueError, match="requires the reply search teacher"):
+        validate_config(replace(training_config(), imitation_reply_followup_nodes=32))
+
+
+def test_replanned_three_turn_teacher_runs_two_policy_rollin_updates() -> None:
+    config = replace(
+        training_config(),
+        updates=0,
+        imitation_updates=2,
+        imitation_teacher="reply_search",
+        imitation_reply_replan=True,
+        imitation_reply_followup_nodes=4,
+        imitation_rollin="policy",
+        search_nodes=8,
+        reply_search_nodes=4,
+        reply_slate_size=2,
+        checkpoint=None,
+    )
+
+    summary = train(config)
+
+    assert summary["imitation_transitions"] == 2
+    assert summary["imitation_reply_replan"] is True
+    assert summary["imitation_reply_followup_nodes"] == 4
+    assert "replanned_reply_labels" in summary["algorithm"]
 
 
 def test_imitation_disagreement_weight_requires_a_frozen_source() -> None:

@@ -81,6 +81,8 @@ class TrainingConfig:
     imitation_reset_interval: int
     imitation_teacher: str
     imitation_search_replan: bool
+    imitation_reply_replan: bool
+    imitation_reply_followup_nodes: int
     imitation_rollin: str
     imitation_symmetry_augmentation: bool
     imitation_reference_weight: float
@@ -538,6 +540,17 @@ def validate_config(config: TrainingConfig) -> None:
         raise ValueError("imitation_teacher must be greedy, search, or reply_search")
     if config.imitation_search_replan and config.imitation_teacher != "search":
         raise ValueError("imitation_search_replan requires the search teacher")
+    if config.imitation_reply_replan and config.imitation_teacher != "reply_search":
+        raise ValueError("imitation_reply_replan requires the reply search teacher")
+    if config.imitation_reply_followup_nodes < 0:
+        raise ValueError("imitation_reply_followup_nodes must not be negative")
+    if (
+        config.imitation_reply_followup_nodes > 0
+        and config.imitation_teacher != "reply_search"
+    ):
+        raise ValueError(
+            "imitation_reply_followup_nodes requires the reply search teacher"
+        )
     if config.imitation_teacher == "reply_search":
         if config.reply_search_nodes < 2 or config.reply_slate_size < 1:
             raise ValueError(
@@ -997,6 +1010,8 @@ def pretrain_teacher(
                 beam_width=config.search_beam_width,
                 branch_width=config.search_branch_width,
                 maximum_actions_per_turn=config.search_maximum_actions_per_turn,
+                followup_nodes=config.imitation_reply_followup_nodes,
+                replan_each_action=config.imitation_reply_replan,
             )
         elif config.imitation_search_replan:
             selected = environment.search_actions_replanned(
@@ -1489,6 +1504,10 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
             algorithm += "_rot180_augmented"
         if config.imitation_search_replan:
             algorithm += "_replanned_labels"
+        if config.imitation_reply_replan:
+            algorithm += "_replanned_reply_labels"
+        if config.imitation_reply_followup_nodes > 0:
+            algorithm += f"_followup_{config.imitation_reply_followup_nodes}"
         if config.imitation_reset_interval > 0:
             algorithm += "_periodic_map_resets"
         if config.imitation_reference_weight > 0:
@@ -1548,6 +1567,8 @@ def train(config: TrainingConfig) -> dict[str, float | int | str]:
         "imitation_environment_resets": imitation_environment_resets,
         "imitation_teacher": config.imitation_teacher,
         "imitation_search_replan": config.imitation_search_replan,
+        "imitation_reply_replan": config.imitation_reply_replan,
+        "imitation_reply_followup_nodes": config.imitation_reply_followup_nodes,
         "reply_search_nodes": config.reply_search_nodes
         if config.imitation_teacher == "reply_search"
         or config.fixed_opponent == "reply_search"
@@ -1655,6 +1676,8 @@ def parse_args() -> TrainingConfig:
         default="greedy",
     )
     parser.add_argument("--imitation-search-replan", action="store_true")
+    parser.add_argument("--imitation-reply-replan", action="store_true")
+    parser.add_argument("--imitation-reply-followup-nodes", type=int, default=0)
     parser.add_argument(
         "--imitation-rollin", choices=("teacher", "policy"), default="teacher"
     )

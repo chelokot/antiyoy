@@ -281,6 +281,12 @@ actions; divergence invalidates the plan and triggers a new search. Imitation
 accuracy is only a training diagnostic. A student becomes a stronger model
 only after a fresh paired full-game comparison against the frozen source.
 
+For the opt-in three-turn teacher that replans from every current state, add
+`--imitation-reply-replan --imitation-reply-followup-nodes 32`. Without these
+flags, the command above still uses the cached two-turn teacher. Replanning
+matches a direct policy's observation-only decision boundary but costs more
+teacher searches; its labels do not by themselves prove student strength.
+
 If an imitation student loses despite a stronger teacher, run a paired
 evaluation with `--baseline policy`, `--baseline-checkpoint SOURCE`, and
 `--audit-reply-teacher`. The audit counts teacher/source disagreements and

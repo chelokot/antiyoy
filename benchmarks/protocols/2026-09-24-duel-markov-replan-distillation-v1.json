@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_markov_three_turn_teacher_distillation",
+  "question": "Can the existing direct policy improve complete-game strength by imitating the newly validated three-turn teacher that searches again at every student-visited atomic state, without search at student inference?",
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "action_limit": 2400,
+    "timeout": "Flag material adjudication as nonterminal; require zero censoring for strict game gates"
+  },
+  "teacher": {
+    "agent": "Native reply_search_actions with replan_each_action=true, root beam256/top8 distinct completed turns/opponent full-turn beam64/root followup beam32",
+    "provenance": "The in-place native API exactly matched fresh-fork search on all 4606 observations and actions in the independent seed6493000 equivalence audit. The replanned teacher beat cached search 238:18 in direct terminal games on seed6492000 and the frozen direct model 447:65 on seed6494000. These windows are excluded from fit and validation.",
+    "label": "The teacher's legal atomic action at the student's current observed state, recomputed every action. No hidden cached teacher plan or terminal outcome oracle is used during training."
+  },
+  "student": {
+    "initial_checkpoint": "Frozen routed-v6 Classic Generic two-player expert SHA256 68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867, routed from procedural_v1",
+    "architecture": "The existing UniversalPolicy, all parameters trainable, direct legal-action argmax at inference without search or persistent plan state",
+    "controlled_training_recipe": "Repeat the original policy-rollin reply-search BC recipe unchanged except for the newly validated Markov three-turn teacher and fresh independent map seeds: 32 procedural_v2 environments, 512 imitation updates, reset all environments every64 updates, student argmax rollin, cross-entropy against the exact teacher action plus0.1 KL from frozen source, AdamW learning rate0.0001, no PPO updates, CPU device and deterministic seed6500000. Search budgets256/8/64/32, beam width32, branch width48, maximum24 actions per searched turn. The earlier cached two-turn BC was weaker on its own held-out maps, so this is not an isolated causal test of replanning alone.",
+    "checkpoint_selection": "One final checkpoint after exactly512 updates; no intermediate checkpoint selection, threshold search, hyperparameter tuning or held-out retraining"
+  },
+  "windows": {
+    "fit": {"first_seed": 6500000, "initial_maps": 32, "reset_seeds": "Sequential seeds after the initial32, including deterministic terminal resets and eight periodic full resets; all fit seeds stay below6509000"},
+    "read_only_offline_diagnostic": {"first_seed": 6509000, "maps": 32},
+    "source_head_to_head_gate": {"first_seed": 6510000, "maps": 128, "both_seats": true},
+    "teacher_fixed_opponent_gate": {"first_seed": 6511000, "maps": 128, "both_seats": true},
+    "final_promotion": {"first_seed": 6512000, "maps": 256, "both_seats": true}
+  },
+  "analysis": "Record training command and code/checkpoint/log SHA256, teacher label count, actual fit seed range, elapsed CPU time and checkpoint size. Offline same-state teacher-action agreement is descriptive only and cannot substitute for games. On each game window report terminal/censored outcomes, each seat, paired wins grouped by independent map, exact two-sided map sign p and map-bootstrap95 fixed-pool Elo. Do not call the old and new teacher BC runs a matched ablation because their teachers and maps differ.",
+  "gates": {
+    "fit": "Stop on error, resource limit or seed overlap. Do not choose an intermediate checkpoint.",
+    "direct_source": "On fresh source_head_to_head_gate maps, play the frozen student directly against the frozen source in both seats. Require all256 games terminal, positive student win difference in each seat, grouped independent-map sign p<0.05 and map-bootstrap95 lower head-to-head Elo above zero. Otherwise reject without querying the teacher gate.",
+    "teacher": "If the direct-source gate passes, evaluate frozen student and source separately against the SAME fixed replanned native teacher on teacher_fixed_opponent_gate maps, both seats. Require all512 games terminal, student wins strictly more in each seat, paired independent-map sign p<0.05 and positive lower map-bootstrap95 pool-relative Elo. A positive result is only strength relative to the source against this fixed teacher, not proof of beating the teacher.",
+    "promotion": "If both gates pass, freeze the same checkpoint and repeat direct-source and fixed-teacher complete-game comparisons on final_promotion maps. Require the same independent-map, both-seat and zero-censor gates, direct-action median latency no worse than1.2x the source, and later new disjoint Online Default and Classic Slay profile checks with explicit timeout sensitivity before any rated or owner-private Site promotion. Do not touch legacy reserved seed6300000 or rejected-student seeds6453000/6454000/6455000."
+  },
+  "resources": "Heavy compute only on SSH server fedora-toolbox after fresh aggregate resource checks. One CPU pinned15, nice19, Rayon/BLAS thread caps, bounded 2700-second fit and game jobs, tiny reports and checkpoint in own /tmp scratch, no GPU and no preemption of other users. Never touch the dirty remote original repository."
+}
