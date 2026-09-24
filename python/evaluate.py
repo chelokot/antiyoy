@@ -532,6 +532,7 @@ def evaluate(
     audit_model_reply_round_modulus: int = 8,
     followup_search_nodes: int = 0,
     replan_reply_search: bool = False,
+    selective_source_checkpoint_path: Path | None = None,
 ) -> dict[str, object]:
     if generator_schema_version not in (
         GENERATOR_SCHEMA_VERSION,
@@ -555,14 +556,26 @@ def evaluate(
         raise ValueError(f"unsupported model agent: {model_agent}")
     if model_agent == "selective_reply_search" and (
         players != 2
-        or baseline != "policy"
-        or baseline_checkpoint_path is None
+        or baseline not in ("policy", "reply_search")
+        or (
+            baseline == "policy"
+            and (
+                baseline_checkpoint_path is None
+                or selective_source_checkpoint_path is not None
+            )
+        )
+        or (baseline == "reply_search" and selective_source_checkpoint_path is None)
         or not replan_reply_search
         or followup_search_nodes < 1
     ):
         raise ValueError(
-            "selective reply search requires two-player source policy baseline and replanned followup search"
+            "selective reply search requires a frozen source checkpoint and replanned followup search"
         )
+    if (
+        selective_source_checkpoint_path is not None
+        and model_agent != "selective_reply_search"
+    ):
+        raise ValueError("selective source checkpoint requires selective reply search")
     if model_agent == "model_reply_search" and players != 2:
         raise ValueError("model reply search requires two-player games")
     if model_agent == "model_reply_search" and reply_slate_size < 1:
@@ -763,39 +776,50 @@ def evaluate(
     )
     baseline_policy = routed_policy
     baseline_selected_experts = selected_experts
-    if baseline_checkpoint_path is not None:
-        baseline_checkpoint = load_policy_checkpoint(baseline_checkpoint_path, device)
-        baseline_base_config = dict(baseline_checkpoint["config"])
+
+    def load_compatible_routed_policy(
+        path: Path,
+    ) -> tuple[RoutedPolicy, list[str]]:
+        checkpoint = load_policy_checkpoint(path, device)
+        checkpoint_config = dict(checkpoint["config"])
         environment_defaults = {
             "fog": False,
             "diplomacy": False,
             "initial_relation": "neutral",
         }
         for field, default in environment_defaults.items():
-            if baseline_base_config.get(field, default) != base_config.get(
-                field, default
-            ):
+            if checkpoint_config.get(field, default) != base_config.get(field, default):
                 raise ValueError(
-                    f"baseline checkpoint environment field does not match: {field}"
+                    f"routed checkpoint environment field does not match: {field}"
                 )
-        baseline_models: dict[str, UniversalPolicy] = {}
-        baseline_selected_experts = []
+        compatible_models: dict[str, UniversalPolicy] = {}
+        compatible_experts = []
         for seat in range(players):
-            baseline_state, baseline_config = select_policy_state(
-                baseline_checkpoint,
+            compatible_state, compatible_config = select_policy_state(
+                checkpoint,
                 evaluation_profile,
                 route_generator_name,
                 players,
                 seat,
                 route_domain,
             )
-            baseline_expert = str(baseline_config["selected_expert"])
-            if baseline_expert not in baseline_models:
-                baseline_models[baseline_expert] = instantiate_policy(
-                    baseline_state, baseline_config, device
+            expert = str(compatible_config["selected_expert"])
+            if expert not in compatible_models:
+                compatible_models[expert] = instantiate_policy(
+                    compatible_state, compatible_config, device
                 )
-            baseline_selected_experts.append(baseline_expert)
-        baseline_policy = RoutedPolicy(baseline_models, baseline_selected_experts)
+            compatible_experts.append(expert)
+        return RoutedPolicy(compatible_models, compatible_experts), compatible_experts
+
+    if baseline_checkpoint_path is not None:
+        baseline_policy, baseline_selected_experts = load_compatible_routed_policy(
+            baseline_checkpoint_path
+        )
+    selective_source_policy = (
+        load_compatible_routed_policy(selective_source_checkpoint_path)[0]
+        if selective_source_checkpoint_path is not None
+        else baseline_policy
+    )
 
     def evaluate_baseline_reference() -> BaselineSelfPlay:
         reference_games = games // players if model_seat is None else games
@@ -896,6 +920,8 @@ def evaluate(
     model_baseline_action_disagreements = 0
     model_policy_decisions = 0
     selective_reply_queries = 0
+    selective_candidate_decisions = 0
+    selective_source_overrides = 0
     reply_teacher_agreement = [empty_reply_teacher_agreement() for _ in range(players)]
     reply_teacher_game_agreement = [
         empty_reply_teacher_agreement() for _ in range(games)
@@ -1008,10 +1034,15 @@ def evaluate(
                 replan_reply_search,
             )
         if model_agent == "selective_reply_search":
+            source_actions = (
+                baseline_actions
+                if baseline == "policy"
+                else selective_source_policy.actions(observation, rules)
+            )
             model_actions, queries = selective_reply_search_actions(
                 environment,
                 model_actions,
-                baseline_actions,
+                source_actions,
                 model_turns,
                 search_nodes,
                 reply_search_nodes,
@@ -1022,6 +1053,12 @@ def evaluate(
                 followup_search_nodes,
             )
             selective_reply_queries += queries
+            selective_candidate_decisions += int(np.count_nonzero(model_turns))
+            selective_source_overrides += int(
+                np.count_nonzero(
+                    model_actions[model_turns] != source_actions[model_turns]
+                )
+            )
         if single_disagreement:
             disagreements = np.logical_and(
                 model_search_turns, model_actions != baseline_actions
@@ -1379,10 +1416,16 @@ def evaluate(
     if replan_reply_search:
         report["replan_reply_search"] = True
     if model_agent == "selective_reply_search":
+        report["selective_source_checkpoint"] = str(
+            baseline_checkpoint_path
+            if baseline == "policy"
+            else selective_source_checkpoint_path
+        )
         report["selective_reply_search"] = {
             "queries": selective_reply_queries,
-            "candidate_decisions": model_policy_decisions,
-            "query_fraction": selective_reply_queries / model_policy_decisions,
+            "candidate_decisions": selective_candidate_decisions,
+            "query_fraction": selective_reply_queries / selective_candidate_decisions,
+            "final_actions_different_from_source": selective_source_overrides,
         }
     if audit_model_replies and model_reply_search is not None:
         report["model_reply_audit_round_modulus"] = audit_model_reply_round_modulus
@@ -1410,6 +1453,7 @@ def main() -> None:
         default="greedy",
     )
     parser.add_argument("--baseline-checkpoint", type=Path)
+    parser.add_argument("--selective-source-checkpoint", type=Path)
     parser.add_argument("--profile")
     parser.add_argument("--search-nodes", type=int, default=2048)
     parser.add_argument("--search-beam-width", type=int, default=32)
@@ -1553,6 +1597,7 @@ def main() -> None:
                 arguments.audit_model_reply_round_modulus,
                 arguments.followup_search_nodes,
                 arguments.replan_reply_search,
+                arguments.selective_source_checkpoint,
             ),
             sort_keys=True,
         )

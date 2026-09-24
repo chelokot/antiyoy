@@ -1,6 +1,8 @@
 import numpy as np
+from pathlib import Path
 
-from python.evaluate import selective_reply_search_actions
+from python.evaluate import evaluate, selective_reply_search_actions
+from python.tests.test_bundle import write_checkpoint
 
 
 class SearchEnvironment:
@@ -64,3 +66,77 @@ def test_selective_search_skips_teacher_when_policies_agree() -> None:
     assert queries == 0
     assert actions.tolist() == [1, 2, 6, 4]
     assert environment.calls == []
+
+
+def test_selective_search_runs_against_full_teacher_with_separate_source(
+    tmp_path: Path,
+) -> None:
+    student = tmp_path / "student.pt"
+    source = tmp_path / "source.pt"
+    write_checkpoint(student, 1.0)
+    write_checkpoint(source, 2.0)
+
+    result = evaluate(
+        student,
+        games=2,
+        seed=96_000,
+        device_name="cpu",
+        baseline="reply_search",
+        profile="classic_generic_2022",
+        search_nodes=16,
+        search_beam_width=8,
+        search_branch_width=12,
+        search_maximum_actions_per_turn=8,
+        reply_search_nodes=8,
+        reply_slate_size=4,
+        followup_search_nodes=8,
+        replan_reply_search=True,
+        width=7,
+        height=5,
+        action_limit=40,
+        procedural=True,
+        generator_schema_version=2,
+        players=2,
+        model_agent="selective_reply_search",
+        selective_source_checkpoint_path=source,
+    )
+
+    assert result["baseline"] == "reply_search"
+    assert result["selective_source_checkpoint"] == str(source)
+    assert result["selective_reply_search"]["candidate_decisions"] > 0
+    assert (
+        result["selective_reply_search"]["queries"]
+        <= result["selective_reply_search"]["candidate_decisions"]
+    )
+    assert len(result["winners"]) == 2
+
+    agreement = evaluate(
+        student,
+        games=2,
+        seed=96_000,
+        device_name="cpu",
+        baseline="reply_search",
+        profile="classic_generic_2022",
+        search_nodes=16,
+        search_beam_width=8,
+        search_branch_width=12,
+        search_maximum_actions_per_turn=8,
+        reply_search_nodes=8,
+        reply_slate_size=4,
+        followup_search_nodes=8,
+        replan_reply_search=True,
+        width=7,
+        height=5,
+        action_limit=40,
+        procedural=True,
+        generator_schema_version=2,
+        players=2,
+        model_agent="selective_reply_search",
+        selective_source_checkpoint_path=student,
+    )
+
+    assert agreement["selective_reply_search"]["queries"] == 0
+    assert (
+        agreement["selective_reply_search"]["final_actions_different_from_source"] == 0
+    )
+    assert agreement["baseline_self_play"] == result["baseline_self_play"]
