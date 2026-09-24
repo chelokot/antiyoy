@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_fit_only_shared_state_stop_continuation_diagnostic",
+  "question": "When the three-turn teacher voluntarily ends a turn at exactly the same state where the static plan continues, does forcing that completed teacher turn improve terminal results after both branches resume the same persistent teacher policy?",
+  "input": {
+    "existing_fit_maps_first_seed": 6451000,
+    "existing_fit_maps": 128,
+    "fit_gzip_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "frozen_opponent_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867"
+  },
+  "sample": "Visit the existing fit dataset in ascending seed and original record order. Select the first teacher override per independent map whose teacher completed turn is shorter than the static completed turn and whose entire teacher pre-EndTurn action prefix equals the static prefix. Stop after 16 distinct maps. Do not inspect held-out or reserved windows, choose a later position on a selected map, or resample based on outcomes.",
+  "branches": "Fork the identical pre-turn root state twice. Apply the exported teacher-selected completed turn in one branch and the static rank-zero completed turn in the other, validating every local action and exact exported post-turn observations. Then run both branches independently to terminal or the original 2400-action cap. On every subsequent root-player decision use the frozen native three-turn search 256 root nodes, top8 completed turns, 64 opponent reply nodes, 32 root followup nodes; on every opponent decision use the same frozen routed-v6 direct policy. The root and opponent policies do not depend on which branch was forced.",
+  "analysis": "Report exact terminal winners, action-limit censorship and action counts for every paired branch. Compare root-seat terminal scores only when both branches are terminal; group by independent map and use an exact paired sign test descriptively. Report native teacher-vs-static score gaps separately from terminal outcomes. Any action-limit adjudication is censored, not silently called a win or loss.",
+  "resource_limit": "SSH server fedora-toolbox only, one pinned CPU nice19 with Rayon/BLAS caps, no GPU, timeout20 minutes, small JSON output. Stop if aggregate resources are pressured; do not preempt other work.",
+  "qualification": "Exploratory post hoc subset of previously used fit maps, not fresh validation, an unbiased policy estimate, Elo or a promotion gate. Do not train or tune on these branch results, and do not revive the failed student."
+}
