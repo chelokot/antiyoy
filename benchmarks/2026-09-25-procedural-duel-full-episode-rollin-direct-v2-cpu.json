@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_full_episode_replan_student_direct_source_game_gate",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-full-episode-replan-distillation-v1.json",
+  "evaluation_commit": "bdba35f",
+  "status": "Predeclared direct-source gate failed; reject the full-episode student and stop this ablation before reset-control games, teacher confirmation or promotion.",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, both seats, 2400-action cap with any material adjudication explicitly nonterminal",
+  "fresh_independent_maps": 128,
+  "first_seed": 6550000,
+  "direct_games": 256,
+  "candidate_checkpoint_sha256": "6f0670cccff396de22e780cc54bb4125d8b3267e28cc8bf0d29d0c0c6aa961f8",
+  "frozen_source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "candidate_direct_wins": 138,
+  "candidate_wins_by_seat": [87, 51],
+  "source_self_play_reference_wins_by_seat": [69, 59],
+  "candidate_nonterminal_games": 4,
+  "source_reference_nonterminal_games": 2,
+  "nonterminal_maps": [6550032, 6550070],
+  "nonterminal_outcomes": "Candidate games in both seats and the source self-play reference on each of these two maps reached the action limit and received a nonterminal material adjudication; they are not terminal wins or losses.",
+  "paired_independent_maps": {
+    "candidate_better": 28,
+    "source_better": 18,
+    "same": 82,
+    "exact_two_sided_sign_test_p": 0.18392482137699062
+  },
+  "descriptive_actual_fixed_pool_head_to_head_elo_including_nonterminal_adjudication": 27.198831638044446,
+  "map_bootstrap_95_elo_including_nonterminal_adjudication": [-5.429122875709548, 63.11505928929254],
+  "predeclared_gate": {
+    "all_games_terminal": false,
+    "both_seats_improve": false,
+    "independent_map_sign_p_below_0_05": false,
+    "bootstrap_lower_elo_positive": false,
+    "passed": false
+  },
+  "raw_json_sha256": "5e62cf92908044c9b7f6839309d141af43c93c19b0e24cf20a5e96f590e51d45",
+  "runner_sha256": "b19ec51343477f5620b7fb28e35bdbaeab3a53f8255df91bb6bc1890db160286",
+  "compute": "SSH server fedora-toolbox, one CPU15 pinned at nice19 with Rayon/BLAS threads capped, no GPU or parallel heavy job; runner exit0",
+  "interpretation": "Complete-episode student roll-in expanded training-state coverage but did not demonstrate a robust complete-game gain over the frozen source. The positive point Elo is descriptive for this fixed pool, includes nonterminal adjudications, has a bootstrap interval spanning zero, and is not a terminal-only or global rating. No evidence of strength against the native replanned teacher was collected.",
+  "stop_rule": "Do not run the reset64-control game, teacher seed6551000, final seed6552000, tune on seed6550000, rate or deploy either student. Retain both fit checkpoints only as rejected experimental artifacts.",
+  "raw_artifact": "/tmp/antiyoy-residual.n17QTu/full-episode-direct-6550000.json on the SSH server"
+}
