@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "kind": "fixed_snapshot_teacher_action_memorization_both_seats",
+  "question": "Does the full routed-v6 network memorize fixed searched first-action labels for both root seats, closing the seat-coverage limitation of the earlier one-seat fit-only diagnostic?",
+  "data": {
+    "source": "The SAME existing three-turn fit dataset, not any held-out window: first sampled root position for each seat on every one of 128 maps seed6451000 through6451127; exactly256 copied snapshots",
+    "fit_dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "label": "First legal action index of the exact native three-turn selected complete plan at each fixed root observation",
+    "coverage": "Require exactly128 unique map positions in each seat before optimization."
+  },
+  "optimization": {
+    "initialization": "Full routed-v6 Classic Generic two-player procedural_v1 expert",
+    "trainable": "Every existing UniversalPolicy parameter; no architecture change",
+    "objective": "Mean negative log probability of the fixed teacher action. No KL, augmentation, trajectory replay or terminal reward.",
+    "optimizer": "AdamW learning rate0.0003, zero weight decay, batch size16, gradient norm clip1.0, deterministic shuffle seed6451000, exactly1024 updates with repeated fixed snapshots and no checkpoint selection",
+    "readouts": "Exact same-snapshot argmax accuracy and mean teacher negative log probability at updates0,128,256,512,1024, separately for each root seat."
+  },
+  "gate": "At update1024 require at least95% same-snapshot teacher-action accuracy separately in each seat. If passed, infer only capacity/optimization on these repeated fixed fit snapshots. If failed, inspect label/observation/representation boundary without retuning this protocol. Neither outcome establishes held-out generalization, autonomous strength, Elo or a deployable student.",
+  "resources": "Only SSH server fedora-toolbox scratch, one pinned CPU nice19 with Rayon/BLAS caps, timeout1800 seconds, tiny JSON report, no retained checkpoint. Verify inputs, available resources and no concurrent heavy job first."
+}
