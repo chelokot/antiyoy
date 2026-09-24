@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_read_only_three_turn_teacher_agreement",
+  "purpose": "Measure the first action and complete-turn agreement of the frozen routed-v6 direct policy with the independently validated native three-turn search teacher on direct-policy self-play states. This is a distillation-target diagnostic, not a policy-strength or Elo test.",
+  "arena": "Classic Generic procedural_v2 11x9 two players, 2400-action finite horizon",
+  "map_window": {"seed_first": 6420000, "independent_maps": 32, "both_seats": true},
+  "rollout": "Frozen routed-v6 direct against the identical frozen routed-v6 direct checkpoint. Use procedural_v1 route generator, deterministic argmax actions, and record terminal versus action-limit adjudicated games separately.",
+  "checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "teacher": "Native root whole-turn beam256/top8 distinct completed turns, opponent full-turn beam64, root followup beam32. Evaluate the teacher at every direct-policy action without replacing the executed action.",
+  "analysis": "Report by-seat atomic-action agreement, first-action agreement and exact completed-turn agreement, total turns, terminal and adjudicated games. Group the two rotated seats by independent map for any uncertainty statement; do not call agreement a win-rate or strategic improvement. Inspect whether disagreements concentrate on nonstatic turns and map seeds without tuning a policy on this window.",
+  "resources": "Heavy computation only on SSH server fedora-toolbox, one pinned CPU at nice19 with Rayon/BLAS thread caps, bounded wall time and tiny JSON output. Check aggregate disk, memory and CPU first, and do not touch other workloads."
+}

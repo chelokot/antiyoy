@@ -505,9 +505,11 @@ def evaluate(
     if baseline == "reply_search" and players != 2:
         raise ValueError("reply search baseline requires two-player games")
     if followup_search_nodes < 0 or (
-        followup_search_nodes > 0 and baseline != "reply_search"
+        followup_search_nodes > 0
+        and baseline != "reply_search"
+        and not audit_reply_teacher
     ):
-        raise ValueError("followup search requires the reply search baseline")
+        raise ValueError("followup search requires a reply-search baseline or teacher audit")
     if audit_reply_teacher and (
         baseline != "policy"
         or baseline_checkpoint_path is None
@@ -940,6 +942,7 @@ def evaluate(
                     beam_width=search_beam_width,
                     branch_width=search_branch_width,
                     maximum_actions_per_turn=search_maximum_actions_per_turn,
+                    followup_nodes=followup_search_nodes,
                     active_mask=model_turns.astype(np.uint8),
                 ),
                 dtype=np.uint64,
@@ -1281,7 +1284,9 @@ def evaluate(
         "reply_search_nodes": reply_search_nodes if baseline == "reply_search" else 0,
         "reply_slate_size": reply_slate_size if baseline == "reply_search" else 0,
         "followup_search_nodes": (
-            followup_search_nodes if baseline == "reply_search" else 0
+            followup_search_nodes
+            if baseline == "reply_search" or audit_reply_teacher
+            else 0
         ),
     }
     if audit_model_replies and model_reply_search is not None:

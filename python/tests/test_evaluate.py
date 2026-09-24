@@ -264,7 +264,10 @@ def test_reply_search_baseline_rejects_multiplayer(tmp_path: Path) -> None:
         )
 
 
-def test_reply_teacher_audit_partitions_policy_decisions(tmp_path: Path) -> None:
+@pytest.mark.parametrize("followup_nodes", [0, 8])
+def test_reply_teacher_audit_partitions_policy_decisions(
+    tmp_path: Path, followup_nodes: int
+) -> None:
     checkpoint = tmp_path / "policy.pt"
     source = tmp_path / "source.pt"
     write_checkpoint(checkpoint, 1.0)
@@ -284,6 +287,7 @@ def test_reply_teacher_audit_partitions_policy_decisions(tmp_path: Path) -> None
         search_maximum_actions_per_turn=12,
         reply_search_nodes=8,
         reply_slate_size=4,
+        followup_search_nodes=followup_nodes,
         width=7,
         height=5,
         action_limit=24,
@@ -294,6 +298,7 @@ def test_reply_teacher_audit_partitions_policy_decisions(tmp_path: Path) -> None
     )
 
     counts = result["reply_teacher_agreement"]["by_seat"]
+    assert result["followup_search_nodes"] == followup_nodes
     assert len(counts) == 2
     assert (
         sum(seat["decisions"] for seat in counts)
