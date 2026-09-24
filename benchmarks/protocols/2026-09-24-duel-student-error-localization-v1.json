@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_two_turn_student_error_localization",
+  "question": "How often does the rejected two-turn behavioral-cloning student exactly correct the frozen source toward its teacher, miss a teacher correction, or introduce a new action where source and teacher agree, and how do these counts align with matched complete-game outcomes?",
+  "arena": "Classic Generic procedural_v2 11x9 two players, 1000-action limit matching the original student gate",
+  "fresh_window": {"seed_first": 6441000, "independent_maps": 32, "both_student_seats": true},
+  "student_checkpoint_sha256": "95f57060eb1ba56c9a35088e8c2d5c3f43cf9b8eed702bc142e165fd15b6a22b",
+  "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "teacher": "Unchanged native two-turn reply search, root whole-turn beam256/top8 distinct completed turns/opponent full-turn beam64, no root followup",
+  "method": "Student plays both candidate seats against the frozen direct source on paired maps. At each student action, query source and teacher on the exact same pre-action state without altering play. Export the existing per-seat agreement counts and newly added per-game counts for source-teacher agreement retained or broken, exact student teacher corrections, missed corrections, and actions matching neither. Keep game winners and explicit action-limit flags. No branch substitution or policy change.",
+  "analysis": "Verify the sum of per-game counts equals the existing per-seat counts; report both seats and independent-map paired outcomes. Report correction precision among student changes and per-game error rates by paired outcome as descriptive associations. Normalize by the number of student decisions and disclose game-length and action-limit confounding. Do not call an off-teacher action harmful solely because it disagrees with search, and do not infer causal outcome credit from aggregate game association.",
+  "interpretation_limit": "Diagnostic only: the teacher is two-turn, unlike the stronger three-turn teacher in the recent coverage experiment. Do not retune this failed student on the new window, promote it, rate it, or touch reserved final seed6300000. Any new student requires disjoint training/calibration/validation windows and fresh complete both-seat game gates.",
+  "resources": "Heavy compute only on SSH server fedora-toolbox, one pinned CPU nice19 with Rayon/BLAS caps, bounded duration and tiny JSON. Reinspect aggregate resources; do not touch other workloads or the dirty remote original repo."
+}
