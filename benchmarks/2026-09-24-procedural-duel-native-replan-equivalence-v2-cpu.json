@@ -1,0 +1,31 @@
+{
+  "kind": "native_replanning_exact_whole_game_equivalence",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-native-replan-equivalence-v1.json",
+  "code_commit": "7d90feb",
+  "arena": "Classic Generic procedural_v2 11x9, two players, 2400-action limit",
+  "fresh_independent_maps": 16,
+  "seed_first": 6493000,
+  "rotated_seat_games": 32,
+  "actions_compared": 4606,
+  "exact_full_observation_and_action_matches": 4606,
+  "identical_terminal_outcomes": 32,
+  "terminal_games": 32,
+  "action_limit_adjudications": 0,
+  "native_cpu_full_turn_selection_milliseconds": {
+    "fork_reference": {"turns": 585, "median": 35.78241029754281, "p95": 162.31125425547353},
+    "native_opt_in": {"turns": 585, "median": 33.68780156597495, "p95": 156.81371884420508}
+  },
+  "predeclared_gate": {
+    "all_maps_and_seats": true,
+    "every_observation_and_action_identical": true,
+    "all_terminal_outcomes_identical": true,
+    "zero_adjudications": true,
+    "native_median_below_fork_median": true,
+    "passed": true
+  },
+  "verification": "The two environments started from the same seed. Every BatchObservation array, including legal action ordering, and every selected legal action index was checked before stepping both environments. The fork-reference and in-place native actions ran in alternating order to reduce timing-order bias. Any mismatch would have aborted the run. All 32 games finished normally with identical outcomes.",
+  "raw_report": "/tmp/antiyoy-residual.n17QTu/procedural-duel-native-replan-equivalence-6493000.json",
+  "raw_report_sha256": "e4a15de85426729eed5fa2031fb9ca6eb873e3d55b8eb49c94da5be14b3e7cfc",
+  "runner_sha256": "7e1512d64c77260abe020c3099905f61aceab4c4bbc51011ab2d3e55dcbb045a",
+  "limitations": "This verifies implementation equivalence, not independent strength, browser WASM latency or other rules profiles. Native CPU timings include different Python/fork overhead and are descriptive. The browser and rated agents remain unchanged."
+}
