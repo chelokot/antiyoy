@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "kind": "exploratory_whole_turn_first_regret_intervention",
+  "status": "completed_negative_no_policy_promotion",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-first-regret-counterfactual-v1.json",
+  "arena": "Classic Generic procedural_v2 11x9 two players, action limit2400, route_generator procedural_v1",
+  "sample": "16 fresh independent maps seed6370000, both frozen hybrid root seats, first strict native reply-score regret no later than round32",
+  "frozen_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "selected_experts": ["context:b02423ddd2f8cdf9", "context:b02423ddd2f8cdf9"],
+  "policies": "At the pre-action state, force either the hybrid-selected or native search64-best completed root turn. Continue both branches with fresh identical frozen model-reply hybrid root policies and the same native reply-search root beam256/top8/opponent beam64, with no later intervention or online terminal oracle.",
+  "verification": "The branch collector exposed legal indexed completed-turn plans from the same native search, preserved the original pre-action state, censored action-limit outcomes explicitly, and passed 384 Python tests and Ruff on SSH server. A prior-used-map seat-one smoke at seed6361002 round7 reproduced identical terminal losses in both branches despite a native reply-score gap396. A fresh pilot case seed6370008 root seat0 was rerun separately and its sample matched byte-for-byte. Code commit53d8812 passed CI.",
+  "results": {
+    "map_seat_starts": 32,
+    "positions_with_first_strict_regret": 14,
+    "starts_without_strict_regret_before_terminal": 18,
+    "starts_without_strict_regret_stopped_by_round_limit": 0,
+    "maps_with_at_least_one_intervention": 13,
+    "maps_with_both_seats_intervened": 1,
+    "paired_branch_outcomes_with_both_terminal": 14,
+    "paired_branch_outcomes_censored_by_action_limit": 0,
+    "by_root_seat": {
+      "0": {"native_best_better": 0, "hybrid_better": 1, "same": 5, "censored": 0},
+      "1": {"native_best_better": 0, "hybrid_better": 0, "same": 8, "censored": 0}
+    },
+    "independent_map_net_terminal_outcome": {
+      "native_best_better": 0,
+      "hybrid_better": 1,
+      "same": 12,
+      "exact_two_sided_sign_p": 1.0
+    },
+    "native_reply_score_gap_range": [2, 611],
+    "reproduced_harmful_case": {
+      "map_seed": 6370008,
+      "root_seat": 0,
+      "intervention_round": 3,
+      "native_reply_score_gap": 5,
+      "hybrid_branch_terminal_winner": 0,
+      "native_best_branch_terminal_winner": 1,
+      "hybrid_branch_actions_after_intervention": 284,
+      "native_best_branch_actions_after_intervention": 171,
+      "rechecked_sample_sha256": "12e095f0ba02c71586352ed73a2491f1e534da48605d6f9c375e57af408a0ecd"
+    }
+  },
+  "raw_exploratory_json_sha256": "d4be3a997549fa28c03a33791872875f761daf8e5b67c964f4e1a5d7b955c13b",
+  "runner_sha256": "8e9cc855815bcd8b0e332511df0c600b865fd4da93ed58f01b4e3439dd6d8969",
+  "raw_artifact": "Remote scratch /tmp/antiyoy-residual.n17QTu/procedural-duel-first-regret-6370000.json, 9.2KB; runner exit0 and stderr empty",
+  "interpretation": "On these hybrid-visited positions, replacing the first strictly lower native one-turn reply-score choice did not improve any complete-game outcome under frozen continuation policies. One small-margin replacement worsened the terminal result. Fourteen matched positions on thirteen independent maps provide no evidence that conditional reply-score regret is a reliable terminal credit target; they do not prove the native reply selector is generally harmful or that a larger structurally different search cannot help.",
+  "decision": "Do not run the reserved seed6371000 confirmation window, train on this sparse conditional score target, revive or rate/deploy the rejected hybrid, or touch final promotion seed6300000. Seek an outcome-grounded target or stronger policy-search formulation, predeclare new disjoint maps, and require full both-seat independent-map game and runtime/profile gates before promotion."
+}
