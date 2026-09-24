@@ -1,0 +1,51 @@
+{
+  "kind": "replanned_vs_cached_three_turn_rules_profile_validation",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-replan-profiles-v1.json",
+  "code_commit": "073e01d",
+  "arena": "procedural_v2 11x9 two-player maps, 2400-action finite horizon with any material adjudication flagged nonterminal",
+  "search": "Direct head-to-head: native opt-in in-place replanning versus cached whole-turn plan, both root beam256/top8/opponent beam64/followup beam32, both seats rotated on every map",
+  "online_default_v1": {
+    "seed_first": 6495000,
+    "independent_maps": 64,
+    "rotated_seat_games": 128,
+    "terminal_games": 128,
+    "action_limit_adjudications": 0,
+    "replanned_wins_by_own_seat": [62, 58],
+    "cached_wins_by_replanned_seat": [2, 6],
+    "independent_maps_replanned_better_cached_better_same": [56, 0, 8],
+    "exact_two_sided_sign_test_p": 2.7755575615628914e-17,
+    "native_cpu_full_turn_milliseconds": {
+      "replanned": {"turns": 2440, "median": 31.417023856192827, "p95": 163.81519271526466},
+      "cached": {"turns": 2384, "median": 7.693832274526358, "p95": 24.990776390768588}
+    },
+    "predeclared_gate_passed": true,
+    "raw_report": "/tmp/antiyoy-residual.n17QTu/procedural-duel-replan-online-default-6495000.json",
+    "raw_report_sha256": "8d87aa286a66f3ac12c09701459feff87347ba0af741341a0566578d367667c2",
+    "runner_sha256": "8cfe506d5f3e8f52753d884bc2ed11b4247873e1a48091b5ee0a2d62fb19c395"
+  },
+  "classic_slay_2022": {
+    "seed_first": 6496000,
+    "independent_maps": 64,
+    "rotated_seat_games": 128,
+    "terminal_games": 122,
+    "action_limit_adjudications": 6,
+    "replanned_wins_by_own_seat_including_adjudication": [35, 49],
+    "cached_wins_by_replanned_seat_including_adjudication": [29, 15],
+    "independent_maps_replanned_better_cached_better_same": [27, 7, 30],
+    "exact_two_sided_sign_test_p": 0.0008213953115046024,
+    "worst_case_all_replanned_timeouts_as_losses": {
+      "independent_maps_replanned_better_cached_better_same": [25, 7, 32],
+      "exact_two_sided_sign_test_p": 0.0021024015732109547
+    },
+    "native_cpu_full_turn_milliseconds": {
+      "replanned": {"turns": 19097, "median": 4.735702183097601, "p95": 30.701512191444653},
+      "cached": {"turns": 19075, "median": 2.9118498787283897, "p95": 8.464436745271085}
+    },
+    "predeclared_finite_horizon_gate_passed": true,
+    "raw_report": "/tmp/antiyoy-residual.n17QTu/procedural-duel-replan-slay-6496000.json",
+    "raw_report_sha256": "e472208770d2da51656aa1bddc2a06846fcf53d8f195b91b7b4282f00a330743",
+    "runner_sha256": "e4de48a45c3b5807008275fe19c5d252d6ef4c39f80cf3b37c6eed1055aaa942"
+  },
+  "verification": "Both 64-map raw ledgers contain exactly two seat-rotated games per seed. Python 442 tests and Ruff passed on the SSH server; GitHub Rust/Python/web/WASM CI succeeded for 073e01d. Every Slay action-limit result is kept explicitly nonterminal, with a worst-case sensitivity that relabels every replanned censored game as a loss.",
+  "limitations": "Online Default is fully terminal in this sample. Classic Slay is only a finite-horizon result: six games were adjudicated at 2400 actions, and its numerous short EndTurn-dominated turns make the native timing distribution unlike Generic or browser play. These are fixed-arena paired results, not global Elo or a neural student. Browser WASM latency and owner-private UI gates remain. Rated/browser agents and core rules are unchanged."
+}
