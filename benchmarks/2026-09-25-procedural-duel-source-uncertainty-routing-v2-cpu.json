@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "kind": "source_uncertainty_search_routing_read_only_result",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-source-uncertainty-routing-feasibility-v1.json",
+  "status": "The frozen source's confidence weakly enriches for searched first-action disagreements, but simple confidence routing leaves many disagreements unqueried; no controller was built or promoted.",
+  "data": {
+    "previously_inspected_fit_maps": 128,
+    "first_seed": 6451000,
+    "root_positions": 587,
+    "root_positions_by_seat": [297, 290],
+    "source_teacher_first_action_disagreements": 360,
+    "source_teacher_first_action_disagreement_fraction": 0.6132879045996593,
+    "fit_dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "frozen_source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "teacher_label": "First action of the native three-turn searched whole-turn plan; the cached and replanned search have the same first action when queried on the same root state"
+  },
+  "median_source_top_action_probability": {
+    "when_source_matches_teacher": 0.4854775369167328,
+    "when_source_disagrees_with_teacher": 0.3490331619977951
+  },
+  "fixed_global_query_budgets": {
+    "quarter_by_normalized_entropy": {
+      "queries": 146,
+      "teacher_disagreements_captured": 106,
+      "capture_fraction": 0.29444444444444445,
+      "skipped_disagreements": 254,
+      "skipped_positions": 441,
+      "skipped_disagreement_fraction": 0.5759637188208617
+    },
+    "quarter_by_top_probability_margin": {
+      "queries": 146,
+      "teacher_disagreements_captured": 111,
+      "capture_fraction": 0.30833333333333335,
+      "skipped_disagreements": 249,
+      "skipped_positions": 441,
+      "skipped_disagreement_fraction": 0.564625850340136
+    },
+    "half_by_normalized_entropy": {
+      "queries": 293,
+      "teacher_disagreements_captured": 199,
+      "capture_fraction": 0.5527777777777778,
+      "skipped_disagreements": 161,
+      "skipped_positions": 294,
+      "skipped_disagreement_fraction": 0.5476190476190477
+    },
+    "half_by_top_probability_margin": {
+      "queries": 293,
+      "teacher_disagreements_captured": 212,
+      "capture_fraction": 0.5888888888888889,
+      "skipped_disagreements": 148,
+      "skipped_positions": 294,
+      "skipped_disagreement_fraction": 0.5034013605442177
+    }
+  },
+  "uniform_query_expectation": "A label-independent quarter or half of positions would capture approximately 25 or 50 percent of disagreements. Both confidence signals provide modest enrichment, not a demonstrated game-strength or latency benefit.",
+  "stratification": "The raw audit contains root-seat and legal-action-count strata for every fixed budget. Of 587 roots, 516 have at least 17 legal actions and 329 of the 360 source-teacher disagreements occur in that stratum. At the quarter-budget margin ranking, 223 of those 329 disagreements remain unqueried.",
+  "raw_audit_sha256": "fce5330f0e9994f2c776369baf68ee5fbf4fb404e10bea1fdbadd1ba32bb1698",
+  "audit_source_sha256": "358e73f4adb6f2f869da3f1051dd3a45fe04cdac87c1c0775ebc7e5993028941",
+  "verification": "Replay covered all128 maps and both seats; every teacher label was locally legal. The final audit reproduced byte-for-byte in a second run. Both runs used one pinned nice19 CPU on the SSH server; Python465 tests and Ruff passed there.",
+  "interpretation": "Teacher first-action disagreement is not terminal harm. This post hoc audit uses previously inspected fit maps and neither calibrates a threshold nor tests a policy. The simple single-model confidence idea does not yet justify a new complete-game evaluation or replacement of the validated full native search. The failed full-episode neural student and earlier slower two-model selective controller remain rejected; no rated or owner-private Site agent changed.",
+  "raw_artifact": "/tmp/antiyoy-residual.n17QTu/source-uncertainty-6451000-final.json on the SSH server"
+}
