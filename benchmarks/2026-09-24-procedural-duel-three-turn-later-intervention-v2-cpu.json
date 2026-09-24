@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "kind": "later_round_three_turn_teacher_terminal_intervention",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-three-turn-later-intervention-v1.json",
+  "protocol_commit": "b4db313",
+  "code_commit": "c8e6866",
+  "status": "negative_conditional_one_turn_credit",
+  "arena": "Classic Generic procedural_v2 11x9, two players, 2400-action horizon",
+  "seed_first": 6432000,
+  "independent_maps": 64,
+  "rotated_seat_starts": 128,
+  "checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "method": "Direct routed-v6 plays both seats through round7. At the first root-turn start in rounds8–24 with a different direct-versus-three-turn-teacher first action, fork the pre-turn state. Each policy completes one root turn on its respective branch; then direct routed-v6 controls both seats in BOTH branches to terminal or action limit. Teacher search is not used in the continuation.",
+  "sample": {"positions": 126, "no_intervention_before_terminal": 2, "round8": 70, "round9": 31, "round10_or_later": 25},
+  "branch_completion": {"terminal_branches": 252, "action_limit_adjudicated_branches": 0, "censored_pairs": 0},
+  "root_seat_outcome": [
+    {"root_seat": 0, "teacher_better": 7, "direct_better": 5, "same": 51, "no_intervention": 1},
+    {"root_seat": 1, "teacher_better": 4, "direct_better": 6, "same": 53, "no_intervention": 1}
+  ],
+  "independent_map_net_outcome": {"teacher_better": 6, "direct_better": 6, "same": 52, "exact_two_sided_sign_test_p": 1.0, "maps_with_both_seats_sampled": 62},
+  "interpretation": "Moving the sampled first disagreement to rounds8–24 did not reveal positive terminal one-turn credit under direct-policy continuation. Together with the separate opening-heavy window, this argues against using isolated teacher-turn terminal labels as the next distillation target. The first eligible rounds still dominate (101/126 samples in rounds8–9), and persistent multi-turn teacher play remains a different policy whose independently validated strength is not challenged by this conditional test.",
+  "raw_report": {"remote_path": "/tmp/antiyoy-residual.n17QTu/procedural-duel-three-turn-later-intervention-6432000.json", "sha256": "25917e2c80ea4ff70bd9510b5b82887c8a2124d42e12db2eb049c54a52018f4c"},
+  "verification": {"python_tests": 400, "ruff": "passed", "resource_policy": "SSH server fedora-toolbox, pinned single CPU, nice19, no GPU"},
+  "decision": "Stop further single-turn terminal-credit scaling on these windows. Investigate how persistent teacher plans depend on later teacher actions and how a student could represent that sequence; predeclare new disjoint data and full-game gates before training. No model, Elo rating, or playable bot changed."
+}
