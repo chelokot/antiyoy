@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "kind": "fixed_snapshot_teacher_action_memorization_both_seats",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-fixed-snapshot-both-seats-v1.json",
+  "implementation": "python/audit_duel_fixed_snapshot_memorization.py --both-seats",
+  "inputs": {
+    "existing_fit_seed": 6451000,
+    "independent_fit_maps": 128,
+    "fixed_snapshots": 256,
+    "snapshots_by_root_seat": [128, 128],
+    "fit_dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "label": "First legal action index of the selected native three-turn completed plan at the first sampled position for each map and seat"
+  },
+  "training": {
+    "trainable": "All parameters of existing routed-v6 UniversalPolicy",
+    "objective": "Mean searched-action negative log probability on repeatedly presented, unchanged fit snapshots; no KL, augmentation, new roll-ins or terminal reward",
+    "optimizer": "AdamW lr0.0003 weight_decay0, batch16, gradient norm clip1, deterministic shuffle seed6451000, exactly1024 updates",
+    "one_cpu_seconds": 324.9817969710566,
+    "checkpoint_retained": false
+  },
+  "same_training_snapshot_readouts": [
+    {"update": 0, "correct_by_seat": [56, 51], "total_by_seat": [128, 128], "mean_teacher_nll": 1.8669016882777214},
+    {"update": 128, "correct_by_seat": [128, 128], "total_by_seat": [128, 128], "mean_teacher_nll": 0.002637775265611708},
+    {"update": 256, "correct_by_seat": [128, 128], "total_by_seat": [128, 128], "mean_teacher_nll": 0.00009340385440737009},
+    {"update": 512, "correct_by_seat": [128, 128], "total_by_seat": [128, 128], "mean_teacher_nll": 0.000029049755539745092},
+    {"update": 1024, "correct_by_seat": [128, 128], "total_by_seat": [128, 128], "mean_teacher_nll": 0.000009002164006233215}
+  ],
+  "predeclared_gate": "At least95% same-snapshot accuracy separately in both seats at update1024: passed, 128/128 in each seat; already reached at update128.",
+  "raw": {
+    "path": "/tmp/antiyoy-residual.n17QTu/fixed-snapshot-both-seats.json",
+    "sha256": "17ea1b53c370896409a5e4f4b141567f5fddae380892b51dca4021192afb24d8",
+    "runner_sha256": "e9a24ab58aedbc03eb665c48c0fef9fc287b3f5b207ba2d83ec04d4233b3abbf",
+    "exit_code": 0,
+    "metadata_correction": "The raw run's maps=256 field counts snapshots, not independent maps. After the run, code labels these as snapshots=256 and independent_maps=128; numerical readouts and raw file are unchanged."
+  },
+  "interpretation": "The full network can memorize searched first actions on these 256 repeatedly presented FIT-ONLY states in both seats. This closes the earlier seat0-only capacity limitation. It does not establish unseen-map generalization, autonomous teacher fidelity, whole-turn choices or game strength. The prior rejected Markov student used fresh policy-rollin states, a different learning rate and source KL, so this result does not identify the cause of its failed held-out gate. No neural agent was promoted, rated or deployed."
+}
