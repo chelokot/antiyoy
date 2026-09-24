@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "kind": "selective_replanned_teacher_vs_frozen_source_fresh_game_gate",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-selective-replan-v1.json",
+  "controller": "Frozen rejected Markov student and frozen routed-v6 source propose legal atomic actions on the same observation. When they agree, play the source action; when they disagree, query the validated replanned three-turn native search and play its action. No network retraining, terminal oracle or change to original rules.",
+  "arena": "Fresh Classic Generic procedural_v2 11x9 two-player, 2400-action limit; separate nonterminal adjudication accounting",
+  "smoke": {
+    "seed_first": 6529000,
+    "independent_maps": 2,
+    "both_seat_games": 4,
+    "terminal_games": 4,
+    "teacher_queries": 119,
+    "candidate_decisions": 360,
+    "raw_sha256": "3ee1b720536a3bf62e9d6a72b5659495d08145ba70b8d7322061d590a71f3c4e"
+  },
+  "fresh_gate": {
+    "seed_first": 6530000,
+    "independent_maps": 128,
+    "both_seat_direct_games": 256,
+    "terminal_games": 256,
+    "candidate_nonterminal_games": 0,
+    "source_self_play_reference_nonterminal_games": 0,
+    "selective_candidate_direct_wins": 165,
+    "frozen_source_direct_wins": 91,
+    "candidate_direct_wins_by_own_seat": [96, 69],
+    "frozen_source_self_play_reference_wins_by_seat": [80, 48],
+    "candidate_minus_source_reference_by_seat": [16, 21],
+    "paired_independent_maps_against_source_reference": {
+      "candidate_better": 49,
+      "source_better": 12,
+      "same": 67,
+      "exact_two_sided_sign_test_p": 0.000001969878418086636
+    },
+    "actual_fixed_pool_direct_head_to_head_elo_candidate_over_source": 103.37702075712507,
+    "map_bootstrap_95_direct_head_to_head_elo": [63.11505928929254, 145.33938639461488],
+    "teacher_queries": 6105,
+    "candidate_atomic_decisions": 20016,
+    "teacher_query_fraction": 0.3050059952038369,
+    "final_actions_different_from_source": 4773,
+    "predeclared_gate_passed": true
+  },
+  "inputs": {
+    "rejected_student_checkpoint_sha256": "1d6e6530bb2f16d273910fdeb4b2de491d2e115017468eb3f31d3aea43f64fe4",
+    "frozen_source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "native_teacher": "Replan each queried action with root beam256/top8 distinct completed plans/opponent full-turn beam64/root followup beam32"
+  },
+  "raw": {
+    "game_report": "/tmp/antiyoy-residual.n17QTu/selective-replan-gate-6530000.json",
+    "game_report_sha256": "f448183571115338ff2b1732c2b8a795b02f6a59d093b79f188f675d5b0b983d",
+    "strict_audit": "/tmp/antiyoy-residual.n17QTu/selective-replan-gate-6530000-audit.json",
+    "strict_audit_sha256": "a29ac29c63091bd4a3dc41b68f57680874c67bd80483e0402a1ae3ba7bca7102",
+    "runner_sha256": "4bcc07dd06ac28fd4ef575193b220b1ac658bbda5c415eece47b0ad09ecb3dd1",
+    "exit_code": 0
+  },
+  "verification": "Strict auditor verified every map/seat game, all terminal flags, source self-play reference, paired comparison and query/override accounting. Python456 tests and Ruff passed on the SSH server; code CI green before the report commit.",
+  "limitations": [
+    "This is a search-assisted controller, NOT successful standalone neural amplification-distillation. The rejected student checkpoint remains rejected as a direct policy.",
+    "The Elo estimate applies only to this direct source matchup on this fixed procedural pool; it is not global or universal strength.",
+    "Teacher query fraction is a search-call count, not a matched wall-clock or browser latency measurement.",
+    "No direct comparison with the full replanned teacher, new-rule-profile confirmation, rated-agent or owner-private Site release has been performed for this controller."
+  ],
+  "next_gate": "Freeze the trigger and search parameters; predeclare new disjoint direct-versus-full-teacher and matched runtime/profile windows before any playable or rated promotion."
+}
