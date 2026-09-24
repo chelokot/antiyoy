@@ -230,6 +230,14 @@ fn three_turn_score(
     followup_config: SearchConfig,
 ) -> i64 {
     let reply = search_reply(turn, root_player, reply_config);
+    followup_score(&reply, root_player, followup_config)
+}
+
+pub fn followup_score(
+    reply: &SearchReply,
+    root_player: PlayerId,
+    followup_config: SearchConfig,
+) -> i64 {
     if reply.game.is_terminal() || reply.game.active_player() != root_player {
         return reply.score;
     }

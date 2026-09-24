@@ -63,6 +63,31 @@ def test_teacher_slate_loader_aligns_selection_and_observations(tmp_path: Path) 
     assert position.opponent_actions is None
     assert position.post_reply is None
     assert position.opponent_decisions is None
+    assert position.followup_scores is None
+
+
+def test_teacher_slate_loader_uses_three_turn_scores(tmp_path: Path) -> None:
+    value = report()
+    value["followup_search_nodes"] = 32
+    value["records"][0]["selected_index"] = 0
+    value["records"][0]["followup_scores"] = [40, 30]
+    path = tmp_path / "three-turn.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+
+    [position] = load_teacher_slates(path)
+
+    np.testing.assert_array_equal(position.opponent_reply_scores, [10, 20])
+    np.testing.assert_array_equal(position.followup_scores, [40, 30])
+
+
+def test_teacher_slate_loader_rejects_missing_three_turn_scores(tmp_path: Path) -> None:
+    value = report()
+    value["followup_search_nodes"] = 32
+    path = tmp_path / "missing-followup.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="followup scores disagree"):
+        load_teacher_slates(path)
 
 
 def test_teacher_slate_loader_aligns_opponent_actions(tmp_path: Path) -> None:

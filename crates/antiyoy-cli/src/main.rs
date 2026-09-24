@@ -236,6 +236,8 @@ struct SlateDatasetArgs {
     beam_slate_size: usize,
     #[arg(long, default_value_t = 64)]
     opponent_search_nodes: usize,
+    #[arg(long, default_value_t = 0)]
+    followup_search_nodes: usize,
     #[arg(long)]
     include_opponent_actions: bool,
     #[arg(long)]

@@ -2,8 +2,8 @@ use std::cmp::Reverse;
 use std::time::Instant;
 
 use antiyoy_agents::{
-    SearchAgent, SearchConfig, SearchReply, SearchTurnSlate, search_plan_indices, search_reply,
-    search_turn_slate,
+    SearchAgent, SearchConfig, SearchReply, SearchTurnSlate, followup_score, search_plan_indices,
+    search_reply, search_turn_slate,
 };
 use antiyoy_core::{Action, Game, GeneratorConfig, Rules};
 use antiyoy_rl::BatchObservation;
@@ -21,6 +21,8 @@ struct SlateRecord {
     selected_index: usize,
     static_scores: Vec<i64>,
     reply_scores: Vec<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    followup_scores: Option<Vec<i64>>,
     actions: Vec<Vec<Action>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     opponent_actions: Option<Vec<Vec<Action>>>,
@@ -55,6 +57,8 @@ struct SlateDataset {
     beam_slate_size: usize,
     opponent_search_nodes: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
+    followup_search_nodes: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     include_opponent_actions: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     include_opponent_observations: Option<bool>,
@@ -76,6 +80,7 @@ struct SlateDataset {
 struct ScoredSlate {
     slate: SearchTurnSlate,
     replies: Vec<SearchReply>,
+    followup_scores: Option<Vec<i64>>,
     selected: usize,
 }
 
@@ -112,13 +117,14 @@ fn collect(
         maximum_actions_per_turn: arguments.maximum_actions_per_turn,
         ..SearchConfig::default()
     };
-    SearchAgent::with_reply_search(
+    SearchAgent::with_three_turn_search(
         "slate-validation",
         search,
         arguments.beam_slate_size,
         arguments.opponent_search_nodes,
+        arguments.followup_search_nodes,
     )
-    .context("invalid reply-search configuration")?;
+    .context("invalid search configuration")?;
     let started = Instant::now();
     let mut records = Vec::new();
     let (mut completed_maps, mut truncated_maps) = (0, 0);
@@ -182,6 +188,8 @@ fn collect(
         search_nodes: arguments.search_nodes,
         beam_slate_size: arguments.beam_slate_size,
         opponent_search_nodes: arguments.opponent_search_nodes,
+        followup_search_nodes: (arguments.followup_search_nodes > 0)
+            .then_some(arguments.followup_search_nodes),
         include_opponent_actions: arguments.include_opponent_actions.then_some(true),
         include_opponent_observations: arguments.include_opponent_observations.then_some(true),
         include_opponent_decisions: arguments.include_opponent_decisions.then_some(true),
@@ -208,6 +216,7 @@ fn score_slate_for_args(
         search,
         arguments.beam_slate_size,
         arguments.opponent_search_nodes,
+        arguments.followup_search_nodes,
     )
 }
 
@@ -216,6 +225,7 @@ fn score_slate(
     search: SearchConfig,
     size: usize,
     reply_nodes: usize,
+    followup_nodes: usize,
 ) -> Result<ScoredSlate> {
     let slate = search_turn_slate(game, search, size)?;
     let reply_config = SearchConfig {
@@ -227,16 +237,32 @@ fn score_slate(
         .iter()
         .map(|turn| search_reply(turn, game.active_player(), reply_config))
         .collect::<Vec<_>>();
+    let followup_scores = (followup_nodes > 0).then(|| {
+        let followup_config = SearchConfig {
+            node_budget: followup_nodes,
+            ..search
+        };
+        replies
+            .iter()
+            .map(|reply| followup_score(reply, game.active_player(), followup_config))
+            .collect::<Vec<_>>()
+    });
     let selected = slate
         .turns
         .iter()
         .enumerate()
-        .max_by_key(|(index, turn)| (replies[*index].score, turn.score, Reverse(*index)))
+        .max_by_key(|(index, turn)| {
+            let score = followup_scores
+                .as_ref()
+                .map_or(replies[*index].score, |scores| scores[*index]);
+            (score, turn.score, Reverse(*index))
+        })
         .map(|(index, _)| index)
         .context("search did not produce a completed turn")?;
     Ok(ScoredSlate {
         slate,
         replies,
+        followup_scores,
         selected,
     })
 }
@@ -264,6 +290,7 @@ fn record_slate(
         selected_index: scored.selected,
         static_scores: scored.slate.turns.iter().map(|turn| turn.score).collect(),
         reply_scores: scored.replies.iter().map(|reply| reply.score).collect(),
+        followup_scores: scored.followup_scores.clone(),
         actions: scored
             .slate
             .turns
@@ -440,6 +467,8 @@ mod tests {
         assert!(serialized.get("rollin_indices").is_none());
         assert!(serialized.get("candidate_action_indices").is_none());
         let summary = serde_json::to_value(dataset).expect("serializable summary");
+        assert!(summary.get("followup_search_nodes").is_none());
+        assert!(serialized.get("followup_scores").is_none());
         assert!(summary.get("include_opponent_actions").is_none());
         assert!(summary.get("include_opponent_observations").is_none());
         assert!(summary.get("include_opponent_decisions").is_none());
@@ -465,7 +494,7 @@ mod tests {
             maximum_actions_per_turn: 8,
             ..SearchConfig::default()
         };
-        let scored = score_slate(&game, search, 4, 8).expect("valid slate");
+        let scored = score_slate(&game, search, 4, 8, 0).expect("valid slate");
         for (turn, reply) in scored.slate.turns.iter().zip(&scored.replies) {
             let mut response = turn.game.clone();
             for action in &reply.actions {
@@ -476,6 +505,46 @@ mod tests {
         }
         let mut agent =
             SearchAgent::with_reply_search("teacher", search, 4, 8).expect("valid agent");
+        let mut replay = game.clone();
+        let player = replay.active_player();
+        let mut legal = Vec::new();
+        for _ in 0..search.maximum_actions_per_turn {
+            replay.legal_actions(&mut legal);
+            let action = agent.select_action(&replay, &legal);
+            replay.step(action).expect("legal action");
+            if replay.is_terminal() || replay.active_player() != player {
+                break;
+            }
+        }
+        assert_eq!(replay, scored.slate.turns[scored.selected].game);
+    }
+
+    #[test]
+    fn scored_slate_matches_three_turn_search_agent_turn() {
+        let game = Game::new(
+            Rules::classic_generic(),
+            GeneratorConfig {
+                schema_version: 2,
+                players: 2,
+                seed: 6_270_001,
+                ..GeneratorConfig::default()
+            }
+            .generate()
+            .expect("valid map"),
+        )
+        .expect("valid game");
+        let search = SearchConfig {
+            node_budget: 32,
+            maximum_actions_per_turn: 8,
+            ..SearchConfig::default()
+        };
+        let scored = score_slate(&game, search, 4, 8, 4).expect("valid slate");
+        assert_eq!(
+            scored.followup_scores.as_ref().map(Vec::len),
+            Some(scored.slate.turns.len())
+        );
+        let mut agent =
+            SearchAgent::with_three_turn_search("teacher", search, 4, 8, 4).expect("valid agent");
         let mut replay = game.clone();
         let player = replay.active_player();
         let mut legal = Vec::new();
@@ -519,6 +588,7 @@ mod tests {
             search_nodes: 32,
             beam_slate_size: 4,
             opponent_search_nodes: 8,
+            followup_search_nodes: 0,
             include_opponent_actions: true,
             include_opponent_observations: true,
             include_opponent_decisions: true,
@@ -571,12 +641,26 @@ mod tests {
         without_replies.include_opponent_decisions = false;
         without_replies.include_rollin_indices = false;
         let plain = collect(
-            generator,
+            generator.clone(),
             &Rules::classic_generic(),
             "classic_generic_2022",
             &without_replies,
         )
         .expect("plain dataset");
         assert_opt_in_absent(&plain);
+
+        let mut with_followup = without_replies;
+        with_followup.followup_search_nodes = 4;
+        let extended = collect(
+            generator,
+            &Rules::classic_generic(),
+            "classic_generic_2022",
+            &with_followup,
+        )
+        .expect("three-turn dataset");
+        assert_eq!(extended.followup_search_nodes, Some(4));
+        assert!(extended.records.iter().all(|record| {
+            record.followup_scores.as_ref().map(Vec::len) == Some(record.static_scores.len())
+        }));
     }
 }

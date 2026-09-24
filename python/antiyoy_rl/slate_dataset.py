@@ -36,6 +36,7 @@ class TeacherSlatePosition:
     opponent_actions: tuple[tuple[str, ...], ...] | None
     post_reply: dict[str, np.ndarray] | None
     opponent_decisions: OpponentDecisions | None = None
+    followup_scores: np.ndarray | None = None
 
 
 @dataclass(frozen=True)
@@ -197,6 +198,9 @@ def load_teacher_slates(path: Path) -> list[TeacherSlatePosition]:
     generator = cast(dict[str, object], report["generator"])
     if report["schema_version"] != 1 or generator["players"] != 2:
         raise ValueError("teacher slate loader requires version-one two-player data")
+    followup_nodes = cast(int | None, report.get("followup_search_nodes"))
+    if followup_nodes is not None and followup_nodes <= 0:
+        raise ValueError("teacher slate followup search node count must be positive")
     positions = []
     for record in cast(list[dict[str, object]], report["records"]):
         observation, rules = model_observation(
@@ -204,10 +208,20 @@ def load_teacher_slates(path: Path) -> list[TeacherSlatePosition]:
         )
         static = np.asarray(record["static_scores"], dtype=np.int64)
         reply = np.asarray(record["reply_scores"], dtype=np.float64)
+        raw_followup = cast(list[int] | None, record.get("followup_scores"))
+        if (followup_nodes is None) != (raw_followup is None):
+            raise ValueError("teacher slate followup scores disagree with search configuration")
+        followup = (
+            np.asarray(raw_followup, dtype=np.float64)
+            if raw_followup is not None
+            else None
+        )
         actions = cast(list[list[object]], record["actions"])
         count = len(static)
         if not (count == len(reply) == len(actions) == len(observation["widths"])):
             raise ValueError("teacher slate candidate and observation counts differ")
+        if followup is not None and len(followup) != count:
+            raise ValueError("teacher slate followup score count differs")
         opponent_actions = cast(
             list[list[object]] | None, record.get("opponent_actions")
         )
@@ -258,12 +272,13 @@ def load_teacher_slates(path: Path) -> list[TeacherSlatePosition]:
                 candidate_offsets=offsets,
                 action_indices=indices,
             )
+        selection_scores = reply if followup is None else followup
         chosen = max(
             range(count),
-            key=lambda index: (reply[index], static[index], -index),
+            key=lambda index: (selection_scores[index], static[index], -index),
         )
         if chosen != record["selected_index"]:
-            raise ValueError("teacher slate selection disagrees with reply scores")
+            raise ValueError("teacher slate selection disagrees with search scores")
         positions.append(
             TeacherSlatePosition(
                 seed=cast(int, record["seed"]),
@@ -290,6 +305,7 @@ def load_teacher_slates(path: Path) -> list[TeacherSlatePosition]:
                 ),
                 post_reply=reply_observation,
                 opponent_decisions=decisions,
+                followup_scores=followup,
             )
         )
     if len(positions) != report["positions"]:
