@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "kind": "native_three_turn_cached_plan_vs_fresh_replanning_independent_confirmation",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-teacher-plan-cache-confirmation-v1.json",
+  "code_and_protocol_commit": "d6b04bf",
+  "status": "observation_state_replanning_teacher_passed_fixed_opponent_confirmation_but_not_head_to_head_runtime_or_profile_gates",
+  "arena": "Classic Generic procedural_v2 11x9 two players, frozen routed-v6 direct opponent, 2400-action finite horizon",
+  "fresh_window": {"seed_first": 6491000, "independent_maps": 64, "both_root_seats": true},
+  "completion": {"games": 384, "distinct_seed_seat_arm_keys": 384, "terminal_games": 384, "action_limit_adjudications": 0},
+  "same_state_cached_vs_fresh_replan": {
+    "compared_by_action_position_1_2_3_4plus": [2548, 2384, 1493, 3895],
+    "disagreements_by_action_position_1_2_3_4plus": [0, 500, 390, 1110],
+    "nonfirst_disagreements": 2000,
+    "nonfirst_compared": 7772,
+    "nonfirst_disagreement_fraction": 0.2573340195573855,
+    "interpretation": "No first-action mismatch; after the first action, the existing teacher's cached whole-turn plan differs frequently from a fresh search on the identical live game state. A feedforward student without plan memory was previously trained on cached reply-search labels, so that target is not purely observation-state determined. This does not prove the mismatch caused its poor games."
+  },
+  "complete_game_arms": [
+    {"arm": "direct", "wins_by_root_seat": [39, 25], "total_wins": 64, "root_turns": 2355, "root_actions": 9710},
+    {"arm": "cached_teacher", "wins_by_root_seat": [41, 31], "total_wins": 72, "root_turns": 2548, "root_actions": 10320, "versus_direct_maps_better_worse_same": [17, 9, 38], "descriptive_sign_p": 0.16863754391670227},
+    {"arm": "replanned_teacher", "wins_by_root_seat": [63, 51], "total_wins": 114, "root_turns": 2109, "root_actions": 10195, "versus_direct_maps_better_worse_same": [50, 0, 14], "predeclared_primary_sign_p": 1.7763568394002505e-15}
+  ],
+  "primary_gate": {
+    "replanned_vs_direct_independent_maps_better_worse_same": [50, 0, 14],
+    "exact_two_sided_sign_p": 1.7763568394002505e-15,
+    "both_seats_improved": true,
+    "both_arms_zero_censor": true,
+    "result": "passed"
+  },
+  "cached_vs_replanned_descriptive_contrast": {
+    "replanned_better_cached_better_same_independent_maps": [36, 1, 27],
+    "exact_two_sided_sign_p": 5.529727786779404e-10,
+    "qualification": "Both controllers played separate matched games against one fixed direct opponent; this is not a direct head-to-head between the search controllers."
+  },
+  "integrity": "The live game and fresh fork share identical full BatchObservation arrays in a later contract check, including the legal action ordering; a byte-for-byte rerun of the original 16-map pilot with the stricter invariant retained raw SHA256 d4368bac97e02a9e36c7768e1e718957463764de61e8e848a57e167ff252784a. The 64-map confirmation raw report was produced with the earlier action-offset equality guard; no move-selection code changed in the stricter check.",
+  "interpretation": "Fresh atomic-action replanning is a substantially stronger fixed-opponent controller in this procedural duel pool than the cached search and frozen direct policy. The result is unexpectedly large and merits direct head-to-head, latency, cross-profile and separate-map confirmation before any agent or Site promotion. It is a search amplification result, not a trained instant student, global Elo, or proof of causal mechanism for earlier student failures.",
+  "next_decision": "Predeclare fresh independent both-seat head-to-head replan versus cached search, matched state/runtime profiling and Online Default/Classic Slay checks. If those pass, add an opt-in native replan API without changing rated play, then design disjoint fit/calibration/validation/final windows for observation-state teacher distillation. Do not train on pilot6490000 or confirmation6491000.",
+  "verification": {"focused_python_tests": 3, "full_python_tests": 434, "ruff": "passed", "github_ci_for_code_protocol": "success", "resource_policy": "SSH server fedora-toolbox, one CPU pinned15 nice19, Rayon/BLAS capped, 30-minute hard cap", "runner_sha256": "7ded166fa5955a740429d3c81437deb89dbccd0ace60c2b04146283f11abd506"},
+  "raw_report": {"remote_path": "/tmp/antiyoy-residual.n17QTu/procedural-duel-teacher-plan-cache-confirmation-6491000.json", "bytes": 136718, "sha256": "979642d8877e1dc1ce00848725c6abedf1d6c7d2b11df6c84f08672c03d1ed5c"},
+  "decision": "No model, rated bot, Site, or core rule change."
+}

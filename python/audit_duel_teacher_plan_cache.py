@@ -35,9 +35,10 @@ ARMS = ("direct", "cached_teacher", "replanned_teacher")
 
 def replanned_teacher_action(environment: VectorEnv) -> np.ndarray:
     branch = environment.fork(np.asarray([0], dtype=np.uint64))
-    np.testing.assert_array_equal(
-        environment.observe()["action_offsets"], branch.observe()["action_offsets"]
-    )
+    live_observation = environment.observe()
+    branch_observation = branch.observe()
+    for name, values in live_observation.items():
+        np.testing.assert_array_equal(values, branch_observation[name])
     return native_teacher_action(branch, FOLLOWUP_NODES)
 
 

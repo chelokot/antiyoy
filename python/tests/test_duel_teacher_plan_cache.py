@@ -16,14 +16,16 @@ from python.audit_duel_three_turn_intervention import FOLLOWUP_NODES
 
 def test_fresh_replan_agrees_on_first_action_without_mutating_live_state() -> None:
     environment = create_environment(6490000)
-    before = environment.observe()
-    cached = native_teacher_action(environment, FOLLOWUP_NODES)
-    replanned = replanned_teacher_action(environment)
-
-    np.testing.assert_array_equal(cached, replanned)
-    after = environment.observe()
-    for key in ("owners", "objects", "active_players", "action_offsets"):
-        np.testing.assert_array_equal(before[key], after[key])
+    for action_index in range(4):
+        before = environment.observe()
+        cached = native_teacher_action(environment, FOLLOWUP_NODES)
+        replanned = replanned_teacher_action(environment)
+        if action_index == 0:
+            np.testing.assert_array_equal(cached, replanned)
+        after = environment.observe()
+        for key in before:
+            np.testing.assert_array_equal(before[key], after[key])
+        environment.step(cached)
 
 
 def test_plan_cache_summary_groups_both_root_seats_by_map() -> None:
