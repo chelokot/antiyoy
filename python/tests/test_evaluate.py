@@ -183,8 +183,9 @@ def test_evaluation_identifies_each_action_limit_adjudication(tmp_path: Path) ->
 
 
 @pytest.mark.parametrize("followup_nodes", [0, 8])
+@pytest.mark.parametrize("replan_each_action", [False, True])
 def test_reply_search_baseline_runs_rotated_procedural_duel(
-    tmp_path: Path, followup_nodes: int
+    tmp_path: Path, followup_nodes: int, replan_each_action: bool
 ) -> None:
     checkpoint = tmp_path / "policy.pt"
     write_checkpoint(checkpoint, 1.0)
@@ -203,6 +204,7 @@ def test_reply_search_baseline_runs_rotated_procedural_duel(
         reply_search_nodes=8,
         reply_slate_size=4,
         followup_search_nodes=followup_nodes,
+        replan_reply_search=replan_each_action,
         width=7,
         height=5,
         action_limit=40,
@@ -221,6 +223,7 @@ def test_reply_search_baseline_runs_rotated_procedural_duel(
     assert result["reply_search_nodes"] == 8
     assert result["reply_slate_size"] == 4
     assert result["followup_search_nodes"] == followup_nodes
+    assert result.get("replan_reply_search", False) == replan_each_action
 
 
 def test_model_reply_search_completes_matched_rotated_games(

@@ -340,6 +340,7 @@ def choose_baseline_actions(
     reply_search_nodes: int,
     reply_slate_size: int,
     followup_search_nodes: int = 0,
+    replan_reply_search: bool = False,
 ) -> np.ndarray:
     if baseline == "search":
         return np.asarray(
@@ -363,6 +364,7 @@ def choose_baseline_actions(
                 maximum_actions_per_turn=search_maximum_actions_per_turn,
                 followup_nodes=followup_search_nodes,
                 active_mask=active_mask.astype(np.uint8),
+                replan_each_action=replan_reply_search,
             ),
             dtype=np.uint64,
         )
@@ -497,6 +499,7 @@ def evaluate(
     audit_model_replies: bool = False,
     audit_model_reply_round_modulus: int = 8,
     followup_search_nodes: int = 0,
+    replan_reply_search: bool = False,
 ) -> dict[str, object]:
     if generator_schema_version not in (
         GENERATOR_SCHEMA_VERSION,
@@ -537,6 +540,8 @@ def evaluate(
         )
     if baseline == "reply_search" and players != 2:
         raise ValueError("reply search baseline requires two-player games")
+    if replan_reply_search and baseline != "reply_search":
+        raise ValueError("replanning requires a reply-search baseline")
     if followup_search_nodes < 0 or (
         followup_search_nodes > 0
         and baseline != "reply_search"
@@ -771,6 +776,7 @@ def evaluate(
                     reply_search_nodes,
                     reply_slate_size,
                     followup_search_nodes,
+                    replan_reply_search,
                 )
             )
             reference_result = reference_environment.step(reference_actions)
@@ -833,9 +839,7 @@ def evaluate(
     puct_selected_unvisited_actions = 0
     model_baseline_action_disagreements = 0
     model_policy_decisions = 0
-    reply_teacher_agreement = [
-        empty_reply_teacher_agreement() for _ in range(players)
-    ]
+    reply_teacher_agreement = [empty_reply_teacher_agreement() for _ in range(players)]
     reply_teacher_game_agreement = [
         empty_reply_teacher_agreement() for _ in range(games)
     ]
@@ -944,6 +948,7 @@ def evaluate(
                 reply_search_nodes,
                 reply_slate_size,
                 followup_search_nodes,
+                replan_reply_search,
             )
         if single_disagreement:
             disagreements = np.logical_and(
@@ -1290,6 +1295,8 @@ def evaluate(
         "reply_slate_size": reply_slate_size if reply_search_used else 0,
         "followup_search_nodes": (followup_search_nodes if reply_search_used else 0),
     }
+    if replan_reply_search:
+        report["replan_reply_search"] = True
     if audit_model_replies and model_reply_search is not None:
         report["model_reply_audit_round_modulus"] = audit_model_reply_round_modulus
         report["model_reply_native_audit"] = [
@@ -1324,6 +1331,7 @@ def main() -> None:
     parser.add_argument("--reply-search-nodes", type=int, default=64)
     parser.add_argument("--reply-slate-size", type=int, default=8)
     parser.add_argument("--followup-search-nodes", type=int, default=0)
+    parser.add_argument("--replan-reply-search", action="store_true")
     parser.add_argument("--audit-reply-teacher", action="store_true")
     parser.add_argument("--audit-model-replies", action="store_true")
     parser.add_argument("--audit-model-reply-round-modulus", type=int, default=8)
@@ -1457,6 +1465,7 @@ def main() -> None:
                 arguments.audit_model_replies,
                 arguments.audit_model_reply_round_modulus,
                 arguments.followup_search_nodes,
+                arguments.replan_reply_search,
             ),
             sort_keys=True,
         )

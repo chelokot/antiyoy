@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_replanned_three_turn_vs_frozen_direct_model",
+  "question": "Does the exact native in-place replanned three-turn search beat the frozen routed-v6 direct policy in complete both-seat procedural duel games, beyond its dominance over cached search?",
+  "fresh_window": {"seed_first": 6494000, "independent_maps": 256, "both_model_seats": true},
+  "arena": "Classic Generic procedural_v2 11x9, two players, 2400-action material tiebreak explicitly flagged nonterminal",
+  "agents": "Frozen routed-v6.pt SHA256 68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867 direct argmax versus opt-in native reply_search_actions(replan_each_action=true), root beam256/top8/opponent beam64/followup beam32. Route generator procedural_v1. Rotate the direct model through both seats on every independent map. The existing evaluator's baseline self-play is reported separately and does not count as direct head-to-head games.",
+  "analysis": "Report all512 game outcomes, model/native wins by seat, terminal/censor counts, exact independent-map paired sign test, actual fixed-pool head-to-head Elo and deterministic map-bootstrap95 interval. Check raw checkpoint/config/seed/seat ledger with the existing three-turn direct-model auditor plus an explicit replanned flag. No global Elo or cross-profile claim.",
+  "gate": "All512 direct games terminal, replanned search strictly more wins than direct model in EACH seat, paired independent-map sign p<0.05 favoring replanned search, and map-bootstrap95 lower head-to-head Elo bound above zero. Any censoring or seat regression fails the strict gate; report worst-case sensitivity but do not silently adjudicate as terminal. Further promotion also needs fresh Online Default and Classic Slay profiles plus browser WASM latency and owner-private UX checks.",
+  "resources": "Heavy games only on SSH server fedora-toolbox, one CPU pinned15 nice19, Rayon/BLAS capped, 2700-second hard timeout, tiny JSON, no GPU or preemption. Never touch the dirty remote original repo."
+}
