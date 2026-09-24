@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_read_only_replanned_teacher_student_error_boundary",
+  "question": "On the rejected Markov student's own complete-game states, did departures from the frozen source usually correct toward the replanned three-turn teacher, or add actions matching neither policy?",
+  "status": "Post hoc localization on the FIRST16 maps of the already inspected and failed direct game window seed6510000; these maps are not independent validation and this is not a new strength test.",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, both student seats, action limit2400, route generator procedural_v1",
+  "checkpoints": {
+    "student": "replan-markov-student-6500000.pt SHA256 1d6e6530bb2f16d273910fdeb4b2de491d2e115017468eb3f31d3aea43f64fe4",
+    "source": "routed-v6.pt SHA256 68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867"
+  },
+  "teacher": "Native reply_search_actions on student game states, root256/top8/opponent64/followup32, replan_each_action=true. Query without replacing student or source actions.",
+  "analysis": "Re-run exactly32 student-versus-source games on map seeds6510000..6510015 and require all32 outcomes and censor flags to reproduce the corresponding entries of the already committed 128-map raw report. At each student decision partition student/source/teacher exact legal indices into agreements, exact teacher corrections, unchanged source actions, novel deviations and teacher/source disagreements. Report each root seat and independent-map grouping, first-action and complete-turn teacher agreement, game outcomes, action-limit censoring, action counts, elapsed time and raw hashes. Treat action and turn records as correlated within maps; do not assign Elo, causal benefit or independent p-values to individual decisions.",
+  "decision": "If correction precision is low, this is a localization hypothesis about atomic BC rather than proof of why games failed. If correction precision is high, inspect state-distribution/trajectory outcome alignment instead. Either way the already failed student stays rejected; do not train or tune on these maps, query reserved seeds6511000/6512000, or deploy it.",
+  "resources": "One bounded nice19 CPU pinned15 on SSH server fedora-toolbox, Rayon/BLAS capped, no GPU, no parallel heavy job, small JSON output in own /tmp scratch, avoid other users' workloads and dirty remote original repo."
+}

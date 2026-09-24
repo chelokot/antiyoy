@@ -293,8 +293,9 @@ def test_reply_search_baseline_rejects_multiplayer(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("followup_nodes", [0, 8])
+@pytest.mark.parametrize("replan_each_action", [False, True])
 def test_reply_teacher_audit_partitions_policy_decisions(
-    tmp_path: Path, followup_nodes: int
+    tmp_path: Path, followup_nodes: int, replan_each_action: bool
 ) -> None:
     checkpoint = tmp_path / "policy.pt"
     source = tmp_path / "source.pt"
@@ -323,6 +324,7 @@ def test_reply_teacher_audit_partitions_policy_decisions(
         generator_schema_version=2,
         players=2,
         audit_reply_teacher=True,
+        replan_reply_search=replan_each_action,
     )
 
     agreement = result["reply_teacher_agreement"]
@@ -335,6 +337,7 @@ def test_reply_teacher_audit_partitions_policy_decisions(
     assert result["reply_search_nodes"] == 8
     assert result["reply_slate_size"] == 4
     assert result["followup_search_nodes"] == followup_nodes
+    assert result.get("replan_reply_search", False) == replan_each_action
     assert len(counts) == 2
     assert len(by_game) == result["games"]
     for seat, seat_counts in enumerate(counts):
@@ -387,6 +390,23 @@ def test_reply_teacher_audit_requires_a_frozen_direct_baseline(tmp_path: Path) -
             height=5,
             action_limit=24,
             audit_reply_teacher=True,
+        )
+    with pytest.raises(ValueError, match="reply-search baseline or teacher audit"):
+        evaluate(
+            checkpoint,
+            games=2,
+            seed=91_007,
+            device_name="cpu",
+            baseline="policy",
+            profile="classic_generic_2022",
+            search_nodes=32,
+            search_beam_width=12,
+            search_branch_width=20,
+            search_maximum_actions_per_turn=12,
+            width=7,
+            height=5,
+            action_limit=24,
+            replan_reply_search=True,
         )
 
 

@@ -540,8 +540,8 @@ def evaluate(
         )
     if baseline == "reply_search" and players != 2:
         raise ValueError("reply search baseline requires two-player games")
-    if replan_reply_search and baseline != "reply_search":
-        raise ValueError("replanning requires a reply-search baseline")
+    if replan_reply_search and baseline != "reply_search" and not audit_reply_teacher:
+        raise ValueError("replanning requires a reply-search baseline or teacher audit")
     if followup_search_nodes < 0 or (
         followup_search_nodes > 0
         and baseline != "reply_search"
@@ -977,6 +977,7 @@ def evaluate(
                     maximum_actions_per_turn=search_maximum_actions_per_turn,
                     followup_nodes=followup_search_nodes,
                     active_mask=model_turns.astype(np.uint8),
+                    replan_each_action=replan_reply_search,
                 ),
                 dtype=np.uint64,
             )

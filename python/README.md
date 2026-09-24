@@ -293,6 +293,8 @@ evaluation with `--baseline policy`, `--baseline-checkpoint SOURCE`, and
 whether the student followed the teacher, stayed with the source, or invented
 a third action, separately by seat. It also records whether matching the first
 action persisted through the completed turn.
+Add `--replan-reply-search --followup-search-nodes 32` to audit the
+observation-only three-turn teacher without changing the played moves.
 `--imitation-disagreement-weight 4` is an
 opt-in follow-up that increases the teacher loss only on source/teacher
 disagreements; it requires `--initialize` so the source is frozen. The
