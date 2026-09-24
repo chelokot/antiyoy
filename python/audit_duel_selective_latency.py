@@ -279,8 +279,8 @@ def main() -> None:
     parser.add_argument("--first-seed", type=int, required=True)
     parser.add_argument("--maps", type=int, required=True)
     parser.add_argument("--turns-per-game", type=int, default=12)
-    parser.add_argument("--source", type=Path, required=True)
-    parser.add_argument("--student", type=Path, required=True)
+    parser.add_argument("--source", dest="source_path", type=Path, required=True)
+    parser.add_argument("--student", dest="student_path", type=Path, required=True)
     arguments = parser.parse_args()
     print(json.dumps(audit(**vars(arguments)), sort_keys=True))
 

@@ -1,8 +1,13 @@
 from copy import deepcopy
+import json
+import sys
 
 import pytest
 
-from python.audit_duel_selective_latency import summarize
+from python import audit_duel_selective_latency as latency
+
+
+summarize = latency.summarize
 
 
 def record(seed: int, seat: int) -> dict[str, object]:
@@ -65,3 +70,42 @@ def test_selective_latency_gate_rejects_censoring_and_slow_queries() -> None:
     missing_seat["root_seat"] = 0
     with pytest.raises(ValueError, match="both seats"):
         summarize([record(1, 0), missing_seat])
+
+
+def test_selective_latency_cli_routes_checkpoint_paths(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "latency",
+            "--first-seed",
+            "6531900",
+            "--maps",
+            "2",
+            "--source",
+            "source.pt",
+            "--student",
+            "student.pt",
+        ],
+    )
+    monkeypatch.setattr(
+        latency,
+        "audit",
+        lambda **arguments: {
+            **arguments,
+            "source_path": str(arguments["source_path"]),
+            "student_path": str(arguments["student_path"]),
+        },
+    )
+
+    latency.main()
+
+    assert json.loads(capsys.readouterr().out) == {
+        "first_seed": 6531900,
+        "maps": 2,
+        "turns_per_game": 12,
+        "source_path": "source.pt",
+        "student_path": "student.pt",
+    }
