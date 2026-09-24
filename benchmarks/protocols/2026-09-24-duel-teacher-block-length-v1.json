@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_exact_teacher_contiguous_whole_turn_block_diagnostic",
+  "question": "Do contiguous whole-turn commitments to the validated three-turn teacher transfer complete-game benefit that one isolated teacher turn did not, and how do they compare with a dispersed 25-percent teacher-turn mixture?",
+  "fresh_window": {"seed_first": 6470000, "independent_maps": 64, "both_root_seats": true},
+  "arena": "Classic Generic procedural_v2 11x9, two players, 2400-action finite horizon with material adjudication flagged nonterminal",
+  "frozen_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "opponent": "Frozen routed-v6 direct policy on every opponent turn",
+  "candidate_arms": ["direct", "first_1", "first_2", "first_4", "first_8", "distributed_25", "full_teacher"],
+  "candidate_implementation": "Choose a frozen policy once at each candidate-seat turn start and let it control the complete turn. The first-k arms use exact native three-turn search for root turn indices 0 through k-1, then frozen direct for the rest. distributed_25 uses the existing deterministic seed/seat/turn hash; full_teacher uses exact native search on every candidate turn. Never splice atomic teacher actions into direct turns.",
+  "native_search": {"root_beam_nodes": 256, "distinct_completed_turn_slate": 8, "opponent_full_turn_beam_nodes": 64, "root_followup_beam_nodes": 32, "beam_width": 32, "branch_width": 48, "maximum_actions_per_turn": 24},
+  "analysis": "Record actual teacher/root turns, game length, terminal and action-limit-adjudicated outcomes by root seat. Compare each arm against direct on the same map and both seats, grouping by independent map; separately compare first_2, first_4 and first_8 against first_1. Report exact two-sided map sign tests descriptively, with all seven arms and any censoring visible. Compare first_4 versus distributed_25 as an exploratory schedule contrast only after showing actual teacher-turn counts, not as an equal-budget causal estimate.",
+  "decision_rule": "This is a mechanism experiment, not a student promotion gate. If multi-turn blocks improve complete-game outcomes while first_1 does not, pursue a new temporally coherent outcome-grounded distillation target on disjoint fit/calibration/validation/game windows. If not, reject the contiguous-block explanation and inspect state-dependent teacher use. Do not train or deploy from this diagnostic.",
+  "resources": "Run heavy games only on SSH server fedora-toolbox, one pinned CPU nice19, Rayon/BLAS capped, 1800-second hard timeout, tiny JSON, no GPU or preemption. Never touch the remote original repo."
+}

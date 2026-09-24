@@ -60,8 +60,18 @@ def test_whole_turn_coverage_preserves_the_direct_policy_outcome(
         on_root_turn=lambda observation, turn: observed_turns.append(turn),
     )
     searched = coverage.play_game(6449000, 0, 100, EndTurnPolicy())
+    block = coverage.play_game(
+        6449000,
+        0,
+        0,
+        EndTurnPolicy(),
+        select_teacher=lambda turn: turn == 0,
+    )
 
     assert direct["outcome"] == searched["outcome"]
+    assert block["outcome"] == direct["outcome"]
+    assert block["teacher_turns"] == 1
+    assert "teacher_percentage" not in block
     assert observed_turns == list(range(direct["root_turns"]))
     assert direct["teacher_turns"] == 0
     assert searched["teacher_turns"] == searched["root_turns"]

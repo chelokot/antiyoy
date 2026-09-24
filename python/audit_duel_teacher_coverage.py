@@ -53,6 +53,7 @@ def play_game(
     percentage: int,
     policy: PolicyActor,
     on_root_turn: Callable[[Mapping[str, np.ndarray], int], None] | None = None,
+    select_teacher: Callable[[int], bool] | None = None,
 ) -> dict[str, object]:
     environment = create_environment(seed)
     rules = encode_rules_batch(environment.rules_jsons(), torch.device("cpu"))
@@ -69,7 +70,11 @@ def play_game(
         if active == root and previous_active != root:
             if on_root_turn is not None:
                 on_root_turn(observation, root_turns)
-            selected_teacher = teacher_turn(seed, root, root_turns, percentage)
+            selected_teacher = (
+                select_teacher(root_turns)
+                if select_teacher is not None
+                else teacher_turn(seed, root, root_turns, percentage)
+            )
             root_turns += 1
             teacher_turns += int(selected_teacher)
         if active == root and selected_teacher:
@@ -82,15 +87,17 @@ def play_game(
         previous_active = active
     if result is None:
         raise ValueError("mixture game ended without an action")
-    return {
+    record: dict[str, object] = {
         "seed": seed,
         "root_seat": root,
-        "teacher_percentage": percentage,
         "root_turns": root_turns,
         "teacher_turns": teacher_turns,
         "teacher_actions": teacher_actions,
         "outcome": outcome(result, steps),
     }
+    if select_teacher is None:
+        record["teacher_percentage"] = percentage
+    return record
 
 
 def finite_score(branch: BranchOutcome, root: int) -> float:
