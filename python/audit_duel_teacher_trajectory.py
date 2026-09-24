@@ -39,7 +39,10 @@ def turn_state(
     profit = observation["province_profit"][province_start:province_end]
 
     def lead(values: np.ndarray, players: np.ndarray) -> int:
-        return int(np.sum(values[players == root]) - np.sum(values[players == 1 - root]))
+        return int(
+            np.sum(values[players == root], dtype=np.int64)
+            - np.sum(values[players == 1 - root], dtype=np.int64)
+        )
 
     return {
         "turn": turn_index + 1,

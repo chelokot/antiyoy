@@ -26,6 +26,9 @@ def test_turn_state_reads_root_relative_material_at_turn_start() -> None:
         "province_profit": 4,
         "unit_strength": 1,
     }
+    observation["active_players"] = np.asarray([0])
+    assert turn_state(observation, 0, 2)["owned_cells"] == -1
+    assert turn_state(observation, 0, 2)["province_money"] == -7
 
 
 def test_trajectory_summary_excludes_games_missing_a_matched_turn() -> None:
