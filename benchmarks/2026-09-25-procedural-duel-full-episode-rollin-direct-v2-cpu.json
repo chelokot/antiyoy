@@ -23,6 +23,22 @@
     "same": 82,
     "exact_two_sided_sign_test_p": 0.18392482137699062
   },
+  "post_hoc_seat_pattern_audit": {
+    "method": "Group the raw same-seed opposite-seat winner ledger by source self-play winner and the candidate winner in each seat; this is descriptive analysis of the already inspected direct-game window, not a new gate.",
+    "candidate_wins_in_both_seats_maps": 28,
+    "candidate_wins_only_in_seat0_maps": 59,
+    "candidate_wins_only_in_seat1_maps": 23,
+    "candidate_loses_in_both_seats_maps": 18,
+    "source_seat1_win_to_candidate_seat0_only_win_maps": 20,
+    "source_seat0_win_to_candidate_seat1_only_win_maps": 6,
+    "censored_maps": [6550032, 6550070],
+    "censored_map_pattern": "Both maps were source seat0 wins and candidate seat0-only wins under nonterminal material adjudication; they are excluded from the two cross-seat flip counts.",
+    "candidate_seat1_best_case_wins_if_both_censored_losses_become_wins": 53,
+    "source_seat1_minimum_wins_under_any_resolution_of_its_censored_games": 59,
+    "best_case_candidate_better_maps_if_both_censored_maps_become_improvements": 30,
+    "best_case_independent_map_sign_p": 0.11140289106101878,
+    "interpretation": "The seat1 and map-sign gates fail even if both censored maps are resolved in the candidate's favor. The asymmetric seat flips are an association in this fixed pool, not evidence of which learned actions caused them."
+  },
   "descriptive_actual_fixed_pool_head_to_head_elo_including_nonterminal_adjudication": 27.198831638044446,
   "map_bootstrap_95_elo_including_nonterminal_adjudication": [-5.429122875709548, 63.11505928929254],
   "predeclared_gate": {
