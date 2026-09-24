@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_procedural_duel_three_turn_finite_horizon_gate",
+  "status": "primary_and_profiles_passed_direct_model_window_running",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-three-turn-finite-horizon-v1.json",
+  "candidate": "root full-turn beam256/top8, opponent full-turn beam64, root followup full-turn beam32",
+  "baseline": "root full-turn beam256/top8, opponent full-turn beam64",
+  "tournament_convention": "At 2400 actions, retain existing material adjudication only as an explicitly nonterminal tournament tiebreaker. This is not a change to original Antiyoy victory rules.",
+  "primary": {
+    "arena": "Classic Generic procedural_v2 11x9 two players, fresh seed6410000",
+    "independent_maps": 256,
+    "rotated_seat_games": 512,
+    "candidate_wins_by_seat": [183, 120],
+    "baseline_reference_wins_by_seat": [151, 105],
+    "paired_independent_maps": {"candidate_better": 77, "baseline_better": 30, "same": 149, "exact_two_sided_sign_p": 0.0000062776102965905504},
+    "pool_relative_finite_horizon_elo": 64.5185369565004,
+    "map_bootstrap_95_pool_relative_elo": [38.153397218633565, 90.18866606285782],
+    "candidate_nonterminal_games": 1,
+    "baseline_reference_nonterminal_games": 0,
+    "nonterminal_case": {"seed": 6410110, "candidate_seat": 1, "candidate_adjudicated_winner": 0, "baseline_terminal_winner": 1},
+    "fully_terminal_maps": 255,
+    "fully_terminal_paired_maps": {"candidate_better": 77, "baseline_better": 29, "same": 149, "exact_two_sided_sign_p": 0.0000034525612188472387},
+    "worst_case_timeout_paired_maps": {"candidate_better": 77, "baseline_better": 30, "same": 149, "exact_two_sided_sign_p": 0.0000062776102965905504},
+    "prior_matched_all_turn_median_runtime_ratio": 2.120344471415774,
+    "prior_matched_all_turn_candidate_p95_ms": 21.395351,
+    "prior_matched_all_turn_baseline_p95_ms": 17.221628,
+    "primary_gate_passed": true,
+    "elapsed_seconds": 242.806163695,
+    "raw_json_sha256": "e185bc67895358e1f34634e8d70d7a6f514646e323600f92e59cd0c15de67cb4"
+  },
+  "profiles": [
+    {
+      "arena": "Classic Slay procedural_v2 11x9 two players, fresh seed6411000",
+      "independent_maps": 64,
+      "candidate_wins_by_seat": [37, 34],
+      "baseline_reference_wins_by_seat": [37, 27],
+      "paired_independent_maps": {"candidate_better": 16, "baseline_better": 9, "same": 39, "exact_two_sided_sign_p": 0.2295229434967041},
+      "candidate_nonterminal_games_of_128": 33,
+      "baseline_reference_nonterminal_games_of_64": 23,
+      "fully_terminal_maps": 30,
+      "formal_profile_gate_passed": true,
+      "caveat": "Very high timeout incidence makes this a finite-horizon tournament result, not evidence of terminal-only Slay strength or a cross-profile Elo estimate.",
+      "elapsed_seconds": 269.444034904,
+      "raw_json_sha256": "4f933f9c7f2906bc762d789ff00ee7f4737d1c93bcf13383dd8af5a9288c9a90"
+    },
+    {
+      "arena": "Online Default procedural_v2 11x9 two players, fresh seed6412000",
+      "independent_maps": 64,
+      "candidate_wins_by_seat": [47, 34],
+      "baseline_reference_wins_by_seat": [35, 29],
+      "paired_independent_maps": {"candidate_better": 19, "baseline_better": 2, "same": 43, "exact_two_sided_sign_p": 0.00022125244140625},
+      "candidate_nonterminal_games_of_128": 0,
+      "baseline_reference_nonterminal_games_of_64": 0,
+      "fully_terminal_maps": 64,
+      "formal_profile_gate_passed": true,
+      "elapsed_seconds": 60.561019953,
+      "raw_json_sha256": "a0b0f95f17b88cde8ccd3a0b4ab1c9bc4415cda4f7f4716e06609a96fcc14523"
+    }
+  ],
+  "direct_model_fresh_window": "seed6413000, 256 independent maps and both seats, frozen routed-v6 direct SHA68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867; running, no result yet",
+  "decision": "Primary and both predeclared profile gates passed. Do not rate or deploy before the fresh direct-model games and explicit timeout sensitivity pass. Do not generalize finite-horizon Elo to original-game terminal wins or other map/player distributions.",
+  "resources": "SSH server fedora-toolbox, nice19, one pinned CPU with Rayon and BLAS capped, no GPU; /tmp17GiB free and /var/home16GiB free at last check, other users' workloads untouched."
+}
