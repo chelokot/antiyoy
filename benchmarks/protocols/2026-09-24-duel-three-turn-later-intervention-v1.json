@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_later_round_three_turn_teacher_intervention",
+  "reason": "The first-disagreement terminal intervention on seed6430000 sampled86/128 positions in round1 and30/128 in round2. Its negative result is therefore opening-heavy and cannot identify later-game credit.",
+  "question": "At the first root-turn start in rounds8 through24 where frozen direct routed-v6 and validated native three-turn search choose different first actions, does the searched whole-turn intervention improve complete terminal outcomes under otherwise identical frozen direct-policy continuations?",
+  "arena": "Classic Generic procedural_v2 11x9 two players, 2400-action horizon",
+  "fresh_window": {"seed_first": 6432000, "independent_maps": 64, "both_seats": true, "minimum_round": 8, "maximum_round": 24},
+  "checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "roll_in": "Both players act by deterministic routed-v6 direct policy. Do not query or sample the teacher before round8. Among root-turn starts from round8 through24, take the first first-action disagreement or record no intervention separately.",
+  "teacher": "Unchanged native root whole-turn beam256/top8, opponent full-turn beam64, root followup beam32; replan searched actions throughout its one intervention turn.",
+  "intervention_and_continuation": "Fork the exact same pre-turn state, complete the direct or teacher root turn on each respective branch, then continue both players in BOTH branches with the identical frozen direct policy to terminal or the unchanged 2400-action limit. Never use search after that one teacher turn.",
+  "analysis": "Report sampled and unsampled starts, round distribution, both turn plans, terminal and truncation flags, winner and branch action count. Censor any pair with either truncation for terminal comparisons, reporting adjudications separately. Count teacher better/direct better/same by root seat and group rotated seats by independent map for a descriptive exact two-sided sign test. Do not treat actions, turns or correlated seats as independent.",
+  "interpretation_limit": "Conditional one-turn value under direct-policy continuation only. Do not train on sparse labels, tune policies on this exploratory map window, infer persistent teacher Elo, or touch reserved final promotion seed6300000. If later positions remain mostly tied or mixed, revisit the target/credit assumption rather than scaling the same BC or PPO recipe.",
+  "resources": "SSH server fedora-toolbox only for heavy compute, one pinned CPU at nice19 with Rayon/BLAS caps, bounded wall time and tiny output. Reinspect aggregate resources and avoid other workloads or dirty remote original repo."
+}
