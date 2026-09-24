@@ -1,0 +1,71 @@
+{
+  "kind": "independent_shared_stop_opponent_confirmation",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-shared-stop-opponent-confirmation-v1.json",
+  "question": "Does the favorable terminal signal for identical-prefix searched early EndTurns survive a larger fresh map window and two frozen opponent continuations?",
+  "inputs": {
+    "first_seed": 6461000,
+    "procedural_v2_maps": 128,
+    "completed_maps": 128,
+    "truncated_maps": 0,
+    "sampled_positions": 584,
+    "teacher_overrides": 210,
+    "eligible_first_positions_on_independent_maps": 46,
+    "minimum_predeclared_eligible_maps": 32,
+    "dataset_gzip_sha256": "d7c6269eb45d844fafbf1afaddfeb74e3a442cae75024c533580f7b5e4e48aa1",
+    "frozen_routed_v6_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867"
+  },
+  "method": "Repeat the exploratory identical-prefix early-stop versus longer static completed-turn branch experiment without changing search or continuation parameters. Select the first eligible position per map in seed/record order, then persistently play the same native three-turn root search against either frozen routed-v6 direct or native two-turn search opponent. Exactly replay every forced root candidate and verify its exported post-turn observation. All 184 branch games reached terminal; material action-limit adjudication was not used.",
+  "results": {
+    "direct_opponent": {
+      "teacher_stop_better": 5,
+      "static_continue_better": 6,
+      "same": 35,
+      "censored": 0,
+      "exact_two_sided_map_sign_p": 1.0,
+      "root_seat_0": "3 better, 4 worse, 17 same",
+      "root_seat_1": "2 better, 2 worse, 18 same"
+    },
+    "two_turn_search_opponent": {
+      "teacher_stop_better": 7,
+      "static_continue_better": 3,
+      "same": 36,
+      "censored": 0,
+      "exact_two_sided_map_sign_p": 0.34375,
+      "root_seat_0": "7 better, 1 worse, 16 same",
+      "root_seat_1": "0 better, 2 worse, 20 same"
+    },
+    "predeclared_nonharmful_conditional_label": {
+      "beneficial": 9,
+      "harmful": 8,
+      "neutral": 29,
+      "censored": 0,
+      "exact_two_sided_map_sign_p": 1.0,
+      "root_seat_0": "7 beneficial, 5 harmful, 12 neutral",
+      "root_seat_1": "2 beneficial, 3 harmful, 17 neutral",
+      "predeclared_confirmation_gate": "FAILED"
+    },
+    "cross_opponent_preference": {
+      "strict_agreement": 2,
+      "strict_reversal": 2,
+      "direct_only_strict": 7,
+      "two_turn_only_strict": 6,
+      "tied_under_both": 29,
+      "censored_in_either": 0,
+      "reversal_seeds": [6461001, 6461020]
+    }
+  },
+  "interpretation": [
+    "The fresh confirmation did not reproduce the exploratory 7 beneficial versus 0 harmful maps. The predeclared robust conditional label was 9 beneficial versus 8 harmful with exact map p=1.0, and root seat1 was 2 beneficial versus 3 harmful. Both the significance and both-seat conditions failed.",
+    "Two strict preference reversals and thirteen one-opponent-only differences show that terminal credit for this local stop/continue choice is sensitive to opponent continuation. The conditional native three-turn score is not a reliable terminal target for these selected choices.",
+    "This is not a full-policy strength comparison or Elo result. No neural student was trained, rated or deployed from either the exploratory or confirmation branch labels. Do not tune on this confirmation window or repeat the same local early-stop target."
+  ],
+  "artifacts": {
+    "collection_runner_sha256": "95e3dbd2b6251009c1ffe9e5a77fdf56dd4b9893a09661357cb4283a3e274dcb",
+    "audit_runner_sha256": "60351d81ee5f5faad96d56365d150e81865e7c3ff3b30556673508b7949469e8",
+    "audit_script_sha256": "6a5e00eb940410efcb3bef9e05c3bf5801e328bdadbc9ad7b7226adee8f1f49e",
+    "raw_audit_sha256": "024fb1810c7b583a88a77b1d8f7448e3c0569c455f709d9c16b1fcdec1838579",
+    "remote_scratch": "/tmp/antiyoy-residual.n17QTu"
+  },
+  "verification": "Protocol commit460013d preceded data collection; code commit0ae9b9a and all prior related commits have green GitHub CI. Remote one-core nice19 collection and audit exited zero. Four focused and425 full Python tests plus Ruff passed. All 128 teacher-selfplay maps and184 forced branch games completed without censoring; every candidate post-turn observation was checked against native export.",
+  "qualification": "Independent confirmation of a conditional terminal-label hypothesis, not a strength gate. The hypothesis failed; do not promote or train a student from these labels."
+}
