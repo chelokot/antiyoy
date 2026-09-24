@@ -881,7 +881,7 @@ impl VectorEnv {
         )
     }
 
-    #[pyo3(signature = (node_budget=256, reply_nodes=64, slate_size=8, beam_width=32, branch_width=48, maximum_actions_per_turn=24, followup_nodes=0, active_mask=None))]
+    #[pyo3(signature = (node_budget=256, reply_nodes=64, slate_size=8, beam_width=32, branch_width=48, maximum_actions_per_turn=24, followup_nodes=0, active_mask=None, replan_each_action=false))]
     #[expect(clippy::too_many_arguments)]
     fn reply_search_actions<'py>(
         &mut self,
@@ -894,6 +894,7 @@ impl VectorEnv {
         maximum_actions_per_turn: usize,
         followup_nodes: usize,
         active_mask: Option<PyReadonlyArray1<'py, u8>>,
+        replan_each_action: bool,
     ) -> PyResult<Bound<'py, PyArray1<u64>>> {
         if reply_nodes < 2 || slate_size == 0 {
             return Err(PyValueError::new_err(
@@ -915,7 +916,7 @@ impl VectorEnv {
                 slate_size,
             },
             Some(&active),
-            true,
+            !replan_each_action,
         )
     }
 

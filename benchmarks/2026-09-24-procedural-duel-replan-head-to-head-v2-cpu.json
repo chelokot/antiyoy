@@ -1,0 +1,39 @@
+{
+  "kind": "procedural_duel_replanned_vs_cached_three_turn_direct_head_to_head",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-replan-head-to-head-v1.json",
+  "code_commit": "f9170ab",
+  "arena": "Classic Generic procedural_v2 11x9, two players, 2400-action limit",
+  "search": "Both agents use root beam256, top8 completed turns, opponent beam64 and root followup beam32. Replanned search forks the exact live state and searches afresh after each atomic action; cached search executes its previously searched whole-turn plan while the state matches.",
+  "fresh_independent_maps": 128,
+  "seed_first": 6492000,
+  "rotated_seat_games": 256,
+  "terminal_games": 256,
+  "action_limit_adjudications": 0,
+  "replanned_wins_by_own_seat": [121, 117],
+  "cached_wins_by_replanned_seat": [7, 11],
+  "replanned_total_wins": 238,
+  "cached_total_wins": 18,
+  "independent_maps": {
+    "replanned_better": 110,
+    "cached_better": 0,
+    "same": 18,
+    "exact_two_sided_sign_test_p": 1.5407439555097887e-33
+  },
+  "native_cpu_full_turn_selection_milliseconds": {
+    "replanned": {"turns": 4597, "median": 35.88943975046277, "p95": 172.91067335754633},
+    "cached": {"turns": 4487, "median": 8.268718142062426, "p95": 25.625645695254203}
+  },
+  "predeclared_gate": {
+    "zero_adjudications": true,
+    "at_least_64_wins_in_each_seat": true,
+    "paired_map_sign_p_below_0_05": true,
+    "median_replanned_turn_below_250ms": true,
+    "p95_replanned_turn_below_1000ms": true,
+    "passed_for_further_promotion_research": true
+  },
+  "verification": "All 256 records cover the 128 consecutive seeds and both replanned seats. Every result is terminal. The fork checks every BatchObservation array, including legal-action ordering, against the live environment at each replanned action. Rust SearchAgent reuses a plan only when its stored pre-action Game equals the current Game and its action is legal; otherwise it searches again. Python 435 tests and Ruff passed on the SSH server; GitHub Rust/Python/web/WASM CI succeeded for f9170ab.",
+  "raw_report": "/tmp/antiyoy-residual.n17QTu/procedural-duel-replan-head-to-head-6492000.json",
+  "raw_report_sha256": "a2f7e8dfe790d20ee8a12982b1b999bb775c9482403e494d8ff3fd3fc8288ca6",
+  "runner_sha256": "01c3628b66853c186d95c40cf5dc5772b0b37e5a6577c6b3f1a216792b51fcfb",
+  "limitations": "This is direct head-to-head strength only in this Classic Generic procedural duel arena, not a global Elo rating or neural distillation. The replanned timing includes fork and exact-state assertions on native CPU, and the two agents visit different states. Browser WASM latency, direct-model head-to-head, other rules profiles and UI usability are not yet gated. No rated or browser agent changed."
+}
