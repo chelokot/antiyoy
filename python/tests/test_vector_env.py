@@ -107,6 +107,19 @@ def test_fork_rejects_empty_and_invalid_indices() -> None:
         source.fork(np.array([1], dtype=np.uint64))
 
 
+def test_fork_can_extend_simulation_action_limit_without_changing_source() -> None:
+    source = VectorEnv(1, width=7, height=5, seed=47, action_limit=1)
+    indices = np.array([0], dtype=np.uint64)
+    inherited = source.fork(indices)
+    extended = source.fork(indices, action_limit=2**32 - 1)
+
+    assert inherited.step(indices)["truncated"].tolist() == [1]
+    assert extended.step(indices)["truncated"].tolist() == [0]
+    assert source.done() == [False]
+    with pytest.raises(RuntimeError, match="greater than zero"):
+        source.fork(indices, action_limit=0)
+
+
 def test_greedy_baseline_returns_legal_local_indices() -> None:
     environment = VectorEnv(4, width=7, height=5, seed=19)
     observation = environment.observe()

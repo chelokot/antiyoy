@@ -560,8 +560,19 @@ impl BatchEnv {
     }
 
     pub fn fork(&self, indices: &[usize]) -> Result<Self, BatchError> {
+        self.fork_with_action_limit(indices, self.action_limit)
+    }
+
+    pub fn fork_with_action_limit(
+        &self,
+        indices: &[usize],
+        action_limit: u32,
+    ) -> Result<Self, BatchError> {
         if indices.is_empty() {
             return Err(BatchError::Empty);
+        }
+        if action_limit == 0 {
+            return Err(BatchError::ZeroActionLimit);
         }
         for &index in indices {
             if index >= self.len() {
@@ -601,7 +612,7 @@ impl BatchEnv {
                 .map(|&index| self.episode_steps[index])
                 .collect(),
             done: indices.iter().map(|&index| self.done[index]).collect(),
-            action_limit: self.action_limit,
+            action_limit,
             fog: self.fog,
         })
     }
@@ -1048,6 +1059,25 @@ mod tests {
                 index: 1,
                 environments: 1
             })
+        ));
+    }
+
+    #[test]
+    fn fork_can_extend_simulation_limit_without_changing_source() {
+        let source = BatchEnv::symmetric_duels(Rules::classic_generic(), 1, 7, 5, 47, 1)
+            .expect("valid batch");
+        let mut inherited = source.fork(&[0]).expect("valid fork");
+        let mut extended = source
+            .fork_with_action_limit(&[0], u32::MAX)
+            .expect("valid extended fork");
+
+        assert!(inherited.step(0, 0).expect("legal step").truncated);
+        assert!(!extended.step(0, 0).expect("legal step").truncated);
+        assert_eq!(source.episode_steps(0), Some(0));
+        assert_eq!(source.is_done(0), Some(false));
+        assert!(matches!(
+            source.fork_with_action_limit(&[0], 0),
+            Err(BatchError::ZeroActionLimit)
         ));
     }
 

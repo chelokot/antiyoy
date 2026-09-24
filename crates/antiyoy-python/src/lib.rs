@@ -644,7 +644,12 @@ impl VectorEnv {
     }
 
     #[expect(clippy::needless_pass_by_value)]
-    fn fork(&self, indices: PyReadonlyArray1<'_, u64>) -> PyResult<Self> {
+    #[pyo3(signature = (indices, action_limit = None))]
+    fn fork(
+        &self,
+        indices: PyReadonlyArray1<'_, u64>,
+        action_limit: Option<u32>,
+    ) -> PyResult<Self> {
         let sources = indices
             .as_slice()
             .map_err(|error| PyValueError::new_err(error.to_string()))?
@@ -655,7 +660,11 @@ impl VectorEnv {
                     .map_err(|_| PyValueError::new_err("environment index does not fit usize"))
             })
             .collect::<PyResult<Vec<_>>>()?;
-        let batch = self.batch.fork(&sources).map_err(runtime_error)?;
+        let batch = match action_limit {
+            Some(limit) => self.batch.fork_with_action_limit(&sources, limit),
+            None => self.batch.fork(&sources),
+        }
+        .map_err(runtime_error)?;
         Ok(Self::from_batch(batch))
     }
 

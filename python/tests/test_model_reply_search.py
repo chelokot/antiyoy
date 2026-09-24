@@ -54,6 +54,27 @@ def test_model_reply_search_skips_inactive_games() -> None:
     assert len(agent.pending) <= 1
 
 
+def test_model_reply_search_simulates_past_live_game_action_limit() -> None:
+    environment = VectorEnv(1, width=7, height=5, seed=29, action_limit=1)
+    agent = ModelReplySearch(
+        node_budget=64,
+        slate_size=4,
+        audit_native_replies=True,
+        audit_round_modulus=1,
+    )
+
+    chosen = agent.actions(
+        environment,
+        EndTurnPolicy(),
+        torch.zeros((1, 45)),
+        np.asarray([True], dtype=np.bool_),
+    )
+
+    assert agent.candidate_replies > 0
+    assert len(agent.native_reply_records) == 1
+    assert environment.step(chosen)["truncated"].tolist() == [1]
+
+
 def test_native_reply_audit_preserves_hybrid_turn() -> None:
     plain_environment = VectorEnv(1, width=7, height=5, seed=29)
     audited_environment = VectorEnv(1, width=7, height=5, seed=29)

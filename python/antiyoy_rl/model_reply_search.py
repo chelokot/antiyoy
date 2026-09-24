@@ -159,7 +159,9 @@ class ModelReplySearch:
         static_score: int,
         audit_native_reply: bool,
     ) -> tuple[int, int | None]:
-        branch = environment.fork(np.asarray([index], dtype=np.uint64))
+        branch = environment.fork(
+            np.asarray([index], dtype=np.uint64), action_limit=2**32 - 1
+        )
         for action in plan:
             result = branch.step(np.asarray([action], dtype=np.uint64))
             if bool(result["truncated"][0]):
