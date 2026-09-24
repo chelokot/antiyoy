@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_whole_game_fork_vs_native_replanning_equivalence",
+  "question": "Does the opt-in in-place native replan_each_action API reproduce the already validated fresh-fork three-turn teacher action by action through complete games, without changing outcomes?",
+  "fresh_window": {"seed_first": 6493000, "independent_maps": 16, "both_replanned_seats": true},
+  "arena": "Classic Generic procedural_v2 11x9, two players, 2400-action limit",
+  "agents": "Two identical environments per game. One replanned seat selects actions using the exact-observation-checked fresh-fork reference; the other identical environment uses reply_search_actions(..., replan_each_action=true). The opposing seat uses the cached native three-turn agent in both environments. Both searched agents use root beam256/top8/opponent beam64/followup beam32. Every full BatchObservation array and selected legal-action index must match at every step. Alternate which replanned implementation runs first, to reduce timing order bias.",
+  "analysis": "Report every paired game, all actions compared, terminal/censor counts, exact action and outcome equality, and descriptive median/p95 native CPU milliseconds per whole replanned turn. Timing includes exact-state fork and assertion overhead only in the fork arm; it is not browser WASM latency or an independent strength comparison.",
+  "gate": "All 16 maps and both replanned seats, all BatchObservations and action indices identical at every step, all 32 game outcomes identical and terminal, zero action-limit adjudications. Native API should have lower median full-turn CPU time than the fork reference; if not, report honestly and optimize before browser promotion. This gate alone does not authorize rated or Site deployment.",
+  "resources": "Heavy games only on SSH server fedora-toolbox, one CPU pinned15 nice19, Rayon/BLAS capped, 1200-second hard timeout, tiny JSON, no GPU or preemption. Never touch the dirty remote original repo."
+}

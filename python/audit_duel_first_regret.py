@@ -107,7 +107,9 @@ def new_hybrid(audit_native_replies: bool) -> ModelReplySearch:
 
 
 def native_teacher_action(
-    environment: VectorEnv, followup_nodes: int = 0
+    environment: VectorEnv,
+    followup_nodes: int = 0,
+    replan_each_action: bool = False,
 ) -> np.ndarray:
     return np.asarray(
         environment.reply_search_actions(
@@ -118,6 +120,7 @@ def native_teacher_action(
             branch_width=BRANCH_WIDTH,
             maximum_actions_per_turn=MAXIMUM_ACTIONS_PER_TURN,
             followup_nodes=followup_nodes,
+            replan_each_action=replan_each_action,
         ),
         dtype=np.uint64,
     )
