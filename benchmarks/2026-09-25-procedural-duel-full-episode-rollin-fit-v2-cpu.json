@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "kind": "procedural_duel_full_episode_rollin_controlled_fit",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-full-episode-replan-distillation-v1.json",
+  "trainer_commit": "665be61",
+  "status": "Both predetermined fits completed and the full-episode coverage gate passed; no game-strength conclusion from this report.",
+  "shared": {
+    "first_fit_seed": 6540000,
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "initialized_expert": "context:b02423ddd2f8cdf9",
+    "teacher": "Native replanned three-turn reply search root256/top8/opponent64/followup32",
+    "parallel_environments": 32,
+    "updates": 512,
+    "teacher_labels_per_arm": 16384,
+    "student_argmax_rollin": true,
+    "frozen_source_kl_weight": 0.1,
+    "adamw_learning_rate": 0.0001,
+    "action_limit": 2400,
+    "compute": "SSH server fedora-toolbox, one CPU15 pinned at nice19, Rayon/BLAS capped at one, no GPU, sequential arms, zero parallel heavy jobs"
+  },
+  "full_episode": {
+    "scheduled_reset_interval": 0,
+    "environment_resets": 96,
+    "scheduled_resets": 0,
+    "terminal_games_during_fit": 96,
+    "action_limit_truncations": 0,
+    "maximum_labeled_position_age_in_atomic_actions": 412,
+    "labeled_positions_age_64plus_by_seat": [4552, 3937],
+    "pre_update_mean_action_agreement_not_final_accuracy": 0.5369262695312501,
+    "imitation_seconds": 381.87443489814177,
+    "checkpoint_sha256": "6f0670cccff396de22e780cc54bb4125d8b3267e28cc8bf0d29d0c0c6aa961f8",
+    "raw_jsonl_sha256": "4002ce5e5379d1d286fe198f8aa14f018d31d1a2222ad3c018b80ae602c90f37",
+    "runner_sha256": "43b75ee2c686bc26cb41a3d6e4bb6c511baa2ecdc455d36b0fa338369c2abc98",
+    "exit_code": 0
+  },
+  "reset_64_control": {
+    "scheduled_reset_interval": 64,
+    "environment_resets": 257,
+    "scheduled_resets": 256,
+    "terminal_games_during_fit": 1,
+    "action_limit_truncations": 0,
+    "maximum_labeled_position_age_in_atomic_actions": 63,
+    "labeled_positions_age_64plus_by_seat": [0, 0],
+    "pre_update_mean_action_agreement_not_final_accuracy": 0.5864257812500004,
+    "imitation_seconds": 296.54961283132434,
+    "checkpoint_sha256": "d0f6ccd1563c1684675ef4c44917f7e57ccba3ea20873b071d6989cbbd0f1d72",
+    "raw_jsonl_sha256": "ccdc40d0b60e4e5205d5affc341c9befe6cf85ed78f0c29d0d934d52032b7256",
+    "runner_sha256": "47a6eabd4279328f5106555116db912ad1060fb8f77783f3f3baea6cd35d9223",
+    "exit_code": 0
+  },
+  "fit_integrity": "The two runner scripts differ only in reset interval and output names. Both used the same source SHA, initial seed, architecture, replanned teacher, legal-action budget, optimizer and exactly 16384 labels. All 96 full-episode completed games reached terminal states without action-limit truncation. Both arms stayed below fit seed ceiling6549000; the last32 reset-control seeds were allocated only after its final labeled update and did not contribute labels.",
+  "coverage_gate": {
+    "at_least_32_full_episode_terminal_games": true,
+    "late_labeled_states_in_both_seats": true,
+    "equal_legal_label_budget": true,
+    "passed": true
+  },
+  "interpretation": "The intervention changed the training state distribution as intended. Its lower online pre-update action agreement is not held-out fidelity or evidence that the model is weaker. The fresh complete-game direct-source window seed6550000 is required before any strength claim; teacher and final windows remain untouched.",
+  "raw_artifacts": "/tmp/antiyoy-residual.n17QTu on the SSH server; checkpoints and JSONL are not committed"
+}
