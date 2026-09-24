@@ -78,14 +78,16 @@ def paired_outcomes(
     }
 
 
-def summarize(records: list[dict[str, object]]) -> dict[str, object]:
+def summarize(
+    records: list[dict[str, object]], candidate_arms: tuple[str, ...] = ARMS
+) -> dict[str, object]:
     indexed = {
         (cast(int, row["seed"]), cast(int, row["root_seat"]), cast(str, row["arm"])): row
         for row in records
     }
     maps = sorted({cast(int, row["seed"]) for row in records})
     arms = []
-    for arm in ARMS:
+    for arm in candidate_arms:
         subset = [row for row in records if row["arm"] == arm]
         outcomes = [cast(BranchOutcome, row["outcome"]) for row in subset]
         arms.append(

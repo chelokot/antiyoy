@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_independent_exact_teacher_four_turn_block_confirmation",
+  "question": "Does the exploratory first-four-turn teacher benefit transfer to new procedural duel maps, and is a contiguous block stronger than one early teacher turn or four teacher turns spaced through the opening?",
+  "fresh_window": {"seed_first": 6480000, "independent_maps": 128, "both_root_seats": true},
+  "arena": "Classic Generic procedural_v2 11x9, two players, 2400-action finite horizon with material adjudication flagged nonterminal",
+  "frozen_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "opponent": "Frozen routed-v6 direct policy on every opponent turn",
+  "arms": ["direct", "first_1", "first_4", "spaced_4", "distributed_25"],
+  "schedule": "Root chooses one controller for a whole turn. first_1 uses exact three-turn native search on root turn index 0; first_4 on indices 0,1,2,3; spaced_4 on indices 0,2,4,6; distributed_25 uses the existing deterministic seed/seat/turn hash. Direct uses the frozen model on all turns. All other root turns use the same frozen direct model. Search is never spliced into a direct-controlled turn.",
+  "native_search": {"root_beam_nodes": 256, "distinct_completed_turn_slate": 8, "opponent_full_turn_beam_nodes": 64, "root_followup_beam_nodes": 32, "beam_width": 32, "branch_width": 48, "maximum_actions_per_turn": 24},
+  "analysis": "Report all 1280 games, terminal/action-limit outcomes, actual teacher turns, game lengths, both-seat wins and exact two-sided sign tests grouped by independent map. Primary comparison: first_4 versus direct, requiring p<0.05, nonnegative wins in both seats, and zero action-limit adjudications in those two arms. Secondary predeclared comparisons: first_4 versus first_1 and first_4 versus spaced_4; require p<0.025 for each to make the corresponding additional claim. Show distributed_25 and actual search-turn counts descriptively; it is not an equal-budget causal contrast. Any censoring prevents a terminal-strength claim regardless of material adjudication.",
+  "decision_rule": "If the primary test fails, reject a transferable first-four-turn benefit. If primary passes but either secondary fails, do not claim contiguity or multi-turn synergy. This is a mechanism test, not a trained student or promotion gate. No policy, rating, Site or core rule changes follow automatically. Never tune block length or schedules on this confirmation window.",
+  "resources": "Run heavy games only on SSH server fedora-toolbox, one pinned CPU nice19, Rayon/BLAS capped, 1800-second hard timeout, tiny JSON, no GPU or preemption. Never touch the remote original repo."
+}
