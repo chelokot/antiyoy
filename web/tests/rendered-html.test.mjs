@@ -212,7 +212,7 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(styles, /\.hex \{[^}]*position: absolute;[^}]*width: 4\.625rem;[^}]*height: 4rem;[^}]*appearance: none;/);
   assert.doesNotMatch(styles, /\.hex:nth-child\(even\)/);
   assert.match(arena, /hexBoardSize\(state\?\.width \?\? WIDTH, state\?\.height \?\? HEIGHT\)/);
-  assert.match(arena, /hexPosition\(q, r\)/);
+  assert.match(arena, /hexPosition\(q, r, rows\)/);
   assert.match(styles, /\.panel-section > summary/);
   assert.match(arena, /className="panel-heading"/);
   assert.match(arena, /className="panel-scroll"/);
