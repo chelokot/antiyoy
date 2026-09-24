@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_three_turn_whole_plan_distillation",
+  "question": "Can a policy trained to rank complete legal turn plans under the validated three-turn teacher improve fresh two-player game outcomes over the same frozen policy without teacher search at inference?",
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "action_limit": 2400,
+    "timeout": "Nonterminal finite-horizon material adjudication, reported separately from terminal results"
+  },
+  "teacher": {
+    "root_search_nodes": 256,
+    "distinct_completed_turns": 8,
+    "opponent_search_nodes": 64,
+    "followup_search_nodes": 32,
+    "source": "The exact native three-turn agent supplies the selected complete root plan and all candidate legal action sequences. Opponent and followup scores are diagnostic; they are not terminal outcome labels."
+  },
+  "windows": {
+    "feasibility": {"first_seed": 6450100, "maps": 8},
+    "fit": {"first_seed": 6451000, "maps": 128},
+    "offline_validation": {"first_seed": 6452000, "maps": 64},
+    "direct_game_validation": {"first_seed": 6453000, "maps": 128},
+    "teacher_game_confirmation": {"first_seed": 6454000, "maps": 128},
+    "final_promotion": {"first_seed": 6455000, "maps": 256}
+  },
+  "collection": {
+    "rollin": "Three-turn teacher self-play; sample root positions with round modulo 8 equal to 0. Export selected index, every complete root plan, local legal action indices, post-turn observations and three-turn scores. Record completed and action-limit-censored maps, elapsed time, bytes and SHA256. Never use terminal winners as per-candidate labels.",
+    "disjointness": "All windows are independent of earlier inspected maps, smoke seed6450000 and reserved legacy final seed6300000. Do not train or tune on offline validation, game validation, confirmation or promotion maps."
+  },
+  "student": {
+    "initialization": "Frozen routed-v6 Classic Generic two-player expert SHA256 68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867 selected with procedural_v1 routing",
+    "trainable": "Existing action_head and action_residual only; all spatial, rule and value encoder parameters frozen",
+    "plan_score": "Mean log probability of the full candidate action sequence, with each probability computed from the exact legal pre-action state reached by replaying that candidate from the same root state. EndTurn participates as an action. No teacher action is substituted during replay.",
+    "objective": "Map-balanced listwise cross-entropy on the native teacher-selected complete plan among the exported candidates, plus 0.2 times KL(frozen source || student) at every candidate pre-action state. Within a map, give equal total weight to teacher-override and teacher-static positions when both occur; otherwise use all available positions equally. The teacher's three-turn scores determine the selected label and are not treated as terminal rewards.",
+    "optimizer": "AdamW learning rate0.0001, weight decay0.01, gradient norm clip1.0, deterministic map shuffle seed6451000, exactly2 epochs and one update per independent map. No scheduler, checkpoint selection, thresholds or hyperparameter tuning on held-out maps.",
+    "inference": "The student acts by direct legal-action argmax with no root beam, opponent search or terminal oracle. Full-plan ranking is a training objective, not an online planner."
+  },
+  "feasibility_gate": "Before fit collection, replay all candidate plans on 8 feasibility maps and verify every exported post-turn state and selected teacher plan. Measure one-core collection, replay and batched source-inference times, gzip bytes per map and peak resident memory. Proceed only if extrapolated fit collection is under45 minutes, two training epochs under90 minutes, compressed fit data under500 MiB and predicted inference architecture remains identical to the source. Do not use feasibility maps for training or tuning.",
+  "offline_gate": "On untouched offline-validation maps, compare frozen source and exactly-two-epoch student for native teacher-selected complete-plan top1 agreement on identical candidate slates. Require independent-map exact two-sided sign p<0.05, nonnegative change for each root seat and no more than2 percentage-point decrease in source action agreement when teacher and source already agree. Report selected/nonselected plan lengths, action counts, override/nonoverride strata and no-candidate-censoring. If this gate fails, reject without game validation.",
+  "game_gate": "If offline gate passes, play student and frozen source against the same fixed native two-turn opponent on fresh direct-game-validation maps, both seats, paired by independent map. Require p<0.05 grouped by map, positive wins in both seats, no material increase in nonterminal adjudications and direct-action median latency <=1.2x source. Only then compare student against the native three-turn teacher on fresh teacher-game-confirmation maps. Never call offline agreement Elo or strength.",
+  "promotion_gate": "If prior gates pass, freeze the checkpoint and test on final-promotion maps versus direct source and native three-turn teacher, both seats, complete games with explicit terminal/nonterminal breakdown and map-bootstrap fixed-pool Elo. Check Online Default and Classic Slay profiles on new disjoint windows, including timeout sensitivity; do not claim terminal Slay strength from finite-horizon results. Existing reserved seed6300000 remains untouched until a later separately declared promotion test.",
+  "resource_limit": "Heavy compute only through SSH server in fedora-toolbox after fresh aggregate CPU, memory, GPU and disk check. One pinned CPU, nice19, Rayon/BLAS thread caps, bounded jobs and gzip outputs; do not touch other users' workloads or private data. No GPU unless safely free. Stop if resource or feasibility limits fail."
+}
