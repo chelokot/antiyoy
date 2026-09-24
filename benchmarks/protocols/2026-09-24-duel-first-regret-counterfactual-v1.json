@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "kind": "exploratory_whole_turn_intervention_diagnostic",
+  "question": "Does replacing the hybrid's first strictly inferior native-reply-scored completed turn improve the eventual terminal outcome when all later policies are held fixed?",
+  "status": "predeclared_before_new_maps",
+  "arena": "Classic Generic procedural_v2 11x9 two players, action limit2400, route_generator procedural_v1",
+  "exploratory_maps": {
+    "first_seed": 6370000,
+    "independent_maps": 16,
+    "seats": "Both frozen hybrid root seats on every map"
+  },
+  "frozen_policy": "routed-v6 checkpoint SHA256 68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "hybrid": "Native root whole-turn beam256/top8 distinct turns, autonomous frozen model complete-opponent-turn reply and native root-perspective position_score; opponent is fixed native reply-search root beam256/top8/opponent beam64",
+  "intervention": "On the first hybrid root turn no later than round32 with a strictly positive native search64 reply-score gap between the native-best and hybrid-selected candidates, fork the identical pre-action environment. Execute the hybrid-selected complete root turn in one branch and the native-best complete root turn in the other. From the resulting states, continue BOTH branches with fresh frozen hybrid for the root seat and the SAME native reply-search opponent, without further interventions. Neither branch receives a terminal oracle online.",
+  "outcomes": "Record root-seat terminal win/draw/loss separately for both branches. Any action-limit adjudication is censored regardless of adjudicated winner. Also record intervention round, native reply-score gap, candidate indexes, branch action counts, and no-intervention positions. Aggregate only matched uncensored pairs by independent map and root seat, with exact sign test and explicit counts of ties/censored maps. Candidate positions and two seats on one map are correlated.",
+  "interpretation_limit": "This tests a targeted first-divergence counterfactual on hybrid-visited states, not general policy strength, Elo, or proof that native reply score is a causal value function. Do not tune the rejected hybrid on these maps, promote/rate/deploy it, or touch reserved final promotion seed6300000.",
+  "conditional_confirmation_reservation": "If exploratory terminal pairs are informative and suggest benefit, predeclare an untouched independent confirmation window beginning at seed6371000 before collecting more maps; do not treat this 16-map pilot as confirmation.",
+  "resource_limit": "SSH server only; inspect aggregate resources first, bounded nice19 single CPU pinned with taskset and RAYON_NUM_THREADS=1, timeout45 minutes, no GPU, tiny JSON, never preempt other user work."
+}
