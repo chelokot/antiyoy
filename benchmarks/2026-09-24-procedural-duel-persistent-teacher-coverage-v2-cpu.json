@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "kind": "persistent_three_turn_teacher_whole_turn_coverage_diagnostic",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-persistent-teacher-coverage-v1.json",
+  "protocol_commit": "8bc6932",
+  "code_commit": "6c3990b",
+  "status": "partial_exact_teacher_turns_already_help",
+  "arena": "Classic Generic procedural_v2 11x9, two players, 2400-action horizon",
+  "fresh_seed_first": 6440000,
+  "independent_maps": 64,
+  "both_candidate_seats": true,
+  "checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "method": "Against the identical frozen routed-v6 direct opponent on every map and rotated seat, select exact native three-turn search or frozen routed-v6 direct once at each candidate-seat turn start by a deterministic seed/seat/turn hash. The selected policy controls that whole turn. Run the predeclared 0%,25%,50%,75%,100% teacher-turn arms on the same maps; keep all policies frozen.",
+  "completion": {"games": 640, "terminal_games": 640, "nonterminal_games": 0, "distinct_seed_seat_arm_keys": 640},
+  "arms": [
+    {"teacher_turn_percentage": 0, "actual_teacher_turns": 0, "total_root_turns": 2169, "wins_by_root_seat": [41, 23], "total_wins": 64, "paired_maps_better_than_direct": 0, "paired_maps_worse_than_direct": 0, "paired_maps_same": 64},
+    {"teacher_turn_percentage": 25, "actual_teacher_turns": 546, "total_root_turns": 2189, "wins_by_root_seat": [46, 31], "total_wins": 77, "paired_maps_better_than_direct": 16, "paired_maps_worse_than_direct": 3, "paired_maps_same": 45, "descriptive_exact_two_sided_map_sign_p": 0.004425048828125},
+    {"teacher_turn_percentage": 50, "actual_teacher_turns": 1144, "total_root_turns": 2293, "wins_by_root_seat": [47, 38], "total_wins": 85, "paired_maps_better_than_direct": 24, "paired_maps_worse_than_direct": 3, "paired_maps_same": 37, "descriptive_exact_two_sided_map_sign_p": 0.000049233436584472656},
+    {"teacher_turn_percentage": 75, "actual_teacher_turns": 1714, "total_root_turns": 2299, "wins_by_root_seat": [48, 35], "total_wins": 83, "paired_maps_better_than_direct": 22, "paired_maps_worse_than_direct": 3, "paired_maps_same": 39, "descriptive_exact_two_sided_map_sign_p": 0.00015652179718017578},
+    {"teacher_turn_percentage": 100, "actual_teacher_turns": 2263, "total_root_turns": 2263, "wins_by_root_seat": [51, 42], "total_wins": 93, "paired_maps_better_than_direct": 31, "paired_maps_worse_than_direct": 2, "paired_maps_same": 31, "descriptive_exact_two_sided_map_sign_p": 0.00000013085082173347473}
+  ],
+  "interpretation": "Even roughly one quarter of exact teacher-controlled whole turns improved this fixed-pool outcome on fresh maps, with both seats gaining. This rejects a simple high-teacher-coverage threshold as the explanation for the weaker behavioral-cloning student. The 50% and75% arms are not monotonic in this finite sample. A trained student is not a random mixture of exact teacher turns: it may introduce wrong actions even where source and teacher agree, select different states, or fail to complete teacher plans. Earlier held-out two-turn BC audit found 255 exact teacher corrections among870 source/teacher disagreements,193 actions matching neither, and124 new deviations where source already matched teacher; that specific student also had higher whole-turn teacher fidelity yet weaker complete-game results. These observations motivate measuring correction precision and harmful novel errors, not merely teacher-action accuracy or another isolated-terminal label. The four descriptive map tests share a baseline and are not independent promotion gates.",
+  "related_student_report": "benchmarks/2026-09-23-procedural-duel-reply-distillation-v2-cpu.json",
+  "raw_report": {"remote_path": "/tmp/antiyoy-residual.n17QTu/procedural-duel-teacher-coverage-6440000.json", "sha256": "e8c6653c212cff19c7998a8ead8e05315b5aee03153d6e212ca808f7a64a94fb"},
+  "verification": {"python_tests": 403, "ruff": "passed", "resource_policy": "SSH server fedora-toolbox, pinned single CPU, nice19, no GPU"},
+  "decision": "This mixture is a diagnostic, not a neural student, Elo rating or playable candidate. Keep all policies unchanged. Next audit existing student mistakes against source and teacher at identical states with outcome-aware grouping, then predeclare disjoint training and complete-game validation before any new distillation approach."
+}
