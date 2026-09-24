@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "kind": "persistent_three_turn_teacher_state_distribution_replay",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-teacher-trajectory-state-v1.json",
+  "protocol_and_code_commit": "b00b160",
+  "arithmetic_fix_commit": "0b4a803",
+  "status": "coarse_midgame_trajectory_shift_without_a_trainable_causal_target",
+  "arena": "Classic Generic procedural_v2 11x9 two players, frozen routed-v6 direct opponent, 2400-action finite horizon",
+  "source_window": {
+    "seed_first": 6440000,
+    "independent_maps": 64,
+    "both_root_seats": true,
+    "already_inspected": true
+  },
+  "exact_reproduction": {
+    "games": 384,
+    "arms": [0, 25, 100],
+    "outcomes_actions_root_turns_teacher_turns_teacher_actions": "all matched the original report exactly",
+    "terminal_games": 384,
+    "nonterminal_games": 0
+  },
+  "prior_complete_game_wins_out_of_128_by_arm": {
+    "direct_0_percent": 64,
+    "mixed_25_percent": 77,
+    "native_teacher_100_percent": 93
+  },
+  "median_game_actions_by_arm": {
+    "direct_0_percent": 129.0,
+    "mixed_25_percent": 130.5,
+    "native_teacher_100_percent": 132.5
+  },
+  "matched_root_turn_8": {
+    "surviving_seed_seat_pairs_each_arm": 128,
+    "native_100_percent_minus_direct_median_lead": {
+      "owned_cells": 1.0,
+      "province_money": 2.0,
+      "province_profit": 1.0,
+      "unit_strength": 0.0
+    },
+    "mixed_25_percent_minus_direct_median_lead": {
+      "owned_cells": 0.0,
+      "province_money": 0.0,
+      "province_profit": 0.0,
+      "unit_strength": 0.0
+    }
+  },
+  "matched_root_turn_12": {
+    "native_100_percent": {
+      "surviving_seed_seat_pairs": 118,
+      "excluded_seed_seat_pairs": 10,
+      "independent_maps_with_both_seats_surviving": 55,
+      "median_root_minus_opponent_lead_change": {
+        "owned_cells": 8.5,
+        "province_money": 1.0,
+        "province_profit": 4.5,
+        "unit_strength": 2.0
+      },
+      "owned_cell_median_change_by_root_seat": [8.0, 9.0],
+      "owned_cell_paired_seed_seat_better_worse_same": [78, 39, 1],
+      "owned_cell_independent_map_sum_better_worse_same": [40, 14, 1]
+    },
+    "mixed_25_percent": {
+      "surviving_seed_seat_pairs": 124,
+      "excluded_seed_seat_pairs": 4,
+      "independent_maps_with_both_seats_surviving": 61,
+      "median_root_minus_opponent_lead_change": {
+        "owned_cells": 0.0,
+        "province_money": 0.0,
+        "province_profit": 0.0,
+        "unit_strength": 0.0
+      },
+      "owned_cell_paired_seed_seat_better_worse_same": [59, 46, 19],
+      "owned_cell_independent_map_sum_better_worse_same": [38, 20, 3]
+    }
+  },
+  "interpretation": "Full persistent search is associated with a clear territory and income lead by its twelfth own turn on these exact replayed trajectories, without shortening median game length. The 25-percent exact-teacher mixture improved complete-game wins but has zero median lead in all four coarse features at that checkpoint. Therefore a simple early economic or territory snapshot is not a sufficient explanation for why partial teacher coverage helps, and the full-teacher territory difference is not by itself a valid student target. Checkpoint survival and the visited states are consequences of the policies; their paired distributions are descriptive, not causal mediation or fresh strength evidence.",
+  "next_question": "On NEW disjoint maps, test complete-game outcomes for contiguous blocks of one, two, four and eight exact teacher-controlled whole turns versus direct continuation, with both seats and explicit censoring. This can separate a multi-turn commitment effect from sparse distributed teacher coverage before designing any student target; do not train from this replay.",
+  "verification": {
+    "focused_tests": 5,
+    "full_python_tests": 427,
+    "ruff": "passed",
+    "unsigned_lead_overflow": "first attempt stopped before any result was used; signed accumulator and negative-lead regression test added before exact successful replay",
+    "resource_policy": "SSH server fedora-toolbox, pinned one CPU, nice19, no GPU, 49 KiB compressed output"
+  },
+  "raw_report": {
+    "remote_path": "/tmp/antiyoy-residual.n17QTu/procedural-duel-teacher-trajectory-6440000.json.gz",
+    "sha256": "e8509e8501f34d3268a361af9d7478ffbcb397ce79893ea2e422e471e50c3e23"
+  },
+  "decision": "No agent, rating or Site change. Treat this as a read-only distribution diagnostic on already inspected maps, not neural amplification-distillation success. Preserve fresh fit/validation/final map windows for any later policy work."
+}
