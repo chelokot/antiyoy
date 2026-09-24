@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_independent_shared_stop_opponent_confirmation",
+  "motivation": "An exploratory fresh24-map probe found seven maps with an early-stop terminal benefit under at least one of two frozen opponent continuations, no harms, and only three benefits shared across both. Confirm the conditional label signal on new independent maps without changing any search, continuation or selection parameter.",
+  "dataset": {
+    "first_seed": 6461000,
+    "maps": 128,
+    "map": "Classic Generic procedural_v2 11x9, two players",
+    "action_limit": 2400,
+    "teacher": "Native root whole-turn beam256, top8 distinct completed turns, opponent full-turn beam64, root followup beam32",
+    "sample": "Round modulo8 remainder0 on teacher self-play with exact pre-turn roll-in and candidate local action indices. Collect all128 maps once, with no replacement of incomplete maps or seed changes."
+  },
+  "selection": "As before, visit maps in ascending seed and records in original order. Take the first teacher-selected nonstatic completed turn per map whose pre-EndTurn action indices exactly match a longer static rank-zero completed turn. Stop after48 distinct eligible maps, or use all eligible maps if fewer. Never select by score gap, root seat or terminal result.",
+  "branches": "As in the exploratory protocol, force the teacher early-stop and static longer completed turns from the identical pre-turn state, validate exact post-turn observations, then play the root persistently with native three-turn search under either frozen routed-v6 direct opponent SHA256 68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867 or frozen native two-turn reply-search opponent. Continue every branch to terminal or the original 2400-action cap.",
+  "analysis": "Report every branch winner, truncation and action count. For a map terminal under both opponent policies, label an early stop beneficial if its terminal root-seat outcome is strictly better with at least one opponent and never worse with either; label it harmful if worse with either opponent; otherwise neutral. The primary confirmation statistic is the exact two-sided independent-map sign test on beneficial versus harmful maps, requiring p<0.05 and nonnegative beneficial-minus-harmful counts in both root-seat strata to regard the conditional early-stop signal as supported. Report strict shared benefits, policy-specific benefits, strict reversals, ties, per-opponent signs and all censoring. If fewer than32 eligible independent maps are found, classify the confirmation as underpowered. If any branch is censored, report worst-case sensitivity by treating each censored map as harmful; do not silently adjudicate by material.",
+  "resource_limit": "SSH server fedora-toolbox only; one pinned CPU nice19 with Rayon and BLAS capped to one thread, no GPU, collection timeout45 minutes and counterfactual timeout60 minutes, small compressed/raw outputs. Inspect aggregate resources and do not preempt other users.",
+  "qualification": "This is a fresh conditional branch-label confirmation, not a trainable model, policy-strength test or Elo. Even a passing conditional signal only motivates a separately predeclared distillation experiment with disjoint fit/calibration/validation/game maps; it does not authorize training on these confirmation maps or promoting any student."
+}
