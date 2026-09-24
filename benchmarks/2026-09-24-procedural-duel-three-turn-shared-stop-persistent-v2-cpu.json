@@ -1,0 +1,39 @@
+{
+  "kind": "fit_only_shared_state_stop_persistent_continuation_probe",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-shared-stop-persistent-continuation-v1.json",
+  "question": "Does a searched early EndTurn improve exact terminal outcomes after the root keeps using the same three-turn teacher instead of reverting to the direct model?",
+  "inputs": {
+    "fit_first_seed": 6451000,
+    "fit_maps": 128,
+    "fit_gzip_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "frozen_direct_opponent_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867"
+  },
+  "method": "From the existing fit dataset, take the first identical-prefix early-stop position on each of the first16 eligible independent maps in ascending seed and record order. Force the teacher-selected or static complete root turn from the same replayed state, verify exact exported post-turn observations, then continue both branches with the persistent native three-turn root and frozen routed-v6 direct opponent. Censor action-limit games rather than scoring adjudications. No student model is involved.",
+  "results": {
+    "independent_maps": 16,
+    "forced_branch_games": 32,
+    "terminal_branch_games": 32,
+    "censored_pairs": 0,
+    "teacher_stop_better": 5,
+    "static_continue_better": 2,
+    "same_terminal_outcome": 9,
+    "exact_two_sided_map_sign_p": 0.453125,
+    "seat0": {"positions": 12, "teacher_better": 4, "static_better": 1, "same": 7},
+    "seat1": {"positions": 4, "teacher_better": 1, "static_better": 1, "same": 2},
+    "known_harmful_example": {"seed": 6451002, "root_seat": 1, "round": 8, "native_three_turn_score_gap": 1595, "teacher_stop_winner": 0, "static_continue_winner": 1},
+    "known_helpful_example": {"seed": 6451003, "root_seat": 1, "round": 8, "native_three_turn_score_gap": 986, "teacher_stop_winner": 1, "static_continue_winner": 0}
+  },
+  "interpretation": [
+    "Under persistent root search, forcing the early stop helped more often than continuing this static plan in the small fixed subset, but the independent-map sign test is inconclusive. This is not a validated policy advantage.",
+    "Even large positive conditional three-turn score gaps can disagree with eventual terminal outcomes in either direction. Search score is not an exact terminal credit label.",
+    "This selected fit-only subset is neither an unbiased estimate over future maps nor evidence that the failed neural student improved. No training, rating, browser agent or game rule changed."
+  ],
+  "artifacts": {
+    "script": "python/audit_three_turn_shared_stop_outcomes.py",
+    "script_sha256": "0b80b6c8a1c4ae37e105bbf74cfcd70313c2e74d33867e525ce5bee43a817f46",
+    "raw_sha256": "8c812d85cd988e761be4d11f16b19a5da97b2a0f5b3c5d897049c1981d8671ab",
+    "remote_scratch": "/tmp/antiyoy-residual.n17QTu/three-turn-shared-stop-persistent-6451000.json"
+  },
+  "verification": "Predeclared protocol commit c87cadf preceded branch outcomes. Remote nice19 pinned one-core run completed within its20-minute cap; 421 Python tests and Ruff check/format passed. All16 forced candidate branches reproduced the exported native post-turn observation exactly.",
+  "qualification": "Exploratory post hoc subset of already-used fit maps, with one selected position per map and 16 independent maps total. It is not fresh held-out validation, Elo, proof of causality for persistent search strength, or a student promotion gate."
+}
