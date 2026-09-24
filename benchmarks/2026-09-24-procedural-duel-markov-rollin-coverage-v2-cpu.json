@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_markov_student_rollin_coverage_audit",
+  "sources": {
+    "trainer": "python/train.py:pretrain_teacher",
+    "recorded_runner": "/tmp/antiyoy-markov-distill-20260924.sh",
+    "training_report": "benchmarks/2026-09-24-procedural-duel-markov-replan-distillation-v2-cpu.json",
+    "separate_complete_game_report": "benchmarks/2026-09-24-procedural-duel-teacher-plan-cache-confirmation-v2-cpu.json"
+  },
+  "no_new_maps_training_or_search": true,
+  "observed_configuration": {
+    "parallel_environments": 32,
+    "imitation_updates": 512,
+    "labels": 16384,
+    "policy_rollin": true,
+    "forced_reset_every_atomic_actions_per_environment": 64,
+    "recorded_total_environment_resets": 257
+  },
+  "code_derived_accounting": {
+    "scheduled_full_resets": 8,
+    "environment_resets_from_schedule": 256,
+    "other_environment_resets": 1,
+    "maximum_labeled_atomic_actions_between_resets": 64,
+    "final_update_resets_without_subsequent_training_observation": 32,
+    "maximum_distinct_map_starts_that_contributed_labels": 257,
+    "non_scheduled_terminal_or_truncated_resets": 1,
+    "exact_completed_game_count": "Unavailable: games ending on scheduled reset updates are subsumed by reset-all accounting.",
+    "qualification": "The trainer resets all 32 lanes after updates 64,128,...,512. The reported 257 resets therefore include 256 scheduled resets and exactly one additional terminal-or-truncated reset. The final 32 scheduled resets occur after the last labeled update, so their new seeds contribute no labels. The trainer does not record whether games also ended on scheduled reset updates."
+  },
+  "separate_pool_context": {
+    "direct_controller_root_actions": 9710,
+    "direct_controller_completed_games": 128,
+    "mean_root_actions_per_completed_game": 75.859375,
+    "qualification": "These complete games used different maps and a fixed direct opponent. Their root-action count alone exceeds the trainer's 64-step per-map ceiling on average; it does not measure the exact training-map game-length distribution."
+  },
+  "metric_semantics": "The recorded imitation_accuracy_training_diagnostic=0.5885620117187494 is the arithmetic mean of per-update teacher-action matches from logits computed before each optimizer step. It is neither final-checkpoint training-set accuracy nor held-out-map fidelity.",
+  "interpretation": "The rejected student's policy-rollin fit sampled no state more than 64 atomic actions after a map reset, whereas its promotion gate used complete games. This is a verified training/evaluation horizon mismatch and a plausible contributor to failure, not a causal explanation or a reason to revive the rejected checkpoint. A controlled new experiment would need fresh disjoint maps and a predeclared full-episode rollin comparison with unchanged teacher, label budget, model, optimizer and independent both-seat game gates.",
+  "decision": "No existing checkpoint is promoted or tuned, no inspected seed is reused for fitting, and no rated or owner-private Site agent is changed."
+}
