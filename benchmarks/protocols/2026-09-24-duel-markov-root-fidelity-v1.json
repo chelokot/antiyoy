@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "kind": "rejected_markov_student_root_fidelity_read_only",
+  "question": "On identical root observations outside the rejected student's fit and game windows, how often does the student correct the frozen source toward the replanned three-turn teacher, and how does this vary by seat and legal-action branching?",
+  "data": {
+    "source": "EXISTING three-turn teacher plan fit dataset, 128 maps seed6451000, 587 sampled root states; these maps were inspected in prior whole-plan studies and are exploratory for this diagnostic",
+    "dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "teacher_label": "First legal action index of selected native three-turn completed plan. An earlier same-state audit found cached and replanned teachers identical on 2548/2548 first actions; later actions are excluded.",
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "rejected_student_checkpoint_sha256": "1d6e6530bb2f16d273910fdeb4b2de491d2e115017468eb3f31d3aea43f64fe4"
+  },
+  "analysis": "Replay the exact exported root state and legal action order once, infer frozen source and rejected student argmax without search or environment steps, then count same-state teacher matches, exact corrections, source retention, and off-target novel departures. Report by root seat, teacher action kind, and legal-action count bins1, 2-4, 5-16, 17+. Group signed agreement differences by independent map. Do not use this audit to select a checkpoint or change either policy.",
+  "interpretation": "Read-only post hoc agreement is not terminal credit, game strength, Elo, a fresh validation gate or proof that any action difference caused a win/loss. If the student improves agreement but makes many off-target departures, that is a measured fidelity/retention tradeoff, not a demonstrated causal failure mechanism.",
+  "resources": "Only SSH server fedora-toolbox scratch, one pinned low-priority CPU, small JSON output. No new search, maps, training, checkpoint or Site/rated-bot change."
+}
