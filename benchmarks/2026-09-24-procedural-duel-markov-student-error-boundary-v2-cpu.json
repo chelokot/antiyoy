@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "kind": "post_hoc_replanned_teacher_student_error_boundary",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-markov-student-error-boundary-v1.json",
+  "code_commit": "63aa18b",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, action limit2400, route generator procedural_v1",
+  "sample": {
+    "seed_first": 6510000,
+    "independent_maps": 16,
+    "both_seat_games": 32,
+    "terminal_games": 32,
+    "action_limit_adjudications": 0,
+    "provenance": "The first16 maps of the already inspected and failed seed6510000 direct-game window. No fresh validation or training data were collected.",
+    "exact_replay": "All32 map seeds, model seats, winners and game-truncated flags match the corresponding first32 entries of the original direct-game report; all16 source self-play winners also match."
+  },
+  "teacher": "Native root beam256/top8/opponent beam64/followup beam32 with replan_each_action=true, queried read-only at each student decision",
+  "checkpoints_sha256": {
+    "student": "1d6e6530bb2f16d273910fdeb4b2de491d2e115017468eb3f31d3aea43f64fe4",
+    "source": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867"
+  },
+  "atomic_decisions": {
+    "total": 2453,
+    "student_source_departures": 696,
+    "exact_teacher_corrections_among_departures": 216,
+    "student_matches_neither_when_teacher_source_differ": 333,
+    "student_departs_when_teacher_matches_source": 147,
+    "off_target_departures_total": 480,
+    "exact_teacher_correction_fraction_among_departures": 0.3103448275862069,
+    "source_matches_teacher": 1261,
+    "student_matches_teacher": 1330,
+    "teacher_source_disagreements": 1192,
+    "student_stays_with_source_on_teacher_source_disagreements": 643,
+    "student_teacher_agreement_map_net": {
+      "student_higher": 11,
+      "source_higher": 5,
+      "same": 0
+    },
+    "by_student_seat": [
+      {
+        "seat": 0,
+        "decisions": 1320,
+        "source_matches_teacher": 673,
+        "student_matches_teacher": 712,
+        "teacher_source_disagreements": 647,
+        "exact_teacher_corrections": 119,
+        "student_matches_neither": 180,
+        "departs_when_source_matches_teacher": 80
+      },
+      {
+        "seat": 1,
+        "decisions": 1133,
+        "source_matches_teacher": 588,
+        "student_matches_teacher": 618,
+        "teacher_source_disagreements": 545,
+        "exact_teacher_corrections": 97,
+        "student_matches_neither": 153,
+        "departs_when_source_matches_teacher": 67
+      }
+    ]
+  },
+  "completed_student_turns": {
+    "seat0": {"completed": 309, "first_action_matches_teacher": 153, "whole_turn_matches_teacher": 53},
+    "seat1": {"completed": 300, "first_action_matches_teacher": 152, "whole_turn_matches_teacher": 62}
+  },
+  "reproduced_game_outcomes": {
+    "student_direct_wins": 11,
+    "source_direct_wins": 21,
+    "student_wins_by_own_seat": [9, 2],
+    "paired_independent_maps": {"student_better": 1, "source_reference_better": 6, "same": 9},
+    "source_self_play_reference_wins_by_seat": [9, 7]
+  },
+  "raw_report_sha256": "69d2a4d8014f219e03bfb170c74bf423aaef16fe65ca73d9b2161f6f94ced0ee",
+  "runner_sha256": "3d9a97d5cf6f15c11b168b926f244013107fce0894e64fcae2125ebf63669348",
+  "raw_report": "/tmp/antiyoy-residual.n17QTu/procedural-duel-markov-error-audit-6510000.json on the SSH server",
+  "verification": "Python445 tests and Ruff passed on the SSH server, and GitHub Rust/Python/web CI passed for the diagnostic-code commit. The raw report exactly reproduced the original game ledger and recorded the replanned teacher flag with root256/reply64/followup32.",
+  "interpretation": "On student-visited states, action-level Markov teacher fidelity increased modestly, but fewer than one third of the student's departures from the source were exact teacher corrections. Novel actions and departures when source already matched teacher dominated. Whole-turn exact agreement remained low. This is a correlated post hoc diagnostic on16 already inspected maps, not independent strength, a per-action causal outcome label or a reason to revive/tune the rejected student. Different game trajectories prevent attributing the observed complete-game loss to any particular disagreement. No teacher or final promotion windows were queried."
+}
