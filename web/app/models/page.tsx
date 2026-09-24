@@ -175,18 +175,18 @@ export default function ModelsPage() {
       <header className="models-hero">
         <p>Reproducible agent ratings · procedural duel</p>
         <h1>Who actually wins?</h1>
-        <div className="models-lead"><p>Every number below names its opponent, map family, seeds, seats, and sample count. Ratings from different pools are deliberately not merged.</p><dl><div><dt>Current duel</dt><dd>Three-turn search</dd></div><div><dt>Head-to-head</dt><dd>{currentDuel.nativeWins}–{currentDuel.directWins}</dd></div><div><dt>Relative Elo</dt><dd>+{currentDuel.headToHeadElo}</dd></div></dl></div>
+        <div className="models-lead"><p>Every number below names its opponent, map family, seeds, seats, and sample count. Ratings from different pools are deliberately not merged.</p><dl><div><dt>Current duel</dt><dd>Replanned three-turn search</dd></div><div><dt>Head-to-head</dt><dd>{currentDuel.nativeWins}–{currentDuel.directWins}</dd></div><div><dt>Relative Elo</dt><dd>+{currentDuel.headToHeadElo}</dd></div></dl></div>
       </header>
 
       <section className="models-section duel-loop-section">
-        <div className="section-heading"><div><p>Procedural duel · current experiment</p><h2>Amplification works. Distillation has not.</h2></div><p>Classic Generic · 11×9 · rotating-start maps · both seats · {currentDuel.maps} independent maps. The relative Elo below comes from direct head-to-head games, not the older fixed-map leaderboard.</p></div>
+        <div className="section-heading"><div><p>Procedural duel · current experiment</p><h2>Amplification works. Distillation has not.</h2></div><p>Classic Generic · 11×9 · rotating-start maps · seeds 6,494,000–6,494,255 · both seats · {currentDuel.maps} independent maps. The relative Elo below comes from direct head-to-head games, not the older fixed-map leaderboard.</p></div>
         <div className="duel-loop" aria-label="Instant routed v6 policy amplified by three-turn search, with no accepted distilled policy">
           <div className="duel-loop-node"><span>Instant policy</span><h3>Routed v6</h3><strong>0</strong><p>Head-to-head reference</p></div>
           <div className="duel-loop-arrow" aria-hidden="true">AMPLIFY →</div>
-          <div className="duel-loop-node duel-loop-node-search"><span>Planning at inference</span><h3>Three-turn search</h3><strong>+{currentDuel.headToHeadElo}</strong><p>Relative Elo · 95% map bootstrap +{currentDuel.eloCiLow} to +{currentDuel.eloCiHigh}</p></div>
+          <div className="duel-loop-node duel-loop-node-search"><span>Planning at every action</span><h3>Replanned three-turn search</h3><strong>+{currentDuel.headToHeadElo}</strong><p>Relative Elo · 95% map bootstrap +{currentDuel.eloCiLow} to +{currentDuel.eloCiHigh}</p></div>
         </div>
-        <div className="duel-loop-distill"><strong>← DISTILLATION</strong><p>No new point yet. The latest whole-plan student matched {currentDuel.distilledPlanMatches}/{currentDuel.planValidationPositions} teacher turns versus {currentDuel.sourcePlanMatches}/{currentDuel.planValidationPositions} for its source and failed the predeclared offline gate. It was not rated or deployed.</p></div>
-        <p className="method-note">Native search won {currentDuel.nativeWins} of {currentDuel.games} terminal games against direct v6; grouped by map, {currentDuel.betterMaps} better / {currentDuel.worseMaps} worse / {currentDuel.sameMaps} unchanged. Nonterminal games: {currentDuel.nonterminalGames}. <SnapshotEvidenceLink evidence="three-turn-duel" /> · rejected student <SnapshotEvidenceLink evidence="three-turn-distillation" />. This is not global or human Elo.</p>
+        <div className="duel-loop-distill"><strong>← DISTILLATION</strong><p>No new point yet. A whole-plan student matched {currentDuel.distilledPlanMatches}/{currentDuel.planValidationPositions} teacher turns versus {currentDuel.sourcePlanMatches}/{currentDuel.planValidationPositions} for its source and failed the predeclared offline gate. It was not rated or deployed.</p></div>
+        <p className="method-note">Replanned native search won {currentDuel.nativeWins} of {currentDuel.games} terminal games against frozen direct v6; grouped by map, {currentDuel.betterMaps} better / {currentDuel.worseMaps} worse / {currentDuel.sameMaps} unchanged. Nonterminal games: {currentDuel.nonterminalGames}. <SnapshotEvidenceLink evidence="three-turn-replanned-duel" /> · rejected student <SnapshotEvidenceLink evidence="three-turn-distillation" />. This is head-to-head Elo for this opponent and arena, not global or human Elo.</p>
       </section>
 
       <section className="models-section">

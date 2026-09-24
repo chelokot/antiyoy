@@ -126,9 +126,9 @@ test("renders the benchmark-backed model arena", async () => {
   const visibleText = html.replaceAll("<!-- -->", "");
   assert.match(html, /Who actually wins\?/);
   assert.match(html, /Amplification works\. Distillation has not\./);
-  assert.match(html, /Three-turn search/);
-  assert.match(visibleText, /328–184/);
-  assert.match(visibleText, /\+100\.42/);
+  assert.match(html, /Replanned three-turn search/);
+  assert.match(visibleText, /447–65/);
+  assert.match(visibleText, /\+334\.96/);
   assert.match(html, /No new point yet/);
   assert.match(html, /Engine-v6 fixed duel/);
   assert.match(html, /Routed v6 candidate/);
