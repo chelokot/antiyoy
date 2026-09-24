@@ -208,8 +208,11 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(styles, /\.action-dock \{[^}]*position: absolute;/);
   assert.match(styles, /\.action-dock-buttons \{[^}]*overflow-x: auto;[^}]*overscroll-behavior-inline: contain;/);
   assert.match(styles, /clip-path: polygon\(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%\)/);
-  assert.match(styles, /\.hex \{[^}]*width: 4\.625rem;[^}]*height: 4rem;[^}]*flex: 0 0 4\.625rem;[^}]*margin: 0 0 0 -1\.15625rem;[^}]*appearance: none;/);
-  assert.match(styles, /\.hex:nth-child\(even\) \{ --hex-shift: 2rem; \}/);
+  assert.match(styles, /\.hex-board \{ position: relative;/);
+  assert.match(styles, /\.hex \{[^}]*position: absolute;[^}]*width: 4\.625rem;[^}]*height: 4rem;[^}]*appearance: none;/);
+  assert.doesNotMatch(styles, /\.hex:nth-child\(even\)/);
+  assert.match(arena, /hexBoardSize\(state\?\.width \?\? WIDTH, state\?\.height \?\? HEIGHT\)/);
+  assert.match(arena, /hexPosition\(q, r\)/);
   assert.match(styles, /\.panel-section > summary/);
   assert.match(arena, /className="panel-heading"/);
   assert.match(arena, /className="panel-scroll"/);

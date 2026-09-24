@@ -10,6 +10,7 @@ import type {
 import { RoutedBrowserPolicy, type PolicyDecision } from "./browser-policy";
 import type { CellView, CoreAction, EconomyRulesView, StateView } from "./game-types";
 import { GamePiece, ShopPiece } from "./GamePiece";
+import { hexBoardSize, hexPosition } from "./hex-geometry";
 import {
   actionTarget,
   actionsForIntent,
@@ -1177,15 +1178,7 @@ export default function Arena() {
     setError(null);
   }, [disconnectOnline]);
 
-  const rows = useMemo(() => {
-    if (state === null) {
-      return [];
-    }
-    return Array.from({ length: state.height }, (_, row) =>
-      state.cells.slice(row * state.width, (row + 1) * state.width),
-    );
-  }, [state]);
-
+  const boardSize = hexBoardSize(state?.width ?? WIDTH, state?.height ?? HEIGHT);
   const selected = state?.cells[selectedId] ?? null;
   const province = selected?.province === null || selected === null
     ? null
@@ -1354,8 +1347,8 @@ export default function Arena() {
           </div>
           <div className={`board-scroll ${humanMode && replayMetadata === null ? "board-scroll-human" : ""}`} ref={boardViewport} aria-label="Interactive hex game board">
             <div className="board-transform" style={{ transform: `translate(-50%, -50%) scale(${boardScale})` }}>
-              <div ref={boardContent} className={`hex-board ${state !== null && state.width > 15 ? "hex-board-compact" : ""}`}>
-                {rows.map((row, rowIndex) => <div className="hex-row" key={rowIndex}>{row.map((cell) => <Hex cell={cell} inspected={cell.id === selectedId} selected={actionIntent?.kind === "move" && actionIntent.source === cell.id} selectable={humanCanAct && movementSources.has(cell.id)} actionable={humanCanAct && actionableTargets.has(cell.id)} onSelect={handleHexSelect} key={cell.id} />)}</div>)}
+              <div ref={boardContent} className="hex-board" style={{ width: `${boardSize.width}rem`, height: `${boardSize.height}rem` }}>
+                {state?.cells.map((cell) => <Hex cell={cell} q={cell.id % state.width} r={Math.floor(cell.id / state.width)} inspected={cell.id === selectedId} selected={actionIntent?.kind === "move" && actionIntent.source === cell.id} selectable={humanCanAct && movementSources.has(cell.id)} actionable={humanCanAct && actionableTargets.has(cell.id)} onSelect={handleHexSelect} key={cell.id} />)}
               </div>
             </div>
           </div>
@@ -1427,6 +1420,8 @@ function LeagueMatchRow({ match }: { match: LeagueMatch }) {
 
 function Hex({
   cell,
+  q,
+  r,
   inspected,
   selected,
   selectable,
@@ -1434,6 +1429,8 @@ function Hex({
   onSelect,
 }: {
   cell: CellView;
+  q: number;
+  r: number;
   inspected: boolean;
   selected: boolean;
   selectable: boolean;
@@ -1441,7 +1438,8 @@ function Hex({
   onSelect: (id: number) => void;
 }) {
   const owner = cell.owner === null ? "neutral" : `player-${cell.owner % PLAYER_NAMES.length}`;
-  return <button className={`hex hex-${owner} ${cell.playable ? "" : "hex-void"} ${inspected ? "hex-inspected" : ""} ${selected ? "hex-selected" : ""} ${selectable ? "hex-selectable" : ""} ${actionable ? "hex-actionable" : ""}`} type="button" disabled={!cell.playable} aria-label={cell.playable ? `Hex ${cell.id}, ${pieceLabel(cell)}${selected ? ", selected unit" : actionable ? ", legal destination" : selectable ? ", ready unit" : ""}` : `Inactive hex ${cell.id}`} onClick={() => onSelect(cell.id)}><GamePiece cell={cell} />{selected && <span className="selection-ring" aria-hidden="true" />}{actionable && <span className="move-target" aria-hidden="true" />}</button>;
+  const position = hexPosition(q, r);
+  return <button className={`hex hex-${owner} ${cell.playable ? "" : "hex-void"} ${inspected ? "hex-inspected" : ""} ${selected ? "hex-selected" : ""} ${selectable ? "hex-selectable" : ""} ${actionable ? "hex-actionable" : ""}`} style={{ left: `${position.left}rem`, top: `${position.top}rem` }} type="button" disabled={!cell.playable} aria-label={cell.playable ? `Hex ${cell.id}, ${pieceLabel(cell)}${selected ? ", selected unit" : actionable ? ", legal destination" : selectable ? ", ready unit" : ""}` : `Inactive hex ${cell.id}`} onClick={() => onSelect(cell.id)}><GamePiece cell={cell} />{selected && <span className="selection-ring" aria-hidden="true" />}{actionable && <span className="move-target" aria-hidden="true" />}</button>;
 }
 
 function ShopButton({
