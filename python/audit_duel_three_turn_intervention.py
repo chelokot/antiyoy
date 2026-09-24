@@ -36,6 +36,9 @@ from .evaluate import paired_comparison_summary
 
 FOLLOWUP_NODES = 32
 PROTOCOL = "benchmarks/protocols/2026-09-24-duel-three-turn-intervention-v1.json"
+LATER_PROTOCOL = (
+    "benchmarks/protocols/2026-09-24-duel-three-turn-later-intervention-v1.json"
+)
 
 
 def complete_turn(
@@ -76,7 +79,10 @@ def sample_first_disagreement(
     root: int,
     policy: PolicyActor,
     maximum_round: int,
+    minimum_round: int = 1,
 ) -> dict[str, object]:
+    if minimum_round < 1 or maximum_round < minimum_round:
+        raise ValueError("intervention round window is invalid")
     environment = create_environment(seed)
     rules = encode_rules_batch(environment.rules_jsons(), torch.device("cpu"))
     previous_active: int | None = None
@@ -90,7 +96,7 @@ def sample_first_disagreement(
         if root_turn_start and round_number > maximum_round:
             break
         direct = policy.actions(observation, rules)
-        if root_turn_start:
+        if root_turn_start and round_number >= minimum_round:
             observed_root_turns += 1
             teacher = native_teacher_action(environment, FOLLOWUP_NODES)
             if int(direct[0]) != int(teacher[0]):
@@ -209,6 +215,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=6430000)
     parser.add_argument("--maps", type=int, default=64)
     parser.add_argument("--maximum-round", type=int, default=16)
+    parser.add_argument("--minimum-round", type=int, default=1)
     arguments = parser.parse_args()
     checkpoint_sha256 = digest(arguments.checkpoint)
     if checkpoint_sha256 != CHECKPOINT_SHA256:
@@ -218,19 +225,33 @@ def main() -> None:
     torch.set_num_threads(1)
     policy, experts = load_routed_policy(arguments.checkpoint)
     samples = [
-        sample_first_disagreement(seed, seat, policy, arguments.maximum_round)
+        sample_first_disagreement(
+            seed,
+            seat,
+            policy,
+            arguments.maximum_round,
+            arguments.minimum_round,
+        )
         for seed in range(arguments.seed, arguments.seed + arguments.maps)
         for seat in (0, 1)
     ]
+    protocol = (
+        LATER_PROTOCOL
+        if arguments.minimum_round == 8 and arguments.maximum_round == 24
+        else PROTOCOL
+        if arguments.minimum_round == 1 and arguments.maximum_round == 16
+        else None
+    )
     print(
         json.dumps(
             {
                 "kind": "three_turn_teacher_first_action_intervention",
-                "protocol": PROTOCOL,
+                "protocol": protocol,
                 "checkpoint_sha256": checkpoint_sha256,
                 "selected_experts": experts,
                 "seed": arguments.seed,
                 "maps": arguments.maps,
+                "minimum_round": arguments.minimum_round,
                 "maximum_round": arguments.maximum_round,
                 "action_limit": ACTION_LIMIT,
                 "teacher": {

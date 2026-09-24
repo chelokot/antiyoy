@@ -1,11 +1,18 @@
 from __future__ import annotations
 
-import numpy as np
+from collections.abc import Mapping
 
+import numpy as np
+import pytest
+from torch import Tensor
+
+import python.audit_duel_three_turn_intervention as intervention
+from antiyoy_rl import VectorEnv
 from python.audit_duel_first_regret import create_environment, native_teacher_action
 from python.audit_duel_three_turn_intervention import (
     FOLLOWUP_NODES,
     complete_turn,
+    sample_first_disagreement,
     summarize,
 )
 
@@ -28,6 +35,41 @@ def test_three_turn_teacher_completes_only_the_forked_turn() -> None:
     assert not original.done()[0]
     assert branch.done()[0] or int(branch.observe()["active_players"][0]) != root
     assert not (bool(result["terminal"][0]) and bool(result["truncated"][0]))
+
+
+def test_later_round_window_skips_earlier_teacher_queries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class EndTurnPolicy:
+        def actions(
+            self, observation: Mapping[str, np.ndarray], rules: Tensor
+        ) -> np.ndarray:
+            return np.asarray(
+                [np.flatnonzero(observation["action_kinds"] == 0)[0]],
+                dtype=np.uint64,
+            )
+
+    queried_rounds: list[int] = []
+
+    def matching_teacher(environment: VectorEnv, followup_nodes: int) -> np.ndarray:
+        assert followup_nodes == FOLLOWUP_NODES
+        observation = environment.observe()
+        queried_rounds.append(int(observation["rounds"][0]))
+        return EndTurnPolicy().actions(observation, Tensor())
+
+    monkeypatch.setattr(intervention, "native_teacher_action", matching_teacher)
+
+    sample = sample_first_disagreement(
+        6439001,
+        0,
+        EndTurnPolicy(),
+        maximum_round=3,
+        minimum_round=3,
+    )
+
+    assert queried_rounds == [3]
+    assert sample["observed_root_turns"] == 1
+    assert sample["no_intervention_reason"] == "round_limit"
 
 
 def test_intervention_summary_censors_adjudication_and_groups_maps() -> None:
