@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_three_turn_teacher_first_action_intervention",
+  "question": "At the first root-turn start where frozen direct routed-v6 and validated native three-turn search choose different first actions, does executing the teacher's entire turn change the terminal outcome when both branches subsequently use the identical frozen direct policy for both players?",
+  "arena": "Classic Generic procedural_v2 11x9 two players, 2400-action horizon",
+  "window": {"seed_first": 6430000, "independent_maps": 64, "both_seats": true, "sample_root_turns_through_round": 16},
+  "checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "roll_in": "Both players act by deterministic routed-v6 direct policy until the first start of a root-seat turn with a different direct-versus-teacher first action. Record starts with no disagreement by round16 or a completed game separately.",
+  "teacher": "Native root whole-turn beam256/top8 distinct completed turns, opponent full-turn beam64, root followup beam32, with the same search configuration as the validated candidate.",
+  "intervention": "Fork the exact same pre-turn state. In one branch let routed-v6 choose every action through completion of that root turn; in the other let the three-turn teacher choose every action through completion of that turn. Then run BOTH players in each branch under the identical frozen routed-v6 direct policy to terminal or the unchanged 2400-action limit. Do not use native search later in either branch.",
+  "analysis": "Report sampled and unsampled starts, both full-turn plans, branch terminal/truncation flags, winner, and action count. Censor any pair with either action-limit truncation when comparing terminal outcomes. Count teacher better, direct better, same by root seat and by independent map; report an exact two-sided map-paired sign test only descriptively. Also disclose all adjudications separately without calling them terminal. The sampled first-action-divergence subset is not all teacher/model whole-turn disagreements.",
+  "interpretation_limit": "This is conditional one-turn credit under direct-policy continuation, not the strength of persistent teacher play, a trainable oracle or an Elo evaluation. Do not train from sparse or censored labels, tune a policy on this map window, or touch reserved final promotion seed6300000.",
+  "resources": "Heavy computation only via SSH server fedora-toolbox, one pinned CPU at nice19 with Rayon/BLAS caps, bounded wall time and tiny output. Reinspect aggregate resources; do not touch other workloads or the dirty remote original repository."
+}
