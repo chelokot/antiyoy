@@ -1,0 +1,38 @@
+{
+  "kind": "replanned_three_turn_vs_frozen_direct_model_fresh_matched_audit",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-replan-direct-model-v1.json",
+  "code_commit": "86b5ec5",
+  "arena": "Classic Generic procedural_v2 11x9, two players, 2400-action finite horizon with nonterminal material adjudication",
+  "frozen_model_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "search": "Native in-place reply_search_actions(replan_each_action=true), root beam256/top8 completed turns/opponent beam64/root followup beam32",
+  "fresh_independent_maps": 256,
+  "seed_first": 6494000,
+  "rotated_seat_games": 512,
+  "terminal_games": 512,
+  "action_limit_adjudications": 0,
+  "replanned_search_wins_by_model_seat": [214, 233],
+  "direct_model_wins_by_model_seat": [42, 23],
+  "replanned_search_total_wins": 447,
+  "direct_model_total_wins": 65,
+  "paired_independent_maps": {
+    "replanned_search_better": 192,
+    "direct_model_better": 1,
+    "same": 63,
+    "exact_two_sided_sign_test_p": 3.0905983075969574e-56
+  },
+  "actual_fixed_pool_head_to_head_elo_replanned_over_direct": 334.95766659563236,
+  "independent_map_bootstrap_95_head_to_head_elo": [295.5443220251696, 382.4522997166847],
+  "native_self_play_reference_nonterminal_games": 0,
+  "predeclared_gate": {
+    "all_512_games_terminal": true,
+    "replanned_search_better_in_both_seats": true,
+    "independent_map_sign_p_below_0_05": true,
+    "bootstrap_lower_elo_positive": true,
+    "passed": true
+  },
+  "verification": "The audit validated the frozen arena/search configuration, checkpoint filename, exactly paired seed/seat ledger, all game outcomes, zero censoring and the explicit native replanning report flag. Frozen routed-v6.pt SHA256 was checked before the run. Python 441 tests and Ruff passed on the SSH server; GitHub Rust/Python/web/WASM CI passed for 86b5ec5.",
+  "raw_report": "/tmp/antiyoy-residual.n17QTu/procedural-duel-replan-direct-model-6494000.json",
+  "raw_report_sha256": "3e6637e5cdb381f14b14cd6ff01f639e23de54a9d3b26e32c64e91b242d3cbd8",
+  "runner_sha256": "0c8151f012fc655a2f72fde78afa219f55318d86af94a09076b90abfb488d2c1",
+  "limitations": "The Elo estimate is actual head-to-head only against this frozen model in this arena, not global strength or a cross-profile rating. This window differs from the earlier cached-search-versus-model window, so the two Elo estimates are not a direct paired comparison. Online Default/Classic Slay, browser WASM latency and owner-private UI gates remain. No neural student, rated bot or browser agent changed."
+}
