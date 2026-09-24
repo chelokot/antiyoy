@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_persistent_teacher_state_distribution_replay",
+  "question": "Does persistent three-turn search create a visible territory, cash, profit, or army advantage at matched own-turn checkpoints, or is its complete-game gain not explained by these coarse state features?",
+  "source_report": "/tmp/antiyoy-residual.n17QTu/procedural-duel-teacher-coverage-6440000.json",
+  "source_sha256": "e8c6653c212cff19c7998a8ead8e05315b5aee03153d6e212ca808f7a64a94fb",
+  "existing_inspected_maps": {"seed_first": 6440000, "independent_maps": 64, "both_root_seats": true},
+  "arms_replayed": [0, 25, 100],
+  "frozen_policies": "Exact same routed-v6 direct policy, deterministic whole-turn teacher selection and native three-turn teacher as the source coverage study; no training, action substitution, search tuning, or new maps.",
+  "checkpoints_one_based_root_turns": [2, 4, 8, 12],
+  "features": ["owned_cells", "province_money", "province_profit", "unit_strength"],
+  "analysis": "Record features from the actual root-turn-start observation for both players as root-minus-opponent leads. First reproduce each source game outcome, action count, root-turn count and teacher-turn count exactly. At each checkpoint compare a candidate arm with the zero-percent direct arm only for seed-seat pairs surviving to that checkpoint in BOTH arms; disclose the number excluded and counts for which BOTH seats survive on an independent map. Summarize per-seat and pooled paired feature differences without a causal or significance claim. Give complete-game root-turn and action-count distributions separately.",
+  "interpretation_limit": "Replay on already inspected maps is a descriptive mechanism audit, not fresh strength evidence, a trained student, terminal credit, Elo, or a causal mediation analysis. Reaching a checkpoint is post-treatment selection. Do not tune any policy or train a value head on this audit. Predeclare fresh disjoint windows before any future policy training.",
+  "resources": "Heavy replay only SSH server fedora-toolbox, one pinned CPU nice19 with Rayon/BLAS caps, bounded wall time and tiny compressed output. No GPU, no preemption, no remote original-repo edits."
+}

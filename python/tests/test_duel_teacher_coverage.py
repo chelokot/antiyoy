@@ -51,10 +51,18 @@ def test_whole_turn_coverage_preserves_the_direct_policy_outcome(
     monkeypatch.setattr(coverage, "create_environment", small_environment)
     monkeypatch.setattr(coverage, "native_teacher_action", matching_teacher)
 
-    direct = coverage.play_game(6449000, 0, 0, EndTurnPolicy())
+    observed_turns: list[int] = []
+    direct = coverage.play_game(
+        6449000,
+        0,
+        0,
+        EndTurnPolicy(),
+        on_root_turn=lambda observation, turn: observed_turns.append(turn),
+    )
     searched = coverage.play_game(6449000, 0, 100, EndTurnPolicy())
 
     assert direct["outcome"] == searched["outcome"]
+    assert observed_turns == list(range(direct["root_turns"]))
     assert direct["teacher_turns"] == 0
     assert searched["teacher_turns"] == searched["root_turns"]
     assert searched["teacher_actions"] == searched["teacher_turns"]

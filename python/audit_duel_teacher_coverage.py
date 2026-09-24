@@ -3,9 +3,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import cast
 
+import numpy as np
 import torch
 
 from antiyoy_rl.counterfactual import PolicyActor
@@ -50,6 +52,7 @@ def play_game(
     root: int,
     percentage: int,
     policy: PolicyActor,
+    on_root_turn: Callable[[Mapping[str, np.ndarray], int], None] | None = None,
 ) -> dict[str, object]:
     environment = create_environment(seed)
     rules = encode_rules_batch(environment.rules_jsons(), torch.device("cpu"))
@@ -64,6 +67,8 @@ def play_game(
         observation = environment.observe()
         active = int(observation["active_players"][0])
         if active == root and previous_active != root:
+            if on_root_turn is not None:
+                on_root_turn(observation, root_turns)
             selected_teacher = teacher_turn(seed, root, root_turns, percentage)
             root_turns += 1
             teacher_turns += int(selected_teacher)
