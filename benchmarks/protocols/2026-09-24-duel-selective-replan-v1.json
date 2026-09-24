@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "kind": "selective_replanned_teacher_on_student_source_disagreement",
+  "question": "Can disagreement between the rejected Markov student and its frozen routed-v6 source identify a minority of atomic states where invoking the validated replanned native teacher improves direct complete-game strength over the source?",
+  "controller": {
+    "student_checkpoint_sha256": "1d6e6530bb2f16d273910fdeb4b2de491d2e115017468eb3f31d3aea43f64fe4",
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "selection": "At every candidate atomic decision obtain direct argmax legal-action indices from both frozen policies on the same observation. If equal, play that action. If different, query native three-turn reply search and play its legal action. Search only active candidate states with disagreement; replan every queried action. The rejected student is only a trigger, never directly promoted.",
+    "teacher": "Native root whole-turn beam256/top8 distinct completed plans, opponent full-turn beam64, root followup beam32, replan_each_action=true; no terminal outcome oracle."
+  },
+  "arena": "Fresh128 independent Classic Generic procedural_v2 11x9 two-player maps seed6530000, 256 candidate-versus-frozen-source direct games with both candidate seats and 2400-action limit; route frozen source from procedural_v1",
+  "comparison": "Use the same map-paired frozen-source self-play reference as the standard evaluate report. Report actual direct winners, map-grouped candidate-better/source-better/same versus source reference, exact two-sided sign p, each seat, terminal and action-limit-adjudicated counts, fixed-pool direct head-to-head Elo with map-bootstrap95, and teacher query fraction among candidate decisions. Keep outcome and cost claims separate.",
+  "exploratory_gate": "Require all256 games terminal, candidate wins more than128 direct games, positive source-reference win difference in each seat, independent-map sign p<0.05, and teacher queries in at most50% of candidate atomic decisions. If any fail, reject this selective controller; do not tune the trigger or run confirmation/profile windows on these maps. If all pass, freeze the controller and predeclare NEW disjoint direct-versus-full-teacher confirmation plus runtime/profile windows before any playable/rated change.",
+  "limitations": "This is search-assisted action selection, not successful neural distillation. The rejected student checkpoint is not reclassified as a strong standalone policy. Do not infer teacher causal credit from the earlier same-state agreement audit, and do not touch reserved seeds6300000,6453000,6454000,6455000,6511000,6512000.",
+  "resources": "Heavy compute only through SSH server fedora-toolbox scratch after aggregate resource check, one pinned CPU15 nice19 with Rayon/BLAS thread caps, timeout2700 seconds, tiny JSON report and no GPU or parallel heavy job. Preserve current Site/rated bot and original rules."
+}
