@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_three_turn_finite_horizon_tournament_gate",
+  "reason": "Two fresh 256-map terminal-only gates found exactly one nonterminal candidate game each. Read-only traces proved sustained EndTurn loops rather than slow progress. The original game's default completion path checks for a sole surviving kingdom, not automatic turn-count or repetition draws, so the core game must remain unchanged.",
+  "original_source": "https://github.com/yiotro/Antiyoy/blob/master/core/src/yio/tro/antiyoy/gameplay/FinishGameManager.java",
+  "scope": "An explicitly finite-horizon headless tournament convention, not a new Antiyoy rule or a claim about original-game terminal outcomes.",
+  "arena": "Classic Generic procedural_v2 11x9 two players, 2400-action horizon",
+  "candidate": "frozen native root beam256/top8 completed turns, opponent full-turn beam64, root followup beam32",
+  "baseline": "frozen native root beam256/top8 completed turns, opponent full-turn beam64",
+  "horizon_outcome": "At the action horizon, keep the existing material adjudication as the tournament tiebreaker and flag that game as nonterminal. Never relabel it a true game termination. Report timeout incidence, seats, seeds and adjudicated results separately.",
+  "primary_fresh_window": {"seed_first": 6410000, "independent_maps": 256, "both_seats": true},
+  "primary_analysis": "Compare candidate-seat score to the identical-map baseline self-play score, aggregate two rotated seats within each independent map, compute exact two-sided paired sign p, per-seat wins, fixed-pool relative Elo and map-bootstrap 95% interval. Separately compute only-fully-terminal-map comparison. For worst-case timeout sensitivity, replace every nonterminal candidate outcome with a loss for its seat and every nonterminal baseline-reference outcome with a win for the same seat before aggregating maps; report the resulting exact paired sign p. Never pool correlated seats as independent maps.",
+  "primary_gate": "Candidate map-grouped exact paired sign p<0.05, positive lower bound of map-bootstrap 95% pool-relative Elo, candidate wins not below baseline reference in either seat, candidate and baseline-reference nonterminal rates each <=1%, and worst-case timeout sensitivity map-grouped p<0.05 favoring candidate. Keep prior matched-turn median runtime ratio <=3x and disclose p95. Failure prevents any rating or browser promotion.",
+  "profile_windows_only_if_primary_passes": [
+    {"rules": "classic_slay_2022", "seed_first": 6411000, "independent_maps": 64, "both_seats": true},
+    {"rules": "online_default_v1", "seed_first": 6412000, "independent_maps": 64, "both_seats": true}
+  ],
+  "profile_gate": "For each profile, disclose nonterminal games and rule differences; candidate map wins must not trail baseline-map wins and neither seat may regress. A failed profile prevents cross-profile claims. Do not alter profile-specific search parameters.",
+  "direct_model_window_only_after_profile_gates": {"seed_first": 6413000, "independent_maps": 256, "both_seats": true, "opponent": "frozen routed-v6 direct"},
+  "decision": "A passing gate permits only a clearly labeled finite-horizon Classic Generic research rating and consideration of an opt-in playable bot, not universal Antiyoy Elo or an original-game terminal win claim. No retrospective re-scoring of seeds 6381000 or 6390000. Keep the rated/browser agent and owner-private Site unchanged until fresh games, runtime/profile checks and safe publication are verified.",
+  "resources": "Heavy compute only via SSH server fedora-toolbox, nice19, one pinned CPU with Rayon/BLAS capped, bounded commands and tiny outputs. Reinspect aggregate CPU, memory and disk; never inspect other users' private data or preempt workloads."
+}
