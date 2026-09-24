@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "kind": "selective_replanned_search_against_full_teacher_confirmation",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-selective-replan-confirmation-v1.json",
+  "arena": "Fresh Classic Generic procedural_v2 11x9 two-player maps, both candidate seats, 2400-action limit with nonterminal adjudications tracked separately",
+  "controllers": "The frozen selective controller uses routed-v6's action when source and rejected Markov student agree, and otherwise queries the replanned native three-turn search. The frozen routed-v6 source is evaluated separately. Both face the SAME full replanned native three-turn opponent with root beam256/top8 completed turns/opponent beam64/followup beam32.",
+  "smoke": {
+    "seed_first": 6530900,
+    "independent_maps": 2,
+    "candidate_games": 4,
+    "terminal_games": 4,
+    "teacher_queries": 85,
+    "candidate_decisions": 297,
+    "raw_sha256": "d4ab405d1c3836761974e23442b983225cdd9f9305a6b21d9ce67571aefbf9fd"
+  },
+  "fresh_confirmation": {
+    "seed_first": 6531000,
+    "independent_maps": 64,
+    "candidate_games": 128,
+    "source_games": 128,
+    "candidate_terminal_games": 128,
+    "source_terminal_games": 128,
+    "candidate_nonterminal_games": 0,
+    "source_nonterminal_games": 0,
+    "candidate_wins_against_full_teacher": 28,
+    "source_wins_against_full_teacher": 8,
+    "candidate_wins_by_own_seat": [21, 7],
+    "source_wins_by_own_seat": [5, 3],
+    "paired_independent_maps": {
+      "candidate_better": 24,
+      "source_better": 5,
+      "same": 35,
+      "exact_two_sided_sign_test_p": 0.0005461126565933228
+    },
+    "fixed_pool_relative_elo_delta_candidate_over_source": 249.29971615916017,
+    "map_bootstrap_95_fixed_pool_relative_elo_delta": [127.85147745465848, 426.7787158522452],
+    "teacher_queries": 2683,
+    "candidate_atomic_decisions": 8695,
+    "teacher_query_fraction": 0.3085681426106958,
+    "final_actions_different_from_source": 2212,
+    "predeclared_game_gate_passed": true
+  },
+  "inputs": {
+    "rejected_student_checkpoint_sha256": "1d6e6530bb2f16d273910fdeb4b2de491d2e115017468eb3f31d3aea43f64fe4",
+    "frozen_source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867"
+  },
+  "raw": {
+    "candidate_report": "/tmp/antiyoy-residual.n17QTu/selective-teacher-candidate-6531000.json",
+    "candidate_report_sha256": "48b8dde0c12a8c63caf8c4f6941fedd16a0aabb6b29cfcb296579ef9b93e2af6",
+    "candidate_runner_sha256": "cb0e80a022e46d783f5662b1aa4c5e586a79d079a04e4569f99e8d37aeabcf81",
+    "candidate_exit_code": 0,
+    "source_report": "/tmp/antiyoy-residual.n17QTu/selective-teacher-source-6531000.json",
+    "source_report_sha256": "4d43b6c42e7b3f0da459deb9935e792610692ec5322a0fdec13bb7edc0c7dbe1",
+    "source_runner_sha256": "724d101bcc0c24f274745064bf294cc72370dced1a1a4b62e73cfccc0915be59",
+    "source_exit_code": 0,
+    "strict_audit": "/tmp/antiyoy-residual.n17QTu/selective-teacher-confirmation-6531000-audit.json",
+    "strict_audit_sha256": "d20e81dfb1b3f73580afd12a6bb2673367d5815c8d4e597536033b15e1f2ba08"
+  },
+  "verification": "The strict auditor checked protocol settings, every independent-map and seat game, identical full-teacher self-play references, all terminal flags, win totals, map-grouped comparison, map bootstrap and query accounting. Python459 tests and Ruff passed on the SSH server; code CI was green before this report.",
+  "limitations": [
+    "These are separate games against one fixed full-search opponent, not a direct head-to-head between candidate and source. Elo is a descriptive relative estimate for this arena and opponent pool, not global strength.",
+    "The selective controller remains well below the full replanned teacher in absolute wins. It is a search-assisted controller, not a successful standalone distilled neural policy; its student checkpoint remains rejected as a direct agent.",
+    "A 30.9 percent teacher-query rate is not a matched CPU or browser latency measurement. The fresh seed6532000 runtime gate and other-rule profiles remain untested. No rated agent or owner-private Site was changed."
+  ],
+  "next_gate": "Use the already reserved fresh16-map seed6532000 for matched single-core candidate/source/full-teacher CPU latency, then predeclare disjoint Online Default and Classic Slay both-seat profile gates before any playable or rated promotion."
+}

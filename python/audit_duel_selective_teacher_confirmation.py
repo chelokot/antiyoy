@@ -71,6 +71,7 @@ def audit(candidate: dict[str, object], source: dict[str, object]) -> dict[str, 
 
     scores = []
     wins_by_seat = []
+    nonterminal_games = []
     for name, raw in (("candidate", candidate), ("source", source)):
         seeds = cast(list[int], raw["game_seeds"])
         seats = cast(list[int], raw["model_seats"])
@@ -89,8 +90,7 @@ def audit(candidate: dict[str, object], source: dict[str, object]) -> dict[str, 
             winner == seat for winner, seat in zip(winners, seats, strict=True)
         ) or raw["truncations"] != sum(truncated):
             raise ValueError(f"{name} outcome totals disagree with game ledger")
-        if any(truncated):
-            raise ValueError(f"{name} games did not all reach a terminal outcome")
+        nonterminal_games.append(sum(truncated))
         scores.append(
             np.asarray(
                 [
@@ -121,6 +121,7 @@ def audit(candidate: dict[str, object], source: dict[str, object]) -> dict[str, 
     ):
         raise ValueError("selective search query accounting is inconsistent")
     gate = {
+        "all_256_games_terminal": sum(nonterminal_games) == 0,
         "both_seats_positive": all(
             candidate_wins > source_wins
             for candidate_wins, source_wins in zip(
@@ -141,6 +142,8 @@ def audit(candidate: dict[str, object], source: dict[str, object]) -> dict[str, 
         "terminal_games_per_controller": GAMES,
         "candidate_wins_by_seat": wins_by_seat[0],
         "source_wins_by_seat": wins_by_seat[1],
+        "candidate_nonterminal_games": nonterminal_games[0],
+        "source_nonterminal_games": nonterminal_games[1],
         "paired_independent_maps": paired,
         "pool_relative_elo_delta": baseline_adjusted_elo_delta(
             float(candidate_scores.mean()), float(source_scores.mean()), GAMES

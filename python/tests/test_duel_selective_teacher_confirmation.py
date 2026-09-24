@@ -89,8 +89,10 @@ def test_selective_confirmation_rejects_misaligned_or_censored_games() -> None:
     censored = deepcopy(candidate)
     censored["game_truncated"][0] = True
     censored["truncations"] = 1
-    with pytest.raises(ValueError, match="terminal"):
-        audit(censored, source)
+    censored_result = audit(censored, source)
+    assert censored_result["candidate_nonterminal_games"] == 1
+    assert censored_result["gate"]["all_256_games_terminal"] is False
+    assert censored_result["confirmation_gate_passed"] is False
 
     wrong_reference = deepcopy(source)
     wrong_reference["baseline_self_play"]["winners"][0] = 1
