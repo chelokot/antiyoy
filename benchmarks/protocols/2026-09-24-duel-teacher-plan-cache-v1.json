@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_native_teacher_plan_cache_vs_fresh_replan_diagnostic",
+  "question": "Does the validated three-turn teacher's hidden cached whole-turn plan make its atomic actions differ materially from fresh search on the exact same post-action state, and do the two controllers produce different complete-game outcomes?",
+  "fresh_window": {"seed_first": 6490000, "independent_maps": 16, "both_root_seats": true},
+  "arena": "Classic Generic procedural_v2 11x9, two players, 2400-action finite horizon with material adjudication flagged nonterminal",
+  "frozen_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "opponent": "Frozen routed-v6 direct policy on every opponent turn",
+  "arms": ["direct", "cached_teacher", "replanned_teacher"],
+  "controllers": "The cached arm calls the existing native three-turn search agent for every atomic root action, retaining its planned completed turn. The replanned arm forks the same live game state before EVERY root atomic action and uses a fresh native three-turn search agent only on that fork, then executes its selected legal action in the live game. The direct arm uses the frozen model on all root actions. All arms use the same direct opponent. No rules or rated agent change.",
+  "same_state_measurement": "In the cached arm, compare the cached native action with the first action from a fresh-search fork at every root action, including the first action of every turn. Verify legal action offsets match and report disagreement counts by action position 1,2,3,4+. First-action disagreements indicate a reproducibility bug and invalidate the intended hidden-plan interpretation. The fork must not mutate the live game.",
+  "analysis": "Report complete games and censoring by arm and seat; map-paired exact two-sided sign tests for cached versus direct, replanned versus direct, and cached versus replanned. Group by independent map, not candidate actions. This 16-map pilot is descriptive and underpowered for policy promotion. If cached/fresh same-state actions rarely disagree, reject hidden plan as the main imitation barrier. If they disagree substantially, treat a Markov replan target or explicit plan-state student as hypotheses only; require a separately predeclared independent game gate for any new teacher or student.",
+  "resources": "Run heavy games only on SSH server fedora-toolbox, one pinned CPU nice19, Rayon/BLAS capped, 1800-second hard timeout, tiny JSON, no GPU or preemption. Never touch the remote original repo."
+}
