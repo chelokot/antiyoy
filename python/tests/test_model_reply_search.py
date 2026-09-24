@@ -89,12 +89,15 @@ def test_native_reply_audit_preserves_hybrid_turn() -> None:
     root = int(plain_environment.observe()["active_players"][0])
     active = np.asarray([True], dtype=np.bool_)
     rules = torch.zeros((1, 45))
+    first_audited_action = None
 
     while int(plain_environment.observe()["active_players"][0]) == root:
         chosen = plain.actions(plain_environment, EndTurnPolicy(), rules, active)
         audited_chosen = audited.actions(
             audited_environment, EndTurnPolicy(), rules, active
         )
+        if first_audited_action is None:
+            first_audited_action = int(audited_chosen[0])
         np.testing.assert_array_equal(chosen, audited_chosen)
         plain_environment.step(chosen)
         audited_environment.step(audited_chosen)
@@ -103,6 +106,10 @@ def test_native_reply_audit_preserves_hybrid_turn() -> None:
 
     assert len(audited.native_reply_records) == 1
     record = audited.native_reply_records[0]
+    assert len(record["candidate_plans"]) == len(record["native_reply_scores"])
+    assert record["candidate_plans"][record["autonomous_selected_index"]][0] == (
+        first_audited_action
+    )
     assert record["autonomous_selected_index"] == max(
         range(len(record["autonomous_reply_scores"])),
         key=lambda index: (

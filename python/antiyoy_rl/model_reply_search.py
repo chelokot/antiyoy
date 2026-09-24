@@ -120,6 +120,7 @@ class ModelReplySearch:
                             "root_seat": root,
                             "round": int(observation["rounds"][index]),
                             "static_scores": static_scores[index],
+                            "candidate_plans": candidate_plans,
                             "autonomous_reply_scores": predicted,
                             "native_reply_scores": native_scores,
                             "autonomous_selected_index": selected,
