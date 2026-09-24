@@ -3,9 +3,13 @@ use antiyoy_core::{Action, GENERATOR_ROTATED_SCHEMA_VERSION, Game, GeneratorConf
 use antiyoy_rl::BatchObservation;
 use serde::Serialize;
 
+#[path = "support/rng_state.rs"]
+mod rng_state;
+
+use rng_state::shifted_random;
+
 const FIRST_SEED: u64 = 6_520_000;
 const MAPS: u64 = 64;
-const RNG_SHIFT: u64 = 11_400_714_819_323_198_485;
 
 #[derive(Serialize)]
 struct ChangedAction {
@@ -24,15 +28,6 @@ struct Report {
     changed_by_seat: [u32; 2],
     maps_with_change: u32,
     changed_actions: Vec<ChangedAction>,
-}
-
-fn shifted_random(game: &Game) -> Game {
-    let mut value = serde_json::to_value(game).expect("game serializes");
-    let random = value["random"]["state"]
-        .as_u64()
-        .expect("game RNG state is a u64");
-    value["random"]["state"] = serde_json::json!(random.wrapping_add(RNG_SHIFT));
-    serde_json::from_value(value).expect("shifted game deserializes")
 }
 
 fn teacher_action(game: &Game, legal: &[Action]) -> Action {
