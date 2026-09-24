@@ -59,11 +59,10 @@ def candidate_decisions(
     )
 
 
-def plan_log_probabilities(
+def action_log_probabilities(
     model: UniversalPolicy,
     observations: dict[str, np.ndarray],
     action_indices: np.ndarray,
-    plan_offsets: np.ndarray,
     rules_json: str,
 ) -> np.ndarray:
     rules = encode_rules(rules_json, torch.device("cpu"))
@@ -72,12 +71,31 @@ def plan_log_probabilities(
         distribution = action_distribution(logits, observations["action_offsets"])
         labels = torch.as_tensor(action_indices, dtype=torch.long)
         log_probabilities = distribution.log_prob(labels).numpy()
+    return log_probabilities
+
+
+def mean_plan_log_probabilities(
+    action_log_probs: np.ndarray, plan_offsets: np.ndarray
+) -> np.ndarray:
     return np.asarray(
         [
-            log_probabilities[start:end].mean()
+            action_log_probs[start:end].mean()
             for start, end in zip(plan_offsets[:-1], plan_offsets[1:], strict=True)
         ],
         dtype=np.float64,
+    )
+
+
+def plan_log_probabilities(
+    model: UniversalPolicy,
+    observations: dict[str, np.ndarray],
+    action_indices: np.ndarray,
+    plan_offsets: np.ndarray,
+    rules_json: str,
+) -> np.ndarray:
+    return mean_plan_log_probabilities(
+        action_log_probabilities(model, observations, action_indices, rules_json),
+        plan_offsets,
     )
 
 

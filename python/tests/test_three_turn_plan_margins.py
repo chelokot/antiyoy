@@ -7,8 +7,12 @@ from python.audit_three_turn_plan_margins import (
 
 def test_override_margin_summary_keeps_choices_and_length_distinct() -> None:
     rows = [
-        OverrideMargin(1, 0, 0, 1, 1, -1.0, 0.5, 4, 2, True),
-        OverrideMargin(2, 1, 2, 1, 2, 0.2, -0.1, 2, 3, False),
+        OverrideMargin(
+            1, 0, 0, 1, 1, -1.0, 0.5, 4, 2, True, -9.0, 0.0, -4.0, 0.0, -1.0, -0.5
+        ),
+        OverrideMargin(
+            2, 1, 2, 1, 2, 0.2, -0.1, 2, 3, False, -1.0, 0.0, -0.5, 0.0, -0.2, -0.1
+        ),
     ]
 
     assert [length_relation(row) for row in rows] == ["longer", "shorter"]
@@ -25,3 +29,5 @@ def test_override_margin_summary_keeps_choices_and_length_distinct() -> None:
     assert summary["selected_shorter"] == 1
     assert summary["selected_action_counts"] == {2: 1, 4: 1}
     assert summary["static_action_counts"] == {2: 1, 3: 1}
+    assert summary["source_early_end_gap_median"] == -5.0
+    assert summary["student_early_end_gap_median"] == -2.25

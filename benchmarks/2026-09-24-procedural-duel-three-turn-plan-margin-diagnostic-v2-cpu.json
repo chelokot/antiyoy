@@ -18,7 +18,7 @@
     "frozen_source_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
     "rejected_student_head_sha256": "97f243654304a37b1488f00e6bb0428a9fdec83de1255a0ae0bb21e2b978fe71"
   },
-  "method": "Replay every candidate complete turn on fit maps, compute its mean legal-action log probability under frozen source and rejected student, compare the teacher-selected plan with static rank zero, and group by independent map, root seat, first action and plan length. No model weights, thresholds or labels are changed.",
+  "method": "Replay every candidate complete turn on fit maps, compute legal-action log probabilities under frozen source and rejected student, compare the teacher-selected plan with static rank zero, and group by independent map, root seat, first action and plan length. The last action of each completed plan is EndTurn. No model weights, thresholds or labels are changed. Previous fit-only summary fields were reproduced exactly after exposing per-action log probabilities.",
   "override_positions": {
     "source_selects_static": 203,
     "student_selects_static": 196,
@@ -35,7 +35,15 @@
     "teacher_plan_longer_than_static": 4,
     "teacher_plan_length_counts": {"1": 19, "2": 203, "3": 12, "4": 2},
     "static_plan_mean_actions": 5.313559322033898,
-    "teacher_plan_mean_actions": 1.9872881355932204
+    "teacher_plan_mean_actions": 1.9872881355932204,
+    "source_teacher_early_endturn_logprob_median": -9.466997146606445,
+    "source_static_late_endturn_logprob_median": 0.0,
+    "student_teacher_early_endturn_logprob_median": -4.793033838272095,
+    "student_static_late_endturn_logprob_median": 0.0,
+    "source_early_minus_late_endturn_logprob_gap_median": -9.385984420776367,
+    "student_early_minus_late_endturn_logprob_gap_median": -4.6600775718688965,
+    "source_teacher_minus_static_first_action_logprob_gap_median": -0.7376329898834229,
+    "student_teacher_minus_static_first_action_logprob_gap_median": -0.30920588970184326
   },
   "first_action_relation": {
     "same_first_action": {
@@ -53,14 +61,16 @@
     "The exact objective did shift teacher-vs-static plan log-probability in the intended direction on most fit overrides; the hypothesis of no fitted signal is contradicted.",
     "The shift almost never changed the top-ranked complete plan, and the held-out offline gate still failed. This fit-only diagnostic does not rehabilitate the rejected checkpoint.",
     "Teacher-selected override plans are usually shorter than static rank-zero plans, so longer teacher plans are not the explanation for their low model probability in this sample.",
-    "The audit does not establish that low EndTurn probability, KL retention, sample size, optimization, representation or the searched teacher target caused the failure; these require distinct tests."
+    "The measured EndTurn log-probability gap dwarfs the measured first-action gap in these shorter teacher plans. The student's early-EndTurn log probability rose substantially, yet the typical teacher-plan score remained below static rank zero. This localizes a policy-distribution mismatch, not its cause.",
+    "Early and late EndTurn probabilities come from different board states. Their comparison is descriptive, not a causal substitution. The audit does not establish whether KL retention, data scarcity, optimization, representation, or the searched teacher target caused the held-out failure."
   ],
   "artifacts": {
     "audit_script": "python/audit_three_turn_plan_margins.py",
-    "audit_script_sha256": "6ec7f2d4f05f09761d0e9772f62ef4df043e725bc67edcf2cfee34c15e34e52f",
-    "audit_runner_sha256": "d9804de6c521c9654752d95bcd323ad01707b6b55c1ba9ff7ee431f6a48f47a3",
-    "raw_audit_sha256": "7fa6e8258790b3e8faad515cc15be9f4186dc3d1aa3f2fc01552c84905bdf628",
-    "remote_scratch": "/tmp/antiyoy-residual.n17QTu/three-turn-plan-fit-margins-6451000-v2.json"
+    "audit_script_sha256": "ac3f414da4700f0122770050ef3367586d09ec83ec927c029d589d156b54e34f",
+    "shared_logprob_script_sha256": "a575a0b2c43b18a0fd65d01984dd6c02df7f0de777d5693434e912b1bf5401e9",
+    "audit_runner_sha256": "88a2028ca0ed29ce015fe778555dd2c9630a37eea5c8030fc18f232408d9b934",
+    "raw_audit_sha256": "c35ec8d1f43aeac43ab3a0c42efaba4299b017a9c1e2d9be5b1c5719cc18cb6e",
+    "remote_scratch": "/tmp/antiyoy-residual.n17QTu/three-turn-plan-fit-margins-6451000-v3.json"
   },
   "qualification": "Exploratory read-only analysis on already-used FIT maps. Correlated positions and score margins are neither autonomous game strength nor Elo; the prior independent validation failure remains decisive."
 }

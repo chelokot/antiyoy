@@ -14,8 +14,9 @@ import torch
 from antiyoy_rl.slate_dataset import replay_slate_positions
 
 from .audit_three_turn_plan_feasibility import (
+    action_log_probabilities,
     candidate_decisions,
-    plan_log_probabilities,
+    mean_plan_log_probabilities,
     selected_plan,
 )
 from .build_bundle import digest
@@ -35,6 +36,12 @@ class OverrideMargin:
     selected_length: int
     static_length: int
     same_first_action: bool
+    source_teacher_end_log_prob: float
+    source_static_end_log_prob: float
+    student_teacher_end_log_prob: float
+    student_static_end_log_prob: float
+    source_first_action_gap: float
+    student_first_action_gap: float
 
 
 def length_relation(row: OverrideMargin) -> str:
@@ -86,6 +93,40 @@ def summarize_overrides(rows: list[OverrideMargin]) -> dict[str, object]:
         "static_action_counts": dict(
             sorted(Counter(row.static_length for row in rows).items())
         ),
+        "source_teacher_end_logprob_median": float(
+            np.median([row.source_teacher_end_log_prob for row in rows])
+        ),
+        "source_static_end_logprob_median": float(
+            np.median([row.source_static_end_log_prob for row in rows])
+        ),
+        "student_teacher_end_logprob_median": float(
+            np.median([row.student_teacher_end_log_prob for row in rows])
+        ),
+        "student_static_end_logprob_median": float(
+            np.median([row.student_static_end_log_prob for row in rows])
+        ),
+        "source_early_end_gap_median": float(
+            np.median(
+                [
+                    row.source_teacher_end_log_prob - row.source_static_end_log_prob
+                    for row in rows
+                ]
+            )
+        ),
+        "student_early_end_gap_median": float(
+            np.median(
+                [
+                    row.student_teacher_end_log_prob - row.student_static_end_log_prob
+                    for row in rows
+                ]
+            )
+        ),
+        "source_first_action_gap_median": float(
+            np.median([row.source_first_action_gap for row in rows])
+        ),
+        "student_first_action_gap_median": float(
+            np.median([row.student_first_action_gap for row in rows])
+        ),
     }
 
 
@@ -123,14 +164,25 @@ def audit(fit_path: Path, source_path: Path, checkpoint_path: Path) -> dict[str,
             continue
         observations, actions, offsets = candidate_decisions(position)
         rules = position.root.rules_json()
-        source_scores = plan_log_probabilities(
-            source, observations, actions, offsets, rules
+        source_actions = action_log_probabilities(
+            source, observations, actions, rules
         )
-        student_scores = plan_log_probabilities(
-            student, observations, actions, offsets, rules
+        student_actions = action_log_probabilities(
+            student, observations, actions, rules
         )
+        source_scores = mean_plan_log_probabilities(source_actions, offsets)
+        student_scores = mean_plan_log_probabilities(student_actions, offsets)
         static_scores = cast(list[int], record["static_scores"])
         plans = cast(list[list[int]], record["candidate_action_indices"])
+        serialized = cast(list[list[object]], record["actions"])
+        if serialized[0][-1] != "EndTurn" or serialized[teacher][-1] != "EndTurn":
+            raise ValueError("completed turn plan lacks EndTurn")
+        static_source_actions = source_actions[offsets[0] : offsets[1]]
+        teacher_source_actions = source_actions[offsets[teacher] : offsets[teacher + 1]]
+        static_student_actions = student_actions[offsets[0] : offsets[1]]
+        teacher_student_actions = student_actions[
+            offsets[teacher] : offsets[teacher + 1]
+        ]
         rows.append(
             OverrideMargin(
                 seed=position.seed,
@@ -143,6 +195,16 @@ def audit(fit_path: Path, source_path: Path, checkpoint_path: Path) -> dict[str,
                 selected_length=len(plans[teacher]),
                 static_length=len(plans[0]),
                 same_first_action=plans[teacher][0] == plans[0][0],
+                source_teacher_end_log_prob=float(teacher_source_actions[-1]),
+                source_static_end_log_prob=float(static_source_actions[-1]),
+                student_teacher_end_log_prob=float(teacher_student_actions[-1]),
+                student_static_end_log_prob=float(static_student_actions[-1]),
+                source_first_action_gap=float(
+                    teacher_source_actions[0] - static_source_actions[0]
+                ),
+                student_first_action_gap=float(
+                    teacher_student_actions[0] - static_student_actions[0]
+                ),
             )
         )
     return {
