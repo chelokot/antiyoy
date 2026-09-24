@@ -4,6 +4,7 @@
   "question": "Can the existing routed-v6 UniversalPolicy represent and optimize the first searched action on a small, fixed set of training observations?",
   "data": {
     "source": "Existing three-turn plan fit dataset, first sampled root position from each of 128 maps seed6451000 through6451127; no new maps or labels",
+    "fit_dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
     "label": "First legal action index of the exact native three-turn selected completed plan. The cached and replanned teachers previously agreed on every tested first action at identical root state.",
     "selection": "Sort independent map seeds ascending, take exactly the first sampled record per seed, and copy its root BatchObservation and legal-action ordering once before optimization. Reject a missing or duplicate map.",
     "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867"
