@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "kind": "selective_replan_matched_source_state_cpu_latency",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-selective-replan-latency-v1.json",
+  "code_commit": "d40fc71",
+  "arena": "Classic Generic procedural_v2 11x9 two-player; source routed-v6 plays against full native replanned three-turn search. Every source decision in its first12 full turns per game is measured for all three frozen selectors on the same exact state. The source action alone advances the roll-in.",
+  "smoke": {
+    "first_seed": 6531900,
+    "independent_maps": 2,
+    "rotated_seat_rollins": 4,
+    "sampled_source_turns": 46,
+    "sampled_decisions": 156,
+    "teacher_queries": 37,
+    "censored_rollins": 0,
+    "gate_window": false,
+    "raw_sha256": "a438e05128260fd3a8d612a9922319f5a346fd46dd4ef043ef8ebe63618a528b"
+  },
+  "fresh_gate": {
+    "first_seed": 6532000,
+    "independent_maps": 16,
+    "rotated_seat_rollins": 32,
+    "sampled_source_turns": 384,
+    "sampled_decisions": 1323,
+    "censored_rollins": 0,
+    "teacher_queries": 388,
+    "teacher_query_fraction": 0.29327286470143615,
+    "matched_process_cpu_action_milliseconds": {
+      "frozen_source": {"median": 3.344496, "p95": 4.157432699999999},
+      "selective_controller": {"median": 6.771612, "p95": 21.9956839},
+      "full_replanned_teacher": {"median": 5.167271, "p95": 19.3732736}
+    },
+    "matched_wall_action_milliseconds": {
+      "frozen_source": {"median": 3.358801, "p95": 4.1736077},
+      "selective_controller": {"median": 6.799033, "p95": 22.062975699999996},
+      "full_replanned_teacher": {"median": 5.188085, "p95": 19.4139435}
+    },
+    "matched_source_turn_process_cpu_milliseconds": {
+      "frozen_source": {"median": 10.161926999999999, "p95": 24.57540235},
+      "selective_controller": {"median": 26.113554999999998, "p95": 83.23973914999999},
+      "full_replanned_teacher": {"median": 14.837032999999998, "p95": 84.6699485}
+    },
+    "root_seat_action_process_cpu_median_milliseconds": {
+      "seat0": {"selective_controller": 6.873793, "full_replanned_teacher": 5.628692},
+      "seat1": {"selective_controller": 6.6855744999999995, "full_replanned_teacher": 4.738746}
+    },
+    "gate": {
+      "zero_censored_rollins": true,
+      "teacher_query_fraction_at_most_half": true,
+      "selective_median_cpu_below_teacher": false,
+      "selective_p95_cpu_at_most_teacher": false,
+      "selective_p95_cpu_below_250ms": true
+    },
+    "predeclared_runtime_gate_passed": false
+  },
+  "inputs": {
+    "frozen_source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "rejected_student_checkpoint_sha256": "1d6e6530bb2f16d273910fdeb4b2de491d2e115017468eb3f31d3aea43f64fe4",
+    "native_search": "Root beam256/top8 distinct completed turns/opponent beam64/root followup beam32; replan_each_action=true"
+  },
+  "raw": {
+    "gate_report": "/tmp/antiyoy-residual.n17QTu/selective-latency-gate-6532000.json",
+    "gate_report_sha256": "1b905926c5ae192f6aede2748032b97328a2bda463ca63029cdb2fa6e0c52954",
+    "smoke_report": "/tmp/antiyoy-residual.n17QTu/selective-latency-smoke-6531900.json",
+    "smoke_report_sha256": "a438e05128260fd3a8d612a9922319f5a346fd46dd4ef043ef8ebe63618a528b"
+  },
+  "verification": "All16 consecutive map seeds and both source seats produced32 roll-ins with12 sampled source turns each. Exact forked BatchObservations including legal-action order matched at all1323 sampled states; all three selected legal actions. Native searches and both model inferences were measured on one pinned low-priority CPU with Rayon/BLAS threads capped at1, rotating selector order. Python462 tests and Ruff passed on the SSH server; code CI green.",
+  "limitations": [
+    "The timed states were visited by the direct source policy, not by the selective controller. The source-turn aggregates are counterfactual sums over the source's action states, not actual selective or teacher complete-turn latency.",
+    "These process-CPU and wall timings are native server measurements, not browser WASM responsiveness. Search fork creation and equality assertions were outside the timed selection, matching the in-place production selector cost.",
+    "This is a runtime failure, not a reversal of the separate seed6530000 source head-to-head and seed6531000 same-opponent game-strength results. The selective controller is neither a standalone distilled neural policy nor a faster alternative to the stronger full teacher."
+  ],
+  "decision": "Reject this frozen selective-controller configuration for owner-private Site or rated promotion. Do not tune its trigger/search thresholds on the inspected windows or run its reserved rule-profile gates. The prior validated full native replanned search and current rated/browser agents remain unchanged."
+}
