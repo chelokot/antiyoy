@@ -30,7 +30,9 @@ def test_on_policy_audit_groups_both_seats_by_independent_map() -> None:
         {
             "model_agent": "model_reply_search",
             "seed": 100,
-            "winners": [0, 1, 0, 1],
+            "winners": [1, 0, 0, 1],
+            "game_seeds": [100, 100, 101, 101],
+            "model_seats": [0, 1, 0, 1],
             "seats": [],
             "model_reply_native_audit": [
                 record(100, 0, [10, 0], [10, 0], 0, 0),
@@ -50,6 +52,20 @@ def test_on_policy_audit_groups_both_seats_by_independent_map() -> None:
         "seat_zero_higher": 1,
         "same": 0,
         "exact_two_sided_sign_test_p": 1.0,
+    }
+    assert result["strict_regret_game_outcome_overlap_by_model_seat"] == {
+        0: {
+            "wins_with_regret": 1,
+            "wins_without_regret": 0,
+            "losses_with_regret": 0,
+            "losses_without_regret": 1,
+        },
+        1: {
+            "wins_with_regret": 0,
+            "wins_without_regret": 1,
+            "losses_with_regret": 1,
+            "losses_without_regret": 0,
+        },
     }
 
 
