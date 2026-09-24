@@ -262,6 +262,17 @@ button { font: inherit; }
 .models-lead dt { color: #73736d; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; }
 .models-lead dd { margin: 0.25rem 0 0; font-size: clamp(1rem, 2vw, 1.45rem); font-weight: 800; }
 .models-section { border-bottom: 0.125rem solid #202221; padding: clamp(2rem, 5vw, 5rem) clamp(1rem, 3vw, 3rem); }
+.duel-loop-section { background: #e8e2d2; }
+.duel-loop { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; border: 0.125rem solid #202221; }
+.duel-loop-node { padding: clamp(1rem, 3vw, 2rem); }
+.duel-loop-node-search { background: #e7c758; }
+.duel-loop-node span, .duel-loop-distill strong { color: #8b2f28; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.duel-loop-node h3 { margin: 0.55rem 0 1rem; font-family: Georgia, serif; font-size: clamp(1.4rem, 3vw, 2.5rem); font-weight: 400; }
+.duel-loop-node > strong { display: block; font-family: Georgia, serif; font-size: clamp(2.8rem, 6vw, 5rem); font-weight: 400; line-height: 1; }
+.duel-loop-node p, .duel-loop-distill p { margin: 0.65rem 0 0; font-size: 0.8rem; line-height: 1.5; }
+.duel-loop-arrow { display: grid; place-items: center; border-inline: 0.125rem solid #202221; padding: 1rem; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; white-space: nowrap; }
+.duel-loop-distill { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(0, 3fr); gap: 1rem; border-bottom: 0.125rem solid #202221; padding: 1rem 0; }
+.duel-loop-distill p { margin: 0; }
 .section-heading { display: grid; grid-template-columns: minmax(16rem, 1fr) minmax(20rem, 1fr); gap: 2rem; margin-bottom: 2rem; align-items: end; }
 .section-heading h2 { margin: 0.35rem 0 0; font-family: Georgia, serif; font-size: clamp(2rem, 4vw, 4.5rem); font-weight: 400; letter-spacing: -0.035em; line-height: 0.95; }
 .section-heading > p { max-width: 42rem; margin: 0; color: #555752; font-size: 0.9rem; line-height: 1.55; }
@@ -322,6 +333,9 @@ button { font: inherit; }
   .models-nav { grid-template-columns: 1fr 1fr; }
   .models-nav strong { display: none; }
   .models-lead, .section-heading { grid-template-columns: 1fr; }
+  .duel-loop { grid-template-columns: 1fr; }
+  .duel-loop-arrow { border-inline: 0; border-block: 0.125rem solid #202221; }
+  .duel-loop-distill { grid-template-columns: 1fr; }
   .models-lead dl { grid-template-columns: 1fr; }
   .pool-grid { grid-template-columns: 1fr; }
   .rating-pool + .rating-pool { border-top: 0.125rem solid #202221; border-left: 0; }

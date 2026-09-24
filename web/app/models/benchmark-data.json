@@ -60,7 +60,31 @@
     "native-search-budget": {
       "file": "2026-09-23-native-search-budget-ablation-v2-cpu.json",
       "sha256": "77edd616267eae08f6c08eae2fa66b9a1a023e7e50f4090c2b50d9f455ef0b1f"
+    },
+    "three-turn-duel": {
+      "file": "2026-09-24-procedural-duel-three-turn-finite-horizon-v2-cpu.json",
+      "sha256": "9cfbed2c31adebf9261c657f495d407323788263785db84ffa5ebbb10830c4fe"
+    },
+    "three-turn-distillation": {
+      "file": "2026-09-24-procedural-duel-three-turn-whole-plan-distillation-v2-cpu.json",
+      "sha256": "ac384e4db9763f322e5fd765d3f3cb19aa0a95099930c3ce18bedea2723aa924"
     }
+  },
+  "currentDuel": {
+    "maps": 256,
+    "games": 512,
+    "nativeWins": 328,
+    "directWins": 184,
+    "betterMaps": 99,
+    "worseMaps": 27,
+    "sameMaps": 130,
+    "headToHeadElo": 100.42,
+    "eloCiLow": 70.15,
+    "eloCiHigh": 130.69,
+    "nonterminalGames": 0,
+    "distilledPlanMatches": 186,
+    "sourcePlanMatches": 185,
+    "planValidationPositions": 273
   },
   "multiplayerSearch": {
     "maps": 128,

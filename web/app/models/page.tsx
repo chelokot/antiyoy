@@ -168,17 +168,29 @@ function SnapshotEvidenceLink({ evidence }: { evidence: keyof typeof benchmarkDa
 
 export default function ModelsPage() {
   const multiplayerSearch = benchmarkData.multiplayerSearch;
+  const currentDuel = benchmarkData.currentDuel;
   return (
     <main className="models-page">
       <nav className="models-nav"><Link href="/">← Play</Link><strong>Antiyoy Model Arena</strong><a href="https://github.com/chelokot/antiyoy" target="_blank" rel="noreferrer">Repository ↗</a></nav>
       <header className="models-hero">
-        <p>Reproducible agent ratings · engine v6</p>
+        <p>Reproducible agent ratings · procedural duel</p>
         <h1>Who actually wins?</h1>
-        <div className="models-lead"><p>Every number below names its opponent, engine, map family, seeds, seats, and sample count. Ratings from different pools are deliberately not merged.</p><dl><div><dt>Champion</dt><dd>Routed v6</dd></div><div><dt>Held-out</dt><dd>336–0</dd></div><div><dt>Relative Elo</dt><dd>+1131</dd></div></dl></div>
+        <div className="models-lead"><p>Every number below names its opponent, map family, seeds, seats, and sample count. Ratings from different pools are deliberately not merged.</p><dl><div><dt>Current duel</dt><dd>Three-turn search</dd></div><div><dt>Head-to-head</dt><dd>{currentDuel.nativeWins}–{currentDuel.directWins}</dd></div><div><dt>Relative Elo</dt><dd>+{currentDuel.headToHeadElo}</dd></div></dl></div>
       </header>
 
+      <section className="models-section duel-loop-section">
+        <div className="section-heading"><div><p>Procedural duel · current experiment</p><h2>Amplification works. Distillation has not.</h2></div><p>Classic Generic · 11×9 · rotating-start maps · both seats · {currentDuel.maps} independent maps. The relative Elo below comes from direct head-to-head games, not the older fixed-map leaderboard.</p></div>
+        <div className="duel-loop" aria-label="Instant routed v6 policy amplified by three-turn search, with no accepted distilled policy">
+          <div className="duel-loop-node"><span>Instant policy</span><h3>Routed v6</h3><strong>0</strong><p>Head-to-head reference</p></div>
+          <div className="duel-loop-arrow" aria-hidden="true">AMPLIFY →</div>
+          <div className="duel-loop-node duel-loop-node-search"><span>Planning at inference</span><h3>Three-turn search</h3><strong>+{currentDuel.headToHeadElo}</strong><p>Relative Elo · 95% map bootstrap +{currentDuel.eloCiLow} to +{currentDuel.eloCiHigh}</p></div>
+        </div>
+        <div className="duel-loop-distill"><strong>← DISTILLATION</strong><p>No new point yet. The latest whole-plan student matched {currentDuel.distilledPlanMatches}/{currentDuel.planValidationPositions} teacher turns versus {currentDuel.sourcePlanMatches}/{currentDuel.planValidationPositions} for its source and failed the predeclared offline gate. It was not rated or deployed.</p></div>
+        <p className="method-note">Native search won {currentDuel.nativeWins} of {currentDuel.games} terminal games against direct v6; grouped by map, {currentDuel.betterMaps} better / {currentDuel.worseMaps} worse / {currentDuel.sameMaps} unchanged. Nonterminal games: {currentDuel.nonterminalGames}. <SnapshotEvidenceLink evidence="three-turn-duel" /> · rejected student <SnapshotEvidenceLink evidence="three-turn-distillation" />. This is not global or human Elo.</p>
+      </section>
+
       <section className="models-section">
-        <div className="section-heading"><div><p>Pool 01</p><h2>Engine-v6 fixed duel</h2></div><p>Search-2048 is fixed at 1000. Same 11×9 map generator, seven rules profiles, paired seeds and opposite seats.</p></div>
+        <div className="section-heading"><div><p>Earlier fixed-map pool</p><h2>Engine-v6 fixed duel</h2></div><p>Search-2048 is fixed at 1000. Same 11×9 map generator, seven rules profiles, paired seeds and opposite seats. These ratings are not comparable to the procedural duel above.</p></div>
         <div className="ranking-table-wrap"><table className="ranking-table"><thead><tr><th>#</th><th>Agent</th><th>Method</th><th>Rating</th><th>Δ</th><th>W–D–L</th><th>Games</th><th>Proof</th></tr></thead><tbody>{engineSixRatings.map((row) => <tr key={row.agent}><td>{row.rank}</td><th scope="row">{row.agent}</th><td>{row.method}</td><td className="rating-number">{row.rating}</td><td>{row.delta}</td><td>{row.record}</td><td>{row.games}</td><td><EvidenceLink file={row.evidence} /></td></tr>)}</tbody></table></div>
         <p className="method-note">A perfect finite sample uses the evaluator&apos;s edge correction. +1131 is an arena-relative estimate, not a claim about human Elo or unseen multiplayer maps.</p>
       </section>

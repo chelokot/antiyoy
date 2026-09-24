@@ -105,6 +105,32 @@ test("model arena snapshot preserves the measured search and value gates", async
   });
 });
 
+test("procedural duel amplification stays bound to its own head-to-head pool", async () => {
+  const [snapshot, search, distillation] = await Promise.all([
+    readJson(snapshotUrl),
+    readJson(new URL("2026-09-24-procedural-duel-three-turn-finite-horizon-v2-cpu.json", benchmarkRoot)),
+    readJson(new URL("2026-09-24-procedural-duel-three-turn-whole-plan-distillation-v2-cpu.json", benchmarkRoot)),
+  ]);
+  const duel = snapshot.currentDuel;
+  const headToHead = search.direct_model_fresh_window;
+
+  assert.equal(duel.maps, headToHead.independent_maps);
+  assert.equal(duel.games, headToHead.rotated_seat_games);
+  assert.equal(duel.nativeWins, headToHead.native_total_wins);
+  assert.equal(duel.directWins, headToHead.direct_model_total_wins);
+  assert.equal(duel.betterMaps, headToHead.paired_independent_maps.native_better);
+  assert.equal(duel.worseMaps, headToHead.paired_independent_maps.direct_model_better);
+  assert.equal(duel.sameMaps, headToHead.paired_independent_maps.same);
+  assert.equal(duel.headToHeadElo, Number(headToHead.head_to_head_elo_native_over_direct.toFixed(2)));
+  assert.equal(duel.eloCiLow, Number(headToHead.map_bootstrap_95_head_to_head_elo[0].toFixed(2)));
+  assert.equal(duel.eloCiHigh, Number(headToHead.map_bootstrap_95_head_to_head_elo[1].toFixed(2)));
+  assert.equal(duel.nonterminalGames, headToHead.nonterminal_games);
+  assert.equal(duel.distilledPlanMatches, distillation.complete_plan_agreement.validation.student);
+  assert.equal(duel.sourcePlanMatches, distillation.complete_plan_agreement.validation.source);
+  assert.equal(duel.planValidationPositions, distillation.complete_plan_agreement.validation.positions);
+  assert.equal(distillation.predeclared_offline_gate.result, "failed");
+});
+
 test("model arena seat audit stays separate from Elo and matches both reports", async () => {
   const [snapshot, bias, rotation, policyScout] = await Promise.all([
     readJson(snapshotUrl),
