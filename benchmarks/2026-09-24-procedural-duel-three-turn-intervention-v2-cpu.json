@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "kind": "three_turn_teacher_first_action_terminal_intervention",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-three-turn-intervention-v1.json",
+  "protocol_commit": "37f6756",
+  "code_commit": "4c98cf6",
+  "status": "negative_conditional_one_turn_credit",
+  "arena": "Classic Generic procedural_v2 11x9, two players, 2400-action horizon",
+  "seed_first": 6430000,
+  "independent_maps": 64,
+  "rotated_seat_starts": 128,
+  "checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "method": "At the first root-turn start with a different direct-model versus three-turn-search first action through round16, fork the same pre-turn state. Let each policy complete only this root turn; continue both branches with frozen routed-v6 direct policy for both players. Search replans within its intervention turn; no searched actions occur afterward.",
+  "sample": {"positions": 128, "no_disagreement_by_round16": 0, "round1": 86, "round2": 30, "round3_or_later": 12},
+  "branch_completion": {"terminal_branches": 256, "action_limit_adjudicated_branches": 0, "censored_pairs": 0},
+  "root_seat_outcome": [
+    {"root_seat": 0, "teacher_better": 9, "direct_better": 10, "same": 45},
+    {"root_seat": 1, "teacher_better": 4, "direct_better": 6, "same": 54}
+  ],
+  "independent_map_net_outcome": {"teacher_better": 7, "direct_better": 10, "same": 47, "exact_two_sided_sign_test_p": 0.629058837890625},
+  "interpretation": "A single teacher turn did not show transferable terminal benefit under direct-policy continuation. This does not contradict the separately validated persistent three-turn search strength. The first-disagreement sampling heavily favors opening turns, so it cannot resolve later-game credit; candidate action/turn observations within a map are not independent samples.",
+  "raw_report": {"remote_path": "/tmp/antiyoy-residual.n17QTu/procedural-duel-three-turn-intervention-6430000.json", "sha256": "7d935af9e190aafcc04ea5f6c794a54ae35861fcbdd2fd81741e1725176c4b43"},
+  "verification": {"python_tests": 399, "ruff": "passed", "resource_policy": "SSH server fedora-toolbox, pinned single CPU, nice19, no GPU"},
+  "next_step": "Predeclare a fresh map-disjoint fixed later-round first-divergence sample before any further terminal intervention. Do not train on this opening-heavy negative sample, tune existing agents on its maps, promote an unverified neural student, or call this an Elo result."
+}
