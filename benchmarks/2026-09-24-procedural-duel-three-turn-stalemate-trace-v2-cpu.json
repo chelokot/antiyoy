@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "kind": "post_hoc_three_turn_search_nonterminal_trace",
+  "status": "both_previously_censored_games_are_reproducible_end_turn_loops",
+  "scope": "Read-only diagnosis of the two already-known censored Classic Generic procedural_v2 11x9 two-player games; not a fresh strength test or a change to the predeclared zero-censor gate.",
+  "trace_source": "crates/antiyoy-cli/examples/trace_three_turn_game.rs",
+  "search": "candidate root beam256/top8, opponent full-turn beam64, root followup beam32; reference root beam256/top8 and opponent full-turn beam64",
+  "position_key_definition": "Cell owner/object/unit strength plus active seat; readiness, treasury, round and RNG are excluded. Treasury constancy is checked separately. These repetitions do not assert byte-identical full Game states.",
+  "remote_resources": "SSH server fedora-toolbox, nice19 and one pinned CPU with Rayon/BLAS threads capped; no GPU or other user workload touched.",
+  "cases": [
+    {
+      "seed": 6390050,
+      "candidate_seat": 1,
+      "action_limit": 2400,
+      "actions": 2400,
+      "terminal": false,
+      "adjudicated_winner": 0,
+      "last_owner_change_action": 150,
+      "last_material_board_change_action": 315,
+      "repeated_position_keys": [
+        {"first_action": 315, "last_action": 2399, "occurrences": 1043},
+        {"first_action": 316, "last_action": 2398, "occurrences": 1042}
+      ],
+      "stalled_ownership": [59, 6],
+      "stalled_province_money": [1, 1],
+      "stalled_income": [71, 18],
+      "stalled_upkeep": [71, 18],
+      "stalled_legal_capture_moves_by_seat": [0, 5],
+      "inspected_action_index": 316,
+      "inspected_candidate_action": "EndTurn",
+      "inspected_reference_reply_action": "EndTurn",
+      "native_opponent_beam_first_action": "Move(3,6)",
+      "candidate_followup_beam_first_action": "Move(12,22)",
+      "candidate_next_live_turn_first_action": "EndTurn",
+      "end_turn_virtual_followup_score": -7733,
+      "end_turn_policy_reply_followup_score": -7734,
+      "best_immediate_capture_followup_score": -8129,
+      "interpretation": "The simulated opponent and root followup plans differ from the policies that actually play later. Nevertheless, replacing the simulated opponent with the reference policy for this one slate still ranks passing above every listed immediate capture. The response mismatch alone does not establish a winning search fix. With income equal to upkeep, both treasuries stay at one and the live policies exchange EndTurn indefinitely.",
+      "raw_trace_sha256": "1a8d085cd6cbabf00fb8aa64b8da924f72be725cb8f05ec9f1dce01ad7e56fab"
+    },
+    {
+      "seed": 6381213,
+      "candidate_seat": 0,
+      "action_limit": 1000,
+      "actions": 1000,
+      "terminal": false,
+      "adjudicated_winner": 1,
+      "last_owner_change_action": 136,
+      "last_material_board_change_action": 212,
+      "repeated_position_keys": [
+        {"first_action": 213, "last_action": 999, "occurrences": 394},
+        {"first_action": 212, "last_action": 998, "occurrences": 394}
+      ],
+      "stalled_ownership": [29, 33],
+      "stalled_province_money": [8, 0],
+      "stalled_income": [29, 33],
+      "stalled_upkeep": [29, 33],
+      "inspected_legal_capture_moves_at_actions_300_and_1000": 0,
+      "interpretation": "Material, ownership and money remain fixed while both policies repeatedly pass. The sampled active seat has no legal immediate capture, recruit or build at actions 300 and 1000. This is a strategic/economic stalemate under the current rules, not an ordinary long battle progressing toward terminal elimination.",
+      "raw_trace_sha256": "6ade34161bb4667be15d3a235e569ce7635d836490a8a42328e32dba98df64b7"
+    }
+  ],
+  "trace_artifacts": "/tmp/antiyoy-residual.n17QTu/procedural-duel-three-turn-trace-{6390050,6381213}.json on SSH server",
+  "verification": "Both replays exactly reproduced the seed, seat, action cap, nonterminal status and adjudicated loser in their original matched-game reports. Rust workspace tests and CLI all-target Clippy -D warnings passed on SSH server.",
+  "decision": "The zero-censor promotion gate remains failed. Do not increase the cap again, retroactively count these games as terminal, deploy/rate the candidate, or change Antiyoy mechanics to erase the loop. A future RL/tournament protocol may define an explicitly optional draw or repetition rule without changing the core game; predeclare it and use new independent both-seat maps, recording terminal and draw rates separately."
+}
