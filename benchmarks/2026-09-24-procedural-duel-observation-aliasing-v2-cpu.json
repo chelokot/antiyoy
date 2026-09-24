@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "kind": "exploratory_search_observation_aliasing_result",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-observation-aliasing-v1.json",
+  "arena": "Classic Generic procedural_v2 11x9 two-player",
+  "sample": {
+    "first_seed": 6520000,
+    "independent_maps": 64,
+    "root_seats": [0, 1],
+    "sampling": "First nonterminal decision for each root seat at round 4 after deterministic GreedyAgent self-play",
+    "sampled_by_seat": [64, 64],
+    "skipped_by_seat": [0, 0]
+  },
+  "intervention": "Only Game.random.state was shifted by the predeclared fixed odd constant modulo 2^64. Complete BatchObservation equality and the exact legal-action sequence were asserted at every pair before querying search.",
+  "teacher": "Replanned native three-turn search, root beam256/top8/opponent beam64/followup beam32",
+  "result": {
+    "paired_same_observation_decisions": 128,
+    "teacher_action_changed": 10,
+    "independent_maps_with_change": 10,
+    "changed_by_root_seat": [3, 7],
+    "action_kind_transitions": {
+      "move_to_move": 5,
+      "recruit_to_move": 3,
+      "end_turn_to_move": 2
+    },
+    "changed_map_seeds": [6520000, 6520004, 6520008, 6520010, 6520011, 6520022, 6520033, 6520034, 6520035, 6520055]
+  },
+  "raw_report": "/tmp/antiyoy-residual.n17QTu/observation-rng-alias-6520000.json on the SSH server",
+  "raw_report_sha256": "dc2276256ab4be4b605ff5b4fee29322592ce7f790f399183973e5feea27f7ed",
+  "example_source_sha256": "7d1b772cc3dd1ed4d3584f8b26b52dd4e3f480ebc1ed39b67bdcc002c60b7368",
+  "verification": "The deterministic audit reproduced the same result on a second run. Rust workspace tests, targeted example Clippy with -D warnings and formatting passed on the SSH server. Python 446 tests and Ruff passed, including the new axial convolution geometry regression test.",
+  "interpretation": "An identical exported model observation can correspond to different native teacher actions because search sees the hidden RNG state and can simulate its deterministic future. Exact teacher action is therefore not always a function of the current student input. This is an exploratory same-state sensitivity audit, not a measure of complete-game strength or proof that RNG aliasing caused the rejected Markov student's failure. No model, search policy, game rule or playable agent was changed."
+}

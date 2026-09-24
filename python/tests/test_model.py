@@ -7,6 +7,7 @@ import torch
 
 from antiyoy_rl import ProceduralConfig, VectorEnv
 from antiyoy_rl.model import (
+    HexBlock,
     UniversalPolicy,
     action_distribution,
     concatenate_observations,
@@ -17,6 +18,26 @@ from antiyoy_rl.model import (
     rotate_observation_180,
     select_environments,
 )
+
+
+def test_hex_convolution_uses_axial_neighbours() -> None:
+    mask = HexBlock(hidden=1).mask[0, 0]
+    offsets = {
+        (column - 1, row - 1)
+        for row in range(3)
+        for column in range(3)
+        if mask[row, column]
+    }
+
+    assert offsets == {
+        (0, 0),
+        (1, 0),
+        (0, 1),
+        (-1, 1),
+        (-1, 0),
+        (0, -1),
+        (1, -1),
+    }
 
 
 def test_domain_key_is_order_independent_and_excludes_seeds() -> None:
