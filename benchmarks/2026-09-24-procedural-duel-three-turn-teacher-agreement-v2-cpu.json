@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "kind": "three_turn_teacher_agreement_on_frozen_direct_policy_rollouts",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-three-turn-teacher-agreement-v1.json",
+  "protocol_commit": "f07424b",
+  "status": "descriptive_diagnostic_only",
+  "arena": "Classic Generic procedural_v2 11x9, two players, 2400-action horizon",
+  "maps": 32,
+  "games": 64,
+  "seed_first": 6420000,
+  "rollout": "The frozen routed-v6 direct policy played against the identical checkpoint. The native three-turn teacher was queried at each direct-policy action without altering the executed game.",
+  "checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "teacher": {"root_nodes": 256, "slate_size": 8, "opponent_reply_nodes": 64, "root_followup_nodes": 32},
+  "outcomes": {"model_wins_by_seat": [18, 14], "nonterminal_games": 0},
+  "agreement": {
+    "atomic_actions": {"matches": 2517, "decisions": 4663, "rate": 0.5397812567, "by_seat": [{"matches": 1293, "decisions": 2452}, {"matches": 1224, "decisions": 2211}]},
+    "first_action_of_completed_turn": {"matches": 522, "turns": 1144, "rate": 0.4562937063, "by_seat": [{"matches": 249, "turns": 581}, {"matches": 273, "turns": 563}]},
+    "entire_completed_turn": {"matches": 240, "turns": 1144, "rate": 0.2097902098, "by_seat": [{"matches": 102, "turns": 581}, {"matches": 138, "turns": 563}]}
+  },
+  "interpretation": "Even when the direct model plays itself, exact agreement with the validated searched teacher is low, especially over complete turns. This establishes a substantial plan-imitation gap, not that every disagreement is consequential or that imitating it will increase win rate. Actions and turns within a game are correlated; no significance claim treats them as independent maps.",
+  "raw_report": {"remote_path": "/tmp/antiyoy-residual.n17QTu/procedural-duel-three-turn-teacher-agreement-6420000.json", "sha256": "0d56ee9681531154eace415785e20585f245ed40367a299ec896b4f44743bb89"},
+  "raw_metadata_caveat": "The frozen run serialized search_nodes, reply_search_nodes and slate_size as zero because the original metadata condition checked only baseline kind; the audit actually used the teacher parameters in the predeclared protocol and command. Commit 26ab08c fixes future audited metadata and adds regression assertions, without changing the teacher or game actions. The raw artifact remains unmodified.",
+  "verification": {"python_tests": 397, "ruff": "passed", "resource_policy": "SSH server fedora-toolbox, pinned single CPU, nice19, no GPU"},
+  "next_decision": "Do not train from agreement alone. Identify which model/teacher whole-turn disagreements change complete-game outcomes under a frozen continuation before designing another distillation target; predeclare fresh disjoint maps and explicit censoring."
+}
