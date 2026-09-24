@@ -172,6 +172,51 @@ test("creates a four-player procedural room with one token-free invite per open 
   }
 });
 
+test("round-trips the rotating-start procedural generator in room settings", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestBody = "";
+  const rotatedSnapshot = snapshot("Waiting", {
+    scenario: {
+      Procedural: {
+        schema_version: 2,
+        width: 11,
+        height: 9,
+        players: 2,
+        seed: "47",
+        land_density_per_million: 650_000,
+        starting_province_size: 5,
+        starting_money: 10,
+        tree_density_per_million: 150_000,
+        neutral_tower_density_per_million: 20_000,
+        neutral_capital_density_per_million: 10_000,
+        grave_density_per_million: 15_000,
+      },
+    },
+  });
+  globalThis.fetch = async (_input, init) => {
+    requestBody = String(init?.body);
+    return Response.json({
+      snapshot: rotatedSnapshot,
+      credentials: [{ seat: 0, name: "host", token: "host-secret" }],
+    });
+  };
+  try {
+    const session = await createJoinableMatch("https://antiyoy.test", "host", {
+      map: "procedural_v2",
+      profile: "classic_generic_2022",
+      width: 11,
+      height: 9,
+      players: 2,
+      seed: "47",
+      landDensity: 650_000,
+    });
+    assert.deepEqual(JSON.parse(requestBody).scenario, rotatedSnapshot.scenario);
+    assert.equal(roomConfigFromSnapshot(session.snapshot).map, "procedural_v2");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("starts an immediate rated challenge with a rotating human seat and stable search identities", async () => {
   const originalFetch = globalThis.fetch;
   let requestBody = "";

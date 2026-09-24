@@ -17,7 +17,7 @@ export const RULES_PROFILE_WIRE = {
 export type RulesProfileId = keyof typeof RULES_PROFILE_WIRE;
 export type WireRulesProfile = typeof RULES_PROFILE_WIRE[RulesProfileId];
 export type OnlineRoomConfig = {
-  map: "duel" | "procedural";
+  map: "duel" | "procedural" | "procedural_v2";
   profile: RulesProfileId;
   width: number;
   height: number;
@@ -37,7 +37,7 @@ export type SeatCredential = {
 };
 
 type GeneratorConfig = {
-  schema_version: 1;
+  schema_version: 1 | 2;
   width: number;
   height: number;
   players: number;
@@ -406,7 +406,7 @@ export function roomConfigFromSnapshot(snapshot: MatchSnapshot): OnlineRoomConfi
   }
   const config = snapshot.scenario.Procedural;
   return {
-    map: "procedural",
+    map: config.schema_version === 2 ? "procedural_v2" : "procedural",
     profile,
     width: config.width,
     height: config.height,
@@ -460,7 +460,7 @@ function createMatchRequest(
     ? { SymmetricDuel: { width: config.width, height: config.height, seed: seed.toString() } }
     : {
         Procedural: {
-          schema_version: 1,
+          schema_version: config.map === "procedural_v2" ? 2 : 1,
           width: config.width,
           height: config.height,
           players: config.players,

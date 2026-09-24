@@ -8,6 +8,7 @@ export class WasmGame {
     constructor(width: number, height: number, seed: bigint);
     policy_observation_json(): string;
     static procedural(width: number, height: number, players: number, seed: bigint, land_density_per_million: number): WasmGame;
+    static procedural_v2_with_profile(width: number, height: number, players: number, seed: bigint, land_density_per_million: number, profile: string): WasmGame;
     static procedural_with_profile(width: number, height: number, players: number, seed: bigint, land_density_per_million: number, profile: string): WasmGame;
     reset(): string;
     rules_profile(): string;
@@ -19,6 +20,8 @@ export class WasmGame {
     step_bot(): string;
     step_search(): string;
     step_search_with_budget(node_budget: number): string;
+    step_three_turn_search(): string;
+    three_turn_search_count(): bigint;
     static with_profile(width: number, height: number, seed: bigint, profile: string): WasmGame;
 }
 
@@ -45,6 +48,7 @@ export interface InitOutput {
     readonly wasmgame_with_profile: (a: number, b: number, c: number, d: bigint, e: number, f: number) => void;
     readonly wasmgame_procedural: (a: number, b: number, c: number, d: number, e: bigint, f: number) => void;
     readonly wasmgame_procedural_with_profile: (a: number, b: number, c: number, d: number, e: bigint, f: number, g: number, h: number) => void;
+    readonly wasmgame_procedural_v2_with_profile: (a: number, b: number, c: number, d: number, e: bigint, f: number, g: number, h: number) => void;
     readonly wasmgame_rules_profile: (a: number, b: number) => void;
     readonly wasmgame_reset: (a: number, b: number) => void;
     readonly wasmgame_state_json: (a: number, b: number) => void;
@@ -53,10 +57,12 @@ export interface InitOutput {
     readonly wasmgame_step: (a: number, b: number, c: number) => void;
     readonly wasmgame_step_bot: (a: number, b: number) => void;
     readonly wasmgame_step_search: (a: number, b: number) => void;
+    readonly wasmgame_step_three_turn_search: (a: number, b: number) => void;
     readonly wasmgame_step_search_with_budget: (a: number, b: number, c: number) => void;
     readonly wasmgame_search_node_budget: (a: number) => number;
     readonly wasmgame_search_nodes: (a: number) => number;
     readonly wasmgame_search_count: (a: number) => bigint;
+    readonly wasmgame_three_turn_search_count: (a: number) => bigint;
     readonly __wbg_wasmreplay_free: (a: number, b: number) => void;
     readonly wasmreplay_new: (a: number, b: number, c: number) => void;
     readonly wasmreplay_frame_count: (a: number) => number;

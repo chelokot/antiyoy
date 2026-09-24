@@ -123,7 +123,13 @@ test("renders the benchmark-backed model arena", async () => {
   const response = await render("/models");
   assert.equal(response.status, 200);
   const html = await response.text();
+  const visibleText = html.replaceAll("<!-- -->", "");
   assert.match(html, /Who actually wins\?/);
+  assert.match(html, /Amplification works\. Distillation has not\./);
+  assert.match(html, /Three-turn search/);
+  assert.match(visibleText, /328–184/);
+  assert.match(visibleText, /\+100\.42/);
+  assert.match(html, /No new point yet/);
   assert.match(html, /Engine-v6 fixed duel/);
   assert.match(html, /Routed v6 candidate/);
   assert.match(html, /336–0–0/);
@@ -230,8 +236,9 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, /Strong · 256/);
   assert.match(arena, /Brutal · full turn/);
   assert.match(arena, /useState<BotOpponentName>\("neural"\)/);
-  assert.match(arena, /placementMode\s+\? RATED_SEARCH_NODES/);
-  assert.match(arena, /step_search_with_budget\(searchNodes\)/);
+  assert.match(arena, /placementMode\s+\? \{ kind: "single" as const, nodes: RATED_SEARCH_NODES \}/);
+  assert.match(arena, /instance\.step_search_with_budget\(mode\.nodes\)/);
+  assert.match(arena, /instance\.step_three_turn_search\(\)/);
   assert.match(arena, /aria-label="Open game menu"/);
   assert.match(arena, /aria-label="Inspect selected hex"/);
   assert.match(arena, /<GamePiece cell=\{cell\} \/>/);
@@ -305,9 +312,25 @@ test("executes greedy and whole-turn search in the compiled WebAssembly engine",
   assert.ok(brutalSearch.search_nodes() <= 2048);
   assert.equal(brutalSearch.search_count(), 1n);
   assert.throws(() => brutalSearch.step_search_with_budget(1), /at least two/);
+  const strategic = new bindings.WasmGame(11, 9, 49n);
+  const strategicCopy = new bindings.WasmGame(11, 9, 49n);
+  assert.deepEqual(
+    JSON.parse(strategic.step_three_turn_search()),
+    JSON.parse(strategicCopy.step_three_turn_search()),
+  );
+  assert.equal(strategic.three_turn_search_count(), 1n);
+  strategic.free();
+  strategicCopy.free();
   quickSearch.free();
   strongSearch.free();
   brutalSearch.free();
+  const legacyMap = bindings.WasmGame.procedural_with_profile(11, 9, 2, 47n, 650_000, "classic_generic_2022");
+  const rotatedMap = bindings.WasmGame.procedural_v2_with_profile(11, 9, 2, 47n, 650_000, "classic_generic_2022");
+  const legacyOwners = JSON.parse(legacyMap.state_json()).cells.map((cell) => cell.owner);
+  const rotatedOwners = JSON.parse(rotatedMap.state_json()).cells.map((cell) => cell.owner);
+  assert.deepEqual(rotatedOwners, legacyOwners.map((owner) => owner === null ? null : 1 - owner));
+  legacyMap.free();
+  rotatedMap.free();
   const slay = bindings.WasmGame.with_profile(11, 9, 51n, "classic_slay_2022");
   assert.equal(slay.rules_profile(), "classic_slay_2022");
   slay.free();

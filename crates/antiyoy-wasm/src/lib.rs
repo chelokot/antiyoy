@@ -1,7 +1,10 @@
 #![forbid(unsafe_code)]
 
 use antiyoy_agents::{Agent, GreedyAgent, SearchAgent, SearchConfig};
-use antiyoy_core::{Action, Game, GeneratorConfig, PlayerId, Relation, Rules, Scenario};
+use antiyoy_core::{
+    Action, GENERATOR_ROTATED_SCHEMA_VERSION, Game, GeneratorConfig, PlayerId, Relation, Rules,
+    Scenario,
+};
 use antiyoy_protocol::{GameView, Replay};
 use antiyoy_rl::{BatchObservation, encoded_rule_features};
 use serde::Serialize;
@@ -31,7 +34,15 @@ pub struct WasmGame {
     legal_actions: Vec<Action>,
     greedy: GreedyAgent,
     search: SearchAgent,
+    three_turn_search: SearchAgent,
     observation: BatchObservation,
+}
+
+#[derive(Clone, Copy)]
+enum BotPolicy {
+    Greedy,
+    Search,
+    ThreeTurnSearch,
 }
 
 #[wasm_bindgen]
@@ -83,7 +94,47 @@ impl WasmGame {
         land_density_per_million: u32,
         profile: &str,
     ) -> Result<Self, JsError> {
+        Self::procedural_with_schema_version(
+            width,
+            height,
+            players,
+            seed,
+            land_density_per_million,
+            profile,
+            GeneratorConfig::default().schema_version,
+        )
+    }
+
+    pub fn procedural_v2_with_profile(
+        width: u16,
+        height: u16,
+        players: u8,
+        seed: u64,
+        land_density_per_million: u32,
+        profile: &str,
+    ) -> Result<Self, JsError> {
+        Self::procedural_with_schema_version(
+            width,
+            height,
+            players,
+            seed,
+            land_density_per_million,
+            profile,
+            GENERATOR_ROTATED_SCHEMA_VERSION,
+        )
+    }
+
+    fn procedural_with_schema_version(
+        width: u16,
+        height: u16,
+        players: u8,
+        seed: u64,
+        land_density_per_million: u32,
+        profile: &str,
+        schema_version: u16,
+    ) -> Result<Self, JsError> {
         let config = GeneratorConfig {
+            schema_version,
             width,
             height,
             players,
@@ -105,6 +156,7 @@ impl WasmGame {
         self.game = Game::new(self.rules.clone(), self.scenario.clone())
             .map_err(|error| JsError::new(&error.to_string()))?;
         self.search = SearchAgent::new("turn-search");
+        self.three_turn_search = three_turn_agent()?;
         self.state_json()
     }
 
@@ -143,11 +195,19 @@ impl WasmGame {
     }
 
     pub fn step_bot(&mut self) -> Result<String, JsError> {
-        self.step_with_policy(self.game.active_player() != PlayerId(0))
+        self.step_with_policy(if self.game.active_player() == PlayerId(0) {
+            BotPolicy::Greedy
+        } else {
+            BotPolicy::Search
+        })
     }
 
     pub fn step_search(&mut self) -> Result<String, JsError> {
-        self.step_with_policy(true)
+        self.step_with_policy(BotPolicy::Search)
+    }
+
+    pub fn step_three_turn_search(&mut self) -> Result<String, JsError> {
+        self.step_with_policy(BotPolicy::ThreeTurnSearch)
     }
 
     pub fn step_search_with_budget(&mut self, node_budget: usize) -> Result<String, JsError> {
@@ -159,7 +219,7 @@ impl WasmGame {
             self.search = SearchAgent::with_config("turn-search", config)
                 .map_err(|error| JsError::new(&error.to_string()))?;
         }
-        self.step_with_policy(true)
+        self.step_with_policy(BotPolicy::Search)
     }
 
     pub fn search_node_budget(&self) -> usize {
@@ -173,18 +233,24 @@ impl WasmGame {
     pub fn search_count(&self) -> u64 {
         self.search.search_count()
     }
+
+    pub fn three_turn_search_count(&self) -> u64 {
+        self.three_turn_search.search_count()
+    }
 }
 
 impl WasmGame {
-    fn step_with_policy(&mut self, use_search: bool) -> Result<String, JsError> {
+    fn step_with_policy(&mut self, policy: BotPolicy) -> Result<String, JsError> {
         if self.game.is_terminal() {
             return self.state_json();
         }
         self.game.legal_actions(&mut self.legal_actions);
-        let action = if use_search {
-            self.search.select_action(&self.game, &self.legal_actions)
-        } else {
-            self.greedy.select_action(&self.game, &self.legal_actions)
+        let action = match policy {
+            BotPolicy::Greedy => self.greedy.select_action(&self.game, &self.legal_actions),
+            BotPolicy::Search => self.search.select_action(&self.game, &self.legal_actions),
+            BotPolicy::ThreeTurnSearch => self
+                .three_turn_search
+                .select_action(&self.game, &self.legal_actions),
         };
         self.game
             .step(action)
@@ -201,9 +267,24 @@ impl WasmGame {
             legal_actions: Vec::new(),
             greedy: GreedyAgent::new("greedy"),
             search: SearchAgent::new("turn-search"),
+            three_turn_search: three_turn_agent()?,
             observation: BatchObservation::default(),
         })
     }
+}
+
+fn three_turn_agent() -> Result<SearchAgent, JsError> {
+    SearchAgent::with_three_turn_search(
+        "three-turn-search",
+        SearchConfig {
+            node_budget: 256,
+            ..SearchConfig::default()
+        },
+        8,
+        64,
+        32,
+    )
+    .map_err(|error| JsError::new(&error.to_string()))
 }
 
 #[wasm_bindgen]

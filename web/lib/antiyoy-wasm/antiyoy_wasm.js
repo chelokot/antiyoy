@@ -125,6 +125,32 @@ export class WasmGame {
      * @param {string} profile
      * @returns {WasmGame}
      */
+    static procedural_v2_with_profile(width, height, players, seed, land_density_per_million, profile) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            const ptr0 = passStringToWasm0(profile, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+            const len0 = WASM_VECTOR_LEN;
+            wasm.wasmgame_procedural_v2_with_profile(retptr, width, height, players, seed, land_density_per_million, ptr0, len0);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return WasmGame.__wrap(r0);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+     * @param {number} width
+     * @param {number} height
+     * @param {number} players
+     * @param {bigint} seed
+     * @param {number} land_density_per_million
+     * @param {string} profile
+     * @returns {WasmGame}
+     */
     static procedural_with_profile(width, height, players, seed, land_density_per_million, profile) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
@@ -345,6 +371,40 @@ export class WasmGame {
             wasm.__wbindgen_add_to_stack_pointer(16);
             wasm.__wbindgen_export3(deferred2_0, deferred2_1, 1);
         }
+    }
+    /**
+     * @returns {string}
+     */
+    step_three_turn_search() {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.wasmgame_step_three_turn_search(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+            var ptr1 = r0;
+            var len1 = r1;
+            if (r3) {
+                ptr1 = 0; len1 = 0;
+                throw takeObject(r2);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_export3(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
+     * @returns {bigint}
+     */
+    three_turn_search_count() {
+        const ret = wasm.wasmgame_three_turn_search_count(this.__wbg_ptr);
+        return BigInt.asUintN(64, ret);
     }
     /**
      * @param {number} width

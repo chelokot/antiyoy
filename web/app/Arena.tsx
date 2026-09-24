@@ -54,6 +54,7 @@ type LiveConfig = OnlineRoomConfig;
 type RulesProfileName = RulesProfileId;
 type BotStrengthName = typeof BOT_STRENGTH_NAMES[number];
 type BotOpponentName = "neural" | BotStrengthName;
+type BotSearchMode = { kind: "single"; nodes: number } | { kind: "three-turn" };
 type BrowserPolicyKey = keyof typeof BROWSER_POLICY_MODELS;
 type BrowserPolicyPool = Partial<Record<BrowserPolicyKey, RoutedBrowserPolicy>>;
 type PolicyStatus = "loading" | "ready" | "error";
@@ -123,8 +124,9 @@ const BOT_STRENGTHS = {
   quick: { label: "Quick · 64", nodes: 64 },
   strong: { label: "Strong · 256", nodes: 256 },
   brutal: { label: "Brutal · full turn", nodes: 2_048 },
+  strategic: { label: "3-turn · tested 2P Classic", nodes: 256 },
 } as const;
-const BOT_STRENGTH_NAMES = ["quick", "strong", "brutal"] as const;
+const BOT_STRENGTH_NAMES = ["quick", "strong", "brutal", "strategic"] as const;
 const BROWSER_POLICY_MODELS = {
   primary: "/browser-primary.onnx",
   classicGenericPuctSeat0: "/browser-classic-generic-puct-seat0-v2.onnx",
@@ -196,6 +198,16 @@ function createGame(bindings: WasmModule, config: LiveConfig): WasmGameType {
       config.profile,
     );
   }
+  if (config.map === "procedural_v2") {
+    return bindings.WasmGame.procedural_v2_with_profile(
+      config.width,
+      config.height,
+      config.players,
+      seed,
+      config.landDensity,
+      config.profile,
+    );
+  }
   return bindings.WasmGame.with_profile(
     config.width,
     config.height,
@@ -209,16 +221,24 @@ function economyRulesForProfile(bindings: WasmModule, profile: RulesProfileName)
   return rules.economy;
 }
 
+function botSearchMode(opponent: BotStrengthName): BotSearchMode {
+  return opponent === "strategic"
+    ? { kind: "three-turn" }
+    : { kind: "single", nodes: BOT_STRENGTHS[opponent].nodes };
+}
+
 function advanceBotsUntilHuman(
   instance: WasmGameType,
   initial: StateView,
   humanSeat: number,
-  searchNodes: number,
+  mode: BotSearchMode,
 ): { state: StateView; actions: number } {
   let state = initial;
   let actions = 0;
   while (!state.terminal && state.active_player !== humanSeat && actions < 2_000) {
-    state = parseState(instance.step_search_with_budget(searchNodes));
+    state = parseState(mode.kind === "three-turn"
+      ? instance.step_three_turn_search()
+      : instance.step_search_with_budget(mode.nodes));
     actions += 1;
   }
   if (!state.terminal && state.active_player !== humanSeat) {
@@ -336,7 +356,9 @@ function matchOpponentLabel(
   if (humanMode) {
     return opponent === "neural"
       ? "routed neural · ONNX"
-      : `${BOT_STRENGTHS[opponent].label.toLowerCase()} search`;
+      : opponent === "strategic"
+        ? "three-turn search · duel-tested"
+        : `${BOT_STRENGTHS[opponent].label.toLowerCase()} search`;
   }
   return opponent === "neural" ? "routed neural self-play" : "greedy vs full-turn search";
 }
@@ -749,7 +771,7 @@ export default function Arena() {
         !supportsNeuralPolicy(draftConfig)
         || policyStatuses[policyKeyForProfile(draftConfig.profile)] === "error"
       ) {
-        setBotOpponent("brutal");
+        setBotOpponent(draftConfig.map === "procedural_v2" && draftConfig.players === 2 && draftConfig.profile === "classic_generic_2022" ? "strategic" : "brutal");
       }
       setPlaying(false);
       setOpenPanel(null);
@@ -785,7 +807,7 @@ export default function Arena() {
         candidate,
         parseState(candidate.state_json()),
         seat,
-        RATED_SEARCH_NODES,
+        { kind: "single", nodes: RATED_SEARCH_NODES },
       );
       replay.current?.free();
       replay.current = null;
@@ -868,7 +890,9 @@ export default function Arena() {
       return;
     }
     try {
-      const next = parseState(instance.step_bot());
+      const next = parseState(botOpponent === "strategic"
+        ? instance.step_three_turn_search()
+        : instance.step_bot());
       setState(next);
       setActions((current) => current + 1);
       if (next.terminal) {
@@ -924,7 +948,7 @@ export default function Arena() {
             instance,
             initial,
             seat,
-            BOT_STRENGTHS[botOpponent].nodes,
+            botSearchMode(botOpponent),
           );
           next = response.state;
           opponentActions = response.actions;
@@ -1043,10 +1067,10 @@ export default function Arena() {
         responseActions = response.actions;
         setPolicyDecision(response.decision);
       } else {
-        const searchNodes = placementMode
-          ? RATED_SEARCH_NODES
-          : BOT_STRENGTHS[botOpponent as BotStrengthName].nodes;
-        const response = advanceBotsUntilHuman(instance, afterHuman, humanSeat, searchNodes);
+        const searchMode = placementMode
+          ? { kind: "single" as const, nodes: RATED_SEARCH_NODES }
+          : botSearchMode(botOpponent as BotStrengthName);
+        const response = advanceBotsUntilHuman(instance, afterHuman, humanSeat, searchMode);
         responseState = response.state;
         responseActions = response.actions;
       }
@@ -1219,7 +1243,7 @@ export default function Arena() {
     () => displayedLeague === null ? [] : leagueStandings(displayedLeague),
     [displayedLeague],
   );
-  const roomConfigSummary = `${rulesProfileLabel(draftConfig.profile)} · ${draftConfig.map === "duel" ? "duel" : `${draftConfig.width}×${draftConfig.height} procedural`} · ${draftConfig.map === "duel" ? 2 : draftConfig.players} players`;
+  const roomConfigSummary = `${rulesProfileLabel(draftConfig.profile)} · ${draftConfig.map === "duel" ? "duel" : `${draftConfig.width}×${draftConfig.height} ${draftConfig.map === "procedural_v2" ? "procedural v2" : "procedural v1"}`} · ${draftConfig.map === "duel" ? 2 : draftConfig.players} players`;
   const economyPlayer = humanMode ? humanSeat : state?.active_player ?? 0;
   const shopProvince = province?.owner === economyPlayer ? province : null;
   const economyProvince = shopProvince;
@@ -1290,11 +1314,11 @@ export default function Arena() {
           <div className="panel-scroll">
           <details className="panel-section panel-section-hero" open>
             <summary>MATCH</summary>
-            <div className="panel-section-body"><p className="eyebrow">{onlineSession !== null ? "AUTHORITATIVE MULTIPLAYER" : replayMetadata === null ? placementMode ? "RATED PLACEMENT" : humanMode ? "HUMAN VS AI" : "SELF-PLAY" : "VERIFIED REPLAY"}</p><h2 className="mt-2 text-xl font-semibold">{replayMetadata === null ? humanMode ? `you are ${playerLabel(humanSeat).toLowerCase()}` : botOpponent === "neural" ? "neural policy mirror" : "greedy vs turn-search" : "training trace"}</h2><p className="mt-1 text-sm text-[#686a65]">{onlineSession !== null ? onlineSession.snapshot.status === "Waiting" ? "waiting for the invited player" : "every move is validated by the Rust server" : replayMetadata === null ? placementMode ? "local Elo vs fixed search-2048" : humanMode ? "choose a unit or shop item, then click a highlighted hex" : botOpponent === "neural" ? "the routed model plays every seat" : "deterministic whole-turn planning" : `${replayMetadata.frames} deterministic actions`}</p><div className="mt-6 space-y-4"><Metric label="RULESET" value={replayMetadata?.rules_profile ?? activeConfig.profile} /><Metric label="MAP" value={replayMetadata === null ? activeConfig.map === "procedural" ? "procedural_v1" : "symmetric_duel_v1" : "replay scenario"} /><Metric label="OPPONENT" value={opponentLabel || "open seat"} /><Metric label="SEED" value={onlineSession === null ? `${replayMetadata?.seed ?? activeConfig.seed} · reproducible` : "server-authoritative"} /><Metric label="ROUND" value={state === null ? "loading" : `${state.round} · ${playerLabel(state.active_player)} to move`} /><Metric label="LEGAL ACTIONS" value={state?.legal_actions.length.toString() ?? "…"} accent />{onlineSession === null && !placementMode && botOpponent === "neural" && <Metric label="NEURAL INFERENCE" value={policyDecision === null ? policyStatus : `${policyDecision.milliseconds.toFixed(1)} ms · ${policyDecision.legalActions} actions`} accent />}</div></div>
+            <div className="panel-section-body"><p className="eyebrow">{onlineSession !== null ? "AUTHORITATIVE MULTIPLAYER" : replayMetadata === null ? placementMode ? "RATED PLACEMENT" : humanMode ? "HUMAN VS AI" : "SELF-PLAY" : "VERIFIED REPLAY"}</p><h2 className="mt-2 text-xl font-semibold">{replayMetadata === null ? humanMode ? `you are ${playerLabel(humanSeat).toLowerCase()}` : botOpponent === "neural" ? "neural policy mirror" : botOpponent === "strategic" ? "three-turn search mirror" : "greedy vs turn-search" : "training trace"}</h2><p className="mt-1 text-sm text-[#686a65]">{onlineSession !== null ? onlineSession.snapshot.status === "Waiting" ? "waiting for the invited player" : "every move is validated by the Rust server" : replayMetadata === null ? placementMode ? "local Elo vs fixed search-2048" : humanMode ? "choose a unit or shop item, then click a highlighted hex" : botOpponent === "neural" ? "the routed model plays every seat" : "deterministic whole-turn planning" : `${replayMetadata.frames} deterministic actions`}</p><div className="mt-6 space-y-4"><Metric label="RULESET" value={replayMetadata?.rules_profile ?? activeConfig.profile} /><Metric label="MAP" value={replayMetadata === null ? activeConfig.map === "duel" ? "symmetric_duel_v1" : activeConfig.map : "replay scenario"} /><Metric label="OPPONENT" value={opponentLabel || "open seat"} /><Metric label="SEED" value={onlineSession === null ? `${replayMetadata?.seed ?? activeConfig.seed} · reproducible` : "server-authoritative"} /><Metric label="ROUND" value={state === null ? "loading" : `${state.round} · ${playerLabel(state.active_player)} to move`} /><Metric label="LEGAL ACTIONS" value={state?.legal_actions.length.toString() ?? "…"} accent />{onlineSession === null && !placementMode && botOpponent === "neural" && <Metric label="NEURAL INFERENCE" value={policyDecision === null ? policyStatus : `${policyDecision.milliseconds.toFixed(1)} ms · ${policyDecision.legalActions} actions`} accent />}</div></div>
           </details>
           {replayMetadata === null && <details className="panel-section panel-section-online"><summary>ONLINE MULTIPLAYER · {onlineSession?.snapshot.status ?? "READY"}</summary><div className="panel-section-body map-config"><label className="config-field"><span>PLAYER NAME</span><input type="text" maxLength={64} value={onlineName} onChange={(event) => setOnlineName(event.target.value)} /></label>{onlineSession === null ? <><div className="online-config-summary"><p className="eyebrow">ROOM SETTINGS</p><p>{roomConfigSummary}</p><span>Change them in Game Config before creating the room.</span></div><button className="generate-button" type="button" disabled={onlineBusy || onlineName.length === 0} onClick={() => void createOnlineRoom()}>{onlineBusy ? "Connecting…" : `Create ${draftConfig.map === "duel" ? 2 : draftConfig.players}-player room`}</button><button className="generate-button rated-challenge-button" type="button" disabled={onlineBusy || onlineName.length === 0} onClick={() => void startRatedChallenge()}>{onlineBusy ? "Starting…" : `Play rated vs ${draftConfig.players - 1} server search ${draftConfig.players === 2 ? "bot" : "bots"}`}</button><p className="rated-challenge-note">Your seat rotates after every successful challenge. The replay-verified result enters Server League Elo.</p><div className="online-divider"><span>OR JOIN</span></div><div className="config-grid online-join-grid"><label className="config-field"><span>ROOM CODE</span><input type="text" spellCheck={false} value={joinCode} onChange={(event) => setJoinCode(event.target.value.trim())} /></label><label className="config-field"><span>SEAT</span><input type="number" min="2" max="8" value={joinSeat + 1} onChange={(event) => setJoinSeat(Number(event.target.value) - 1)} /></label></div><button className="generate-button" type="button" disabled={onlineBusy || onlineName.length === 0 || joinCode.length !== 32 || joinSeat < 1 || joinSeat > 7} onClick={() => void joinOnlineRoom()}>{onlineBusy ? "Claiming seat…" : `Join as seat ${joinSeat + 1}`}</button></> : <div className="online-session"><div className="online-status-row"><span className={`online-status-dot online-status-${connectionStatus}`} /><span>{connectionStatus}</span><span>seat {onlineSession.credential.seat + 1}/{onlineSession.snapshot.seats.length}</span></div><p className="online-room-code">{onlineSession.snapshot.match_id}</p><p className={`online-rating-status online-rating-${onlineSession.snapshot.rating_status.toLowerCase()}`}>ELO · {onlineSession.snapshot.rating_status}</p>{openSeatInvites.length > 0 && <div className="online-invites"><p className="eyebrow">PRIVATE SEAT LINKS · {openSeatInvites.length} OPEN</p>{openSeatInvites.map((invite) => <button className="generate-button" type="button" onClick={() => void copyInvite(invite.seat, invite.url)} key={invite.seat}>{copiedInviteSeat === invite.seat ? `Seat ${invite.seat + 1} invite copied` : `Copy invite for seat ${invite.seat + 1}`}</button>)}<p>Match starts automatically after every open seat is claimed.</p></div>}<button className="online-leave" type="button" onClick={reset}>Leave room</button></div>}<label className="config-field online-endpoint"><span>AUTHORITATIVE SERVER</span><input type="url" spellCheck={false} disabled={onlineSession !== null} value={onlineEndpoint} onChange={(event) => setOnlineEndpoint(event.target.value)} /></label></div></details>}
           <details className="panel-section panel-section-league" onToggle={(event) => { if (event.currentTarget.open && displayedLeagueStatus === "idle") void refreshLeague(); }}><summary>SERVER LEAGUE · {displayedLeague === null ? "—" : `${displayedLeague.matches.length} RATED`}</summary><div className="panel-section-body"><LeaguePanel league={displayedLeague} standings={standings} status={displayedLeagueStatus} error={displayedLeagueError} currentName={onlineSession?.credential.name ?? onlineName} onRefresh={refreshLeague} /></div></details>
-          {replayMetadata === null && onlineSession === null && <details className="panel-section"><summary>GAME CONFIG</summary><div className="panel-section-body map-config"><label className="config-field"><span>RULESET</span><select value={draftConfig.profile} onChange={(event) => setDraftConfig((current) => ({ ...current, profile: event.target.value as RulesProfileName }))}>{RULES_PROFILES.map((profile) => <option value={profile.id} key={profile.id}>{profile.label}</option>)}</select></label><div className="config-grid"><label className="config-field"><span>MODE</span><select value={draftConfig.map} onChange={(event) => setDraftConfig((current) => ({ ...current, map: event.target.value as LiveConfig["map"], players: event.target.value === "duel" ? 2 : current.players }))}><option value="duel">Symmetric duel</option><option value="procedural">Procedural v1</option></select></label><label className="config-field"><span>SEED</span><input type="text" inputMode="numeric" pattern="[0-9]+" value={draftConfig.seed} onChange={(event) => setDraftConfig((current) => ({ ...current, seed: event.target.value }))} /></label><label className="config-field"><span>WIDTH</span><input type="number" min="5" max="41" value={draftConfig.width} onChange={(event) => setDraftConfig((current) => ({ ...current, width: Number(event.target.value) }))} /></label><label className="config-field"><span>HEIGHT</span><input type="number" min="2" max="31" value={draftConfig.height} onChange={(event) => setDraftConfig((current) => ({ ...current, height: Number(event.target.value) }))} /></label><label className="config-field"><span>PLAYERS</span><input type="number" min="2" max="8" disabled={draftConfig.map === "duel"} value={draftConfig.map === "duel" ? 2 : draftConfig.players} onChange={(event) => setDraftConfig((current) => ({ ...current, players: Number(event.target.value) }))} /></label><label className="config-field"><span>LAND PPM</span><input type="number" min="200000" max="1000000" step="50000" disabled={draftConfig.map === "duel"} value={draftConfig.map === "duel" ? 650000 : draftConfig.landDensity} onChange={(event) => setDraftConfig((current) => ({ ...current, landDensity: Number(event.target.value) }))} /></label></div><button className="generate-button" type="button" onClick={generate}>Generate deterministic map</button></div></details>}
+          {replayMetadata === null && onlineSession === null && <details className="panel-section"><summary>GAME CONFIG</summary><div className="panel-section-body map-config"><label className="config-field"><span>RULESET</span><select value={draftConfig.profile} onChange={(event) => setDraftConfig((current) => ({ ...current, profile: event.target.value as RulesProfileName }))}>{RULES_PROFILES.map((profile) => <option value={profile.id} key={profile.id}>{profile.label}</option>)}</select></label><div className="config-grid"><label className="config-field"><span>MODE</span><select value={draftConfig.map} onChange={(event) => setDraftConfig((current) => ({ ...current, map: event.target.value as LiveConfig["map"], players: event.target.value === "duel" ? 2 : current.players }))}><option value="duel">Symmetric duel</option><option value="procedural">Procedural v1</option><option value="procedural_v2">Procedural v2 · rotating starts</option></select></label><label className="config-field"><span>SEED</span><input type="text" inputMode="numeric" pattern="[0-9]+" value={draftConfig.seed} onChange={(event) => setDraftConfig((current) => ({ ...current, seed: event.target.value }))} /></label><label className="config-field"><span>WIDTH</span><input type="number" min="5" max="41" value={draftConfig.width} onChange={(event) => setDraftConfig((current) => ({ ...current, width: Number(event.target.value) }))} /></label><label className="config-field"><span>HEIGHT</span><input type="number" min="2" max="31" value={draftConfig.height} onChange={(event) => setDraftConfig((current) => ({ ...current, height: Number(event.target.value) }))} /></label><label className="config-field"><span>PLAYERS</span><input type="number" min="2" max="8" disabled={draftConfig.map === "duel"} value={draftConfig.map === "duel" ? 2 : draftConfig.players} onChange={(event) => setDraftConfig((current) => ({ ...current, players: Number(event.target.value) }))} /></label><label className="config-field"><span>LAND PPM</span><input type="number" min="200000" max="1000000" step="50000" disabled={draftConfig.map === "duel"} value={draftConfig.map === "duel" ? 650000 : draftConfig.landDensity} onChange={(event) => setDraftConfig((current) => ({ ...current, landDensity: Number(event.target.value) }))} /></label></div><button className="generate-button" type="button" onClick={generate}>Generate deterministic map</button></div></details>}
           <details className="panel-section"><summary>TERRITORY</summary><div className="panel-section-body space-y-3 text-xs">{territories.map((cells, player) => <Bar label={playerLabel(player)} value={cells} width={`${territoryShares[player]}%`} player={player} key={player} />)}</div></details>
           <details className="panel-section"><summary>ENGINE · V{engineVersion ?? "…"}</summary><div className="panel-section-body"><div className="engine-note mt-0"><p className="eyebrow">RUST + WEBASSEMBLY</p><p className="mt-2 text-sm leading-6 text-[#555752]">Every displayed transition is executed by the same deterministic headless environment used for training.</p></div></div></details>
           <details className="panel-section"><summary>BETA POLICY · 336–0</summary><div className="panel-section-body model-card">
