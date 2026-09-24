@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "kind": "independent_exact_three_turn_teacher_four_turn_block_confirmation",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-teacher-block-confirmation-v1.json",
+  "code_and_protocol_commit": "9903138",
+  "status": "four_early_teacher_turns_confirmed_against_direct_but_contiguity_and_incremental_benefit_unresolved",
+  "arena": "Classic Generic procedural_v2 11x9 two players, frozen routed-v6 direct opponent, 2400-action finite horizon",
+  "fresh_window": {
+    "seed_first": 6480000,
+    "independent_maps": 128,
+    "both_root_seats": true
+  },
+  "completion": {
+    "games": 1280,
+    "distinct_seed_seat_arm_keys": 1280,
+    "terminal_games": 1280,
+    "action_limit_adjudications": 0,
+    "seed_last": 6480127
+  },
+  "arms": [
+    {
+      "name": "direct",
+      "actual_teacher_turns": 0,
+      "wins_by_root_seat": [77, 51],
+      "total_wins": 128,
+      "median_game_actions": 130.5
+    },
+    {
+      "name": "first_1",
+      "actual_teacher_turns": 256,
+      "wins_by_root_seat": [78, 60],
+      "total_wins": 138,
+      "versus_direct_maps_better_worse_same": [21, 11, 96],
+      "descriptive_map_sign_p": 0.11018416518345475,
+      "median_game_actions": 135.0
+    },
+    {
+      "name": "first_4",
+      "actual_teacher_turns": 1024,
+      "wins_by_root_seat": [82, 67],
+      "total_wins": 149,
+      "versus_direct_maps_better_worse_same": [41, 20, 67],
+      "predeclared_primary_map_sign_p": 0.009853448195259264,
+      "versus_first_1_maps_better_worse_same": [36, 25, 67],
+      "predeclared_secondary_map_sign_p": 0.20003136851310316,
+      "median_game_actions": 137.0
+    },
+    {
+      "name": "spaced_4",
+      "schedule_root_turn_indices": [0, 2, 4, 6],
+      "actual_teacher_turns": 1024,
+      "wins_by_root_seat": [88, 62],
+      "total_wins": 150,
+      "versus_direct_maps_better_worse_same": [36, 14, 78],
+      "descriptive_map_sign_p": 0.0026021714567221466,
+      "median_game_actions": 133.5
+    },
+    {
+      "name": "distributed_25",
+      "actual_teacher_turns": 1180,
+      "wins_by_root_seat": [84, 49],
+      "total_wins": 133,
+      "versus_direct_maps_better_worse_same": [23, 18, 87],
+      "descriptive_map_sign_p": 0.5327092552361137,
+      "median_game_actions": 133.0
+    }
+  ],
+  "predeclared_contrasts": {
+    "first_4_vs_direct": {
+      "independent_maps_better_worse_same": [41, 20, 67],
+      "exact_two_sided_sign_p": 0.009853448195259264,
+      "both_seats_nonnegative": true,
+      "both_arms_zero_censor": true,
+      "primary_gate": "passed"
+    },
+    "first_4_vs_first_1": {
+      "independent_maps_better_worse_same": [36, 25, 67],
+      "exact_two_sided_sign_p": 0.20003136851310316,
+      "bonferroni_threshold": 0.025,
+      "secondary_gate": "failed"
+    },
+    "first_4_vs_spaced_4": {
+      "independent_maps_better_worse_same": [31, 31, 66],
+      "exact_two_sided_sign_p": 1.0,
+      "bonferroni_threshold": 0.025,
+      "secondary_gate": "failed"
+    },
+    "first_4_vs_distributed_25": {
+      "independent_maps_better_worse_same": [37, 25, 66],
+      "descriptive_map_sign_p": 0.16188140552559765,
+      "equal_budget": false,
+      "interpretation": "The deterministic 25-percent arm used 1180 teacher turns versus 1024 for first_4; the difference is not a controlled schedule effect."
+    }
+  },
+  "interpretation": "The independent primary test confirms that four exact teacher-controlled opening turns improve complete-game outcomes against this frozen direct opponent on this procedural duel pool. It does not confirm that four turns are stronger than one, or that consecutive turns are better than the same four turns spaced through the opening. The spaced arm had an identical teacher-turn count and virtually the same total wins. The exploratory distributed-percent advantage did not reproduce. These are exact native-search mixture policies, not trained students, and no global Elo, neural amplification-distillation gain, or causal contiguity claim follows.",
+  "next_decision": "Retain the validated native three-turn search and reject the contiguous-block mechanism as a privileged distillation target. If pursuing a student, predeclare new disjoint training and game windows for a state-dependent, outcome-grounded multi-turn objective; do not tune schedules or fit on this confirmation pool. Any policy must pass fresh complete both-seat matched games versus direct model and native teacher plus profile/runtime gates.",
+  "verification": {
+    "focused_python_tests": 4,
+    "full_python_tests": 431,
+    "ruff": "passed",
+    "github_ci_for_protocol_commit": "success",
+    "resource_policy": "SSH server fedora-toolbox, one CPU pinned15 nice19, Rayon/BLAS capped, no GPU, 30-minute hard cap",
+    "runner_sha256": "45d1d7cde39efb719ce1e97dd92c27c23efcd47937b56eb73cf69810908fe819"
+  },
+  "raw_report": {
+    "remote_path": "/tmp/antiyoy-residual.n17QTu/procedural-duel-teacher-block-confirmation-6480000.json",
+    "bytes": 314332,
+    "sha256": "629b0d74782d94ff45fff610d6ee4e20ba0c46347119dd11f8df278da5116e4"
+  },
+  "decision": "No model, rated bot, Site, or core rule change; all reserved neural-student and final windows remain untouched."
+}
