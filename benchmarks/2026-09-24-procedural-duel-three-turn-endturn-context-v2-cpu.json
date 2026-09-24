@@ -1,0 +1,61 @@
+{
+  "kind": "read_only_fit_only_three_turn_endturn_context_audit",
+  "parent_protocol": "benchmarks/protocols/2026-09-24-duel-three-turn-plan-distillation-v1.json",
+  "parent_result": "benchmarks/2026-09-24-procedural-duel-three-turn-whole-plan-distillation-v2-cpu.json",
+  "question": "Was the apparent early-EndTurn log-probability deficit a candidate-label or legal-action bug, and did the teacher voluntarily end turns before exhausting actions?",
+  "scope": {
+    "fit_first_seed": 6451000,
+    "fit_maps": 128,
+    "sampled_positions": 587,
+    "teacher_override_positions": 236,
+    "independent_maps_with_overrides": 101,
+    "validation_maps_examined": 0,
+    "new_training": false,
+    "new_games": false
+  },
+  "method": "Replay every exported complete-turn candidate on fit maps. Verify that its final locally indexed action is the unique legal EndTurn and that the replayed post-turn state matches the native export. At teacher and static pre-EndTurn states, count all other legal actions, their types, ready owned units and owned treasury. Compare native immediate static scores and searched three-turn followup scores for the two candidate plans.",
+  "results": {
+    "teacher_selected_endturn": {
+      "optional_with_other_legal_actions": 207,
+      "forced_only_legal_action": 29,
+      "other_legal_actions_quantiles_10_50_90": [0, 53, 230.5],
+      "positions_with_legal_move": 203,
+      "positions_with_legal_recruit": 119,
+      "positions_with_legal_build": 97,
+      "ready_owned_units_median": 3,
+      "owned_province_money_median": 10
+    },
+    "static_plan_endturn": {
+      "optional_with_other_legal_actions": 32,
+      "forced_only_legal_action": 204,
+      "other_legal_actions_quantiles_10_50_90": [0, 0, 20],
+      "ready_owned_units_median": 0,
+      "owned_province_money_median": 5
+    },
+    "teacher_minus_static_immediate_score": {
+      "better_equal_worse_positions": [0, 3, 233],
+      "score_gap_quantiles_10_50_90": [-837.5, -374.5, -35]
+    },
+    "teacher_minus_static_followup_score": {
+      "better_equal_worse_positions": [236, 0, 0],
+      "score_gap_quantiles_10_50_90": [36, 395, 1178.5]
+    },
+    "seat0_teacher_optional_forced": [102, 19],
+    "seat1_teacher_optional_forced": [105, 10]
+  },
+  "interpretation": [
+    "The native export and local action labels agree. Most selected early EndTurns are genuine optional choices with many remaining legal actions; the static rank-zero plan usually ends only after alternatives are exhausted.",
+    "A forced static EndTurn has model probability one by legal-action masking. Contrasting its log probability with an optional teacher EndTurn, as in the prior fit-only margin report, mostly compares different choice sets and cannot by itself diagnose a defective stop policy.",
+    "The teacher usually gives up immediate static score for a higher searched followup score. The latter is selected by the search objective, so this is not independent evidence of terminal benefit or a causal explanation of the validated complete-game gain.",
+    "The rejected student remains rejected: its independent offline gate failed. No inference policy, rating, browser bot or game rule changed."
+  ],
+  "artifacts": {
+    "fit_gzip_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "audit_script": "python/audit_three_turn_endturn_context.py",
+    "audit_script_sha256": "afb06684a7b7e36c3f02d8dac115ecd91d6dd97de4fdd447adb8a793d30c8107",
+    "raw_audit_sha256": "dd1769d3fd8e33cb8de4078d25e59224b728c85ed2b2bc3f8fa8e356af2b5219",
+    "remote_scratch": "/tmp/antiyoy-residual.n17QTu/three-turn-endturn-fit-6451000-v4.json"
+  },
+  "verification": "Remote one-core nice19 Python: 417 tests passed, Ruff check and format clean. All 236 selected and static complete-turn plans replayed and final EndTurn local indices validated.",
+  "qualification": "Exploratory read-only analysis on already-used fit maps. Candidate states are correlated. Search followup scores are conditional heuristic values, not terminal outcome labels, Elo or evidence that any student improved."
+}
