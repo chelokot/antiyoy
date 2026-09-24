@@ -9,6 +9,7 @@ import numpy as np
 
 from .audit_duel_first_regret import (
     ACTION_LIMIT,
+    PROFILE,
     BranchOutcome,
     create_environment,
     native_teacher_action,
@@ -25,8 +26,10 @@ SEED_FIRST = 6492000
 MAPS = 128
 
 
-def play_match(seed: int, replanned_seat: int) -> dict[str, object]:
-    environment = create_environment(seed)
+def play_match(
+    seed: int, replanned_seat: int, profile: str = PROFILE
+) -> dict[str, object]:
+    environment = create_environment(seed, profile)
     previous_active: int | None = None
     current_turn_milliseconds = 0.0
     turn_milliseconds: list[list[float]] = [[], []]

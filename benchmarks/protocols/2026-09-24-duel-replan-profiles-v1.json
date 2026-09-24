@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_replanned_vs_cached_three_turn_rules_profiles",
+  "question": "Does replanning after each atomic action retain a paired advantage over the validated cached three-turn agent on other Antiyoy rules profiles, without unreported censoring or excessive native CPU latency?",
+  "fresh_windows": [
+    {"profile": "online_default_v1", "seed_first": 6495000, "independent_maps": 64, "both_replanned_seats": true},
+    {"profile": "classic_slay_2022", "seed_first": 6496000, "independent_maps": 64, "both_replanned_seats": true}
+  ],
+  "arena": "procedural_v2 11x9 two-player maps, 2400-action finite horizon. Any material tiebreak is explicitly NONTERMINAL; original rules and legal geometry unchanged.",
+  "agents": "Native opt-in in-place reply_search_actions(replan_each_action=true) versus cached reply_search_actions default, both root beam256/top8/opponent beam64/followup beam32. Direct head-to-head on each map, rotating seats. These windows are disjoint from all earlier Generic search/model/implementation windows.",
+  "analysis": "For each profile report all128 games, terminal and action-limit outcomes, replanned/cached wins by replanned seat, exact independent-map paired sign test, median/p95 full-turn native one-core selection time for each agent, and a worst-case sensitivity that counts every replanned censored game as a loss. Never call a Classic Slay action-limit adjudication a terminal win.",
+  "online_default_gate": "Zero adjudications, replanned wins nonnegative in BOTH seats, favorable independent-map exact sign p<0.05, replanned median full-turn native CPU below250ms and p95 below1000ms.",
+  "classic_slay_finite_horizon_gate": "Report as finite-horizon only. Require fewer than64/128 adjudications, replanned wins nonnegative in BOTH seats, favorable primary independent-map sign p<0.05 and favorable worst-case timeout sign p<0.05, replanned median full-turn native CPU below250ms and p95 below1000ms. Failure does not erase the Generic result but blocks a Slay strength claim or unrestricted profile release.",
+  "resources": "Run profiles SEQUENTIALLY on SSH server fedora-toolbox, one CPU pinned15 nice19, Rayon/BLAS capped, per-profile hard timeout2700 seconds, tiny JSON, no GPU or preemption. Never touch dirty remote original repo."
+}

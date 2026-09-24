@@ -48,7 +48,7 @@ class BranchOutcome(TypedDict):
     actions_after_intervention: int
 
 
-def create_environment(seed: int) -> VectorEnv:
+def create_environment(seed: int, profile: str = PROFILE) -> VectorEnv:
     config = ProceduralConfig(
         width=11,
         height=9,
@@ -56,7 +56,7 @@ def create_environment(seed: int) -> VectorEnv:
         seed=seed,
         schema_version=2,
     )
-    return VectorEnv.procedural(1, config, action_limit=ACTION_LIMIT, profile=PROFILE)
+    return VectorEnv.procedural(1, config, action_limit=ACTION_LIMIT, profile=profile)
 
 
 def load_routed_policy(checkpoint_path: Path) -> tuple[RoutedPolicy, list[str]]:
