@@ -298,6 +298,12 @@ def test_reply_teacher_audit_partitions_policy_decisions(
     )
 
     counts = result["reply_teacher_agreement"]["by_seat"]
+    assert result["search_nodes"] == 32
+    assert result["search_beam_width"] == 12
+    assert result["search_branch_width"] == 20
+    assert result["search_maximum_actions_per_turn"] == 12
+    assert result["reply_search_nodes"] == 8
+    assert result["reply_slate_size"] == 4
     assert result["followup_search_nodes"] == followup_nodes
     assert len(counts) == 2
     assert (

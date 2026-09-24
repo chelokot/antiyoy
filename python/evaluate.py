@@ -509,7 +509,9 @@ def evaluate(
         and baseline != "reply_search"
         and not audit_reply_teacher
     ):
-        raise ValueError("followup search requires a reply-search baseline or teacher audit")
+        raise ValueError(
+            "followup search requires a reply-search baseline or teacher audit"
+        )
     if audit_reply_teacher and (
         baseline != "policy"
         or baseline_checkpoint_path is None
@@ -1106,6 +1108,8 @@ def evaluate(
                 ),
             }
         )
+    search_used = baseline in ("search", "reply_search") or audit_reply_teacher
+    reply_search_used = baseline == "reply_search" or audit_reply_teacher
     report = {
         "checkpoint": str(checkpoint_path),
         "baseline": baseline,
@@ -1269,25 +1273,15 @@ def evaluate(
                 for seat in range(players)
             ],
         },
-        "search_nodes": search_nodes if baseline in ("search", "reply_search") else 0,
-        "search_beam_width": (
-            search_beam_width if baseline in ("search", "reply_search") else 0
-        ),
-        "search_branch_width": (
-            search_branch_width if baseline in ("search", "reply_search") else 0
-        ),
+        "search_nodes": search_nodes if search_used else 0,
+        "search_beam_width": search_beam_width if search_used else 0,
+        "search_branch_width": search_branch_width if search_used else 0,
         "search_maximum_actions_per_turn": (
-            search_maximum_actions_per_turn
-            if baseline in ("search", "reply_search")
-            else 0
+            search_maximum_actions_per_turn if search_used else 0
         ),
-        "reply_search_nodes": reply_search_nodes if baseline == "reply_search" else 0,
-        "reply_slate_size": reply_slate_size if baseline == "reply_search" else 0,
-        "followup_search_nodes": (
-            followup_search_nodes
-            if baseline == "reply_search" or audit_reply_teacher
-            else 0
-        ),
+        "reply_search_nodes": reply_search_nodes if reply_search_used else 0,
+        "reply_slate_size": reply_slate_size if reply_search_used else 0,
+        "followup_search_nodes": (followup_search_nodes if reply_search_used else 0),
     }
     if audit_model_replies and model_reply_search is not None:
         report["model_reply_audit_round_modulus"] = audit_model_reply_round_modulus
