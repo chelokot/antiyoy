@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "kind": "fixed_snapshot_teacher_action_memorization_diagnostic",
+  "question": "Can the existing routed-v6 UniversalPolicy represent and optimize the first searched action on a small, fixed set of training observations?",
+  "data": {
+    "source": "Existing three-turn plan fit dataset, first sampled root position from each of 128 maps seed6451000 through6451127; no new maps or labels",
+    "label": "First legal action index of the exact native three-turn selected completed plan. The cached and replanned teachers previously agreed on every tested first action at identical root state.",
+    "selection": "Sort independent map seeds ascending, take exactly the first sampled record per seed, and copy its root BatchObservation and legal-action ordering once before optimization. Reject a missing or duplicate map.",
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867"
+  },
+  "optimization": {
+    "initialization": "Full routed-v6 Classic Generic two-player procedural_v1 expert",
+    "trainable": "Every existing UniversalPolicy parameter; no architecture change",
+    "objective": "Mean negative log probability of the fixed teacher legal-action index. No KL, data augmentation, trajectory replay, or terminal reward.",
+    "optimizer": "AdamW learning rate0.0003, zero weight decay, batch size16, gradient norm clip1.0, deterministic shuffle seed6451000, exactly1024 updates with repeated fixed snapshots and no checkpoint selection",
+    "readouts": "Exact same-snapshot argmax accuracy and mean teacher negative log probability at updates0,128,256,512,1024, including root-seat counts. Fixed snapshots are never refreshed."
+  },
+  "interpretation": "At least95% same-snapshot accuracy at update1024 establishes only that this network and recipe can memorize this specific fixed training set. Lower accuracy localizes a representation/optimization/label boundary for inspection, without proving which component failed. Neither outcome measures generalization, autonomous strength, Elo, or a deployable student. Do not change the recipe based on these readouts or run held-out gates from this diagnostic.",
+  "resources": "Run only in SSH server fedora-toolbox scratch on one pinned CPU with nice19 and Rayon/BLAS thread caps, timeout1800 seconds, small JSON summary, no checkpoint retention. Verify dataset and source hashes, resource availability, and no concurrent heavy job first."
+}
