@@ -1,0 +1,136 @@
+{
+  "kind": "predeclared_three_turn_whole_plan_distillation_offline",
+  "protocol": "benchmarks/protocols/2026-09-24-duel-three-turn-plan-distillation-v1.json",
+  "code_commit": "403d3dc40f55a64bafcdca4d96e170b89da51895",
+  "arena": {
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "width": 11,
+    "height": 9,
+    "players": 2,
+    "action_limit": 2400,
+    "sample_round_modulus": 8
+  },
+  "teacher": {
+    "root_search_nodes": 256,
+    "distinct_completed_turns": 8,
+    "opponent_search_nodes": 64,
+    "followup_search_nodes": 32
+  },
+  "student": {
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "selected_expert": "context:b02423ddd2f8cdf9",
+    "trainable": "Existing action head and action residual only; frozen encoder and value head",
+    "objective": "Map-balanced listwise cross-entropy over complete candidate-turn mean action log probabilities plus 0.2 source-to-student KL on every candidate pre-action state",
+    "optimizer": "AdamW learning rate 0.0001, weight decay 0.01, gradient clip 1.0, exactly two epochs",
+    "inference": "Direct legal-action argmax without search",
+    "checkpoint_sha256": "97f243654304a37b1488f00e6bb0428a9fdec83de1255a0ae0bb21e2b978fe71",
+    "checkpoint_bytes": 792081
+  },
+  "data": {
+    "fit": {
+      "first_seed": 6451000,
+      "maps": 128,
+      "completed_maps": 128,
+      "truncated_maps": 0,
+      "positions": 587,
+      "teacher_overrides": 236,
+      "candidate_plans": 4049,
+      "candidate_actions": 9901,
+      "collection_seconds": 1265.187961313,
+      "gzip_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191"
+    },
+    "validation": {
+      "first_seed": 6452000,
+      "maps": 64,
+      "completed_maps": 64,
+      "truncated_maps": 0,
+      "positions": 273,
+      "teacher_overrides": 83,
+      "candidate_plans": 1859,
+      "candidate_actions": 4494,
+      "collection_seconds": 557.911086797,
+      "gzip_sha256": "64fffba99abcf875fe06fff89eebe48bad432ad2416836aa723a0af639e45652"
+    },
+    "candidate_replay": "All candidate plans were replayed from their exact root states; local actions were legal, no candidate branch was censored, and every replayed post-turn observation matched its native export."
+  },
+  "training": {
+    "seconds": 53.40208003204316,
+    "epoch_1": {
+      "map_updates": 128,
+      "mean_map_listwise_loss": 1.518632905107132,
+      "mean_map_source_kl": 0.16190377850856472
+    },
+    "epoch_2": {
+      "map_updates": 128,
+      "mean_map_listwise_loss": 1.361850894516612,
+      "mean_map_source_kl": 0.20249717369100398
+    }
+  },
+  "complete_plan_agreement": {
+    "fit": {
+      "source": 336,
+      "student": 340,
+      "positions": 587,
+      "independent_maps_student_better": 8,
+      "independent_maps_source_better": 4,
+      "independent_maps_same": 116,
+      "exact_two_sided_map_sign_p": 0.3876953125
+    },
+    "validation": {
+      "source": 185,
+      "student": 186,
+      "positions": 273,
+      "independent_maps_student_better": 3,
+      "independent_maps_source_better": 2,
+      "independent_maps_same": 59,
+      "exact_two_sided_map_sign_p": 1.0,
+      "seat_0": {
+        "positions": 140,
+        "source": 96,
+        "student": 99
+      },
+      "seat_1": {
+        "positions": 133,
+        "source": 89,
+        "student": 87
+      },
+      "teacher_static_positions": {
+        "positions": 190,
+        "source": 181,
+        "student": 183
+      },
+      "teacher_override_positions": {
+        "positions": 83,
+        "source": 4,
+        "student": 3
+      },
+      "source_first_actions_matching_teacher": 127,
+      "student_retained_matching_first_actions": 109,
+      "retention_loss_percentage_points_among_previous_matches": 14.173228346456693,
+      "selected_plan_mean_actions": 4.358974358974359,
+      "alternative_plan_mean_actions": 2.0832282471626735
+    }
+  },
+  "predeclared_offline_gate": {
+    "required": "Independent-map sign p < 0.05 for complete-plan agreement, nonnegative change for both seats, at most two percentage points lost among source first actions already matching the teacher, no candidate censoring",
+    "result": "failed",
+    "map_sign": "failed: p = 1.0",
+    "both_seats": "failed: seat 1 decreased by two matches",
+    "first_action_retention": "failed: 18 of 127 previously matching first actions were lost",
+    "candidate_censoring": "passed: zero",
+    "decision": "Reject this student; do not run the reserved game-validation, teacher-confirmation, or promotion windows, and do not rate or deploy the checkpoint."
+  },
+  "artifacts": {
+    "offline_report_sha256": "a1c594b863af85ee62135544e6af3862212c2dce6c361a4d81b23f39f24b2013",
+    "fit_runner_sha256": "da342ed06e4187565482571ad01ef43261ec1def21760d28ae310138610bdccf",
+    "validation_runner_sha256": "66fa2399aed38bfa72675b0c2ea7dca94bda98ca28025ff34f6513f9bfdf73b2",
+    "training_runner_sha256": "106d0a0d2cfed8cd4636d25404652710a2431790a877eeeb9757015f1668ef0d",
+    "remote_scratch": "/tmp/antiyoy-residual.n17QTu"
+  },
+  "limitations": [
+    "These are candidate-slate teacher-agreement measurements on correlated positions, not autonomous game outcomes or Elo.",
+    "The teacher label is a searched three-turn score, not an exact terminal-outcome target.",
+    "The failed validation window must not be used for threshold, epoch, objective, or architecture retuning."
+  ]
+}
