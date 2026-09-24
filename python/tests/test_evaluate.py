@@ -99,6 +99,11 @@ def test_policy_self_match_is_an_exact_zero_delta(tmp_path: Path) -> None:
     assert result["game_seeds"] == [91_000, 91_000]
     assert result["model_seats"] == [0, 1]
     assert result["winners"] == result["baseline_self_play"]["winners"] * 2
+    assert len(result["game_truncated"]) == 2
+    assert sum(result["game_truncated"]) == result["truncations"]
+    assert sum(result["baseline_self_play"]["game_truncated"]) == result[
+        "baseline_self_play"
+    ]["truncations"]
     assert result["policy_search"]["decisions"] == 0
     assert result["paired_map_comparison"]["same"] == 1
     assert result["paired_map_bootstrap_95"]["score_delta"] == [0.0, 0.0]
@@ -121,6 +126,34 @@ def test_policy_self_match_is_an_exact_zero_delta(tmp_path: Path) -> None:
             "exact_two_sided_sign_test_p": 1.0,
         },
     ]
+
+
+def test_evaluation_identifies_each_action_limit_adjudication(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "policy.pt"
+    write_checkpoint(checkpoint, 1.0)
+
+    result = evaluate(
+        checkpoint,
+        games=2,
+        seed=91_003,
+        device_name="cpu",
+        baseline="policy",
+        profile="classic_generic_2022",
+        search_nodes=8,
+        search_beam_width=4,
+        search_branch_width=4,
+        search_maximum_actions_per_turn=4,
+        width=7,
+        height=5,
+        action_limit=1,
+        model_agent="policy",
+    )
+
+    assert result["game_seeds"] == [91_003, 91_003]
+    assert result["model_seats"] == [0, 1]
+    assert result["game_truncated"] == [True, True]
+    assert result["truncations"] == 2
+    assert result["baseline_self_play"]["game_truncated"] == [True]
 
 
 def test_reply_search_baseline_runs_rotated_procedural_duel(tmp_path: Path) -> None:
@@ -196,6 +229,7 @@ def test_model_reply_search_completes_matched_rotated_games(
     assert result["game_seeds"] == [91_005, 91_005]
     assert result["model_seats"] == [0, 1]
     assert result["truncations"] == 0
+    assert result["game_truncated"] == [False, False]
     assert result["model_reply_search"]["root_turns"] > 0
     assert result["model_reply_search"]["candidate_replies"] > 0
     assert result["model_reply_search"]["slate_size"] == 4

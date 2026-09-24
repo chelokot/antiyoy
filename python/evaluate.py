@@ -62,6 +62,7 @@ class BaselineSelfPlay(TypedDict):
     terminal_draws: int
     truncations: int
     winners: list[int]
+    game_truncated: list[bool]
 
 
 def paired_elo(score: float, games: int) -> float:
@@ -699,6 +700,7 @@ def evaluate(
         reference_finished = np.zeros(reference_games, dtype=np.bool_)
         reference_wins = np.zeros(players, dtype=np.int64)
         reference_winners = np.full(reference_games, 255, dtype=np.uint8)
+        reference_game_truncated = np.zeros(reference_games, dtype=np.bool_)
         reference_draws = 0
         reference_terminal_draws = 0
         reference_truncations = 0
@@ -744,6 +746,7 @@ def evaluate(
                     else:
                         reference_wins[winner] += 1
                     reference_winners[index] = winner
+                    reference_game_truncated[index] = truncated
                     reference_finished[index] = True
                 reference_environment.reset(int(index), reference_reset_seed)
                 reference_reset_seed += 1
@@ -754,6 +757,7 @@ def evaluate(
             "terminal_draws": reference_terminal_draws,
             "truncations": reference_truncations,
             "winners": reference_winners.tolist(),
+            "game_truncated": reference_game_truncated.tolist(),
         }
 
     baseline_reference = evaluate_baseline_reference()
@@ -766,6 +770,7 @@ def evaluate(
     seat_losses = np.zeros(players, dtype=np.int64)
     game_scores = np.zeros(games, dtype=np.float64)
     game_winners = np.full(games, 255, dtype=np.uint8)
+    game_truncated = np.zeros(games, dtype=np.bool_)
     reset_seed = seed + games // players
     random = np.random.default_rng(seed)
     transitions = 0
@@ -1020,6 +1025,7 @@ def evaluate(
                     seat_losses[game_model_seat] += 1
                 game_scores[index] = winner_score(winner, game_model_seat)
                 game_winners[index] = winner
+                game_truncated[index] = truncated
                 finished[index] = True
             environment.reset(int(index), reset_seed)
             reset_seed += 1
@@ -1131,6 +1137,7 @@ def evaluate(
         "game_seeds": evaluation_seeds.tolist(),
         "model_seats": model_seats.tolist(),
         "winners": game_winners.tolist(),
+        "game_truncated": game_truncated.tolist(),
         "baseline_self_play": baseline_reference,
         "paired_method_comparison": paired_method_comparison(
             game_scores, baseline_scores
