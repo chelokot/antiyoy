@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
 import torch
 
@@ -23,13 +24,35 @@ from .audit_three_turn_shared_stop_outcomes import (
     summarize,
 )
 from .build_bundle import digest
+from .evaluate import paired_comparison_summary
 from .train_three_turn_plan import checked_dataset
 
 
-PROTOCOL = "benchmarks/protocols/2026-09-24-duel-shared-stop-opponent-stability-v1.json"
-FIRST_SEED = 6460000
-MAPS = 64
-MAXIMUM_SAMPLES = 24
+Phase = Literal["exploratory", "confirmation"]
+
+
+@dataclass(frozen=True)
+class ProbeConfiguration:
+    first_seed: int
+    maps: int
+    maximum_samples: int
+    protocol: str
+
+
+CONFIGURATIONS: dict[Phase, ProbeConfiguration] = {
+    "exploratory": ProbeConfiguration(
+        6460000,
+        64,
+        24,
+        "benchmarks/protocols/2026-09-24-duel-shared-stop-opponent-stability-v1.json",
+    ),
+    "confirmation": ProbeConfiguration(
+        6461000,
+        128,
+        48,
+        "benchmarks/protocols/2026-09-24-duel-shared-stop-opponent-confirmation-v1.json",
+    ),
+}
 
 
 def preference(outcomes: dict[str, BranchOutcome], root_seat: int) -> int | None:
@@ -60,6 +83,11 @@ def summarize_stability(samples: list[dict[str, object]]) -> dict[str, object]:
         "both_tied": 0,
         "censored_in_either_mode": 0,
     }
+    conditional = {"beneficial": 0, "harmful": 0, "neutral": 0, "censored": 0}
+    by_seat = {
+        seat: {"beneficial": 0, "harmful": 0, "neutral": 0, "censored": 0}
+        for seat in (0, 1)
+    }
     for sample in samples:
         root = cast(int, sample["root_seat"])
         outcomes = cast(dict[str, dict[str, BranchOutcome]], sample["outcomes"])
@@ -67,24 +95,61 @@ def summarize_stability(samples: list[dict[str, object]]) -> dict[str, object]:
         two_turn = preference(outcomes["two_turn"], root)
         if direct is None or two_turn is None:
             cross["censored_in_either_mode"] += 1
+            label = "censored"
         elif direct == two_turn == 0:
             cross["both_tied"] += 1
+            label = "neutral"
         elif direct == two_turn:
             cross["strict_agreement"] += 1
+            label = "beneficial" if direct > 0 else "harmful"
         elif direct == -two_turn:
             cross["strict_reversal"] += 1
+            label = "harmful"
         elif direct != 0:
             cross["direct_only_strict"] += 1
+            label = "beneficial" if direct > 0 else "harmful"
         else:
             cross["two_turn_only_strict"] += 1
-    return {"by_opponent_policy": modes, "cross_policy": cross}
+            label = "beneficial" if two_turn > 0 else "harmful"
+        conditional[label] += 1
+        by_seat[root][label] += 1
+    sign = paired_comparison_summary(
+        conditional["beneficial"], conditional["harmful"], conditional["neutral"]
+    )
+    worst_case = paired_comparison_summary(
+        conditional["beneficial"],
+        conditional["harmful"] + conditional["censored"],
+        conditional["neutral"],
+    )
+    return {
+        "by_opponent_policy": modes,
+        "cross_policy": cross,
+        "conditional_nonharmful_signal": {
+            **conditional,
+            "by_root_seat": by_seat,
+            "exact_two_sided_map_sign_test_p": sign["exact_two_sided_sign_test_p"],
+            "censored_as_harmful_sign_test_p": worst_case[
+                "exact_two_sided_sign_test_p"
+            ],
+        },
+    }
 
 
-def audit(dataset_path: Path, checkpoint_path: Path) -> dict[str, object]:
+def audit(
+    dataset_path: Path,
+    checkpoint_path: Path,
+    phase: Phase = "exploratory",
+) -> dict[str, object]:
+    configuration = CONFIGURATIONS[phase]
     if digest(checkpoint_path) != CHECKPOINT_SHA256:
         raise ValueError("opponent checkpoint disagrees with the fixed protocol")
-    dataset = checked_dataset(dataset_path, FIRST_SEED, MAPS)
-    if dataset["completed_maps"] != MAPS or dataset["truncated_maps"] != 0:
+    dataset = checked_dataset(
+        dataset_path, configuration.first_seed, configuration.maps
+    )
+    if (
+        dataset["completed_maps"] != configuration.maps
+        or dataset["truncated_maps"] != 0
+    ):
         raise ValueError("fresh searched roll-in includes incomplete maps")
     torch.set_num_threads(1)
     opponent, experts = load_routed_policy(checkpoint_path)
@@ -126,11 +191,11 @@ def audit(dataset_path: Path, checkpoint_path: Path) -> dict[str, object]:
             }
         )
         selected_maps.add(position.seed)
-        if len(samples) == MAXIMUM_SAMPLES:
+        if len(samples) == configuration.maximum_samples:
             break
     return {
         "kind": "three_turn_shared_stop_opponent_stability_probe",
-        "protocol": PROTOCOL,
+        "protocol": configuration.protocol,
         "dataset_sha256": digest(dataset_path),
         "checkpoint_sha256": digest(checkpoint_path),
         "selected_experts": experts,
@@ -146,8 +211,14 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("dataset", type=Path)
     parser.add_argument("checkpoint", type=Path)
+    parser.add_argument("--phase", choices=tuple(CONFIGURATIONS), default="exploratory")
     arguments = parser.parse_args()
-    print(json.dumps(audit(arguments.dataset, arguments.checkpoint), sort_keys=True))
+    print(
+        json.dumps(
+            audit(arguments.dataset, arguments.checkpoint, arguments.phase),
+            sort_keys=True,
+        )
+    )
 
 
 if __name__ == "__main__":

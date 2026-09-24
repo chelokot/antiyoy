@@ -4,6 +4,7 @@ import torch
 from python import audit_three_turn_shared_stop_outcomes
 from python.audit_three_turn_shared_stop_outcomes import finish_persistently
 from python.audit_three_turn_shared_stop_stability import (
+    CONFIGURATIONS,
     preference,
     summarize_stability,
 )
@@ -70,6 +71,21 @@ def test_summary_separates_reversal_from_one_policy_only_change() -> None:
     }
     assert summary["by_opponent_policy"]["direct"]["censored"] == 1
     assert summary["by_opponent_policy"]["two_turn"]["censored"] == 0
+    conditional = summary["conditional_nonharmful_signal"]
+    assert conditional["beneficial"] == 3
+    assert conditional["harmful"] == 1
+    assert conditional["neutral"] == 1
+    assert conditional["censored"] == 1
+
+
+def test_confirmation_uses_a_disjoint_predeclared_map_window() -> None:
+    exploratory = CONFIGURATIONS["exploratory"]
+    confirmation = CONFIGURATIONS["confirmation"]
+    assert exploratory.first_seed + exploratory.maps <= confirmation.first_seed
+    assert confirmation.maximum_samples == 48
+    assert confirmation.protocol.endswith(
+        "duel-shared-stop-opponent-confirmation-v1.json"
+    )
 
 
 def test_two_turn_mode_uses_native_opponent_search(monkeypatch) -> None:
