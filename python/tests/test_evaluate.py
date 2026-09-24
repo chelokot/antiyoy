@@ -21,6 +21,7 @@ from python.build_bundle import build_bundle, digest
 from python.evaluate import (
     FIXED_SEAT_SCHEME,
     baseline_adjusted_elo_delta,
+    empty_reply_teacher_agreement,
     evaluate,
     evaluation_schedule,
     named_action_counts,
@@ -32,6 +33,7 @@ from python.evaluate import (
     paired_elo,
     paired_seeds,
     reference_adjusted_outcome,
+    record_reply_teacher_action,
     relative_skill_delta,
     seat_rotation_seeds,
     selected_action_kinds,
@@ -43,6 +45,29 @@ from python.evaluate_suite import (
     minimum_profile_seat_slice,
     minimum_seat_slice,
 )
+
+
+def test_reply_teacher_action_categories_partition_decisions() -> None:
+    counts = empty_reply_teacher_agreement()
+    for source, student, teacher in (
+        (1, 1, 1),
+        (1, 2, 1),
+        (1, 2, 2),
+        (1, 1, 2),
+        (1, 3, 2),
+    ):
+        record_reply_teacher_action(counts, source, student, teacher)
+
+    assert counts == {
+        "decisions": 5,
+        "source_matches_teacher": 2,
+        "student_matches_teacher": 2,
+        "teacher_source_disagreements": 3,
+        "student_matches_teacher_on_disagreements": 1,
+        "student_matches_source_on_disagreements": 1,
+        "student_matches_neither_on_disagreements": 1,
+        "student_deviates_when_teacher_matches_source": 1,
+    }
 
 
 def test_selected_action_kinds_resolves_local_ragged_indices() -> None:
@@ -297,7 +322,9 @@ def test_reply_teacher_audit_partitions_policy_decisions(
         audit_reply_teacher=True,
     )
 
-    counts = result["reply_teacher_agreement"]["by_seat"]
+    agreement = result["reply_teacher_agreement"]
+    counts = agreement["by_seat"]
+    by_game = agreement["by_game"]
     assert result["search_nodes"] == 32
     assert result["search_beam_width"] == 12
     assert result["search_branch_width"] == 20
@@ -306,6 +333,14 @@ def test_reply_teacher_audit_partitions_policy_decisions(
     assert result["reply_slate_size"] == 4
     assert result["followup_search_nodes"] == followup_nodes
     assert len(counts) == 2
+    assert len(by_game) == result["games"]
+    for seat, seat_counts in enumerate(counts):
+        for name, value in seat_counts.items():
+            assert value == sum(
+                game_counts[name]
+                for game_seat, game_counts in zip(result["model_seats"], by_game)
+                if game_seat == seat
+            )
     assert (
         sum(seat["decisions"] for seat in counts)
         == result["model_baseline_policy_actions"]["decisions"]

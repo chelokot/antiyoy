@@ -65,6 +65,39 @@ class BaselineSelfPlay(TypedDict):
     game_truncated: list[bool]
 
 
+def empty_reply_teacher_agreement() -> dict[str, int]:
+    return {
+        "decisions": 0,
+        "source_matches_teacher": 0,
+        "student_matches_teacher": 0,
+        "teacher_source_disagreements": 0,
+        "student_matches_teacher_on_disagreements": 0,
+        "student_matches_source_on_disagreements": 0,
+        "student_matches_neither_on_disagreements": 0,
+        "student_deviates_when_teacher_matches_source": 0,
+    }
+
+
+def record_reply_teacher_action(
+    counts: dict[str, int], source: int, student: int, teacher: int
+) -> None:
+    counts["decisions"] += 1
+    if student == teacher:
+        counts["student_matches_teacher"] += 1
+    if source == teacher:
+        counts["source_matches_teacher"] += 1
+        if student != source:
+            counts["student_deviates_when_teacher_matches_source"] += 1
+        return
+    counts["teacher_source_disagreements"] += 1
+    if student == teacher:
+        counts["student_matches_teacher_on_disagreements"] += 1
+    elif student == source:
+        counts["student_matches_source_on_disagreements"] += 1
+    else:
+        counts["student_matches_neither_on_disagreements"] += 1
+
+
 def paired_elo(score: float, games: int) -> float:
     return relative_skill_delta(score, games, 2)
 
@@ -801,17 +834,10 @@ def evaluate(
     model_baseline_action_disagreements = 0
     model_policy_decisions = 0
     reply_teacher_agreement = [
-        {
-            "decisions": 0,
-            "source_matches_teacher": 0,
-            "student_matches_teacher": 0,
-            "teacher_source_disagreements": 0,
-            "student_matches_teacher_on_disagreements": 0,
-            "student_matches_source_on_disagreements": 0,
-            "student_matches_neither_on_disagreements": 0,
-            "student_deviates_when_teacher_matches_source": 0,
-        }
-        for _ in range(players)
+        empty_reply_teacher_agreement() for _ in range(players)
+    ]
+    reply_teacher_game_agreement = [
+        empty_reply_teacher_agreement() for _ in range(games)
     ]
     reply_teacher_turn_fidelity = [
         {
@@ -949,38 +975,13 @@ def evaluate(
                 ),
                 dtype=np.uint64,
             )
-            for seat, counts in enumerate(reply_teacher_agreement):
-                seat_turns = np.logical_and(model_turns, active_players == seat)
-                source = baseline_actions[seat_turns]
-                student = model_actions[seat_turns]
-                teacher = teacher_actions[seat_turns]
-                informative = teacher != source
-                counts["decisions"] += len(source)
-                counts["source_matches_teacher"] += int(np.count_nonzero(~informative))
-                counts["student_matches_teacher"] += int(
-                    np.count_nonzero(student == teacher)
-                )
-                counts["teacher_source_disagreements"] += int(
-                    np.count_nonzero(informative)
-                )
-                counts["student_matches_teacher_on_disagreements"] += int(
-                    np.count_nonzero(np.logical_and(informative, student == teacher))
-                )
-                counts["student_matches_source_on_disagreements"] += int(
-                    np.count_nonzero(np.logical_and(informative, student == source))
-                )
-                counts["student_matches_neither_on_disagreements"] += int(
-                    np.count_nonzero(
-                        np.logical_and(
-                            informative,
-                            np.logical_and(student != teacher, student != source),
-                        )
-                    )
-                )
-                counts["student_deviates_when_teacher_matches_source"] += int(
-                    np.count_nonzero(np.logical_and(~informative, student != source))
-                )
             for index in np.flatnonzero(model_turns):
+                record_reply_teacher_action(
+                    reply_teacher_game_agreement[index],
+                    int(baseline_actions[index]),
+                    int(model_actions[index]),
+                    int(teacher_actions[index]),
+                )
                 seat = int(active_players[index])
                 matches = model_actions[index] == teacher_actions[index]
                 if not reply_teacher_turn_open[index]:
@@ -1079,6 +1080,11 @@ def evaluate(
         ],
         dtype=np.float64,
     )
+    if audit_reply_teacher:
+        for index, game_counts in enumerate(reply_teacher_game_agreement):
+            seat_counts = reply_teacher_agreement[int(model_seats[index])]
+            for name, value in game_counts.items():
+                seat_counts[name] += value
     reported_seats = range(players) if model_seat is None else (model_seat,)
     games_per_reported_seat = games // players if model_seat is None else games
     seats = []
@@ -1206,6 +1212,7 @@ def evaluate(
         "reply_teacher_agreement": (
             {
                 "by_seat": reply_teacher_agreement,
+                "by_game": reply_teacher_game_agreement,
                 "turn_fidelity_by_seat": reply_teacher_turn_fidelity,
             }
             if audit_reply_teacher
