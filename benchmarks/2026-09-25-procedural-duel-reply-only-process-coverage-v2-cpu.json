@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "kind": "fit_only_exact_reply_stage_coverage_of_three_turn_search",
+  "audit_script": "python/audit_duel_reply_only_process_coverage.py",
+  "source_dataset": "benchmarks/2026-09-25-procedural-duel-structured-response-censor-fit-v2-cpu.json",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, native root256/top8/opponent reply64/root followup32, replanned at every atomic action",
+  "window": {
+    "first_seed": 6610000,
+    "independent_maps": 128,
+    "teacher_rollin_root_seats": [0, 1],
+    "opponent_arms": ["source", "teacher"],
+    "sampled_root_decisions": 3973,
+    "candidate_branches": 21024,
+    "terminal_rollin_games": 512,
+    "action_limit_censored_rollin_games": 0
+  },
+  "method": "Read only the already-inspected v2 fit ledger. For each recorded root slate, static-only selects the maximum exact post-root score. Reply-only selects the maximum exact post-opponent-reply position score reconstructed from the 16 exported evaluator components, using the same terminal win/loss sentinel, static-score tie-break and candidate order as native search. Full teacher choice is the recorded exact three-turn score argmax. Compare candidate indices and first legal-action indices within the same root state; no policy is run in a new game.",
+  "integrity": {
+    "fit_ledger_sha256_matches_record": true,
+    "reconstructed_static_score_mismatches": 0,
+    "reconstructed_three_turn_score_mismatches": 0,
+    "recorded_teacher_choice_rank_mismatches": 0,
+    "rollin_censored_sample_records": 0,
+    "original_collection_independently_replayed_all_candidate_branches": true
+  },
+  "exact_candidate_choice": {
+    "static_only_matches_three_turn_teacher": 2615,
+    "reply_only_matches_three_turn_teacher": 2833,
+    "reply_only_better_worse_same_than_static": [251, 33, 3689],
+    "reply_only_matches_by_root_seat": [1451, 1382],
+    "static_only_matches_by_root_seat": [1283, 1332]
+  },
+  "first_atomic_action": {
+    "static_only_matches_three_turn_teacher": 2703,
+    "reply_only_matches_three_turn_teacher": 2891,
+    "reply_only_better_worse_same_than_static": [221, 33, 3719],
+    "reply_only_matches_by_root_seat": [1477, 1414],
+    "static_only_matches_by_root_seat": [1331, 1372],
+    "reply_only_disagrees_with_three_turn_teacher": 1082
+  },
+  "plan_length_atomic_actions": {
+    "all_root_candidates_median_p90_max": [2, 2, 13],
+    "all_opponent_replies_median_p90_max": [2, 6, 15],
+    "teacher_selected_opponent_replies_median_p90_max": [2, 5, 15],
+    "all_root_followups_median_p90_max": [3, 8, 15],
+    "zero_action_opponent_replies_from_terminal_roots": 69
+  },
+  "raw": {
+    "server_path": "/tmp/antiyoy-residual.n17QTu/structured-process-censor-fit-6610000.jsonl.gz",
+    "sha256": "f7a3e51c3659b4183dd87c759ff38175c630a6a345b366eda61b825d949b6da8"
+  },
+  "interpretation": "Exact opponent-reply information improves fit-state agreement with the exact three-turn teacher over the static root score, especially for root seat0, but it is not sufficient to reproduce more than about73% of first actions on these sampled states. A response-only learned shortcut would also have to approximate the subsequent root followup or prove a fresh game-strength gain despite these omissions. Candidate-plan lengths suggest a bounded multi-action process, not an autonomous student capability.",
+  "qualification": "Post-hoc descriptive audit of the previously inspected fit window, with repeated states per map and no independent holdout. No new labels, model training, controller, terminal-game comparison, Elo, runtime or Site change. Do not tune a policy or promotion gate on this window."
+}
