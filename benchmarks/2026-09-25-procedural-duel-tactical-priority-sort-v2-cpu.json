@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "kind": "exact_tactical_priority_sort_gate_failed",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-tactical-priority-sort-v1.json",
+  "protocol_and_auditor_commit": "8320200",
+  "candidate_commit": "bb796fd",
+  "candidate_search_source_sha256": "4a288e853e9a9e5b28f6280043d5c64acf1a4b64f57c58117f7ddbdbc3fc05df",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, native root256/top8/opponent64/followup32 replanned at every atomic action, action limit2400",
+  "window": {
+    "first_seed": 6630000,
+    "independent_maps": 16,
+    "comparison_order": ["baseline_a", "candidate", "baseline_b"],
+    "search_cpu": "One pinned CPU15, nice19, Rayon/BLAS one thread on the SSH server"
+  },
+  "equivalence": {
+    "games_per_run": 16,
+    "terminal_games_per_run": 16,
+    "action_limit_censored_games_per_run": 0,
+    "atomic_actions_per_run": 2988,
+    "plain_versus_exact_score_cache_observation_action_step_and_outcome_mismatches": 0,
+    "baseline_a_candidate_baseline_b_action_sha256_or_outcome_mismatches": 0
+  },
+  "plain_search_runtime": {
+    "baseline_a_total_process_cpu_seconds": 34.57657710600012,
+    "candidate_total_process_cpu_seconds": 33.546890891000004,
+    "baseline_b_total_process_cpu_seconds": 34.82686845099999,
+    "median_paired_map_cpu_improvement_fraction_against_mean_baseline": 0.026337272050534433,
+    "median_cpu_improvement_fraction_by_active_seat": [0.017785851971684863, 0.03857536253859212],
+    "maps_with_positive_cpu_improvement": 16,
+    "minimum_map_cpu_improvement_fraction": 0.00573813697479808,
+    "mean_baseline_pooled_action_wall_p95_seconds": 0.025127461412921548,
+    "candidate_pooled_action_wall_p95_seconds": 0.02426616894081235
+  },
+  "predeclared_gate": {
+    "all_games_terminal_and_uncensored": true,
+    "exact_action_ledgers_and_outcomes": true,
+    "median_paired_map_cpu_improvement_at_least_three_percent": false,
+    "both_seats_median_cpu_nonnegative": true,
+    "candidate_p95_wall_at_most_110_percent_mean_baseline": true,
+    "overall_pass": false
+  },
+  "raw_results": {
+    "server_directory": "/tmp/antiyoy-residual.n17QTu/sort-study",
+    "baseline_a": "baseline-a.json",
+    "baseline_a_sha256": "34ee0462c092beffbc9ef5b228b2608e3bd4273b79b1ff1dbc9bb0a76178ba3d",
+    "candidate": "candidate.json",
+    "candidate_sha256": "1843696618d5cc646a782f772213533d39547d653441d7c8a1e97eb259fda829",
+    "baseline_b": "baseline-b.json",
+    "baseline_b_sha256": "01025732b0f4a1612e7eaab7098be58b9a07130dce11c0c1e11426be3f0ec36b"
+  },
+  "verification": "The focused Rust ordering-equivalence test passed before the candidate benchmark. Rust/Python/web/WASM CI passed for both the predeclared protocol/auditor and candidate code commits. The final source restores the exact pre-candidate search implementation.",
+  "decision": "Reject and revert the cached-key sort because its 2.63% median paired-map CPU gain is below the fixed 3% advance threshold. Do not retune the threshold or rerun seed6630000. No search policy, neural student, rated bot or owner-private Site change is retained.",
+  "qualification": "This is a one-core native CPU and exact-action comparison, not a strength, Elo or browser-latency claim."
+}
