@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_read_only_turn_trace_process_runtime_feasibility",
+  "hypothesis": "A single lightweight sequence model over native candidate-turn action traces can avoid the repeated full-spatial-encoder bottleneck measured for candidate post-turn states while retaining a process-level input that can later represent action order and board changes.",
+  "fixed_window": {
+    "first_seed": 6590000,
+    "independent_maps": 8,
+    "arena": "Classic Generic procedural_v2 11x9 two-player, action limit2400",
+    "sample_rule": "First live decision of each root seat during native replanned three-turn self-play; all maps and both seats required",
+    "exclusion": "This feasibility window is permanently excluded from any later model fit, calibration, offline validation, game validation, rating or promotion"
+  },
+  "candidate_process": "At each sampled state generate the exact native root256/top8/beam32/branch48/max24 completed-turn slate. Fork each candidate and replay every indexed legal action to the same native static score. Encode each step as a 16-dimensional token with action kind, parameter, source and target axial position, root-relative local owner/unit/defense, and signed immediate native score delta. Run a randomly initialized one-layer hidden32 GRU once over the padded candidate batch with last-real-token readout. No checkpoint, teacher label, outcome or trained selector is used.",
+  "comparison": "At the same unmodified state, time native three-turn root256/top8/opponent64/followup32 replanned action selection and the root-slate-plus-trace-replay-plus-tiny-GRU pipeline, alternating call order by seed and seat. Warm the GRU before timed samples. Record stage timings and the exact number and length of replayed plans. The student process score is never played; continue the native teacher game to find the second seat.",
+  "advance_gate": "Require all16 both-seat samples, every candidate indexed action legal and every final static score exactly equal to native, zero action-limit censor, root-slate/trace/GRU median total wall time no more than3 milliseconds, pooled p95 no more than6 milliseconds, and each root-seat median no more than3 milliseconds. Failure stops this architecture before training, with no threshold or model-size retuning on seed6590000.",
+  "limits": "This is an interface and warm CPU runtime check only. A random GRU has no policy strength, terminal outcome, Elo or browser WASM latency. Passing does not justify training until an exact outcome-aligned multi-turn objective and entirely disjoint fit/calibration/offline/game/final windows are committed. The old full-spatial slate feasibility failure is not retuned, and its seed6570000 is not reused.",
+  "compute": "Use only SSH server fedora-toolbox scratch, one CPU15 pinned nice19 with torch/Rayon/BLAS capped to one thread, bounded output. Reinspect shared CPU, RAM, swap and disk, and never edit the dirty remote original repo or preempt other users."
+}
