@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_teacher_first_action_source_rank",
+  "question": "Would a reranker limited to the frozen direct model's top-k legal actions even contain the replanned-search teacher's chosen first action?",
+  "sample": "Replay all recorded turn starts on the already inspected 128-map three-turn teacher fit dataset, seeds6451000..6451127, in saved order. No new maps, games, search, training or validation.",
+  "dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+  "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "method": "At each exactly replayed state, score every legal action with the frozen routed-v6 Classic Generic two-player context expert. Rank logits descending with stable legal-index tie order. Compare the selected searched whole-turn plan's FIRST legal action index only. Report coverage at k=1,2,4,8,16,32 overall and among positions where source top1 disagrees with teacher, by root seat and selected teacher action kind. Do not select or tune k from this old fit audit.",
+  "interpretation_limits": "Candidate inclusion is a necessary condition for a top-k action reranker, not evidence that it could choose the action, preserve complete plans, improve terminal outcomes or beat either player. The fit-state distribution is not a fresh game or policy gate.",
+  "resources": "SSH server fedora-toolbox scratch only, one CPU15 pinned nice19, Rayon/BLAS capped, tiny output, no GPU or parallel heavy job. Preserve original dirty remote repository and all reserved game seeds."
+}
