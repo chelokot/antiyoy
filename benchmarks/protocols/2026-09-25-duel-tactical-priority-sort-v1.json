@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_exact_tactical_priority_sort_equivalence_and_cpu",
+  "hypothesis": "Caching each action's tactical ordering key for the duration of one sort avoids repeated priority computation without changing the total order or search policy.",
+  "implementation": "Replace only the continuing-action comparison sort in ordered_actions with a cached key containing descending tactical priority and ascending Action. EndTurn placement, branch truncation, all search budgets, score ties, rules and the exact one-slate score cache remain unchanged. No neural model or Site change.",
+  "fixed_window": {
+    "first_seed": 6630000,
+    "independent_maps": 16,
+    "arena": "Classic Generic procedural_v2 11x9 two-player",
+    "action_limit": 2400,
+    "controller": "Native three-turn root256/top8/opponent64/followup32, replanned at every atomic action",
+    "measurements": "Run the same plain-versus-exact-score-cache lockstep auditor separately against baseline, candidate, then baseline release builds, pinned to CPU15 nice19 with one BLAS/Rayon thread and no parallel heavy jobs. Within each build require exact plain/cached observations, actions, steps and terminal outcomes. Across builds compare every per-map action SHA256 and terminal outcome. For the sort comparison use only plain-controller per-map and per-seat process CPU; the second baseline run controls run-order drift. Record pooled plain-action wall p95, censoring and host load."
+  },
+  "advance_gate": "All16 maps terminal without censor in all three runs; every map has identical action SHA256 and outcome across baseline/candidate/baseline; candidate median paired-map process CPU improvement at least3% against the per-map mean of the two baselines, with nonnegative median improvement for both active seats; candidate pooled plain-action wall p95 at most110% of the mean baseline p95. If any gate fails, revert the sort change and report the negative result without tuning this window.",
+  "interpretation_limits": "This tests exact native CPU performance on one procedural profile, not stronger play, neural distillation, Elo or browser latency. No model, rated bot, rules or owner-private Site is changed.",
+  "compute": "SSH server fedora-toolbox scratch only; one CPU15 pinned nice19, Rayon/BLAS capped, tiny outputs, no GPU or parallel heavy job. Preserve other work and never touch the dirty remote original repository."
+}

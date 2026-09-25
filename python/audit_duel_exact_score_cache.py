@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import statistics
@@ -47,6 +48,7 @@ def replay(seed: int, profile: str = "classic_generic_2022") -> dict[str, object
     actions = 0
     plain_result = None
     cached_result = None
+    action_digest = hashlib.sha256()
     while not plain.done()[0]:
         plain_observation = plain.observe()
         cached_observation = cached.observe()
@@ -69,6 +71,7 @@ def replay(seed: int, profile: str = "classic_generic_2022") -> dict[str, object
             selected.append(np.asarray(action, dtype=np.uint64))
         if not np.array_equal(selected[0], selected[1]):
             raise ValueError(f"action mismatch at seed {seed} action {actions}")
+        action_digest.update(selected[0].tobytes())
         plain_result = plain.step(selected[0])
         cached_result = cached.step(selected[1])
         if not same_arrays(plain_result, cached_result):
@@ -84,6 +87,7 @@ def replay(seed: int, profile: str = "classic_generic_2022") -> dict[str, object
     return {
         "seed": seed,
         "actions": actions,
+        "action_sha256": action_digest.hexdigest(),
         "outcome": plain_outcome,
         "cache_hits": int(cached.search_cache_hits()[0]),
         "plain_search_cpu_seconds_by_seat": cpu[0],
@@ -148,13 +152,17 @@ def summarize(records: list[dict[str, object]]) -> dict[str, object]:
     }
 
 
-def audit() -> dict[str, object]:
-    records = [replay(seed) for seed in range(SEED_FIRST, SEED_FIRST + MAPS)]
+def audit(
+    seed_first: int = SEED_FIRST,
+    maps: int = MAPS,
+    protocol: str = PROTOCOL,
+) -> dict[str, object]:
+    records = [replay(seed) for seed in range(seed_first, seed_first + maps)]
     return {
         "kind": "native_replanned_exact_score_cache_cpu_and_equivalence",
-        "protocol": PROTOCOL,
-        "seed_first": SEED_FIRST,
-        "maps": MAPS,
+        "protocol": protocol,
+        "seed_first": seed_first,
+        "maps": maps,
         "action_limit": ACTION_LIMIT,
         "search_configuration": SEARCH_CONFIGURATION,
         "records": records,
@@ -166,8 +174,13 @@ def audit() -> dict[str, object]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--seed-first", type=int, default=SEED_FIRST)
+    parser.add_argument("--maps", type=int, default=MAPS)
+    parser.add_argument("--protocol", default=PROTOCOL)
     arguments = parser.parse_args()
-    report = audit()
+    if arguments.maps <= 0:
+        parser.error("--maps must be positive")
+    report = audit(arguments.seed_first, arguments.maps, arguments.protocol)
     if arguments.output is None:
         print(json.dumps(report, sort_keys=True))
     else:
