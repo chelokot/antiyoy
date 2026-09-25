@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_read_only_spatial_turn_process_feasibility",
+  "question": "Can an end-to-end spatial plan-selector architecture inspect exact native completed-turn candidates within the validated replanned three-turn teacher's per-action CPU budget? This measures representation plumbing and runtime only; no selector is trained.",
+  "fixed_window": {
+    "first_seed": 6570000,
+    "independent_maps": 8,
+    "states_per_map": "The first live decision of each active seat during exact replanned-native self-play, at most two sampled states per map",
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "arena": "11x9 two-player",
+    "action_limit": 2400
+  },
+  "teacher": "Native replanned three-turn root beam256/top8, opponent full-turn beam64, root followup beam32, maximum24 actions per turn, called at every atomic decision",
+  "candidate_interface": "At each sampled exact game state, request native beam256 top8 distinct completed root-turn plans. Fork and replay every indexed plan, verify each action legal and its native static score exact, then batch the genuine root and nonterminal post-turn observations through the frozen routed-v6 spatial encoder. Preserve the actual active player in every observation; a later selector would receive root seat separately. Terminal candidates are counted separately for a future exact terminal override. No model scores or labels are used to choose game actions.",
+  "frozen_source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "measurements": "Per sampled state: exact teacher-search wall seconds, native root-slate wall seconds, candidate-fork/replay wall seconds, batched encoder wall seconds, candidate count, terminal candidate count, exact score-replay mismatches, and selected source model expert. Run teacher and candidate timing on the same state, alternating measurement order by seed parity. Report medians and p95, not a game-strength or general browser-latency estimate.",
+  "advance_gate": "All 16 seat-map samples available, every candidate action and static score replays exactly, no action-limit censoring, median root-slate-plus-replay-plus-encoder wall time at most 75% of same-state native three-turn-search median, and p95 no greater than same-state teacher p95. A pass permits design of a separately predeclared fit/validation/game experiment; it does not select or promote a policy.",
+  "limits": "Initial seat decisions may not represent later crowded states. The source encoder is frozen only for this runtime probe; a future end-to-end model would require new architecture, objective, exact fresh fit/calibration/offline/game/final windows, and fresh complete both-seat games versus source and native teacher. Do not tune this gate after seeing outputs or use old inspected windows for training.",
+  "compute": "SSH server fedora-toolbox scratch only, one CPU15 pinned nice19 with Rayon/BLAS one thread, no GPU or parallel heavy job, bounded tiny result. Preserve remote original repo and other workloads."
+}
