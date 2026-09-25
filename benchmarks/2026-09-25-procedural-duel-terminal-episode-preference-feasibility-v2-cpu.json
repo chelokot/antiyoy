@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "kind": "terminal_whole_episode_preference_feasibility",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-terminal-episode-preference-feasibility-v1.json",
+  "protocol_and_code_commit": "ae686ae",
+  "sample": {
+    "first_seed": 6560000,
+    "independent_maps": 16,
+    "paired_root_seat_games": 32,
+    "source_selfplay_games": 16,
+    "teacher_versus_source_games": 32,
+    "frozen_source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867"
+  },
+  "result": {
+    "games": 48,
+    "terminal_games": 48,
+    "truncated_games": 0,
+    "saved_and_replayed_actions": 6309,
+    "informative_pairs": 17,
+    "censored_pairs": 0,
+    "by_teacher_seat": [
+      {"seat": 0, "teacher_preferred": 5, "source_preferred": 1, "same_terminal_outcome": 10},
+      {"seat": 1, "teacher_preferred": 10, "source_preferred": 1, "same_terminal_outcome": 5}
+    ],
+    "collection_elapsed_seconds": 35.92616383591667,
+    "predeclared_data_and_resource_gate_passed": true
+  },
+  "verification": "Every saved action index and acting seat was replayed from a fresh map to its exact terminal outcome during collection. Independent post-run inspection checked a valid gzip, all 48 records, three records per seed, both teacher seats, the fixed checkpoint hash, all terminal flags, action count and summary. Collection used one pinned nice19 SSH-server CPU with Rayon and BLAS capped to one thread. The protocol and code commit passed the full Rust/Python/web/WASM CI run 36093085605.",
+  "raw": {
+    "path": "/tmp/antiyoy-residual.n17QTu/episode-preference-feasibility-6560000.json.gz on the SSH server",
+    "sha256": "208928cf2b5a67cea0b91927d8b22142b88db24fde0f466bd416746de93a6ed7"
+  },
+  "interpretation": "Complete autonomous same-map, same-seat games provide enough uncensored outcome-discordant episode pairs for a separately predeclared training experiment. The stronger search arm was preferred on 15 pairs and the frozen source on 2, but this small feasibility window is neither a new search strength gate nor evidence that episode preference training will work. It cannot be used for training, calibration, validation or rating, and the pairs have different visited states and action counts.",
+  "next_gate": "Before collecting any training data, freeze the trajectory-level objective, model parameters, fresh disjoint fit/calibration/offline/game seed windows, censor handling, both-seat independent-map direct-model and native-teacher game gates, and runtime/profile limits. No student, browser bot, rating or core rules changed."
+}
