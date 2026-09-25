@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_exact_beam_frontier_overlap",
+  "question": "Does the existing three-turn root search retain identical full Game states from different atomic-action orders often enough that beam deduplication merits a separate strength experiment?",
+  "fixed_window": {
+    "first_seed": 6640000,
+    "independent_maps": 4,
+    "arena": "Classic Generic procedural_v2 11x9 two-player",
+    "sample": "First four live turn-start states per seat during native replanned three-turn self-play; stop after all eight samples per map or terminal, with a 2400-action safety limit",
+    "root_search": "node_budget=256, slate_size=8, beam_width=32, branch_width=48, maximum_actions_per_turn=24",
+    "opponent_search": "reply_nodes=64, followup_nodes=32; replan at every atomic action",
+    "measurement": "At every sampled root, replay the unchanged root beam expansion and count exact full-Game duplicates among the score-sorted candidates that would occupy each depth's first 32 frontier slots, before truncation. Keep the normal beam including duplicates for subsequent depths. Record candidate slots, duplicate slots, depths, seed, seat and turn index. Do not alter action selection."
+  },
+  "advance_criterion": "Only consider a separately predeclared deduplicated-beam strength experiment if at least 10% of aggregate retained frontier slots are duplicate full Game states and at least 25% of sampled roots have a duplicate. This audit alone cannot promote or change the agent.",
+  "interpretation_limits": "Small early-game, same-controller states only. Full Game equality includes hidden RNG. Duplicate counts are neither strength, Elo, runtime improvement, nor evidence that deduplication preserves the policy. Explicitly report missing samples and any nonterminal safety stop.",
+  "compute": "SSH server fedora-toolbox scratch only, one CPU15 nice19, bounded output, no parallel heavy job. Preserve other workloads and never touch the dirty original remote repository."
+}
