@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_shared_encoder_disagreement_feasibility",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-shadow-disagreement-feasibility-v1.json",
+  "protocol_commit": "fb7e8a7",
+  "auditor_shape_fix_commit": "f0b9ff1",
+  "sample": {
+    "previously_inspected_independent_maps": 128,
+    "first_seed": 6451000,
+    "turn_start_positions": 587,
+    "dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "rejected_student_checkpoint_sha256": "1d6e6530bb2f16d273910fdeb4b2de491d2e115017468eb3f31d3aea43f64fe4"
+  },
+  "frozen_trigger_comparison": {
+    "original_two_network_disagreements": 209,
+    "source_encoder_plus_student_head_disagreements": 70,
+    "detected_original_disagreements": 60,
+    "missed_original_disagreements": 149,
+    "extra_shadow_disagreements": 10,
+    "exact_trigger_agreement_positions": 428,
+    "exact_student_action_agreement_positions": 408,
+    "original_trigger_recall": 0.28708133971291866,
+    "by_root_seat": [
+      {"seat": 0, "positions": 297, "original_disagreements": 106, "shadow_disagreements": 38, "detected": 35, "missed": 71, "extra": 3, "trigger_recall": 0.330188679245283},
+      {"seat": 1, "positions": 290, "original_disagreements": 103, "shadow_disagreements": 32, "detected": 25, "missed": 78, "extra": 7, "trigger_recall": 0.24271844660194175}
+    ]
+  },
+  "predeclared_feasibility_gate": {
+    "at_least_90_percent_original_trigger_recall_in_each_seat": false,
+    "shadow_query_count_at_most_125_percent_of_original": true,
+    "passed": false
+  },
+  "raw": {
+    "path": "/tmp/antiyoy-residual.n17QTu/shadow-disagreement-6451000.json on the SSH server",
+    "sha256": "1bb6d6f107ebdd9d5a72873022ac51375aca08ee66b9ea6ad60b967a62f79bdb"
+  },
+  "verification": "The initial run stopped before output with a column-versus-vector logit shape error in the new auditor. The one-dimensional ranking boundary was fixed and regression-tested in commit f0b9ff1 before rerunning the identical frozen protocol. The completed rerun matched all three predeclared input hashes, covered every one of 128 maps and 587 roots, and exited0. All 468 Python tests and Ruff passed on the SSH server.",
+  "interpretation": "Applying the student's unchanged action head to source-model features is not a faithful substitute for evaluating the whole student: it misses 149/209 original disagreements, including most in each seat. Fewer shadow queries alone do not demonstrate speed or strength. This retrospective root-state audit is not complete-game evidence, a runtime benchmark or Elo.",
+  "stop_rule": "Reject the shared-encoder shadow trigger. Do not tune it on these inspected roots, run candidate games or runtime profiles, promote either rejected checkpoint, or change the rated/browser agents."
+}
