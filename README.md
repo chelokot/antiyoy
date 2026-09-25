@@ -7,7 +7,8 @@ The project is organized around one invariant: the interactive game, headless
 simulation, training workers, replay viewer, and multiplayer server all execute
 the same Rust rules engine.
 
-[Open the live WebAssembly arena](https://antiyoy-arena-lab.chelokot.chatgpt.site)
+[Owner-private WebAssembly arena](https://antiyoy-arena-lab.chelokot.chatgpt.site)
+(access is restricted to the project owner).
 
 ## Direction
 
@@ -109,6 +110,19 @@ Classic Slay had frequent nonterminal games in its profile check, so neither
 this Elo estimate nor the Classic Generic outcome is a universal Antiyoy
 rating. No neural distillation student has passed the corresponding fresh
 game-strength gates, and the browser's rated bot has not changed.
+
+Replanning the three-turn search at every atomic action is a separate,
+stronger opt-in controller. It won 238 of 256 terminal games against the
+cached three-turn controller on 128 fresh maps with both seat assignments.
+Against the frozen routed-v6 policy on another 256 fresh maps, it won 447 of
+512 terminal games, with a fixed-opponent head-to-head Elo difference of
++334.96 and an independent-map bootstrap 95% interval of +295.54 to +382.45.
+Neither comparison had an action-limit adjudication. These are Classic Generic
+procedural-v2 duel results, not a global Elo or a neural-student result
+([direct search comparison](benchmarks/2026-09-24-procedural-duel-replan-head-to-head-v2-cpu.json),
+[frozen-policy comparison](benchmarks/2026-09-24-procedural-duel-replan-direct-model-v2-cpu.json)).
+The owner-private browser exposes replanned search only as an opt-in opponent;
+the rated bot and core rules remain unchanged.
 
 To reproduce the finite-horizon native comparison, run:
 
