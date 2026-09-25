@@ -22,6 +22,15 @@ Each checked item must have a focused engine test.
 - [x] Isolated units starve at the start of their faction's turn.
 - [x] Trees expand once per round before player zero starts.
 
+The original [unit-selection code](https://github.com/yiotro/Antiyoy/blob/f22acaa0d08cc908b9d236bfabc28f93d059ad3e/core/src/yio/tro/antiyoy/gameplay/SelectionManager.java)
+passes the four-hex constant from
+[GameRules](https://github.com/yiotro/Antiyoy/blob/f22acaa0d08cc908b9d236bfabc28f93d059ad3e/core/src/yio/tro/antiyoy/gameplay/rules/GameRules.java)
+explicitly. The effectively unlimited default in
+[MoveZoneDetection](https://github.com/yiotro/Antiyoy/blob/f22acaa0d08cc908b9d236bfabc28f93d059ad3e/core/src/yio/tro/antiyoy/gameplay/MoveZoneDetection.java)
+is not used for normal unit selection.
+[RulesetGeneric](https://github.com/yiotro/Antiyoy/blob/f22acaa0d08cc908b9d236bfabc28f93d059ad3e/core/src/yio/tro/antiyoy/gameplay/rules/RulesetGeneric.java)
+also confirms that a farm earns the base `1` plus the `4` farm bonus.
+
 ## Classic slay profile
 
 - [x] Trees are more aggressive, farms and strong towers are disabled, basic
