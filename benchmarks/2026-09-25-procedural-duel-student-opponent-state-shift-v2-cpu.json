@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_rejected_student_opponent_state_shift",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-student-opponent-state-shift-v1.json",
+  "protocol_and_code_commit": "d09763d",
+  "sample": {
+    "already_used_fit_maps": 16,
+    "first_seed": 6540000,
+    "both_student_seats": true,
+    "student_selfplay_games": 32,
+    "student_vs_source_games": 32,
+    "student_checkpoint_sha256": "6f0670cccff396de22e780cc54bb4125d8b3267e28cc8bf0d29d0c0c6aa961f8",
+    "frozen_source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867"
+  },
+  "completion": {
+    "terminal_games": 63,
+    "nonterminal_action_limit_games": 1,
+    "nonterminal_seed": 6540009,
+    "nonterminal_student_seat": 1,
+    "nonterminal_arm": "student_vs_source"
+  },
+  "matched_root_turn_checkpoints": [
+    {
+      "turn": 1,
+      "paired_seed_seat_games": 32,
+      "student_teacher_matches_selfplay_by_seat": [7, 9],
+      "student_teacher_matches_source_opponent_by_seat": [7, 9],
+      "median_source_opponent_minus_selfplay_lead": {"owned_cells": 0.0, "province_money": 0.0, "province_profit": 0.0, "unit_strength": 0.0}
+    },
+    {
+      "turn": 4,
+      "paired_seed_seat_games": 32,
+      "student_teacher_matches_selfplay_by_seat": [10, 11],
+      "student_teacher_matches_source_opponent_by_seat": [11, 8],
+      "median_source_opponent_minus_selfplay_lead": {"owned_cells": 0.0, "province_money": 0.0, "province_profit": 0.0, "unit_strength": 0.0}
+    },
+    {
+      "turn": 8,
+      "paired_seed_seat_games": 32,
+      "student_teacher_matches_selfplay_by_seat": [11, 9],
+      "student_teacher_matches_source_opponent_by_seat": [8, 8],
+      "median_source_opponent_minus_selfplay_lead": {"owned_cells": 0.0, "province_money": 0.0, "province_profit": 0.0, "unit_strength": 0.0}
+    },
+    {
+      "turn": 12,
+      "paired_seed_seat_games": 30,
+      "excluded_seed_seat_games": 2,
+      "student_teacher_matches_selfplay_by_seat": [2, 7],
+      "student_teacher_matches_source_opponent_by_seat": [10, 8],
+      "median_source_opponent_minus_selfplay_lead": {"owned_cells": 4.0, "province_money": 2.0, "province_profit": 2.5, "unit_strength": 1.0}
+    }
+  ],
+  "verification": "Both policies and hashes matched the fixed protocol. Every game replayed from its named procedural_v2 map and student root seat. Native replanned teacher was queried only at first states of root turns1,4,8,12; its actions were not applied. The SSH server passed 478 Python tests and Ruff with one pinned nice19 CPU.",
+  "raw": {
+    "path": "/tmp/antiyoy-residual.n17QTu/student-opponent-state-shift-6540000.json on the SSH server",
+    "sha256": "be5e6cc40a8f98f704b07572af50e150c20f0a3af40095ba647368a98bc3da27"
+  },
+  "interpretation": "Changing the opponent does change some encountered student states, but this small old-fit replay does not show a consistent loss of teacher-action fidelity or early coarse territory/economy state under the source opponent. At turn12 the source-opponent arm even has a higher median territory lead and more student-teacher matches in seat0 among surviving pairs. This weakens the simple opponent-distribution-mismatch explanation of the failed fresh game gate; it neither proves the explanation false nor establishes a causal mechanism or game strength.",
+  "stop_rule": "Do not use these previously inspected fit maps to choose an opponent-mix recipe, tune teacher agreement, retrain the rejected student, run reserved teacher/final seeds, rate/deploy a student, or change the playable/rated bot."
+}
