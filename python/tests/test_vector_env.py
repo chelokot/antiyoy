@@ -193,6 +193,28 @@ def test_search_turn_plans_replay_to_exact_static_scores() -> None:
         assert int(branch.position_scores(root)[0]) == score
 
 
+def test_search_turn_plan_traces_match_independent_replay() -> None:
+    from python.audit_duel_turn_trace_process_feasibility import candidate_trace
+
+    environment = VectorEnv(1, width=7, height=5, seed=29)
+    plans, scores, traces = environment.search_turn_plan_traces(
+        node_budget=64, slate_size=4
+    )
+    indexed, static = environment.search_turn_plans(node_budget=64, slate_size=4)
+
+    assert plans == indexed
+    assert scores == static
+    assert len(traces[0]) == len(plans[0])
+    root = int(environment.observe()["active_players"][0])
+    for plan, score, trace in zip(plans[0], scores[0], traces[0], strict=True):
+        np.testing.assert_allclose(
+            np.asarray(trace, dtype=np.float32),
+            candidate_trace(environment, plan, score, root),
+            rtol=0,
+            atol=1e-6,
+        )
+
+
 def test_search_turn_plans_reject_invalid_configuration_and_fog() -> None:
     environment = VectorEnv(1, width=7, height=5)
     with pytest.raises(ValueError, match="node budget"):
@@ -201,6 +223,8 @@ def test_search_turn_plans_reject_invalid_configuration_and_fog() -> None:
         environment.search_turn_plans(slate_size=0)
     with pytest.raises(ValueError, match="unavailable in fog"):
         VectorEnv(1, width=7, height=5, fog=True).search_turn_plans()
+    with pytest.raises(ValueError, match="unavailable in fog"):
+        VectorEnv(1, width=7, height=5, fog=True).search_turn_plan_traces()
 
 
 def test_search_turn_plans_skip_inactive_environments() -> None:

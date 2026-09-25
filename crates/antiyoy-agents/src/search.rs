@@ -341,11 +341,35 @@ pub fn search_turn_slate(
     Ok(build_search_turn_slate(game, config, size))
 }
 
-#[expect(clippy::missing_panics_doc)]
 pub fn search_plan_indices(game: &Game, actions: &[Action], expected: &Game) -> Vec<usize> {
+    replay_plan(
+        game,
+        actions,
+        expected,
+        None::<fn(&Game, Action, &Game) -> ()>,
+    )
+    .0
+}
+
+pub fn search_plan_indices_with<T>(
+    game: &Game,
+    actions: &[Action],
+    expected: &Game,
+    extract: impl FnMut(&Game, Action, &Game) -> T,
+) -> (Vec<usize>, Vec<T>) {
+    replay_plan(game, actions, expected, Some(extract))
+}
+
+fn replay_plan<T>(
+    game: &Game,
+    actions: &[Action],
+    expected: &Game,
+    mut extract: Option<impl FnMut(&Game, Action, &Game) -> T>,
+) -> (Vec<usize>, Vec<T>) {
     let mut replay = game.clone();
     let mut legal = Vec::new();
     let mut indices = Vec::with_capacity(actions.len());
+    let mut records = Vec::with_capacity(actions.len());
     for action in actions {
         replay.legal_actions(&mut legal);
         let index = legal
@@ -353,15 +377,19 @@ pub fn search_plan_indices(game: &Game, actions: &[Action], expected: &Game) -> 
             .position(|candidate| candidate == action)
             .expect("searched turn action must be legal");
         indices.push(index);
+        let before = extract.as_ref().map(|_| replay.clone());
         replay
             .step(*action)
             .expect("searched turn action must apply");
+        if let (Some(before), Some(extract)) = (before.as_ref(), extract.as_mut()) {
+            records.push(extract(before, *action, &replay));
+        }
     }
     assert_eq!(
         replay, *expected,
         "indexed searched turn must replay exactly"
     );
-    indices
+    (indices, records)
 }
 
 fn build_search_turn_slate(game: &Game, config: SearchConfig, size: usize) -> SearchTurnSlate {

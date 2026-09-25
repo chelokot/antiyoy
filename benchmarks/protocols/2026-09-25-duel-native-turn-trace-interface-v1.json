@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_read_only_native_turn_trace_interface_feasibility",
+  "hypothesis": "Extracting the same 16-dimensional candidate-turn process tokens during native indexed-plan replay avoids the extra Python fork/observe/step boundary that failed the prior cold-tail gate.",
+  "fixed_window": {
+    "first_seed": 6591000,
+    "independent_maps": 8,
+    "arena": "Classic Generic procedural_v2 11x9 two-player, action limit2400",
+    "sample_rule": "First live decision of each root seat during native replanned three-turn self-play; all maps and both seats required",
+    "exclusion": "This feasibility window is permanently excluded from model fit, calibration, offline validation, game validation, rating and promotion"
+  },
+  "candidate_process": "Generate the exact native root256/top8/beam32/branch48/max24 slate. During native legal-index replay, return each indexed plan, final static score, and the same per-step 16-dimensional token as the failed Python-fork prototype: action-kind one-hot, parameter, source/target axial coordinates, root-relative pre-action owner/unit/defense, and exact native post-minus-pre position score scaled by 1/100. Batch all candidate traces through the same randomly initialized hidden32 GRU. No trained selector or candidate choice is played.",
+  "comparison": "At each unmodified state, time native three-turn root256/top8/opponent64/followup32 replanned action selection versus root-slate-plus-native-trace-plus-random-GRU. Alternate call order by seed and seat, with the GRU warmed beforehand but no fork/trace warmup. Independently replay returned indexed plans through the existing Python interface and require every trace element and static score to match exactly within float32 tolerance1e-6. Record stage timings, candidate counts and token counts.",
+  "advance_gate": "Require all16 both-seat samples, exact indexed plans and static scores versus the old interface, all returned trace elements equal to independent Python replay within1e-6, zero illegal actions and action-limit censor, median total pipeline wall time no more than3 milliseconds, pooled p95 no more than6 milliseconds, and each root-seat median no more than3 milliseconds. Failure stops this interface before training; do not tune thresholds, token width or model size on seed6591000.",
+  "limits": "This is a read-only interface and warm CPU runtime check. The random GRU has no policy strength, terminal outcome, Elo or browser WASM latency. Passing only permits a separately predeclared outcome-aligned multi-turn distillation experiment on disjoint windows; it does not promote a student. The failed seed6590000 is not rerun.",
+  "compute": "Use only SSH server fedora-toolbox scratch, one CPU15 pinned nice19 with torch/Rayon/BLAS capped to one thread and bounded output. Reinspect shared CPU, RAM, swap and disk; never edit the dirty remote original repo or preempt other users."
+}
