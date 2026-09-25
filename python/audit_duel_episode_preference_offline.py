@@ -40,15 +40,9 @@ def score_trace(
     with torch.inference_mode():
         for start in range(0, len(trace.actions), CHUNK_SIZE):
             end = min(start + CHUNK_SIZE, len(trace.actions))
-            observation = concatenate_observations(trace.observations[start:end])
-            rules = encode_rules_batch(
-                [trace.rules_json] * (end - start), torch.device("cpu")
+            student_distribution, reference_distribution = batch_distributions(
+                student, reference, trace, start, end
             )
-            student_logits, _ = student(observation, rules)
-            reference_logits, _ = reference(observation, rules)
-            offsets = observation["action_offsets"]
-            student_distribution = action_distribution(student_logits, offsets)
-            reference_distribution = action_distribution(reference_logits, offsets)
             labels = torch.as_tensor(trace.actions[start:end], dtype=torch.long)
             margin += float(
                 (
@@ -60,6 +54,24 @@ def score_trace(
                 kl_divergence(reference_distribution, student_distribution).sum()
             )
     return margin, total_kl, len(trace.actions)
+
+
+def batch_distributions(
+    student: RoutedPolicy,
+    reference: RoutedPolicy,
+    trace: DecisionTrace,
+    start: int,
+    end: int,
+) -> tuple[torch.distributions.Categorical, torch.distributions.Categorical]:
+    observation = concatenate_observations(trace.observations[start:end])
+    rules = encode_rules_batch([trace.rules_json] * (end - start), torch.device("cpu"))
+    student_logits, _ = student(observation, rules)
+    reference_logits, _ = reference(observation, rules)
+    offsets = observation["action_offsets"]
+    return (
+        action_distribution(student_logits, offsets),
+        action_distribution(reference_logits, offsets),
+    )
 
 
 def margin_summary(

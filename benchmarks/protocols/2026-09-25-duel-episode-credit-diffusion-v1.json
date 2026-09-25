@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_read_only_fit_episode_credit_diffusion",
+  "question": "Does the rejected whole-episode preference student alter direct-policy choices on shared-prefix states where exact teacher and source actions were identical, or is its drift localized to teacher-source divergence?",
+  "sample": "Use every terminal outcome-discordant pair from the already-inspected 128-map fit window seed6561000. Never query reserved calibration, offline-validation, game or final windows. The frozen source and rejected student checkpoint hashes are fixed before this audit.",
+  "frozen_source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "rejected_student_checkpoint_sha256": "d6014eac71789d0630837da99d971fec00ad59e0f81a3645acbb0d88360897a2",
+  "fit_dataset_sha256": "be6749499c43f857e3bc11c059bf6c8c66fa315e86b68e56132107e450f0bc97",
+  "measurements": "For each pair, compare exact acting-seat/action-index traces until the first divergence. Replay both complete games. On root-seat decisions in the shared prefix, teacher-branch remainder and source-branch remainder, compare saved action with frozen-source and rejected-student argmax, and measure frozen-source-to-student action KL. Verify source argmax equals each saved source-selfplay action. Summarize teacher-preferred and source-preferred pairs separately. The shared prefix is defined by exact recorded actions, not similar coarse states.",
+  "interpretation_limits": "The fit games trained this rejected student. These measurements can localize policy drift but cannot establish a causal contribution, held-out generalization, autonomous strength, an acceptable KL threshold, Elo or a deployable student. Do not tune the rejected checkpoint, protocol beta/LR/epochs, offline gate or old seeds from this audit.",
+  "compute": "Read-only fit replay on SSH server fedora-toolbox scratch, one CPU15 pinned nice19 with Rayon/BLAS one thread, no GPU or parallel heavy job; bounded aggregate output."
+}
