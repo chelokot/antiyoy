@@ -96,8 +96,8 @@ pub struct SearchAgent {
     followup_nodes: usize,
     slate_size: usize,
     plan: VecDeque<PlannedAction>,
-    score_cache: Vec<CachedScore>,
-    score_cache_enabled: bool,
+    score_cache: VecDeque<Vec<CachedScore>>,
+    score_cache_slates: usize,
     cached_score_reuses: u64,
     last_stats: SearchStats,
     search_count: u64,
@@ -112,8 +112,8 @@ impl SearchAgent {
             followup_nodes: 0,
             slate_size: 1,
             plan: VecDeque::new(),
-            score_cache: Vec::new(),
-            score_cache_enabled: false,
+            score_cache: VecDeque::new(),
+            score_cache_slates: 0,
             cached_score_reuses: 0,
             last_stats: SearchStats::default(),
             search_count: 0,
@@ -132,8 +132,8 @@ impl SearchAgent {
             followup_nodes: 0,
             slate_size: 1,
             plan: VecDeque::new(),
-            score_cache: Vec::new(),
-            score_cache_enabled: false,
+            score_cache: VecDeque::new(),
+            score_cache_slates: 0,
             cached_score_reuses: 0,
             last_stats: SearchStats::default(),
             search_count: 0,
@@ -195,12 +195,28 @@ impl SearchAgent {
 
     #[must_use]
     pub fn with_score_cache(mut self) -> Self {
-        self.score_cache_enabled = true;
+        self.enable_score_cache();
+        self
+    }
+
+    #[must_use]
+    pub fn with_four_slate_score_cache(mut self) -> Self {
+        self.enable_four_slate_score_cache();
         self
     }
 
     pub fn enable_score_cache(&mut self) {
-        self.score_cache_enabled = true;
+        if self.score_cache_slates != 1 {
+            self.score_cache.clear();
+            self.score_cache_slates = 1;
+        }
+    }
+
+    pub fn enable_four_slate_score_cache(&mut self) {
+        if self.score_cache_slates != 4 {
+            self.score_cache.clear();
+            self.score_cache_slates = 4;
+        }
     }
 
     pub fn clear_plan(&mut self) {
@@ -236,8 +252,10 @@ impl SearchAgent {
                 .max_by_key(|(index, turn)| {
                     let score = previous_scores
                         .iter()
+                        .rev()
+                        .flat_map(|slate| slate.iter().rev())
                         .find(|cached| {
-                            self.score_cache_enabled
+                            self.score_cache_slates > 0
                                 && cached.root_player == root_player
                                 && cached.game == turn.game
                         })
@@ -259,7 +277,7 @@ impl SearchAgent {
                                 cached.score
                             },
                         );
-                    if self.score_cache_enabled {
+                    if self.score_cache_slates > 0 {
                         current_scores.push(CachedScore {
                             game: turn.game.clone(),
                             root_player,
@@ -270,7 +288,13 @@ impl SearchAgent {
                 })
                 .map(|(_, turn)| turn)
                 .expect("EndTurn always completes at least one candidate turn");
-            self.score_cache = current_scores;
+            self.score_cache = previous_scores;
+            if self.score_cache_slates > 0 {
+                self.score_cache.push_back(current_scores);
+                while self.score_cache.len() > self.score_cache_slates {
+                    self.score_cache.pop_front();
+                }
+            }
             self.cached_score_reuses += cached_score_reuses;
             selected
         };

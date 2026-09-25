@@ -466,6 +466,41 @@ mod tests {
     }
 
     #[test]
+    fn four_slate_score_cache_preserves_replanned_actions_and_recent_reuses() {
+        let scenario = Scenario::symmetric_duel(7, 5, 211).expect("valid duel");
+        let mut game = antiyoy_core::Game::new(Rules::classic_generic(), scenario).expect("game");
+        let config = SearchConfig {
+            node_budget: 64,
+            beam_width: 8,
+            branch_width: 12,
+            maximum_actions_per_turn: 12,
+        };
+        let mut recent = SearchAgent::with_three_turn_search("recent", config, 4, 16, 8)
+            .expect("search config")
+            .with_score_cache();
+        let mut history = SearchAgent::with_three_turn_search("history", config, 4, 16, 8)
+            .expect("search config")
+            .with_four_slate_score_cache();
+        let mut legal = Vec::new();
+        for _ in 0..64 {
+            if game.is_terminal() {
+                break;
+            }
+            game.legal_actions(&mut legal);
+            recent.clear_plan();
+            history.clear_plan();
+            recent.enable_score_cache();
+            history.enable_four_slate_score_cache();
+            let expected = recent.select_action(&game, &legal);
+            assert_eq!(history.select_action(&game, &legal), expected);
+            game.step(expected).expect("searched action applies");
+        }
+        assert_eq!(recent.search_count(), history.search_count());
+        assert!(recent.cached_score_reuses() > 0);
+        assert!(history.cached_score_reuses() >= recent.cached_score_reuses());
+    }
+
+    #[test]
     fn invalid_search_budget_is_rejected() {
         assert!(matches!(
             SearchAgent::with_config(

@@ -29,7 +29,9 @@ SEARCH_CONFIGURATION = {
 }
 
 
-def same_arrays(left: Mapping[str, np.ndarray], right: Mapping[str, np.ndarray]) -> bool:
+def same_arrays(
+    left: Mapping[str, np.ndarray], right: Mapping[str, np.ndarray]
+) -> bool:
     return left.keys() == right.keys() and all(
         np.array_equal(values, right[name]) for name, values in left.items()
     )
@@ -39,7 +41,12 @@ def percentile95(values: list[float]) -> float:
     return sorted(values)[math.ceil(0.95 * len(values)) - 1]
 
 
-def replay(seed: int, profile: str = "classic_generic_2022") -> dict[str, object]:
+def replay(
+    seed: int,
+    profile: str = "classic_generic_2022",
+    baseline_score_cache: bool = False,
+    candidate_four_slate: bool = False,
+) -> dict[str, object]:
     plain = create_environment(seed, profile)
     cached = create_environment(seed, profile)
     cpu = [[0.0, 0.0], [0.0, 0.0]]
@@ -47,6 +54,12 @@ def replay(seed: int, profile: str = "classic_generic_2022") -> dict[str, object
     actions = 0
     plain_result = None
     cached_result = None
+    cache_modes = (
+        {"score_cache": baseline_score_cache},
+        {"four_slate_score_cache": True}
+        if candidate_four_slate
+        else {"score_cache": True},
+    )
     while not plain.done()[0]:
         plain_observation = plain.observe()
         cached_observation = cached.observe()
@@ -54,16 +67,15 @@ def replay(seed: int, profile: str = "classic_generic_2022") -> dict[str, object
             raise ValueError(f"observation mismatch at seed {seed} action {actions}")
         seat = int(plain_observation["active_players"][0])
         selected = []
-        for cache_enabled in ((seed + actions) % 2 == 1, (seed + actions) % 2 == 0):
-            environment = cached if cache_enabled else plain
+        for index in ((seed + actions) % 2, 1 - (seed + actions) % 2):
+            environment = (plain, cached)[index]
             start_cpu = time.process_time()
             start_wall = time.perf_counter()
             action = environment.reply_search_actions(
-                **SEARCH_CONFIGURATION, score_cache=cache_enabled
+                **SEARCH_CONFIGURATION, **cache_modes[index]
             )
             elapsed_wall = time.perf_counter() - start_wall
             elapsed_cpu = time.process_time() - start_cpu
-            index = int(cache_enabled)
             cpu[index][seat] += elapsed_cpu
             wall[index].append(elapsed_wall)
             selected.append(np.asarray(action, dtype=np.uint64))
@@ -85,6 +97,7 @@ def replay(seed: int, profile: str = "classic_generic_2022") -> dict[str, object
         "seed": seed,
         "actions": actions,
         "outcome": plain_outcome,
+        "plain_cache_hits": int(plain.search_cache_hits()[0]),
         "cache_hits": int(cached.search_cache_hits()[0]),
         "plain_search_cpu_seconds_by_seat": cpu[0],
         "cached_search_cpu_seconds_by_seat": cpu[1],
@@ -121,8 +134,13 @@ def summarize(records: list[dict[str, object]]) -> dict[str, object]:
             for record in records
         ),
         "exact_observations_actions_and_outcomes": True,
-        "cache_reused_a_score": sum(cast(int, record["cache_hits"]) for record in records) > 0,
-        "median_map_cpu_improvement_at_least_ten_percent": statistics.median(cpu_improvements)
+        "cache_reused_a_score": sum(
+            cast(int, record["cache_hits"]) for record in records
+        )
+        > 0,
+        "median_map_cpu_improvement_at_least_ten_percent": statistics.median(
+            cpu_improvements
+        )
         >= 0.10,
         "both_seats_median_cpu_nonnegative": all(
             statistics.median(improvements) >= 0 for improvements in seat_improvements
