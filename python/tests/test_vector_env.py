@@ -351,6 +351,34 @@ def test_three_turn_reply_search_can_replan_from_current_state() -> None:
         np.testing.assert_array_equal(replanned, expected)
 
 
+def test_opt_in_exact_score_cache_preserves_replanned_game() -> None:
+    plain = VectorEnv(1, width=7, height=5, seed=46)
+    cached = VectorEnv(1, width=7, height=5, seed=46)
+    configuration = {
+        "node_budget": 64,
+        "reply_nodes": 16,
+        "followup_nodes": 8,
+        "slate_size": 4,
+        "beam_width": 12,
+        "branch_width": 20,
+        "maximum_actions_per_turn": 12,
+        "replan_each_action": True,
+    }
+    for _ in range(32):
+        if plain.done()[0]:
+            break
+        first = plain.reply_search_actions(**configuration)
+        second = cached.reply_search_actions(**configuration, score_cache=True)
+        np.testing.assert_array_equal(first, second)
+        for key, values in plain.observe().items():
+            np.testing.assert_array_equal(values, cached.observe()[key])
+        plain.step(first)
+        cached.step(second)
+    assert plain.search_counts().tolist() == cached.search_counts().tolist()
+    assert plain.search_cache_hits().tolist() == [0]
+    assert cached.search_cache_hits()[0] > 0
+
+
 @pytest.mark.parametrize(
     ("profile", "expected_profile"),
     [

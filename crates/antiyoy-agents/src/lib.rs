@@ -410,6 +410,36 @@ mod tests {
     }
 
     #[test]
+    fn exact_score_cache_preserves_every_replanned_action() {
+        let scenario = Scenario::symmetric_duel(7, 5, 209).expect("valid duel");
+        let mut game = antiyoy_core::Game::new(Rules::classic_generic(), scenario).expect("game");
+        let config = SearchConfig {
+            node_budget: 64,
+            beam_width: 8,
+            branch_width: 12,
+            maximum_actions_per_turn: 12,
+        };
+        let mut uncached =
+            SearchAgent::with_three_turn_search("plain", config, 4, 16, 8).expect("search config");
+        let mut cached = SearchAgent::with_three_turn_search("cached", config, 4, 16, 8)
+            .expect("search config")
+            .with_score_cache();
+        let mut legal = Vec::new();
+        for _ in 0..32 {
+            if game.is_terminal() {
+                break;
+            }
+            game.legal_actions(&mut legal);
+            uncached.clear_plan();
+            cached.clear_plan();
+            let expected = uncached.select_action(&game, &legal);
+            assert_eq!(cached.select_action(&game, &legal), expected);
+            game.step(expected).expect("searched action applies");
+        }
+        assert_eq!(uncached.search_count(), cached.search_count());
+    }
+
+    #[test]
     fn invalid_search_budget_is_rejected() {
         assert!(matches!(
             SearchAgent::with_config(

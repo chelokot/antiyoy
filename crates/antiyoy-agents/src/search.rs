@@ -82,6 +82,13 @@ struct PlannedAction {
 }
 
 #[derive(Clone, Debug)]
+struct CachedScore {
+    game: Game,
+    root_player: PlayerId,
+    score: i64,
+}
+
+#[derive(Clone, Debug)]
 pub struct SearchAgent {
     name: String,
     config: SearchConfig,
@@ -89,6 +96,9 @@ pub struct SearchAgent {
     followup_nodes: usize,
     slate_size: usize,
     plan: VecDeque<PlannedAction>,
+    score_cache: Vec<CachedScore>,
+    score_cache_enabled: bool,
+    cached_score_reuses: u64,
     last_stats: SearchStats,
     search_count: u64,
 }
@@ -102,6 +112,9 @@ impl SearchAgent {
             followup_nodes: 0,
             slate_size: 1,
             plan: VecDeque::new(),
+            score_cache: Vec::new(),
+            score_cache_enabled: false,
+            cached_score_reuses: 0,
             last_stats: SearchStats::default(),
             search_count: 0,
         }
@@ -119,6 +132,9 @@ impl SearchAgent {
             followup_nodes: 0,
             slate_size: 1,
             plan: VecDeque::new(),
+            score_cache: Vec::new(),
+            score_cache_enabled: false,
+            cached_score_reuses: 0,
             last_stats: SearchStats::default(),
             search_count: 0,
         })
@@ -173,6 +189,16 @@ impl SearchAgent {
         self.search_count
     }
 
+    pub const fn cached_score_reuses(&self) -> u64 {
+        self.cached_score_reuses
+    }
+
+    #[must_use]
+    pub fn with_score_cache(mut self) -> Self {
+        self.score_cache_enabled = true;
+        self
+    }
+
     pub fn clear_plan(&mut self) {
         self.plan.clear();
     }
@@ -188,6 +214,9 @@ impl SearchAgent {
                 .next()
                 .expect("EndTurn always completes at least one candidate turn")
         } else {
+            let previous_scores = std::mem::take(&mut self.score_cache);
+            let mut current_scores = Vec::with_capacity(slate.turns.len());
+            let mut cached_score_reuses = 0;
             let reply_config = SearchConfig {
                 node_budget: self.reply_nodes,
                 ..self.config
@@ -196,20 +225,50 @@ impl SearchAgent {
                 node_budget: self.followup_nodes,
                 ..self.config
             };
-            slate
+            let selected = slate
                 .turns
                 .into_iter()
                 .enumerate()
                 .max_by_key(|(index, turn)| {
-                    let score = if self.followup_nodes == 0 {
-                        reply_score(turn, root_player, reply_config)
-                    } else {
-                        three_turn_score(turn, root_player, reply_config, followup_config)
-                    };
+                    let score = previous_scores
+                        .iter()
+                        .find(|cached| {
+                            self.score_cache_enabled
+                                && cached.root_player == root_player
+                                && cached.game == turn.game
+                        })
+                        .map_or_else(
+                            || {
+                                if self.followup_nodes == 0 {
+                                    reply_score(turn, root_player, reply_config)
+                                } else {
+                                    three_turn_score(
+                                        turn,
+                                        root_player,
+                                        reply_config,
+                                        followup_config,
+                                    )
+                                }
+                            },
+                            |cached| {
+                                cached_score_reuses += 1;
+                                cached.score
+                            },
+                        );
+                    if self.score_cache_enabled {
+                        current_scores.push(CachedScore {
+                            game: turn.game.clone(),
+                            root_player,
+                            score,
+                        });
+                    }
                     (score, turn.score, Reverse(*index))
                 })
                 .map(|(_, turn)| turn)
-                .expect("EndTurn always completes at least one candidate turn")
+                .expect("EndTurn always completes at least one candidate turn");
+            self.score_cache = current_scores;
+            self.cached_score_reuses += cached_score_reuses;
+            selected
         };
         self.last_stats = SearchStats {
             selected_score: selected.score,

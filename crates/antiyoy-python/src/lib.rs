@@ -491,6 +491,7 @@ struct SearchSetup {
     reply_nodes: usize,
     followup_nodes: usize,
     slate_size: usize,
+    score_cache: bool,
 }
 
 #[pymethods]
@@ -875,13 +876,14 @@ impl VectorEnv {
                 reply_nodes: 0,
                 followup_nodes: 0,
                 slate_size: 1,
+                score_cache: false,
             },
             Some(&active),
             true,
         )
     }
 
-    #[pyo3(signature = (node_budget=256, reply_nodes=64, slate_size=8, beam_width=32, branch_width=48, maximum_actions_per_turn=24, followup_nodes=0, active_mask=None, replan_each_action=false))]
+    #[pyo3(signature = (node_budget=256, reply_nodes=64, slate_size=8, beam_width=32, branch_width=48, maximum_actions_per_turn=24, followup_nodes=0, active_mask=None, replan_each_action=false, score_cache=false))]
     #[expect(clippy::too_many_arguments)]
     fn reply_search_actions<'py>(
         &mut self,
@@ -895,6 +897,7 @@ impl VectorEnv {
         followup_nodes: usize,
         active_mask: Option<PyReadonlyArray1<'py, u8>>,
         replan_each_action: bool,
+        score_cache: bool,
     ) -> PyResult<Bound<'py, PyArray1<u64>>> {
         if reply_nodes < 2 || slate_size == 0 {
             return Err(PyValueError::new_err(
@@ -914,6 +917,7 @@ impl VectorEnv {
                 reply_nodes,
                 followup_nodes,
                 slate_size,
+                score_cache,
             },
             Some(&active),
             !replan_each_action,
@@ -941,6 +945,7 @@ impl VectorEnv {
                 reply_nodes: 0,
                 followup_nodes: 0,
                 slate_size: 1,
+                score_cache: false,
             },
             None,
             false,
@@ -1012,6 +1017,16 @@ impl VectorEnv {
                 .collect(),
         )
     }
+
+    fn search_cache_hits<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<u64>> {
+        PyArray1::from_vec(
+            py,
+            self.search_agents
+                .iter()
+                .map(SearchAgent::cached_score_reuses)
+                .collect(),
+        )
+    }
 }
 
 impl VectorEnv {
@@ -1025,7 +1040,7 @@ impl VectorEnv {
         if self.search_config != Some(setup) {
             self.search_agents = (0..self.batch.len())
                 .map(|index| {
-                    if setup.followup_nodes > 0 {
+                    let agent = if setup.followup_nodes > 0 {
                         SearchAgent::with_three_turn_search(
                             format!("three-turn-search-{index}"),
                             setup.config,
@@ -1042,7 +1057,14 @@ impl VectorEnv {
                         )
                     } else {
                         SearchAgent::with_config(format!("search-{index}"), setup.config)
-                    }
+                    };
+                    agent.map(|agent| {
+                        if setup.score_cache {
+                            agent.with_score_cache()
+                        } else {
+                            agent
+                        }
+                    })
                 })
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|error| PyValueError::new_err(error.to_string()))?;

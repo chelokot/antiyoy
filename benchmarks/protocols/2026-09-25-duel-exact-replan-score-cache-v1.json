@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_exact_replan_score_cache_equivalence_and_cpu",
+  "hypothesis": "Consecutive atomic replans sometimes revisit an identical completed root-turn Game. Reuse the exact deterministic three-turn score from only the preceding search, keyed by full Game equality and root player, without changing candidate generation, tie-breaks, search budgets or rules.",
+  "implementation": "Opt-in bounded previous-slate score cache inside native SearchAgent and VectorEnv.reply_search_actions; default disabled. At most eight previous candidate endpoint Games and their final three-turn scores, invalidated on search configuration change or replaced after each replan. Full Game equality includes hidden RNG state; public observations alone are never cache keys.",
+  "fixed_window": {
+    "first_seed": 6580000,
+    "independent_maps": 16,
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "arena": "11x9 two-player",
+    "action_limit": 2400,
+    "controller": "Every atomic action replans with root beam256/top8, opponent beam64, root followup beam32",
+    "comparison": "For each map, run uncached and cached exact native self-play from separate identical environments in lockstep. On each identical state call both controllers, alternating call order by seed parity, compare selected action and full BatchObservation before stepping, then step identically. Require exact terminal outcome and action ledger. Attribute every timed decision to the active seat."
+  },
+  "measurements": "Cache-hit count, per-map and per-seat total search process CPU seconds, per-action wall seconds and pooled p95, exact observations/actions/terminal outcomes, nonterminal or action-limit censoring. Report elapsed and resource profile. Timing is same-host one pinned CPU, not browser latency.",
+  "advance_gate": "All 16 map games terminal with zero censor, every same-state observation/action/terminal result identical, at least one real cache hit, median paired-map total search CPU improvement at least10% and both seats nonnegative median improvement, with candidate p95 per-action wall time at most110% of uncached. If any condition fails, leave cache opt-in/unpromoted and do not retune this window.",
+  "interpretation_limits": "An exact cache is a semantic-preserving search implementation change, not a new policy, neural student or Elo gain. Do not interpret fixed-profile CPU gain as cross-profile/browser performance. No model is trained and no rated/browser bot changes in this study.",
+  "compute": "SSH server fedora-toolbox scratch only, one CPU15 pinned nice19, Rayon/BLAS caps, no GPU or parallel heavy job, bounded tiny output. Preserve other user work and the dirty remote original repo."
+}
