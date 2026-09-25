@@ -39,9 +39,9 @@ def percentile95(values: list[float]) -> float:
     return sorted(values)[math.ceil(0.95 * len(values)) - 1]
 
 
-def replay(seed: int) -> dict[str, object]:
-    plain = create_environment(seed)
-    cached = create_environment(seed)
+def replay(seed: int, profile: str = "classic_generic_2022") -> dict[str, object]:
+    plain = create_environment(seed, profile)
+    cached = create_environment(seed, profile)
     cpu = [[0.0, 0.0], [0.0, 0.0]]
     wall: list[list[float]] = [[], []]
     actions = 0

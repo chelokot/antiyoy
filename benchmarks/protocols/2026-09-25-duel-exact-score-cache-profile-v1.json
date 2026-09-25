@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_exact_score_cache_cross_profile_equivalence_and_cpu",
+  "hypothesis": "Full-Game-keyed exact reply/followup score reuse preserves replanned search actions and gives a useful one-core CPU reduction outside Classic Generic.",
+  "implementation": "Freeze code commit 077d661 except auditor parameterization; cache remains opt-in and disabled by default. Root256/top8/opponent64/followup32, every atomic action replanned, same generator and board size as prior Generic study.",
+  "windows": [
+    {"profile": "online_default_v1", "seed_first": 6581000, "independent_maps": 16},
+    {"profile": "classic_slay_2022", "seed_first": 6582000, "independent_maps": 16}
+  ],
+  "paired_design": "For each map run separate identical cached and uncached self-play environments in lockstep, alternating controller call order by seed/action parity. Compare every full BatchObservation, selected action, step result, and terminal or action-limit outcome. Attribute search process CPU by active seat and record each action wall time. No outcome-based selection or neural model.",
+  "gate_each_profile": "Exact equivalence for all16 map games with zero mismatches; at least one real cached-score reuse; median paired-map total search process CPU improvement at least10%; both active seats nonnegative median CPU improvement; cached pooled p95 action wall time at most110% of uncached. Online Default also requires zero action-limit censoring. Classic Slay permits fewer than8/16 action-limit cases but labels all such cases NONTERMINAL, never terminal wins. Failure in either profile blocks broad profile promotion; do not retune or replay these windows.",
+  "interpretation_limits": "This is same-policy native CPU equivalence, not an Elo or strength test, cross-device browser latency, or a neural student. Earlier Classic Generic seed6580000 is not part of this confirmation. No Site/rated change is authorized by this protocol alone.",
+  "compute": "SSH server fedora-toolbox scratch only, one CPU15 pinned nice19, Rayon/BLAS caps and bounded output. Reinspect shared resources and avoid preempting other users. Remote original repo is dirty/unrelated and must not be edited."
+}
