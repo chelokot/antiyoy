@@ -42,6 +42,10 @@ def exact_sign_p(positive: int, negative: int) -> float:
     return min(1.0, 2 * tail / 2**compared)
 
 
+def positive_map_sign(positive: int, negative: int) -> bool:
+    return positive > negative and exact_sign_p(positive, negative) < 0.05
+
+
 def audit(checkpoint_path: Path, dataset_path: Path) -> dict:
     torch.set_num_threads(1)
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
@@ -141,10 +145,9 @@ def audit(checkpoint_path: Path, dataset_path: Path) -> dict:
         "all_branches_independently_replayed": True,
         "followup_mae_at_least_ten_percent_below_baseline": student_mae
         <= 0.9 * baseline_mae,
-        "teacher_choice_map_sign_p_below_point_zero_five": exact_sign_p(
+        "teacher_choice_map_sign_p_below_point_zero_five": positive_map_sign(
             positive, negative
-        )
-        < 0.05,
+        ),
         "both_seats_nonnegative_choice_gain": all(
             student >= static
             for student, static in zip(

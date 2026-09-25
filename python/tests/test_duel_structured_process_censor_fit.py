@@ -15,7 +15,10 @@ from python.fit_duel_structured_process_censor import (
     load_dataset,
     tensor_batch,
 )
-from python.audit_duel_structured_process_censor_offline import exact_sign_p
+from python.audit_duel_structured_process_censor_offline import (
+    exact_sign_p,
+    positive_map_sign,
+)
 
 
 def dataset_records(corrupt_censor_tag: bool) -> list[dict]:
@@ -109,3 +112,5 @@ def test_exact_map_sign_excludes_ties() -> None:
     assert exact_sign_p(10, 0) < 0.05
     assert exact_sign_p(1, 0) == 1.0
     assert exact_sign_p(0, 0) == 1.0
+    assert positive_map_sign(10, 0)
+    assert not positive_map_sign(0, 10)
