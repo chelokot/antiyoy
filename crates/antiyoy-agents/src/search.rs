@@ -575,11 +575,8 @@ fn ordered_actions(game: &Game, player: PlayerId, branch_width: usize) -> Vec<Ac
             continuing.push(action);
         }
     }
-    continuing.sort_by(|first, second| {
-        tactical_priority(game, player, *second)
-            .cmp(&tactical_priority(game, player, *first))
-            .then_with(|| first.cmp(second))
-    });
+    continuing
+        .sort_by_cached_key(|action| (Reverse(tactical_priority(game, player, *action)), *action));
     continuing.truncate(branch_width - 1);
     let mut ordered = Vec::with_capacity(continuing.len() + 1);
     ordered.push(ending.expect("non-terminal game always has EndTurn"));
@@ -622,5 +619,47 @@ fn tactical_priority(game: &Game, player: PlayerId, action: Action) -> i64 {
             DiplomacyCommand::ProposeNeutral => 100,
             DiplomacyCommand::Reject => 40,
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use antiyoy_core::{Action, Game, Rules, Scenario};
+
+    use super::{ordered_actions, tactical_priority};
+
+    #[test]
+    fn cached_tactical_keys_preserve_action_order() {
+        for seed in [23, 29] {
+            let scenario = Scenario::symmetric_duel(7, 5, seed).expect("valid duel");
+            let mut game = Game::new(Rules::classic_generic(), scenario).expect("valid game");
+            let mut legal = Vec::new();
+            for step in 0..64 {
+                if game.is_terminal() {
+                    break;
+                }
+                game.legal_actions(&mut legal);
+                for branch_width in [2, 8, 48] {
+                    let mut continuing: Vec<Action> = legal
+                        .iter()
+                        .copied()
+                        .filter(|action| *action != Action::EndTurn)
+                        .collect();
+                    continuing.sort_by(|first, second| {
+                        tactical_priority(&game, game.active_player(), *second)
+                            .cmp(&tactical_priority(&game, game.active_player(), *first))
+                            .then_with(|| first.cmp(second))
+                    });
+                    let mut expected = vec![Action::EndTurn];
+                    expected.extend(continuing.into_iter().take(branch_width - 1));
+                    assert_eq!(
+                        ordered_actions(&game, game.active_player(), branch_width),
+                        expected
+                    );
+                }
+                game.step(legal[step % legal.len()])
+                    .expect("legal action applies");
+            }
+        }
     }
 }
