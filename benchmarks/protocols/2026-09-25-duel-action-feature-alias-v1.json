@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_frozen_encoder_action_feature_alias",
+  "question": "Do the frozen routed-v6 encoder's exact action-feature rows collapse distinct legal actions at roots where the replanned teacher disagrees with the source?",
+  "sample": "All 587 recorded turn starts on the already inspected 128-map three-turn teacher fit dataset, seeds 6451000 through 6451127; no new maps or teacher searches",
+  "dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+  "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "method": "Replay every exact root, compute frozen source action-feature rows and logits once, and find legal actions with elementwise-exactly-equal complete feature rows to the selected searched plan's first action. Require logits for those rows to be exactly equal. Count aliased teacher actions overall, among source-teacher disagreements, and where source top1 belongs to that same alias group; stratify by root seat and teacher action kind. Save seed, seat, round and tied legal indices for reproducibility.",
+  "interpretation_limits": "An alias is an impossibility for a head-only update with this frozen encoder to distinguish those two actions, not proof of a limitation after encoder retraining, a causal explanation of student game losses, outcome credit, new policy strength or Elo. No architecture/threshold selection, training, validation tuning or policy promotion from the inspected fit maps.",
+  "compute": "SSH server fedora-toolbox scratch only; one CPU pinned nice19, Rayon/BLAS one thread, bounded tiny output, no parallel heavy job"
+}
