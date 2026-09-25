@@ -1,0 +1,50 @@
+{
+  "schema_version": 2,
+  "kind": "structured_multi_turn_response_process_censor_aware_resource_calibration",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-structured-response-censor-aware-v2.json",
+  "runner_commit": "a6b1fe9",
+  "window": {
+    "first_seed": 6611000,
+    "independent_maps": 8,
+    "root_seats": [0, 1],
+    "opponent_arms": ["source", "teacher"],
+    "games": 32,
+    "terminal_games": 32,
+    "action_limit_censored_games": 0,
+    "sampled_root_decisions": 248,
+    "sampled_root_decisions_by_seat": [126, 122],
+    "sampled_own_action_indices": [0, 1, 2, 4, 8, 16, 32, 64, 128],
+    "candidate_plans_independently_replayed": 1358
+  },
+  "runtime": {
+    "unit": "seconds_per_sampled_atomic_decision",
+    "selector_median_wall": 0.0007847773376852274,
+    "teacher_median_wall": 0.0012039321009069681,
+    "selector_p95_wall": 0.0022276691161096096,
+    "teacher_p95_wall": 0.016388575080782175,
+    "selector_teacher_median_by_root_seat": [
+      [0.0007724470924586058, 0.001306475605815649],
+      [0.0007929890416562557, 0.001080965856090188]
+    ],
+    "selector_includes": "Native top-eight completed-turn slate, exact native traces and scored components, fixed random GRU forward pass, component reconstruction and candidate choice.",
+    "independent_replay_verification_excluded_from_timed_selector": true,
+    "hardware_policy": "Shared SSH server fedora-toolbox, one pinned CPU15, nice19, Torch/BLAS/Rayon one thread."
+  },
+  "predeclared_gates": {
+    "all_four_arms_attempted_on_all_maps": true,
+    "every_game_sampled": true,
+    "candidate_replay_exact": true,
+    "median_selector_at_most_eighty_percent_teacher": true,
+    "p95_selector_no_worse_than_teacher": true,
+    "both_seat_medians_at_most_eighty_percent_teacher": true,
+    "resource_calibration_passed": true
+  },
+  "raw": {
+    "server_path": "/tmp/antiyoy-residual.n17QTu/structured-process-censor-calibration-6611000.json",
+    "bytes": 74239,
+    "sha256": "77835a573dedf7a739c5dedc8c875c183c88664e256059a31ba2d08ddd0f032d",
+    "stderr_bytes": 0,
+    "runner_exit_code": 0
+  },
+  "qualification": "Fresh v2 random-model same-state feasibility and exact branch replay only. No roll-in censor happened on these eight calibration maps, so the changed censor-retention path was not exercised here. No fit, autonomous strength, Elo, browser latency or promotion is implied; the fit window remains separate. Own-action index256 was predeclared but not reached."
+}
