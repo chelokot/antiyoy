@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "kind": "censor_aware_structured_multi_turn_response_process_fit_collection",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-structured-response-censor-aware-v2.json",
+  "collector_commit": "a6b1fe9",
+  "window": {
+    "first_seed": 6610000,
+    "independent_maps": 128,
+    "last_seed_inclusive": 6610127,
+    "root_seats": [0, 1],
+    "opponent_arms": ["source", "teacher"],
+    "games": 512,
+    "terminal_games": 512,
+    "action_limit_censored_games": 0,
+    "sampled_root_decisions": 3973,
+    "sampled_root_decisions_by_seat": [1994, 1979],
+    "sampled_own_action_indices": [0, 1, 2, 4, 8, 16, 32, 64, 128, 256],
+    "candidate_branches_independently_replayed": 21024
+  },
+  "integrity": {
+    "all_predeclared_seed_seat_opponent_arms_present_once": true,
+    "all_game_sample_counts_match_records": true,
+    "all_sample_censor_tags_match_game_status": true,
+    "all_candidate_shapes_and_classes_valid": true,
+    "native_full_state_branch_replay_and_independent_fork_replay_exact": true,
+    "collector_exit_code": 0,
+    "stderr_bytes": 0
+  },
+  "raw": {
+    "server_path": "/tmp/antiyoy-residual.n17QTu/structured-process-censor-fit-6610000.jsonl.gz",
+    "bytes": 789121,
+    "sha256": "f7a3e51c3659b4183dd87c759ff38175c630a6a345b366eda61b825d949b6da8"
+  },
+  "qualification": "Prospective v2 fit collection only, not training or independent validation. No action-limit censor occurred in this window, so the new retention policy was verified by unit tests but not exercised by these full games. No autonomous student result, Elo or promotion is implied. The rejected v1 partial fit set was not used."
+}
