@@ -1,8 +1,9 @@
 #![forbid(unsafe_code)]
 
 use antiyoy_agents::{
-    Agent, GreedyAgent, PuctConfig, PuctSearch, PuctValueMode, SearchAgent, SearchConfig,
-    position_score, search_plan_indices, search_plan_indices_with, search_turn_slate,
+    Agent, GreedyAgent, PuctConfig, PuctSearch, PuctValueMode, SCORE_COMPONENT_WEIGHTS,
+    SearchAgent, SearchConfig, position_components as scored_components, position_score,
+    search_plan_indices, search_plan_indices_with, search_turn_slate,
 };
 use antiyoy_core::{
     Action, EconomyMetric, Game, GeneratorConfig, Objective, PlayerId, Relation, Rules,
@@ -19,6 +20,13 @@ use rayon::prelude::*;
 
 type IndexedTurnPlans = (Vec<Vec<Vec<u64>>>, Vec<Vec<i64>>);
 type IndexedTurnTraces = (Vec<Vec<Vec<u64>>>, Vec<Vec<i64>>, Vec<Vec<Vec<[f32; 16]>>>);
+type IndexedTurnProcess = (
+    Vec<Vec<Vec<u64>>>,
+    Vec<Vec<i64>>,
+    Vec<Vec<Vec<[f32; 16]>>>,
+    Vec<[i64; 16]>,
+    Vec<Vec<[i64; 16]>>,
+);
 
 #[expect(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 fn action_trace(before: &Game, action: Action, after: &Game, root: PlayerId) -> [f32; 16] {
@@ -779,6 +787,23 @@ impl VectorEnv {
         Ok(PyArray1::from_vec(py, scores))
     }
 
+    fn position_components(&self, player: u8) -> PyResult<Vec<[i64; 16]>> {
+        if self.batch.fog_enabled() {
+            return Err(PyValueError::new_err(
+                "full-state position components are unavailable in fog games",
+            ));
+        }
+        (0..self.batch.len())
+            .map(|index| {
+                let game = self.batch.game(index).expect("batch index must exist");
+                if player >= game.player_count() {
+                    return Err(PyValueError::new_err("player is outside the game"));
+                }
+                Ok(scored_components(game, PlayerId(player)))
+            })
+            .collect()
+    }
+
     fn rules_json(&self) -> PyResult<String> {
         let game = self
             .batch
@@ -1023,8 +1048,8 @@ impl VectorEnv {
             branch_width,
             maximum_actions_per_turn,
         };
-        let (plans, scores, _) =
-            self.collect_turn_slates(py, config, slate_size, active_mask, false)?;
+        let (plans, scores, _, _, _) =
+            self.collect_turn_slates(py, config, slate_size, active_mask, false, false)?;
         Ok((plans, scores))
     }
 
@@ -1046,7 +1071,30 @@ impl VectorEnv {
             branch_width,
             maximum_actions_per_turn,
         };
-        self.collect_turn_slates(py, config, slate_size, active_mask, true)
+        let (plans, scores, traces, _, _) =
+            self.collect_turn_slates(py, config, slate_size, active_mask, true, false)?;
+        Ok((plans, scores, traces))
+    }
+
+    #[pyo3(signature = (node_budget=256, slate_size=8, beam_width=32, branch_width=48, maximum_actions_per_turn=24, active_mask=None))]
+    #[expect(clippy::too_many_arguments)]
+    fn search_turn_plan_process(
+        &self,
+        py: Python<'_>,
+        node_budget: usize,
+        slate_size: usize,
+        beam_width: usize,
+        branch_width: usize,
+        maximum_actions_per_turn: usize,
+        active_mask: Option<PyReadonlyArray1<'_, u8>>,
+    ) -> PyResult<IndexedTurnProcess> {
+        let config = SearchConfig {
+            node_budget,
+            beam_width,
+            branch_width,
+            maximum_actions_per_turn,
+        };
+        self.collect_turn_slates(py, config, slate_size, active_mask, true, true)
     }
 
     fn search_counts<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<u64>> {
@@ -1078,7 +1126,8 @@ impl VectorEnv {
         slate_size: usize,
         active_mask: Option<PyReadonlyArray1<'_, u8>>,
         include_traces: bool,
-    ) -> PyResult<IndexedTurnTraces> {
+        include_components: bool,
+    ) -> PyResult<IndexedTurnProcess> {
         if self.batch.fog_enabled() {
             return Err(PyValueError::new_err(
                 "full-state search turn plans are unavailable in fog games",
@@ -1089,7 +1138,7 @@ impl VectorEnv {
             (0..self.batch.len())
                 .map(|index| {
                     if !active[index] || self.batch.is_done(index).unwrap_or(true) {
-                        return Ok((Vec::new(), Vec::new(), Vec::new()));
+                        return Ok((Vec::new(), Vec::new(), Vec::new(), [0; 16], Vec::new()));
                     }
                     let game = self
                         .batch
@@ -1100,6 +1149,12 @@ impl VectorEnv {
                     let mut plans = Vec::with_capacity(slate.turns.len());
                     let mut scores = Vec::with_capacity(slate.turns.len());
                     let mut traces = Vec::with_capacity(slate.turns.len());
+                    let root_components = if include_components {
+                        scored_components(game, game.active_player())
+                    } else {
+                        [0; 16]
+                    };
+                    let mut post_components = Vec::with_capacity(slate.turns.len());
                     for turn in &slate.turns {
                         let (indices, trace) = if include_traces {
                             search_plan_indices_with(
@@ -1126,20 +1181,28 @@ impl VectorEnv {
                         );
                         scores.push(turn.score);
                         traces.push(trace);
+                        if include_components {
+                            post_components
+                                .push(scored_components(&turn.game, game.active_player()));
+                        }
                     }
-                    Ok((plans, scores, traces))
+                    Ok((plans, scores, traces, root_components, post_components))
                 })
-                .collect::<PyResult<Vec<(Vec<Vec<u64>>, Vec<i64>, Vec<Vec<[f32; 16]>>)>>>()
+                .collect::<PyResult<Vec<_>>>()
         })?;
         let mut plans = Vec::with_capacity(slates.len());
         let mut scores = Vec::with_capacity(slates.len());
         let mut traces = Vec::with_capacity(slates.len());
-        for (indexed, scored, traced) in slates {
+        let mut root_components = Vec::with_capacity(slates.len());
+        let mut post_components = Vec::with_capacity(slates.len());
+        for (indexed, scored, traced, root, post) in slates {
             plans.push(indexed);
             scores.push(scored);
             traces.push(traced);
+            root_components.push(root);
+            post_components.push(post);
         }
-        Ok((plans, scores, traces))
+        Ok((plans, scores, traces, root_components, post_components))
     }
 
     fn select_search_actions<'py>(
@@ -1543,6 +1606,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PolicySearchBatch>()?;
     module.add_class::<VectorEnv>()?;
     module.add("OBSERVATION_VERSION", antiyoy_rl::OBSERVATION_VERSION)?;
+    module.add("SCORE_COMPONENT_WEIGHTS", SCORE_COMPONENT_WEIGHTS)?;
     module.add(
         "GENERATOR_SCHEMA_VERSION",
         antiyoy_core::GENERATOR_SCHEMA_VERSION,

@@ -7,7 +7,9 @@ mod search;
 use antiyoy_core::{Action, DiplomacyCommand, Game};
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 
-pub use evaluation::position_score;
+pub use evaluation::{
+    SCORE_COMPONENT_WEIGHTS, position_components, position_score, position_score_from_components,
+};
 pub use puct::{PuctConfig, PuctError, PuctLeaf, PuctSearch, PuctStats, PuctValueMode};
 pub use search::{
     SearchAgent, SearchConfig, SearchConfigError, SearchReply, SearchStats, SearchTurn,
@@ -106,9 +108,33 @@ mod tests {
     };
 
     use super::{
-        Agent, GreedyAgent, SearchAgent, SearchConfig, SearchConfigError, position_score,
-        reply_score, search_reply, search_turn_slate,
+        Agent, GreedyAgent, SearchAgent, SearchConfig, SearchConfigError, position_components,
+        position_score, position_score_from_components, reply_score, search_reply,
+        search_turn_slate,
     };
+
+    #[test]
+    fn scored_components_reconstruct_nonterminal_positions() {
+        let scenario = Scenario::symmetric_duel(11, 9, 23).expect("valid duel");
+        let mut game =
+            antiyoy_core::Game::new(Rules::classic_generic(), scenario).expect("valid game");
+        let mut legal = Vec::new();
+        for step in 0..64 {
+            if game.is_terminal() {
+                break;
+            }
+            for player in [PlayerId(0), PlayerId(1)] {
+                let components = position_components(&game, player);
+                assert_eq!(
+                    position_score_from_components(&components),
+                    position_score(&game, player)
+                );
+            }
+            game.legal_actions(&mut legal);
+            game.step(legal[step % legal.len()])
+                .expect("engine-generated action must apply");
+        }
+    }
 
     #[test]
     fn greedy_agent_prefers_free_capture_over_end_turn() {

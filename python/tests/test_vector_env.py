@@ -7,6 +7,7 @@ from antiyoy_rl import (
     GENERATOR_SCHEMA_VERSION,
     OBJECTIVE_SCHEMA_VERSION,
     OBSERVATION_VERSION,
+    SCORE_COMPONENT_WEIGHTS,
     ProceduralConfig,
     ScenarioObjective,
     VectorEnv,
@@ -50,10 +51,22 @@ def test_position_scores_use_requested_root_player_and_reject_fog() -> None:
 
     assert first.shape == (2,)
     np.testing.assert_array_equal(first, -second)
+    components = np.asarray(environment.position_components(0), dtype=np.int64)
+    assert components.shape == (2, 16)
+    np.testing.assert_array_equal(
+        components @ np.asarray(SCORE_COMPONENT_WEIGHTS, dtype=np.int64), first
+    )
+    np.testing.assert_array_equal(
+        components, -np.asarray(environment.position_components(1), dtype=np.int64)
+    )
     with pytest.raises(ValueError, match="outside the game"):
         environment.position_scores(2)
+    with pytest.raises(ValueError, match="outside the game"):
+        environment.position_components(2)
     with pytest.raises(ValueError, match="unavailable in fog"):
         VectorEnv(1, width=7, height=5, fog=True).position_scores(0)
+    with pytest.raises(ValueError, match="unavailable in fog"):
+        VectorEnv(1, width=7, height=5, fog=True).position_components(0)
 
 
 def test_seeded_environments_are_equal_after_equal_actions() -> None:
@@ -215,6 +228,29 @@ def test_search_turn_plan_traces_match_independent_replay() -> None:
         )
 
 
+def test_search_turn_process_components_match_independent_replay() -> None:
+    environment = VectorEnv(1, width=7, height=5, seed=29)
+    plans, scores, traces, roots, posts = environment.search_turn_plan_process(
+        node_budget=64, slate_size=4
+    )
+    assert (plans, scores, traces) == environment.search_turn_plan_traces(
+        node_budget=64, slate_size=4
+    )
+    root = int(environment.observe()["active_players"][0])
+    assert roots[0] == environment.position_components(root)[0]
+    assert len(posts[0]) == len(plans[0])
+    weights = np.asarray(SCORE_COMPONENT_WEIGHTS, dtype=np.int64)
+    for plan, components in zip(plans[0], posts[0], strict=True):
+        branch = environment.fork(np.asarray([0], dtype=np.uint64))
+        for action in plan:
+            branch.step(np.asarray([action], dtype=np.uint64))
+        assert components == branch.position_components(root)[0]
+        if not branch.done()[0]:
+            assert int(np.asarray(components, dtype=np.int64) @ weights) == int(
+                branch.position_scores(root)[0]
+            )
+
+
 def test_search_turn_plans_reject_invalid_configuration_and_fog() -> None:
     environment = VectorEnv(1, width=7, height=5)
     with pytest.raises(ValueError, match="node budget"):
@@ -225,6 +261,8 @@ def test_search_turn_plans_reject_invalid_configuration_and_fog() -> None:
         VectorEnv(1, width=7, height=5, fog=True).search_turn_plans()
     with pytest.raises(ValueError, match="unavailable in fog"):
         VectorEnv(1, width=7, height=5, fog=True).search_turn_plan_traces()
+    with pytest.raises(ValueError, match="unavailable in fog"):
+        VectorEnv(1, width=7, height=5, fog=True).search_turn_plan_process()
 
 
 def test_search_turn_plans_skip_inactive_environments() -> None:
