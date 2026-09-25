@@ -488,6 +488,38 @@ def test_opt_in_exact_score_cache_preserves_replanned_game() -> None:
     assert cached.search_cache_hits()[0] > 0
 
 
+def test_opt_in_frontier_dedup_preserves_default_and_selects_legal_actions() -> None:
+    configuration = {
+        "node_budget": 64,
+        "reply_nodes": 16,
+        "followup_nodes": 8,
+        "slate_size": 4,
+        "beam_width": 12,
+        "branch_width": 20,
+        "maximum_actions_per_turn": 12,
+        "replan_each_action": True,
+    }
+    default = VectorEnv(1, width=7, height=5, seed=46)
+    explicit_baseline = VectorEnv(1, width=7, height=5, seed=46)
+    candidate = VectorEnv(1, width=7, height=5, seed=46)
+
+    for _ in range(12):
+        if default.done()[0] or candidate.done()[0]:
+            break
+        first = default.reply_search_actions(**configuration)
+        second = explicit_baseline.reply_search_actions(
+            **configuration, frontier_dedup=False
+        )
+        np.testing.assert_array_equal(first, second)
+        selected = candidate.reply_search_actions(
+            **configuration, frontier_dedup=True
+        )
+        assert 0 <= selected[0] < np.diff(candidate.observe()["action_offsets"])[0]
+        default.step(first)
+        explicit_baseline.step(second)
+        candidate.step(selected)
+
+
 @pytest.mark.parametrize(
     ("profile", "expected_profile"),
     [

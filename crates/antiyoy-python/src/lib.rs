@@ -565,6 +565,7 @@ struct SearchSetup {
     followup_nodes: usize,
     slate_size: usize,
     score_cache: bool,
+    frontier_dedup: bool,
 }
 
 #[pymethods]
@@ -967,13 +968,14 @@ impl VectorEnv {
                 followup_nodes: 0,
                 slate_size: 1,
                 score_cache: false,
+                frontier_dedup: false,
             },
             Some(&active),
             true,
         )
     }
 
-    #[pyo3(signature = (node_budget=256, reply_nodes=64, slate_size=8, beam_width=32, branch_width=48, maximum_actions_per_turn=24, followup_nodes=0, active_mask=None, replan_each_action=false, score_cache=false))]
+    #[pyo3(signature = (node_budget=256, reply_nodes=64, slate_size=8, beam_width=32, branch_width=48, maximum_actions_per_turn=24, followup_nodes=0, active_mask=None, replan_each_action=false, score_cache=false, frontier_dedup=false))]
     #[expect(clippy::too_many_arguments)]
     fn reply_search_actions<'py>(
         &mut self,
@@ -988,6 +990,7 @@ impl VectorEnv {
         active_mask: Option<PyReadonlyArray1<'py, u8>>,
         replan_each_action: bool,
         score_cache: bool,
+        frontier_dedup: bool,
     ) -> PyResult<Bound<'py, PyArray1<u64>>> {
         if reply_nodes < 2 || slate_size == 0 {
             return Err(PyValueError::new_err(
@@ -1008,6 +1011,7 @@ impl VectorEnv {
                 followup_nodes,
                 slate_size,
                 score_cache,
+                frontier_dedup,
             },
             Some(&active),
             !replan_each_action,
@@ -1036,6 +1040,7 @@ impl VectorEnv {
                 followup_nodes: 0,
                 slate_size: 1,
                 score_cache: false,
+                frontier_dedup: false,
             },
             None,
             false,
@@ -1348,8 +1353,13 @@ impl VectorEnv {
                         SearchAgent::with_config(format!("search-{index}"), setup.config)
                     };
                     agent.map(|agent| {
-                        if setup.score_cache {
+                        let agent = if setup.score_cache {
                             agent.with_score_cache()
+                        } else {
+                            agent
+                        };
+                        if setup.frontier_dedup {
+                            agent.with_frontier_dedup()
                         } else {
                             agent
                         }
