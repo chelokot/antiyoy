@@ -84,7 +84,7 @@ def model_action(
 
 
 def action_from_logits(logits: torch.Tensor, observation: dict[str, np.ndarray]) -> int:
-    distribution = action_distribution(logits, observation["action_offsets"])
+    distribution = action_distribution(logits.reshape(-1), observation["action_offsets"])
     return int(distribution.probs.argmax(dim=1)[0])
 
 

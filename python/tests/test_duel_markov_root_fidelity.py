@@ -1,8 +1,11 @@
 from pathlib import Path
 
+import numpy as np
 import pytest
+import torch
 
 from python.audit_duel_markov_root_fidelity import (
+    action_from_logits,
     empty_counts,
     empty_shadow_counts,
     legal_count_bin,
@@ -66,3 +69,9 @@ def test_shadow_disagreement_distinguishes_missed_and_extra_queries() -> None:
         "missed_student_disagreements": 1,
         "extra_shadow_disagreements": 1,
     }
+
+
+def test_action_head_column_logits_keep_legal_argmax() -> None:
+    observation = {"action_offsets": np.asarray([0, 3], dtype=np.int64)}
+
+    assert action_from_logits(torch.tensor([[0.0], [2.0], [1.0]]), observation) == 1
