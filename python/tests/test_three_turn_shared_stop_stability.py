@@ -2,6 +2,7 @@ import numpy as np
 import torch
 
 from python import audit_three_turn_shared_stop_outcomes
+from python.audit_duel_three_turn_intervention import FOLLOWUP_NODES
 from python.audit_three_turn_shared_stop_outcomes import finish_persistently
 from python.audit_three_turn_shared_stop_stability import (
     CONFIGURATIONS,
@@ -88,17 +89,20 @@ def test_confirmation_uses_a_disjoint_predeclared_map_window() -> None:
     )
 
 
-def test_two_turn_mode_uses_native_opponent_search(monkeypatch) -> None:
+def test_persistent_modes_use_requested_native_policy(monkeypatch) -> None:
     selected = []
+    native_calls = []
 
     class Branch:
-        finished = False
+        def __init__(self, active: int) -> None:
+            self.active = active
+            self.finished = False
 
         def done(self):
             return np.asarray([self.finished])
 
         def observe(self):
-            return {"active_players": np.asarray([1])}
+            return {"active_players": np.asarray([self.active])}
 
         def step(self, action):
             selected.append(int(action[0]))
@@ -113,15 +117,15 @@ def test_two_turn_mode_uses_native_opponent_search(monkeypatch) -> None:
         def actions(self, observation, rules):
             raise AssertionError("direct opponent must not act in two-turn mode")
 
-    def native_action(environment, followup_nodes=0):
-        assert followup_nodes == 0
+    def native_action(environment, followup_nodes=0, replan_each_action=False):
+        native_calls.append((followup_nodes, replan_each_action))
         return np.asarray([7], dtype=np.uint64)
 
     monkeypatch.setattr(
         audit_three_turn_shared_stop_outcomes, "native_teacher_action", native_action
     )
     result = finish_persistently(
-        Branch(),
+        Branch(1),
         {},
         2,
         0,
@@ -129,6 +133,17 @@ def test_two_turn_mode_uses_native_opponent_search(monkeypatch) -> None:
         torch.empty(0),
         "two_turn",
     )
-    assert selected == [7]
+    replanned = finish_persistently(
+        Branch(0),
+        {},
+        2,
+        0,
+        DirectOpponent(),
+        torch.empty(0),
+        root_replan_each_action=True,
+    )
+    assert selected == [7, 7]
+    assert native_calls == [(0, False), (FOLLOWUP_NODES, True)]
     assert result["winner"] == 0
     assert result["actions_after_intervention"] == 3
+    assert replanned["winner"] == 0

@@ -70,11 +70,14 @@ def finish_persistently(
     opponent: RoutedPolicy,
     rule_features: torch.Tensor,
     opponent_mode: Literal["direct", "two_turn"] = "direct",
+    root_replan_each_action: bool = False,
 ) -> BranchOutcome:
     while not branch.done()[0]:
         observation = branch.observe()
         if int(observation["active_players"][0]) == root:
-            selected = native_teacher_action(branch, FOLLOWUP_NODES)
+            selected = native_teacher_action(
+                branch, FOLLOWUP_NODES, replan_each_action=root_replan_each_action
+            )
         elif opponent_mode == "two_turn":
             selected = native_teacher_action(branch)
         else:

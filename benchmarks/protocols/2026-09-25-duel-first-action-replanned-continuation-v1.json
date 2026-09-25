@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "kind": "fit_only_first_action_persistent_replanned_counterfactual",
+  "question": "Does the strong native teacher's first action improve terminal outcomes over the frozen direct model's first action when BOTH branches subsequently use the same strong replanned teacher for every root action?",
+  "motivation": "Earlier isolated teacher-action substitutions continued with the weaker direct policy, while a later early-EndTurn study continued with cached whole-turn plans. Neither measured first-action credit under the currently validated every-action replanned teacher. This experiment changes only the forced first action, not the continuation.",
+  "existing_data": {
+    "dataset": "three-turn-plan-fit-6451000.json.gz",
+    "dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "first_seed": 6451000,
+    "maps": 128,
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "arena": "Classic Generic procedural_v2 11x9 two-player, original 2400-action cap; material adjudication remains nonterminal"
+  },
+  "selection": "Replay the original saved self-play roll-ins exactly. In ascending map seed and record order, take only the FIRST recorded turn-start position on each map where the selected three-turn teacher plan's first legal action differs from the frozen routed-v6 direct action. Take the first 32 eligible distinct maps, with no replacement based on seat, search score or outcome. Verify the first teacher action exactly equals a fresh native three-turn reply-search query with root256/top8/opponent64/followup32 and replan_each_action=true at the same state; stop on any mismatch.",
+  "branches": "Fork the identical pre-action state twice. Force either the teacher first action or the frozen source first action, then continue EVERY subsequent root atomic action with native three-turn replanned search at the unchanged 256/8/64/32 parameters. The frozen routed-v6 direct opponent acts in both branches. Continue to terminal or the original action cap. Validate equal starting observation/legal-action order and legal forced actions; record winner, terminal/truncated flag and action count for each branch.",
+  "analysis": "Report all 32 independent-map branch pairs, root seat, round and action indices. Count teacher-better, source-better, same and censored maps, including both root-seat strata. Exact two-sided independent-map sign p excludes censored pairs; also report worst-case with censored as source-better. Any nonterminal branch is explicitly censored, never silently scored by material.",
+  "exploratory_advance_condition": "Only consider a separately predeclared fresh independent-map confirmation if all branches are terminal, teacher-better is at least twice source-better, teacher-minus-source counts are nonnegative in both root seats, and exact two-sided map sign p<0.05. Otherwise reject this first-action outcome label hypothesis without tuning on the fit maps.",
+  "qualification": "Exploratory POST HOC counterfactuals on previously inspected fit maps, not student or teacher complete-game strength, causal effect of all search actions, a fresh validation gate or Elo. Even passing only motivates independent confirmation before any training.",
+  "resources": "SSH server fedora-toolbox scratch only, one CPU15 pinned nice19 with Rayon/BLAS capped at one, timeout30 minutes, tiny output, no GPU or parallel heavy job; preserve the original dirty remote repository and all reserved validation/final seeds."
+}
