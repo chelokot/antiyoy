@@ -38,6 +38,14 @@ also confirms that a farm earns the base `1` plus the `4` farm bonus.
       upkeep is `54`.
 - [x] Strength must strictly exceed defense for every unit level.
 
+Seed-by-seed tree growth is not claimed to match the original game. Upstream
+uses a [Java random stream](https://github.com/yiotro/Antiyoy/blob/f22acaa0d08cc908b9d236bfabc28f93d059ad3e/core/src/yio/tro/antiyoy/gameplay/GameController.java)
+and evaluates [palm candidates before pine candidates](https://github.com/yiotro/Antiyoy/blob/f22acaa0d08cc908b9d236bfabc28f93d059ad3e/core/src/yio/tro/antiyoy/gameplay/FieldManager.java);
+Slay palm eligibility itself has [no random draw](https://github.com/yiotro/Antiyoy/blob/f22acaa0d08cc908b9d236bfabc28f93d059ad3e/core/src/yio/tro/antiyoy/gameplay/rules/RulesetSlay.java).
+The Rust core uses its own deterministic random stream and evaluates palm and
+pine eligibility per hex. The configured spread rates are compatible, but
+individual seeded tree trajectories need not be identical.
+
 ## Online compatibility profiles
 
 | Profile | Income clear/farm | Farm price | Unit-four upkeep | New unit ready | Foreign recruit zone |
