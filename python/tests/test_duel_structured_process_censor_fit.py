@@ -15,11 +15,13 @@ from python.fit_duel_structured_process_censor import (
     load_dataset,
     tensor_batch,
 )
+from python.audit_duel_structured_process_censor_offline import exact_sign_p
 
 
 def dataset_records(corrupt_censor_tag: bool) -> list[dict]:
     records = [
         {
+            "kind": "structured_multi_turn_response_process_fit",
             "protocol": PROTOCOL,
             "source_sha256": CHECKPOINT_SHA256,
             "first_seed": 42,
@@ -101,3 +103,9 @@ def test_fit_loader_rejects_sample_censor_mismatch(tmp_path) -> None:
 
     with pytest.raises(ValueError, match="sample censor tag disagrees"):
         load_dataset(path, 42, 1)
+
+
+def test_exact_map_sign_excludes_ties() -> None:
+    assert exact_sign_p(10, 0) < 0.05
+    assert exact_sign_p(1, 0) == 1.0
+    assert exact_sign_p(0, 0) == 1.0

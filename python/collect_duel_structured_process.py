@@ -158,6 +158,7 @@ def collect(
     protocol: str = PROTOCOL,
     allow_rollin_censor: bool = False,
     branch_action_limit: int | None = None,
+    dataset_role: str = "fit",
 ) -> dict:
     if digest(source_path) != CHECKPOINT_SHA256:
         raise ValueError("frozen source checkpoint disagrees with the protocol")
@@ -179,7 +180,7 @@ def collect(
             json.dumps(
                 {
                     "type": "header",
-                    "kind": "structured_multi_turn_response_process_fit",
+                    "kind": f"structured_multi_turn_response_process_{dataset_role}",
                     "protocol": protocol,
                     "source_sha256": CHECKPOINT_SHA256,
                     "first_seed": first_seed,
@@ -271,7 +272,7 @@ def collect(
     with output.open("rb") as raw:
         raw_sha256 = hashlib.file_digest(raw, "sha256").hexdigest()
     return {
-        "kind": "structured_multi_turn_response_process_fit_collection",
+        "kind": f"structured_multi_turn_response_process_{dataset_role}_collection",
         "protocol": protocol,
         "first_seed": first_seed,
         "maps": maps,
@@ -283,7 +284,7 @@ def collect(
         "raw_path": str(output),
         "raw_bytes": output.stat().st_size,
         "raw_sha256": raw_sha256,
-        "qualification": "Fit data only; no model trained or validation/game outcome claimed",
+        "qualification": "Branch-local process data only; no autonomous game strength or Elo claimed",
     }
 
 

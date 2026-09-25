@@ -8,6 +8,7 @@ import torch
 from antiyoy_rl import VectorEnv
 from python.audit_duel_structured_process_calibration import (
     StructuredResponseModel,
+    process_scores,
     selector,
     summarize,
     validate_candidates,
@@ -70,3 +71,15 @@ def test_censored_rollin_is_recorded_without_passing_terminal_gate() -> None:
     assert not strict["advance_gate_passed"]
     assert censor_aware["gates"]["all_arms_attempted"]
     assert censor_aware["advance_gate_passed"]
+
+
+def test_process_scoring_preserves_exact_terminal_candidate() -> None:
+    scores = [10**12, 0]
+    posts = [[0] * 16, [0] * 16]
+    response = torch.zeros((2, 2, 16))
+    terminal = torch.zeros((2, 3))
+
+    predicted = process_scores(scores, posts, response, terminal)
+
+    assert predicted[0] == np.float32(10**12)
+    assert predicted[1] == 0

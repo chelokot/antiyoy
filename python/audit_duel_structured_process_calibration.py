@@ -54,6 +54,27 @@ class StructuredResponseModel(nn.Module):
         return result[:, :32].reshape(-1, 2, 16), result[:, 32:]
 
 
+def process_scores(
+    scores: list[int],
+    posts: list[list[int]],
+    response: torch.Tensor,
+    terminal: torch.Tensor,
+) -> np.ndarray:
+    followup = np.asarray(posts, dtype=np.float32) + (
+        response[:, 1].numpy() * COMPONENT_SCALES
+    )
+    probabilities = torch.softmax(terminal, dim=1).numpy()
+    predicted = followup @ np.asarray(SCORE_COMPONENT_WEIGHTS, dtype=np.float32)
+    predicted += 1000 * (probabilities[:, 2] - probabilities[:, 0])
+    terminal_candidates = np.abs(np.asarray(scores, dtype=np.int64)) >= 10**12
+    predicted[terminal_candidates] = np.asarray(scores, dtype=np.float32)[
+        terminal_candidates
+    ]
+    if not np.isfinite(predicted).all():
+        raise ValueError("process selector produced a nonfinite candidate score")
+    return predicted
+
+
 def selector(
     environment: VectorEnv, model: StructuredResponseModel
 ) -> tuple[dict[str, float | int], list[list[int]], list[int], list[list[int]]]:
@@ -84,20 +105,11 @@ def selector(
         torch.from_numpy(normalized_post),
         torch.as_tensor(scores[0], dtype=torch.float32).reshape(-1, 1) / 1000,
     )
-    followup = post + response[:, 1].numpy() * COMPONENT_SCALES
-    probabilities = torch.softmax(terminal, dim=1).numpy()
-    predicted = followup @ np.asarray(SCORE_COMPONENT_WEIGHTS, dtype=np.float32)
-    predicted += 1000 * (probabilities[:, 2] - probabilities[:, 0])
-    terminal_candidates = np.abs(np.asarray(scores[0], dtype=np.int64)) >= 10**12
-    predicted[terminal_candidates] = np.asarray(scores[0], dtype=np.float32)[
-        terminal_candidates
-    ]
+    predicted = process_scores(scores[0], posts[0], response, terminal)
     choice = max(
         range(len(plans[0])),
         key=lambda index: (float(predicted[index]), scores[0][index], -index),
     )
-    if not np.isfinite(predicted).all():
-        raise ValueError("process selector produced a nonfinite candidate score")
     model_seconds = time.perf_counter() - started
     return (
         {

@@ -30,14 +30,15 @@ INITIALIZATION_SEED = 6600000
 
 
 def load_dataset(
-    path: Path, first_seed: int, maps: int
+    path: Path, first_seed: int, maps: int, role: str = "fit"
 ) -> tuple[dict[int, list[dict]], dict]:
     records: dict[int, list[dict]] = defaultdict(list)
     games = {}
     with gzip.open(path, "rt", encoding="utf-8") as source:
         header = json.loads(next(source))
         if (
-            header["protocol"] != PROTOCOL
+            header["kind"] != f"structured_multi_turn_response_process_{role}"
+            or header["protocol"] != PROTOCOL
             or header["source_sha256"] != CHECKPOINT_SHA256
             or header["first_seed"] != first_seed
             or header["maps"] != maps
