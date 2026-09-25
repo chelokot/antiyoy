@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "kind": "terminal_whole_episode_preference_fit_data_and_resource_calibration",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-terminal-episode-preference-distillation-v1.json",
+  "collection_code_commit": "299b5af",
+  "fit_window": {
+    "first_seed": 6561000,
+    "independent_maps": 128,
+    "games": 384,
+    "terminal_games": 384,
+    "censored_pairs": 0,
+    "paired_root_seats": 256,
+    "informative_pairs": 116,
+    "saved_and_replayed_actions": 51002,
+    "by_teacher_seat": [
+      {"seat": 0, "teacher_preferred": 43, "source_preferred": 6, "same_terminal_outcome": 79},
+      {"seat": 1, "teacher_preferred": 66, "source_preferred": 1, "same_terminal_outcome": 61}
+    ],
+    "collection_elapsed_seconds": 295.06128252018243,
+    "predeclared_availability_gate_passed": true,
+    "raw_path": "/tmp/antiyoy-residual.n17QTu/episode-preference-fit-6561000.json.gz on the SSH server",
+    "raw_sha256": "be6749499c43f857e3bc11c059bf6c8c66fa315e86b68e56132107e450f0bc97"
+  },
+  "resource_calibration_window": {
+    "first_seed": 6562000,
+    "independent_maps": 8,
+    "games": 24,
+    "terminal_games": 24,
+    "censored_pairs": 0,
+    "collection_elapsed_seconds": 18.786390252877027,
+    "gradient_equivalence_passed": true,
+    "small_replay_gradient_seconds": 15.293545639142394,
+    "one_pair_full_map_update_seconds": 2.5687748482450843,
+    "projected_fit_seconds": 595.9557647928596,
+    "peak_resident_bytes": 3430957056,
+    "predeclared_one_hour_and_four_gib_gate_passed": true,
+    "raw_path": "/tmp/antiyoy-residual.n17QTu/episode-preference-calibration-6562000.json.gz on the SSH server",
+    "raw_sha256": "587ae5843f1e18ae56fc3d2592b979120b2ba68d08d8dc21b566fe277b679a61",
+    "resource_report_sha256": "9dc40ad256949c1a78932dea55fd2248502eceaa3c2d7e86794edfe43aed749c"
+  },
+  "verification": "Each collected game trace was replayed from its independent procedural map to the exact terminal outcome. The fit artifact separately passed gzip integrity, exact map and arm cardinality, source checkpoint, action-count and summary checks. Streaming complete-episode gradients equaled ordinary autograd on replayed calibration decisions. One pinned nice19 SSH-server CPU was used, with Rayon and BLAS capped; no GPU or parallel heavy job was used. All 484 Python tests and Ruff passed on the server.",
+  "interpretation": "The predeclared fit-data and resource gates passed, allowing one fixed full-parameter trajectory-preference fit. The 109 teacher-preferred and 7 source-preferred fit pairs are training labels, not an independent search-strength estimate, offline validation, a student game result or Elo. Calibration labels are never used for the fit. No student checkpoint has yet been trained or promoted.",
+  "stop_rule": "If the fixed fit exceeds one hour or four GiB, or the untouched offline-validation gate fails, reject it without alternate hyperparameters or held-out retuning; do not run reserved game windows."
+}
