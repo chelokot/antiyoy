@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "kind": "node_hosted_wasm_replanned_exact_score_cache_equivalence_and_wall_time",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-wasm-exact-score-cache-runtime-v1.json",
+  "code_commit": "5a588a6",
+  "code_ci_run": 36104612489,
+  "arena": "procedural_v2 11x9 two-player Classic Generic, native three-turn root256/top8/opponent64/followup32 replanned at every atomic action",
+  "seed_first": 6583000,
+  "independent_maps": 8,
+  "maximum_atomic_actions_per_map": 400,
+  "atomic_actions_compared": 1732,
+  "terminal_games": 8,
+  "nonterminal_400_action_prefixes": 0,
+  "exact_score_reuses": 1891,
+  "median_paired_map_warm_wall_improvement_fraction": 0.16103999605197267,
+  "median_warm_wall_improvement_fraction_by_active_seat": [
+    0.1694395266048937,
+    0.15080899241895168
+  ],
+  "pooled_warm_action_wall_milliseconds": {
+    "plain_median": 12.94160199999942,
+    "cached_median": 10.964360000001761,
+    "plain_p95": 29.747447999998258,
+    "cached_p95": 24.913911999999982
+  },
+  "predeclared_feasibility_gate_passed": true,
+  "raw_result": "/tmp/antiyoy-residual.n17QTu/procedural-duel-wasm-score-cache-6583000.json on the SSH server",
+  "raw_result_sha256": "65677f5942fc2f918eeb5c0029404d6f79ca718527a8916621e5b1d85d9ccaa3",
+  "verification": "On one pinned low-priority server CPU, separate cached and uncached WASM games alternated call order and matched their complete serialized public GameView before and after every action; all eight reached terminal states. The native cache key additionally compares full Game values including hidden RNG. The predeclared Node-hosted WASM runtime gate passed without changing game rules, search settings, or the rated policy.",
+  "interpretation": "This is a controlled Node-hosted WebAssembly feasibility result, not measured interactive-browser latency, new play strength, or Elo. The private Site remained on v63 during this run; publication requires separate web-build and user-visible checks."
+}

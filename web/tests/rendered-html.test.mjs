@@ -245,7 +245,7 @@ test("keeps the arena inside the viewport with independently scrolling panels", 
   assert.match(arena, /placementMode\s+\? \{ kind: "single" as const, nodes: RATED_SEARCH_NODES \}/);
   assert.match(arena, /instance\.step_search_with_budget\(mode\.nodes\)/);
   assert.match(arena, /instance\.step_three_turn_search\(\)/);
-  assert.match(arena, /instance\.step_three_turn_search_replanned\(\)/);
+  assert.match(arena, /instance\.step_three_turn_search_replanned_cached\(\)/);
   assert.match(arena, /3-turn replan · tested 2P Classic/);
   assert.match(arena, /aria-label="Open game menu"/);
   assert.match(arena, /aria-label="Inspect selected hex"/);

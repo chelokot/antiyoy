@@ -238,7 +238,7 @@ function stepBotSearch(instance: WasmGameType, mode: BotSearchMode): string {
     return instance.step_search_with_budget(mode.nodes);
   }
   return mode.replan
-    ? instance.step_three_turn_search_replanned()
+    ? instance.step_three_turn_search_replanned_cached()
     : instance.step_three_turn_search();
 }
 
