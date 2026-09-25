@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_node_wasm_exact_score_cache_prefix_runtime",
+  "hypothesis": "The full-Game-keyed exact native score cache also preserves WebAssembly game behavior and reduces warm WASM action-selection latency on procedural Classic Generic duels.",
+  "fixed_window": {
+    "first_seed": 6583000,
+    "independent_maps": 8,
+    "profile": "classic_generic_2022",
+    "arena": "procedural_v2 11x9 two-player, land density650000",
+    "maximum_atomic_actions_per_map": 400,
+    "controller": "Native three-turn root256/top8/opponent64/followup32 replanned after every atomic action",
+    "comparison": "Two separate identical WASM games in lockstep, one existing uncached replan and one opt-in cached replan, alternating call order by seed/action parity. Compare exact full state JSON before and after every action. Record full traces and cache hits. Profile warm calls after excluding the first four atomic decisions of each map."
+  },
+  "runtime_gate": "All eight bounded traces must have exact identical states/actions/outcomes; no WASM errors, at least one real exact-score cache hit, median paired-map warm total action wall-time improvement at least5% and nonnegative median by each active seat, cached pooled warm p95 action wall time at most110% of uncached. Failure leaves browser cache unpromoted; no retuning on this window.",
+  "interpretation_limits": "Node-hosted WASM is a controlled browser-engine proxy, not actual interactive browser latency or game strength. The bounded 400-action prefix may be nonterminal and must never be reported as a full game result. Native cross-profile cache studies use different inspected windows; this window is fresh and disjoint. Even a passed feasibility gate requires owner-private site end-to-end UI checks and preserved access policy before publication.",
+  "compute": "Build and run WASM only in SSH server fedora-toolbox scratch, one pinned CPU15 nice19, no parallel heavy job, bounded output. Remote original repo is dirty/unrelated and must not be edited."
+}

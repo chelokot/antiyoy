@@ -199,6 +199,10 @@ impl SearchAgent {
         self
     }
 
+    pub fn enable_score_cache(&mut self) {
+        self.score_cache_enabled = true;
+    }
+
     pub fn clear_plan(&mut self) {
         self.plan.clear();
     }

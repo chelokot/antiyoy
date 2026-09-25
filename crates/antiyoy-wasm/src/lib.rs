@@ -215,6 +215,11 @@ impl WasmGame {
         self.step_with_policy(BotPolicy::ThreeTurnSearch)
     }
 
+    pub fn step_three_turn_search_replanned_cached(&mut self) -> Result<String, JsError> {
+        self.three_turn_search.enable_score_cache();
+        self.step_three_turn_search_replanned()
+    }
+
     pub fn step_search_with_budget(&mut self, node_budget: usize) -> Result<String, JsError> {
         if self.search.config().node_budget != node_budget {
             let config = SearchConfig {
@@ -241,6 +246,10 @@ impl WasmGame {
 
     pub fn three_turn_search_count(&self) -> u64 {
         self.three_turn_search.search_count()
+    }
+
+    pub fn three_turn_search_cache_hits(&self) -> u64 {
+        self.three_turn_search.cached_score_reuses()
     }
 }
 
