@@ -45,6 +45,6 @@
     "stderr_bytes": 0
   },
   "verification": "Affected Rust agent tests passed24, affected Rust Clippy passed, full SSH-server Python suite passed512, Python Ruff and formatting passed. GitHub Rust/Python/web/WASM CI passed for the code commit.",
-  "decision": "The four-slate option stays experimental, default-off and undeployed. Do not tune on seed6620000 or advance it to cross-profile or browser testing. The existing one-slate opt-in cache, rated bot, core rules and owner-private Site remain unchanged.",
+  "decision": "The four-slate option failed its predeclared CPU and both-seat gates. Its opt-in implementation and audit runner were removed from the current code after recording this result; code commit aaf8c41 remains in Git history for exact reproduction. Do not tune on seed6620000 or advance it to cross-profile or browser testing. The validated one-slate opt-in cache, rated bot, core rules and owner-private Site remain unchanged.",
   "qualification": "This is an exact semantic equivalence and one-core native CPU result. It is not a new game-strength, Elo or browser-latency result."
 }

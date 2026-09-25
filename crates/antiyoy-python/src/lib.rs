@@ -564,7 +564,7 @@ struct SearchSetup {
     reply_nodes: usize,
     followup_nodes: usize,
     slate_size: usize,
-    score_cache_slates: u8,
+    score_cache: bool,
 }
 
 #[pymethods]
@@ -966,14 +966,14 @@ impl VectorEnv {
                 reply_nodes: 0,
                 followup_nodes: 0,
                 slate_size: 1,
-                score_cache_slates: 0,
+                score_cache: false,
             },
             Some(&active),
             true,
         )
     }
 
-    #[pyo3(signature = (node_budget=256, reply_nodes=64, slate_size=8, beam_width=32, branch_width=48, maximum_actions_per_turn=24, followup_nodes=0, active_mask=None, replan_each_action=false, score_cache=false, four_slate_score_cache=false))]
+    #[pyo3(signature = (node_budget=256, reply_nodes=64, slate_size=8, beam_width=32, branch_width=48, maximum_actions_per_turn=24, followup_nodes=0, active_mask=None, replan_each_action=false, score_cache=false))]
     #[expect(clippy::too_many_arguments)]
     fn reply_search_actions<'py>(
         &mut self,
@@ -988,16 +988,10 @@ impl VectorEnv {
         active_mask: Option<PyReadonlyArray1<'py, u8>>,
         replan_each_action: bool,
         score_cache: bool,
-        four_slate_score_cache: bool,
     ) -> PyResult<Bound<'py, PyArray1<u64>>> {
         if reply_nodes < 2 || slate_size == 0 {
             return Err(PyValueError::new_err(
                 "reply search requires at least two reply nodes and a positive slate size",
-            ));
-        }
-        if score_cache && four_slate_score_cache {
-            return Err(PyValueError::new_err(
-                "one-slate and four-slate score caches are mutually exclusive",
             ));
         }
         let active = active_mask_values(active_mask, self.batch.len())?;
@@ -1013,11 +1007,7 @@ impl VectorEnv {
                 reply_nodes,
                 followup_nodes,
                 slate_size,
-                score_cache_slates: if four_slate_score_cache {
-                    4
-                } else {
-                    u8::from(score_cache)
-                },
+                score_cache,
             },
             Some(&active),
             !replan_each_action,
@@ -1045,7 +1035,7 @@ impl VectorEnv {
                 reply_nodes: 0,
                 followup_nodes: 0,
                 slate_size: 1,
-                score_cache_slates: 0,
+                score_cache: false,
             },
             None,
             false,
@@ -1357,11 +1347,12 @@ impl VectorEnv {
                     } else {
                         SearchAgent::with_config(format!("search-{index}"), setup.config)
                     };
-                    agent.map(|agent| match setup.score_cache_slates {
-                        0 => agent,
-                        1 => agent.with_score_cache(),
-                        4 => agent.with_four_slate_score_cache(),
-                        _ => unreachable!("validated score cache history"),
+                    agent.map(|agent| {
+                        if setup.score_cache {
+                            agent.with_score_cache()
+                        } else {
+                            agent
+                        }
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()
