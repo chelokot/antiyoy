@@ -98,7 +98,6 @@ pub struct SearchAgent {
     plan: VecDeque<PlannedAction>,
     score_cache: Vec<CachedScore>,
     score_cache_enabled: bool,
-    frontier_dedup_enabled: bool,
     cached_score_reuses: u64,
     last_stats: SearchStats,
     search_count: u64,
@@ -115,7 +114,6 @@ impl SearchAgent {
             plan: VecDeque::new(),
             score_cache: Vec::new(),
             score_cache_enabled: false,
-            frontier_dedup_enabled: false,
             cached_score_reuses: 0,
             last_stats: SearchStats::default(),
             search_count: 0,
@@ -136,7 +134,6 @@ impl SearchAgent {
             plan: VecDeque::new(),
             score_cache: Vec::new(),
             score_cache_enabled: false,
-            frontier_dedup_enabled: false,
             cached_score_reuses: 0,
             last_stats: SearchStats::default(),
             search_count: 0,
@@ -206,24 +203,13 @@ impl SearchAgent {
         self.score_cache_enabled = true;
     }
 
-    #[must_use]
-    pub fn with_frontier_dedup(mut self) -> Self {
-        self.frontier_dedup_enabled = true;
-        self
-    }
-
     pub fn clear_plan(&mut self) {
         self.plan.clear();
     }
 
     fn create_plan(&mut self, game: &Game) {
         self.search_count += 1;
-        let slate = build_search_turn_slate_with_mode(
-            game,
-            self.config,
-            self.slate_size,
-            self.frontier_dedup_enabled,
-        );
+        let slate = build_search_turn_slate(game, self.config, self.slate_size);
         let root_player = game.active_player();
         let selected = if self.reply_nodes == 0 {
             slate
@@ -258,20 +244,13 @@ impl SearchAgent {
                         .map_or_else(
                             || {
                                 if self.followup_nodes == 0 {
-                                    search_reply_with_mode(
-                                        turn,
-                                        root_player,
-                                        reply_config,
-                                        self.frontier_dedup_enabled,
-                                    )
-                                    .score
+                                    reply_score(turn, root_player, reply_config)
                                 } else {
                                     three_turn_score(
                                         turn,
                                         root_player,
                                         reply_config,
                                         followup_config,
-                                        self.frontier_dedup_enabled,
                                     )
                                 }
                             },
@@ -312,10 +291,9 @@ fn three_turn_score(
     root_player: PlayerId,
     reply_config: SearchConfig,
     followup_config: SearchConfig,
-    frontier_dedup: bool,
 ) -> i64 {
-    let reply = search_reply_with_mode(turn, root_player, reply_config, frontier_dedup);
-    followup_score_with_mode(&reply, root_player, followup_config, frontier_dedup)
+    let reply = search_reply(turn, root_player, reply_config);
+    followup_score(&reply, root_player, followup_config)
 }
 
 pub fn followup_score(
@@ -323,20 +301,10 @@ pub fn followup_score(
     root_player: PlayerId,
     followup_config: SearchConfig,
 ) -> i64 {
-    followup_score_with_mode(reply, root_player, followup_config, false)
-}
-
-fn followup_score_with_mode(
-    reply: &SearchReply,
-    root_player: PlayerId,
-    followup_config: SearchConfig,
-    frontier_dedup: bool,
-) -> i64 {
     if reply.game.is_terminal() || reply.game.active_player() != root_player {
         return reply.score;
     }
-    let followup =
-        build_search_turn_slate_with_mode(&reply.game, followup_config, 1, frontier_dedup);
+    let followup = build_search_turn_slate(&reply.game, followup_config, 1);
     position_score(&followup.turns[0].game, root_player)
 }
 
@@ -345,15 +313,6 @@ pub fn search_reply(
     root_player: PlayerId,
     reply_config: SearchConfig,
 ) -> SearchReply {
-    search_reply_with_mode(turn, root_player, reply_config, false)
-}
-
-fn search_reply_with_mode(
-    turn: &SearchTurn,
-    root_player: PlayerId,
-    reply_config: SearchConfig,
-    frontier_dedup: bool,
-) -> SearchReply {
     if turn.game.is_terminal() {
         return SearchReply {
             score: position_score(&turn.game, root_player),
@@ -361,7 +320,7 @@ fn search_reply_with_mode(
             game: turn.game.clone(),
         };
     }
-    let mut reply = build_search_turn_slate_with_mode(&turn.game, reply_config, 1, frontier_dedup);
+    let mut reply = build_search_turn_slate(&turn.game, reply_config, 1);
     let completed = reply.turns.remove(0);
     SearchReply {
         score: position_score(&completed.game, root_player),
@@ -434,15 +393,6 @@ fn replay_plan<T>(
 }
 
 fn build_search_turn_slate(game: &Game, config: SearchConfig, size: usize) -> SearchTurnSlate {
-    build_search_turn_slate_with_mode(game, config, size, false)
-}
-
-fn build_search_turn_slate_with_mode(
-    game: &Game,
-    config: SearchConfig,
-    size: usize,
-    frontier_dedup: bool,
-) -> SearchTurnSlate {
     let player = game.active_player();
     let mut frontier = vec![Candidate {
         game: game.clone(),
@@ -489,7 +439,8 @@ fn build_search_turn_slate_with_mode(
             }
         }
         next.sort_by(compare_candidates);
-        frontier = retain_frontier(next, config.beam_width, frontier_dedup);
+        next.truncate(config.beam_width);
+        frontier = next;
     }
 
     let completed_turns = completed.len();
@@ -520,26 +471,6 @@ fn build_search_turn_slate_with_mode(
             selected_score,
         },
     }
-}
-
-fn retain_frontier(mut ranked: Vec<Candidate>, width: usize, deduplicate: bool) -> Vec<Candidate> {
-    if !deduplicate {
-        ranked.truncate(width);
-        return ranked;
-    }
-    let mut retained = Vec::with_capacity(width);
-    for candidate in ranked {
-        if retained
-            .iter()
-            .all(|prior: &Candidate| prior.game != candidate.game)
-        {
-            retained.push(candidate);
-            if retained.len() == width {
-                break;
-            }
-        }
-    }
-    retained
 }
 
 fn greedy_turn_candidate(game: &Game, player: PlayerId, maximum_actions: usize) -> Candidate {
@@ -691,47 +622,5 @@ fn tactical_priority(game: &Game, player: PlayerId, action: Action) -> i64 {
             DiplomacyCommand::ProposeNeutral => 100,
             DiplomacyCommand::Reject => 40,
         },
-    }
-}
-
-#[cfg(test)]
-mod frontier_tests {
-    use antiyoy_core::{Action, Game, Rules, Scenario};
-
-    use super::{Candidate, retain_frontier};
-
-    #[test]
-    fn deduplication_retains_the_highest_ranked_path_to_each_exact_state() {
-        let scenario = Scenario::symmetric_duel(7, 5, 17).expect("valid duel");
-        let game = Game::new(Rules::classic_generic(), scenario).expect("valid game");
-        let mut changed = game.clone();
-        changed.step(Action::EndTurn).expect("legal end turn");
-        let ranked = vec![
-            Candidate {
-                game: game.clone(),
-                actions: vec![Action::EndTurn],
-                score: 3,
-            },
-            Candidate {
-                game,
-                actions: vec![Action::EndTurn, Action::EndTurn],
-                score: 2,
-            },
-            Candidate {
-                game: changed.clone(),
-                actions: vec![],
-                score: 1,
-            },
-        ];
-
-        let baseline = retain_frontier(ranked.clone(), 2, false);
-        assert_eq!(baseline.len(), 2);
-        assert_eq!(baseline[0].game, baseline[1].game);
-
-        let candidate = retain_frontier(ranked, 2, true);
-        assert_eq!(candidate.len(), 2);
-        assert_eq!(candidate[0].score, 3);
-        assert_eq!(candidate[0].actions, vec![Action::EndTurn]);
-        assert_eq!(candidate[1].game, changed);
     }
 }
