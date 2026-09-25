@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_fit_episode_preference_credit_diffusion",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-episode-credit-diffusion-v1.json",
+  "code_commit": "9b23489",
+  "code_ci_run": 36096011378,
+  "window": "Already-inspected terminal episode-preference fit window: 128 procedural_v2 maps beginning at seed6561000, both root seats",
+  "fit_dataset_sha256": "be6749499c43f857e3bc11c059bf6c8c66fa315e86b68e56132107e450f0bc97",
+  "frozen_source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "rejected_student_checkpoint_sha256": "d6014eac71789d0630837da99d971fec00ad59e0f81a3645acbb0d88360897a2",
+  "informative_terminal_pairs": 116,
+  "teacher_preferred_pairs": 109,
+  "source_preferred_pairs": 7,
+  "median_exact_common_prefix_actions": 2,
+  "teacher_preferred_pairs_root_decisions": {
+    "shared_prefix": {
+      "decisions": 90,
+      "source_matches_recorded": 90,
+      "student_matches_recorded": 84,
+      "mean_source_to_student_action_kl_nats": 0.1466775769367814
+    },
+    "source_dispreferred_remainder": {
+      "decisions": 6000,
+      "source_matches_recorded": 6000,
+      "student_matches_recorded": 4993,
+      "student_changes_source_action": 1007,
+      "student_changes_source_action_fraction": 0.16783333333333333,
+      "mean_source_to_student_action_kl_nats": 0.24660949109917663
+    },
+    "teacher_preferred_remainder": {
+      "decisions": 8888,
+      "source_matches_recorded": 4447,
+      "student_matches_recorded": 4506,
+      "student_corrects_source_teacher_disagreement": 393,
+      "teacher_disagreements_available": 4441,
+      "student_loses_source_teacher_agreement": 334,
+      "teacher_agreements_available": 4447,
+      "mean_source_to_student_action_kl_nats": 0.20800057658176194
+    }
+  },
+  "source_preferred_pairs_root_decisions": {
+    "shared_prefix_decisions": 5,
+    "source_preferred_remainder_decisions": 633,
+    "source_preferred_remainder_student_changes_source_action": 104,
+    "teacher_dispreferred_remainder_decisions": 412,
+    "teacher_dispreferred_remainder_student_corrects_source_disagreement": 12,
+    "teacher_dispreferred_remainder_student_loses_source_agreement": 10
+  },
+  "integrity": "Every source-selfplay root action exactly matched frozen-source argmax; all saved actions and terminal outcomes replayed by the existing checked dataset and replay routines. The code passed 489 Python tests and Ruff on the SSH server, and the code commit passed full CI.",
+  "raw_result": "/tmp/antiyoy-residual.n17QTu/episode-credit-diffusion-fit-6561000.json on the SSH server",
+  "raw_result_sha256": "a68529e13514576a95dceacce34f17a879b58f82e3bb0e4f26d6079364736a8a",
+  "interpretation": "On teacher-preferred fit pairs, the rejected episode-preference student changed 1007 of 6000 actions along the source-dispreferred remainder, while matching 393 of 4441 teacher actions where the frozen source disagreed. It also lost 334 of 4447 teacher actions where the source already agreed. This is consistent with diffuse full-trajectory policy change rather than a clean, localized correction. Exact shared prefixes had only 90 root decisions, so the audit cannot isolate direct gradient credit there. It is fit-only descriptive evidence, not a causal attribution, held-out generalization, autonomous game strength or Elo.",
+  "stop_rule": "The checkpoint remains rejected by its independent offline KL gate. Do not rescue it by changing beta, learning rate, epochs or KL cap; do not run its reserved game windows6564000/6565000/6566000, rate or deploy it. Any new approach must predeclare disjoint fit, calibration, offline and both-seat game windows before data collection or training."
+}
