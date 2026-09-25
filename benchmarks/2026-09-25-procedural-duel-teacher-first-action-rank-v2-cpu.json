@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_teacher_first_action_source_rank",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-teacher-first-action-rank-v1.json",
+  "protocol_and_code_commit": "1c5461f",
+  "sample": {
+    "maps": 128,
+    "positions": 587,
+    "root_seat_positions": [297, 290],
+    "previously_inspected_fit_dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "frozen_direct_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "source_expert": "context:b02423ddd2f8cdf9",
+    "label": "The selected searched whole-turn plan's first legal action only; source logits ranked descending with stable legal-index tie order."
+  },
+  "teacher_first_action_in_source_top_k": {
+    "all_positions": {"1": 227, "2": 336, "4": 458, "8": 547, "16": 571, "32": 580},
+    "source_teacher_disagreement_positions": 360,
+    "on_disagreements": {"1": 0, "2": 109, "4": 231, "8": 320, "16": 344, "32": 353},
+    "seat0_on_disagreements_top8": 162,
+    "seat0_disagreements": 184,
+    "seat1_on_disagreements_top8": 158,
+    "seat1_disagreements": 176
+  },
+  "teacher_action_strata": {
+    "end_turn": {"positions": 46, "source_teacher_disagreements": 19, "on_disagreements_top8": 5, "on_disagreements_top16": 8, "on_disagreements_top32": 13},
+    "move": {"positions": 436, "source_teacher_disagreements": 268, "on_disagreements_top8": 249},
+    "recruit": {"positions": 87, "source_teacher_disagreements": 56, "on_disagreements_top8": 53},
+    "build": {"positions": 18, "source_teacher_disagreements": 17, "on_disagreements_top8": 13}
+  },
+  "verification": "Every recorded state replayed, all 128 maps and both root seats present, all teacher first actions legal. Source top1 count227 exactly reproduces the earlier root-fidelity audit on these same states. The SSH server passed 475 Python tests and Ruff with one pinned nice19 CPU; no new search or training.",
+  "raw": {
+    "path": "/tmp/antiyoy-residual.n17QTu/teacher-first-action-rank-6451000.json on the SSH server",
+    "sha256": "919b418170da7fe7e488b900ad57a45190dbb51a2da29e1c0f14b28d2b059687"
+  },
+  "interpretation": "A direct-model top8 candidate list contains most first actions selected by native replanned search, but misses 40 of 360 source-teacher disagreements. Fourteen of those 40 are teacher-selected EndTurns. This is a concrete candidate-coverage limitation of top8-only reranking, not evidence of why earlier neural students failed, evidence that an expanded slate would learn correct choices, or terminal game strength. Do not select k on these previously inspected fit maps.",
+  "stop_rule": "No student, game gate, rating, browser/rated bot change or tuning on these old fit labels. Any candidate-set or structural policy hypothesis needs a new disjoint protocol and complete both-seat game gates versus direct model and native teacher."
+}
