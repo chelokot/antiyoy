@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "kind": "native_replanned_four_slate_exact_score_cache_gate_failed",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-four-slate-exact-score-cache-v1.json",
+  "code_commit": "aaf8c41",
+  "code_ci_run": 36124512512,
+  "arena": "Classic Generic procedural_v2 11x9 two-player, native three-turn root256/top8/opponent64/followup32 replanned at every atomic action, action limit2400",
+  "design": "On fresh independent maps, one-slate and four-slate cached native self-play ran in separate identical environments in lockstep on one pinned CPU15 nice19. Call order alternated by seed and action parity. Every full BatchObservation array, selected action, step result and outcome matched exactly.",
+  "window": {
+    "first_seed": 6620000,
+    "independent_maps": 16,
+    "terminal_games": 16,
+    "nonterminal_action_limit_games": 0,
+    "atomic_actions_compared": 3168
+  },
+  "measurements": {
+    "one_slate_exact_score_reuses": 3430,
+    "four_slate_exact_score_reuses": 3439,
+    "additional_exact_score_reuses": 9,
+    "one_slate_total_search_process_cpu_seconds": 30.31828533700026,
+    "four_slate_total_search_process_cpu_seconds": 30.375201446999842,
+    "median_paired_map_cpu_improvement_fraction": -0.0004081430946489828,
+    "median_cpu_improvement_fraction_by_active_seat": [
+      -0.0019128641260948154,
+      0.0008560682629979444
+    ],
+    "pooled_action_wall_p95_seconds": {
+      "one_slate": 0.02227669022977352,
+      "four_slate": 0.022315674927085638
+    }
+  },
+  "predeclared_gates": {
+    "all_games_terminal_with_zero_censor": true,
+    "exact_observations_actions_steps_and_outcomes": true,
+    "additional_exact_score_reuses": true,
+    "median_paired_map_cpu_improvement_at_least_three_percent": false,
+    "both_seats_median_cpu_nonnegative": false,
+    "four_slate_p95_action_wall_within_ten_percent": true,
+    "advance_gate_passed": false
+  },
+  "raw": {
+    "server_path": "/tmp/antiyoy-residual.n17QTu/procedural-duel-four-slate-cache-6620000.json",
+    "sha256": "426eedc95405c56fd75f899aae946188aab5f6c9a4577b2de667bee5306aeb26",
+    "runner_exit_code": 0,
+    "stderr_bytes": 0
+  },
+  "verification": "Affected Rust agent tests passed24, affected Rust Clippy passed, full SSH-server Python suite passed512, Python Ruff and formatting passed. GitHub Rust/Python/web/WASM CI passed for the code commit.",
+  "decision": "The four-slate option stays experimental, default-off and undeployed. Do not tune on seed6620000 or advance it to cross-profile or browser testing. The existing one-slate opt-in cache, rated bot, core rules and owner-private Site remain unchanged.",
+  "qualification": "This is an exact semantic equivalence and one-core native CPU result. It is not a new game-strength, Elo or browser-latency result."
+}
