@@ -46,10 +46,44 @@ def record_counts(
     counts["student_matches_source"] += int(student == source)
 
 
+def empty_shadow_counts() -> dict[str, int]:
+    return {
+        "positions": 0,
+        "student_disagreements": 0,
+        "shadow_disagreements": 0,
+        "same_action": 0,
+        "same_trigger": 0,
+        "missed_student_disagreements": 0,
+        "extra_shadow_disagreements": 0,
+    }
+
+
+def record_shadow_counts(
+    counts: dict[str, int], source: int, student: int, shadow: int
+) -> None:
+    student_disagrees = student != source
+    shadow_disagrees = shadow != source
+    counts["positions"] += 1
+    counts["student_disagreements"] += int(student_disagrees)
+    counts["shadow_disagreements"] += int(shadow_disagrees)
+    counts["same_action"] += int(student == shadow)
+    counts["same_trigger"] += int(student_disagrees == shadow_disagrees)
+    counts["missed_student_disagreements"] += int(
+        student_disagrees and not shadow_disagrees
+    )
+    counts["extra_shadow_disagreements"] += int(
+        shadow_disagrees and not student_disagrees
+    )
+
+
 def model_action(
     model: torch.nn.Module, observation: dict[str, np.ndarray], rules: torch.Tensor
 ) -> int:
     logits, _ = model(observation, rules)
+    return action_from_logits(logits, observation)
+
+
+def action_from_logits(logits: torch.Tensor, observation: dict[str, np.ndarray]) -> int:
     distribution = action_distribution(logits, observation["action_offsets"])
     return int(distribution.probs.argmax(dim=1)[0])
 
@@ -59,6 +93,7 @@ def run(
     source_path: Path,
     student_path: Path,
     student_sha256: str = STUDENT_SHA256,
+    shadow_disagreement: bool = False,
 ) -> dict[str, object]:
     hashes = {
         "dataset": digest(fit_path),
@@ -86,6 +121,9 @@ def run(
     by_kind = {kind: empty_counts() for kind in ACTION_KIND_NAMES}
     by_legal_count = {name: empty_counts() for name in ("1", "2-4", "5-16", "17+")}
     by_map: dict[int, int] = defaultdict(int)
+    shadow_total = empty_shadow_counts()
+    shadow_by_seat = {str(seat): empty_shadow_counts() for seat in range(2)}
+    shadow_by_map: dict[int, dict[str, int]] = defaultdict(empty_shadow_counts)
     with torch.inference_mode():
         for position in replay_slate_positions(dataset):
             record = position.record
@@ -96,8 +134,26 @@ def run(
             if teacher < 0 or teacher >= legal:
                 raise ValueError("selected teacher action is not locally legal")
             rules = encode_rules(position.root.rules_json(), torch.device("cpu"))
-            source_action = model_action(source, observation, rules)
+            if shadow_disagreement:
+                source_logits, _, source_features = source.forward_with_action_features(
+                    observation, rules
+                )
+                source_action = action_from_logits(source_logits, observation)
+                shadow_action = action_from_logits(
+                    student.score_actions(source_features), observation
+                )
+            else:
+                source_action = model_action(source, observation, rules)
             student_action = model_action(student, observation, rules)
+            if shadow_disagreement:
+                for counts in (
+                    shadow_total,
+                    shadow_by_seat[str(record["seat"])],
+                    shadow_by_map[position.seed],
+                ):
+                    record_shadow_counts(
+                        counts, source_action, student_action, shadow_action
+                    )
             kind = ACTION_KIND_NAMES[int(observation["action_kinds"][teacher])]
             for counts in (
                 total,
@@ -111,7 +167,7 @@ def run(
             )
     if len(by_map) != FIT_MAPS:
         raise ValueError("root fidelity audit did not cover every fit map")
-    return {
+    result: dict[str, object] = {
         "kind": "rejected_student_root_fidelity_read_only",
         "hashes": hashes,
         "source_expert": source_config["selected_expert"],
@@ -131,6 +187,14 @@ def run(
         },
         "qualification": "Post hoc same-root teacher-action agreement on previously inspected data; not game strength, causal terminal credit, Elo or student promotion",
     }
+    if shadow_disagreement:
+        result["shadow_disagreement"] = {
+            "total": shadow_total,
+            "by_seat": shadow_by_seat,
+            "by_map": {str(seed): counts for seed, counts in sorted(shadow_by_map.items())},
+            "qualification": "Frozen student head on frozen source features, not the original student policy or game strength",
+        }
+    return result
 
 
 def main() -> None:
@@ -139,6 +203,7 @@ def main() -> None:
     parser.add_argument("source", type=Path)
     parser.add_argument("student", type=Path)
     parser.add_argument("--student-sha256", default=STUDENT_SHA256)
+    parser.add_argument("--shadow-disagreement", action="store_true")
     arguments = parser.parse_args()
     print(
         json.dumps(
@@ -147,6 +212,7 @@ def main() -> None:
                 arguments.source,
                 arguments.student,
                 arguments.student_sha256,
+                arguments.shadow_disagreement,
             ),
             sort_keys=True,
         )

@@ -4,8 +4,10 @@ import pytest
 
 from python.audit_duel_markov_root_fidelity import (
     empty_counts,
+    empty_shadow_counts,
     legal_count_bin,
     record_counts,
+    record_shadow_counts,
     run,
 )
 
@@ -45,3 +47,22 @@ def test_root_fidelity_rejects_unexpected_checkpoint_hash(tmp_path: Path) -> Non
 
     with pytest.raises(ValueError, match="predeclared hashes"):
         run(checkpoint, checkpoint, checkpoint, "wrong-student-hash")
+
+
+def test_shadow_disagreement_distinguishes_missed_and_extra_queries() -> None:
+    counts = empty_shadow_counts()
+
+    record_shadow_counts(counts, source=0, student=1, shadow=1)
+    record_shadow_counts(counts, source=0, student=1, shadow=0)
+    record_shadow_counts(counts, source=0, student=0, shadow=2)
+    record_shadow_counts(counts, source=0, student=1, shadow=2)
+
+    assert counts == {
+        "positions": 4,
+        "student_disagreements": 3,
+        "shadow_disagreements": 3,
+        "same_action": 1,
+        "same_trigger": 2,
+        "missed_student_disagreements": 1,
+        "extra_shadow_disagreements": 1,
+    }

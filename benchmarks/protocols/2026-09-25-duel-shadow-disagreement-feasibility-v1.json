@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_shared_encoder_disagreement_feasibility",
+  "question": "Can the frozen rejected student's small action head applied to frozen source action features reproduce the two-full-network disagreement trigger that previously improved game wins but failed its CPU latency gate?",
+  "motivation": "The original selective controller queried native search on 29.3 percent of matched source decisions yet had median 6.77 ms per action versus 5.17 ms for full native replanned search, because it evaluated both large policies. Reusing one source encoder could remove the second large forward pass, but only if the trigger survives feature substitution.",
+  "existing_data": {
+    "first_seed": 6451000,
+    "independent_maps": 128,
+    "recorded_turn_start_positions": 587,
+    "dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "rejected_student_checkpoint_sha256": "1d6e6530bb2f16d273910fdeb4b2de491d2e115017468eb3f31d3aea43f64fe4"
+  },
+  "frozen_comparison": "On each exact recorded observation and legal-action order, evaluate source argmax and original student argmax, then evaluate the same student's unchanged action head and residual on action features produced by the source model. Trigger means that argmax differs from source. No model weights, search or game state change.",
+  "analysis": "Count original and shadow trigger rates, exact trigger agreement, missed original queries, extra shadow queries and exact student/shadow action agreement overall, by root seat and by independent map. Preserve full input/output hashes and report all 587 positions. Do not select a threshold or checkpoint.",
+  "feasibility_gate": "Advance only to a separately predeclared fresh complete-game and matched-runtime experiment if original-trigger recall is at least 90 percent in EACH seat, and the shadow query count is no more than 125 percent of the original query count. If either fails, stop this shadow-head idea; do not tune weights or triggers on these inspected roots.",
+  "qualification": "These are previously inspected turn-start states, not candidate-controlled complete games, matched CPU timing, browser WASM timing, neural standalone strength, terminal credit or Elo. Passing this feasibility gate would authorize only new independent-map evaluation, not deployment.",
+  "resources": "Read-only one pinned nice19 CPU on the SSH server fedora-toolbox scratch, no GPU, no new maps, no model training and no changes to rated or playable agents."
+}
