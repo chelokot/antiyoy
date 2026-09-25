@@ -3,7 +3,7 @@
 use antiyoy_agents::{
     Agent, GreedyAgent, PuctConfig, PuctSearch, PuctValueMode, SCORE_COMPONENT_WEIGHTS,
     SearchAgent, SearchConfig, position_components as scored_components, position_score,
-    search_plan_indices, search_plan_indices_with, search_turn_slate,
+    search_plan_indices, search_plan_indices_with, search_reply, search_turn_slate,
 };
 use antiyoy_core::{
     Action, EconomyMetric, Game, GeneratorConfig, Objective, PlayerId, Relation, Rules,
@@ -27,6 +27,18 @@ type IndexedTurnProcess = (
     Vec<[i64; 16]>,
     Vec<Vec<[i64; 16]>>,
 );
+type ResponseTarget = (Vec<u64>, Vec<u64>, [i64; 16], [i64; 16], Vec<i64>, i64);
+type IndexedResponseTargets = (Vec<Vec<Vec<u64>>>, Vec<Vec<ResponseTarget>>);
+
+fn terminal_class(game: &Game, root: PlayerId) -> i64 {
+    if !game.is_terminal() {
+        1
+    } else if game.winner() == Some(root) {
+        2
+    } else {
+        0
+    }
+}
 
 #[expect(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 fn action_trace(before: &Game, action: Action, after: &Game, root: PlayerId) -> [f32; 16] {
@@ -1095,6 +1107,108 @@ impl VectorEnv {
             maximum_actions_per_turn,
         };
         self.collect_turn_slates(py, config, slate_size, active_mask, true, true)
+    }
+
+    #[pyo3(signature = (node_budget=256, reply_nodes=64, followup_nodes=32, slate_size=8, beam_width=32, branch_width=48, maximum_actions_per_turn=24, active_mask=None))]
+    #[expect(clippy::too_many_arguments)]
+    fn search_turn_response_targets(
+        &self,
+        py: Python<'_>,
+        node_budget: usize,
+        reply_nodes: usize,
+        followup_nodes: usize,
+        slate_size: usize,
+        beam_width: usize,
+        branch_width: usize,
+        maximum_actions_per_turn: usize,
+        active_mask: Option<PyReadonlyArray1<'_, u8>>,
+    ) -> PyResult<IndexedResponseTargets> {
+        if self.batch.fog_enabled() {
+            return Err(PyValueError::new_err(
+                "full-state search response targets are unavailable in fog games",
+            ));
+        }
+        let active = active_mask_values(active_mask, self.batch.len())?;
+        let config = SearchConfig {
+            node_budget,
+            beam_width,
+            branch_width,
+            maximum_actions_per_turn,
+        };
+        let reply_config = SearchConfig {
+            node_budget: reply_nodes,
+            ..config
+        };
+        let followup_config = SearchConfig {
+            node_budget: followup_nodes,
+            ..config
+        };
+        let collected = py.detach(|| {
+            (0..self.batch.len())
+                .map(|index| {
+                    if !active[index] || self.batch.is_done(index).unwrap_or(true) {
+                        return Ok((Vec::new(), Vec::new()));
+                    }
+                    let game = self
+                        .batch
+                        .game(index)
+                        .expect("batch index must have a game");
+                    let root = game.active_player();
+                    let slate = search_turn_slate(game, config, slate_size)
+                        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+                    let mut plans = Vec::with_capacity(slate.turns.len());
+                    let mut targets = Vec::with_capacity(slate.turns.len());
+                    for turn in &slate.turns {
+                        plans.push(
+                            search_plan_indices(game, &turn.actions, &turn.game)
+                                .into_iter()
+                                .map(|value| {
+                                    u64::try_from(value).expect("action index must fit u64")
+                                })
+                                .collect(),
+                        );
+                        let reply = search_reply(turn, root, reply_config);
+                        let reply_indices =
+                            search_plan_indices(&turn.game, &reply.actions, &reply.game)
+                                .into_iter()
+                                .map(|value| {
+                                    u64::try_from(value).expect("action index must fit u64")
+                                })
+                                .collect();
+                        let mut final_game = reply.game.clone();
+                        let mut followup_indices = Vec::new();
+                        if !reply.game.is_terminal() && reply.game.active_player() == root {
+                            let mut followup =
+                                search_turn_slate(&reply.game, followup_config, 1)
+                                    .map_err(|error| PyValueError::new_err(error.to_string()))?;
+                            let selected = followup.turns.remove(0);
+                            followup_indices =
+                                search_plan_indices(&reply.game, &selected.actions, &selected.game)
+                                    .into_iter()
+                                    .map(|value| {
+                                        u64::try_from(value).expect("action index must fit u64")
+                                    })
+                                    .collect();
+                            final_game = selected.game;
+                        }
+                        targets.push((
+                            reply_indices,
+                            followup_indices,
+                            scored_components(&reply.game, root),
+                            scored_components(&final_game, root),
+                            vec![
+                                terminal_class(&turn.game, root),
+                                terminal_class(&reply.game, root),
+                                terminal_class(&final_game, root),
+                            ],
+                            position_score(&final_game, root),
+                        ));
+                    }
+                    Ok((plans, targets))
+                })
+                .collect::<PyResult<Vec<_>>>()
+        })?;
+        Ok(collected.into_iter().unzip())
     }
 
     fn search_counts<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<u64>> {

@@ -251,6 +251,51 @@ def test_search_turn_process_components_match_independent_replay() -> None:
             )
 
 
+def test_search_response_targets_match_independent_continuation() -> None:
+    environment = VectorEnv(1, width=7, height=5, seed=29)
+    plans, scores, _, _, _ = environment.search_turn_plan_process(
+        node_budget=64, slate_size=4
+    )
+    indexed, targets = environment.search_turn_response_targets(
+        node_budget=64,
+        reply_nodes=32,
+        followup_nodes=16,
+        slate_size=4,
+    )
+    assert indexed == plans
+    root = int(environment.observe()["active_players"][0])
+    for plan, target in zip(plans[0], targets[0], strict=True):
+        reply, followup, reply_components, final_components, classes, score = target
+        branch = environment.fork(np.asarray([0], dtype=np.uint64))
+        observed_classes = []
+        for stage, segment in enumerate((plan, reply, followup)):
+            for action in segment:
+                legal = int(branch.observe()["action_offsets"][1])
+                assert 0 <= action < legal
+                branch.step(np.asarray([action], dtype=np.uint64))
+            position = int(branch.position_scores(root)[0])
+            observed_classes.append(
+                1 if not branch.done()[0] else 2 if position > 0 else 0
+            )
+            if stage == 1:
+                assert reply_components == branch.position_components(root)[0]
+        assert final_components == branch.position_components(root)[0]
+        assert classes == observed_classes
+        assert score == int(branch.position_scores(root)[0])
+    selected = max(
+        range(len(plans[0])),
+        key=lambda index: (targets[0][index][5], scores[0][index], -index),
+    )
+    teacher = environment.reply_search_actions(
+        node_budget=64,
+        reply_nodes=32,
+        followup_nodes=16,
+        slate_size=4,
+        replan_each_action=True,
+    )
+    assert plans[0][selected][0] == int(teacher[0])
+
+
 def test_search_turn_plans_reject_invalid_configuration_and_fog() -> None:
     environment = VectorEnv(1, width=7, height=5)
     with pytest.raises(ValueError, match="node budget"):
@@ -263,6 +308,8 @@ def test_search_turn_plans_reject_invalid_configuration_and_fog() -> None:
         VectorEnv(1, width=7, height=5, fog=True).search_turn_plan_traces()
     with pytest.raises(ValueError, match="unavailable in fog"):
         VectorEnv(1, width=7, height=5, fog=True).search_turn_plan_process()
+    with pytest.raises(ValueError, match="unavailable in fog"):
+        VectorEnv(1, width=7, height=5, fog=True).search_turn_response_targets()
 
 
 def test_search_turn_plans_skip_inactive_environments() -> None:
