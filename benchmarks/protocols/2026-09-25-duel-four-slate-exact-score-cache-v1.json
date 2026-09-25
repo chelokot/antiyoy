@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_four_slate_exact_replan_score_cache_equivalence_and_cpu",
+  "hypothesis": "A completed root-turn Game can leave the immediately preceding replan slate and reappear within the next three atomic replans. Retaining four exact scored slates may reuse additional deterministic three-turn scores without changing selected actions.",
+  "implementation": "Add an opt-in four-slate history to SearchAgent alongside the existing opt-in one-slate cache. Each entry stores the complete Game including hidden RNG, root player and exact three-turn score. Lookup scans newest slates first, then the same candidate ranking and tie-break are used. Retain no more than four full slates, at most32 scores with the fixed top8 slate. Search configuration changes reset the history. The existing one-slate and uncached defaults remain unchanged, as do game rules and rated/browser policies.",
+  "fixed_window": {
+    "first_seed": 6620000,
+    "independent_maps": 16,
+    "profile": "classic_generic_2022",
+    "generator": "procedural_v2",
+    "arena": "11x9 two-player",
+    "action_limit": 2400,
+    "controller": "Native replanned three-turn search at every atomic action, root256/top8/opponent64/followup32/beam32/branch48/max24",
+    "comparison": "Run one-slate and four-slate cached self-play on separate identical environments in lockstep. Alternate call order by seed and action index. Before each action compare full BatchObservation arrays, then compare selected action, step arrays and final outcome exactly. Attribute process CPU and action wall to the active seat. No neural or terminal oracle online."
+  },
+  "measurements": "Total cache score reuses in each arm, additional reuses from four-slate history, per-map and per-seat total search process CPU seconds, pooled per-action wall p95, action and terminal/censor counts. The measurement is one-core native CPU, not browser latency, Elo or new strength.",
+  "advance_gate": "All16 games true terminal with zero censor; every observation/action/step/outcome exact; four-slate cache has more score reuses than one-slate on the matched trajectories; median paired-map search CPU improvement at least3%, nonnegative median improvement for each seat, and four-slate p95 action wall no greater than110% of one-slate. Any failure leaves the four-slate option experimental and undeployed; no tuning on this window.",
+  "next_if_passed": "On wholly disjoint maps, check Online Default and Classic Slay exact equivalence and runtime, with nonterminal Slay outcomes explicitly censored. Only then consider Node-hosted WASM and real browser latency before any owner-only Site opt-in. Rated bot and rules stay unchanged.",
+  "compute": "SSH server fedora-toolbox scratch only, one pinned CPU15 nice19, Rayon/BLAS caps, bounded result output and no interference with other workloads. Remote original repo remains untouched."
+}
