@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_full_episode_vs_reset64_root_fidelity_comparison",
+  "question": "Did full-episode student roll-ins, rather than scheduled 64-action resets, change final-checkpoint agreement with the native replanned teacher on identical independent-map turn-start states?",
+  "data": {
+    "existing_fit_dataset": "three-turn-plan-fit-6451000.json.gz",
+    "dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "independent_maps": 128,
+    "sampled_root_positions": 587,
+    "teacher_label": "First action of the selected three-turn whole-turn plan; the separate same-state cache audit found this first action identical for cached and replanned search on 2548/2548 states.",
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "full_episode_checkpoint_sha256": "6f0670cccff396de22e780cc54bb4125d8b3267e28cc8bf0d29d0c0c6aa961f8",
+    "reset64_checkpoint_sha256": "d0f6ccd1563c1684675ef4c44917f7e57ccba3ea20873b071d6989cbbd0f1d72"
+  },
+  "analysis": "Replay each recorded root observation and legal-action order once per checkpoint, infer frozen source and both students with direct argmax, and count teacher-action matches, exact source corrections and off-target departures by seat, teacher action kind, legal-action count and independent map. Compare full episode against reset64 on the same maps; report exact two-sided map sign p without treating this retrospective sample as a promotion gate.",
+  "stop_rule": "If any input hash, map count or legal teacher action differs, stop without substituting data. Do not train, select checkpoints, use this audit to tune on old windows, run reserved teacher/final games, rate or deploy either rejected student.",
+  "interpretation": "These are post hoc first-action fidelity measurements on previously inspected fit maps, not terminal credit, later-turn fidelity, game strength, Elo or a causal explanation for the failed fresh complete-game gate.",
+  "resources": "Read-only one pinned nice19 CPU on SSH server fedora-toolbox scratch; tiny JSON outputs, no GPU, no new maps or search."
+}

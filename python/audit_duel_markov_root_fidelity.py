@@ -54,7 +54,12 @@ def model_action(
     return int(distribution.probs.argmax(dim=1)[0])
 
 
-def run(fit_path: Path, source_path: Path, student_path: Path) -> dict[str, object]:
+def run(
+    fit_path: Path,
+    source_path: Path,
+    student_path: Path,
+    student_sha256: str = STUDENT_SHA256,
+) -> dict[str, object]:
     hashes = {
         "dataset": digest(fit_path),
         "source": digest(source_path),
@@ -63,7 +68,7 @@ def run(fit_path: Path, source_path: Path, student_path: Path) -> dict[str, obje
     if hashes != {
         "dataset": FIT_SHA256,
         "source": SOURCE_SHA256,
-        "student": STUDENT_SHA256,
+        "student": student_sha256,
     }:
         raise ValueError("root fidelity inputs disagree with predeclared hashes")
     torch.set_num_threads(1)
@@ -107,7 +112,7 @@ def run(fit_path: Path, source_path: Path, student_path: Path) -> dict[str, obje
     if len(by_map) != FIT_MAPS:
         raise ValueError("root fidelity audit did not cover every fit map")
     return {
-        "kind": "rejected_markov_student_root_fidelity_read_only",
+        "kind": "rejected_student_root_fidelity_read_only",
         "hashes": hashes,
         "source_expert": source_config["selected_expert"],
         "student_expert": student_config["selected_expert"],
@@ -121,6 +126,9 @@ def run(fit_path: Path, source_path: Path, student_path: Path) -> dict[str, obje
             "source_higher": sum(value < 0 for value in by_map.values()),
             "same": sum(value == 0 for value in by_map.values()),
         },
+        "map_net_agreement_by_seed": {
+            str(seed): value for seed, value in sorted(by_map.items())
+        },
         "qualification": "Post hoc same-root teacher-action agreement on previously inspected data; not game strength, causal terminal credit, Elo or student promotion",
     }
 
@@ -130,10 +138,17 @@ def main() -> None:
     parser.add_argument("fit", type=Path)
     parser.add_argument("source", type=Path)
     parser.add_argument("student", type=Path)
+    parser.add_argument("--student-sha256", default=STUDENT_SHA256)
     arguments = parser.parse_args()
     print(
         json.dumps(
-            run(arguments.fit, arguments.source, arguments.student), sort_keys=True
+            run(
+                arguments.fit,
+                arguments.source,
+                arguments.student,
+                arguments.student_sha256,
+            ),
+            sort_keys=True,
         )
     )
 

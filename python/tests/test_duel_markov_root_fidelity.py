@@ -1,7 +1,12 @@
+from pathlib import Path
+
+import pytest
+
 from python.audit_duel_markov_root_fidelity import (
     empty_counts,
     legal_count_bin,
     record_counts,
+    run,
 )
 
 
@@ -32,3 +37,11 @@ def test_root_fidelity_counts_exact_correction_and_off_target_departures() -> No
     assert counts["student_matches_neither_on_disagreements"] == 1
     assert counts["student_deviates_when_teacher_matches_source"] == 1
     assert counts["student_matches_source"] == 1
+
+
+def test_root_fidelity_rejects_unexpected_checkpoint_hash(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "checkpoint.pt"
+    checkpoint.write_bytes(b"not a model")
+
+    with pytest.raises(ValueError, match="predeclared hashes"):
+        run(checkpoint, checkpoint, checkpoint, "wrong-student-hash")
