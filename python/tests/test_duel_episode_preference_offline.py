@@ -1,6 +1,8 @@
 import numpy as np
+import torch
+from torch.distributions import kl_divergence
 
-from antiyoy_rl.model import UniversalPolicy
+from antiyoy_rl.model import UniversalPolicy, action_distribution, encode_rules_batch
 from antiyoy_rl.routed import RoutedPolicy
 from python.audit_duel_first_regret import create_environment
 from python.audit_duel_episode_preference_offline import (
@@ -40,3 +42,24 @@ def test_reference_scores_zero_episode_ratio_and_action_kl() -> None:
     assert ratio == 0.0
     assert divergence == 0.0
     assert decisions == 1
+
+
+def test_action_kl_matches_explicit_probability_formula() -> None:
+    environment = create_environment(7)
+    observation = environment.observe()
+    rules = encode_rules_batch(environment.rules_jsons(), torch.device("cpu"))
+    reference = RoutedPolicy(
+        {"shared": UniversalPolicy(hidden=16, layers=1)}, ("shared", "shared")
+    )
+    student = RoutedPolicy(
+        {"shared": UniversalPolicy(hidden=16, layers=1)}, ("shared", "shared")
+    )
+    source_logits, _ = reference(observation, rules)
+    student_logits, _ = student(observation, rules)
+    source = action_distribution(source_logits, observation["action_offsets"])
+    candidate = action_distribution(student_logits, observation["action_offsets"])
+
+    library_kl = kl_divergence(source, candidate)
+    explicit_kl = (source.probs * (source.logits - candidate.logits)).sum(dim=1)
+
+    torch.testing.assert_close(library_kl, explicit_kl)
