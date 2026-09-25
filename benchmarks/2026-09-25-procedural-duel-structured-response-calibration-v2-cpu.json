@@ -1,0 +1,49 @@
+{
+  "schema_version": 2,
+  "kind": "structured_multi_turn_response_process_resource_calibration",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-structured-response-process-distillation-v1.json",
+  "interface_commit": "0043fb8",
+  "runner_commit": "bfe73d6",
+  "window": {
+    "first_seed": 6601000,
+    "independent_maps": 8,
+    "root_seats": [0, 1],
+    "opponent_arms": ["source", "teacher"],
+    "games": 32,
+    "terminal_games": 32,
+    "action_limit_censored_games": 0,
+    "sampled_root_decisions": 249,
+    "sampled_root_decisions_by_seat": [124, 125],
+    "sampled_own_action_indices": [0, 1, 2, 4, 8, 16, 32, 64, 128],
+    "candidate_plans_independently_replayed": 1291
+  },
+  "runtime": {
+    "unit": "seconds_per_sampled_atomic_decision",
+    "selector_median_wall": 0.00075541902333498,
+    "teacher_median_wall": 0.0011374009773135185,
+    "selector_p95_wall": 0.0021599410101771355,
+    "teacher_p95_wall": 0.01807499397546053,
+    "selector_teacher_median_by_root_seat": [
+      [0.0007432163693010807, 0.0013220901601016521],
+      [0.0007586367428302765, 0.0011175647377967834]
+    ],
+    "selector_includes": "Native top-eight completed-turn slate, exact native action traces and root/post-candidate scored components, random fixed-width GRU forward pass, component reconstruction, terminal probability and candidate choice.",
+    "independent_replay_verification_excluded_from_timed_selector": true,
+    "hardware_policy": "Shared SSH server fedora-toolbox, one pinned CPU15, nice19, Torch/BLAS/Rayon one thread."
+  },
+  "predeclared_gates": {
+    "all_four_arms_terminal_on_all_maps": true,
+    "every_game_sampled": true,
+    "candidate_replay_exact": true,
+    "median_selector_at_most_eighty_percent_teacher": true,
+    "p95_selector_no_worse_than_teacher": true,
+    "both_seat_medians_at_most_eighty_percent_teacher": true,
+    "resource_calibration_passed": true
+  },
+  "raw": {
+    "server_path": "/tmp/antiyoy-residual.n17QTu/structured-process-calibration-6601000.json",
+    "bytes": 73626,
+    "sha256": "8f374c42d6667785e95ba90a73d7542ea5450415bd63d6e47f3ced3063eac92c"
+  },
+  "qualification": "Random untrained process model, exact same-state candidate replay and matched latency only. No fit examples, validation results, autonomous policy game strength, Elo, browser latency or promotion are implied. Own-action index 256 was predeclared but no calibration game reached it."
+}
