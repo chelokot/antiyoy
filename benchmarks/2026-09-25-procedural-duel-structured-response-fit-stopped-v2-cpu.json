@@ -1,0 +1,40 @@
+{
+  "schema_version": 2,
+  "kind": "structured_multi_turn_response_process_fit_collection_stopped",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-structured-response-process-distillation-v1.json",
+  "collector_commit": "6fb14c7",
+  "predeclared_window": {
+    "first_seed": 6600000,
+    "independent_maps": 128,
+    "root_seats": [0, 1],
+    "opponent_arms": ["source", "teacher"],
+    "expected_games": 512,
+    "action_limit": 2400
+  },
+  "attempt": {
+    "completed_games_before_stop": 281,
+    "terminal_games": 280,
+    "action_limit_censored_games": 1,
+    "sampled_root_decisions": 2177,
+    "candidate_branches_replayed_without_mismatch": 11458,
+    "first_failed_game": {
+      "seed": 6600070,
+      "root_seat": 0,
+      "opponent": "source",
+      "actions": 2400,
+      "terminal": false,
+      "truncated": true,
+      "winner": null
+    },
+    "runner_exit_code": 1,
+    "collection_gate_passed": false
+  },
+  "partial_raw": {
+    "server_path": "/tmp/antiyoy-residual.n17QTu/structured-process-fit-6600000.jsonl.gz.tmp",
+    "gzip_integrity": "valid",
+    "bytes": 423415,
+    "sha256": "947dd1d8a81b1ac86bc59ce43a78914fdc72066b88383052205a9da88af9e1ba"
+  },
+  "decision": "The fixed zero-censor fit-collection gate failed. This partial fit set is rejected. No model was trained or rated; the disjoint offline-validation, direct-game, native-teacher-game, final-game and runtime-profile windows were not opened. Do not drop the censored game, change the action limit, train on the partial ledger or retune this protocol on seed6600070.",
+  "qualification": "This is a collection failure, not evidence for or against student strength, the structured objective, the native teacher or global Elo. The earlier eight-map random-model resource calibration passed independently."
+}
