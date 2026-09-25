@@ -1,0 +1,49 @@
+{
+  "schema_version": 2,
+  "kind": "censor_aware_structured_response_process_offline_gate_failed",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-structured-response-censor-aware-v2.json",
+  "checkpoint_sha256": "dae02675c4a6a66ad3c0aec131515c7fc6abc8b7c8836b79a036486497cfb507",
+  "window": {
+    "first_seed": 6612000,
+    "independent_maps": 64,
+    "root_seats": [0, 1],
+    "opponent_arms": ["source", "teacher"],
+    "games": 256,
+    "terminal_games": 256,
+    "action_limit_censored_games": 0,
+    "sampled_root_decisions": 1986,
+    "sampled_root_decisions_by_seat": [1001, 985],
+    "sampled_own_action_indices": [0, 1, 2, 4, 8, 16, 32, 64, 128, 256],
+    "candidate_branches_independently_replayed": 10429
+  },
+  "offline_metrics": {
+    "map_balanced_normalized_followup_component_mae_student": 8323.165688307141,
+    "map_balanced_normalized_followup_component_mae_post_candidate_baseline": 0.04475275316508487,
+    "student_teacher_choice_matches_by_seat": [453, 488],
+    "static_teacher_choice_matches_by_seat": [669, 666],
+    "independent_map_sign_student_better_worse_same": [0, 63, 1],
+    "two_sided_exact_sign_p": 2.168404344971009e-19,
+    "sign_direction": "student_worse"
+  },
+  "predeclared_gates": {
+    "all_four_arms_attempted": true,
+    "all_branches_independently_replayed": true,
+    "followup_mae_at_least_ten_percent_below_baseline": false,
+    "teacher_choice_positive_map_sign_p_below_point_zero_five": false,
+    "both_seats_nonnegative_choice_gain": false,
+    "offline_gate_passed": false
+  },
+  "raw": {
+    "dataset_server_path": "/tmp/antiyoy-residual.n17QTu/structured-process-censor-offline-6612000.jsonl.gz",
+    "dataset_bytes": 394466,
+    "dataset_sha256": "863b73f415a63a57a8f88dfb7bc0a9ab39b0abbbfeda4d440daa557ae0c9bf1d",
+    "audit_server_path": "/tmp/antiyoy-residual.n17QTu/structured-process-censor-offline-audit-6612000.json",
+    "audit_bytes": 15976,
+    "audit_sha256": "0ce2576ed486a5d10d021b33d3d031d7051fd1f8f0d05926f7b259dcc7724d9f",
+    "collector_stderr_bytes": 0
+  },
+  "sign_gate_correction": "The original audit code commit cc0c60f labeled a two-sided sign p<0.05 true even when all 63 non-tied map differences favored the baseline. The result was rejected independently by the MAE and both-seat gates. Commit fa15db4 adds an explicit positive-direction requirement with a regression test; it does not retrain, rerun validation or change the failed decision. The original raw audit is preserved with its original flag.",
+  "fit_only_postmortem": "A read-only partition of the separate fit ledger found 69 exact-terminal root candidates among 21024. Their model followup MAE was 1427156.616 versus zero post-candidate baseline, consistent with unbounded terminal sentinel scores entering the static-score input. On the other 20955 fit candidates, model MAE was still 0.057562 versus 0.045132 baseline. This is descriptive fit evidence, not a retuning basis or a validation correction.",
+  "decision": "Reject the checkpoint. Do not retrain it, alter the static-score handling or thresholds using this validation, rate or deploy it. Direct-model game seed6613000, native-teacher game seed6614000, final seed6615000 and runtime-profile seeds6616000/6617000/6618000 remain unopened.",
+  "qualification": "Independent branch-local offline failure only. No autonomous student game-strength, Elo, browser-latency or neural-promotion claim. The native replanned teacher and owner-private playable Site are unchanged."
+}
