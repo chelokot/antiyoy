@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_rejected_student_opponent_state_shift",
+  "question": "Does the rejected full-episode student's own action agreement with the strong replanned teacher change when its opponent is the frozen direct source rather than another student copy?",
+  "sample": "Replay existing fit seeds6540000..6540015 in both student seats, with student self-play and student versus frozen routed-v6 direct opponent on identical map/seat assignments. The checkpoints are old fit maps, not fresh validation or strength evidence.",
+  "student_checkpoint_sha256": "6f0670cccff396de22e780cc54bb4125d8b3267e28cc8bf0d29d0c0c6aa961f8",
+  "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "method": "Root always uses the rejected deterministic student; opponent uses either the same student or frozen source. At the FIRST state of root turns1,4,8,12, query native root256/top8/opponent64/followup32 replan_each_action=true without applying its action. Record student-teacher first-action match and four signed state leads: owned cells, province money, province profit and unit strength. Continue all games to terminal or original 2400-action cap. Compare arms only on seed-seat pairs surviving to each checkpoint, report excluded pairs and both seat strata. No new training, search parameter tuning or checkpoint selection.",
+  "interpretation_limits": "Opponent policy is an intervention on the encountered states, but checkpoint survival is post-treatment selection and teacher agreement is not terminal credit. Any observed mismatch may motivate a separate controlled fit-distribution experiment; it does not prove why DAgger failed or authorize promoting a student.",
+  "resources": "SSH server fedora-toolbox scratch only; one CPU15 pinned nice19, Rayon/BLAS capped, timeout20 minutes, tiny output, no GPU or parallel heavy job. Preserve original dirty remote repository and reserved game seeds."
+}
