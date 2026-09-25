@@ -39,3 +39,36 @@ def test_episode_preference_pairs_both_seats_and_excludes_censoring() -> None:
         "censored": 0,
     }
     assert not summary["data_gate_passed"]
+
+
+def test_episode_preference_summary_uses_declared_window_and_thresholds() -> None:
+    records = [
+        record(6561000, None, 0),
+        record(6561000, 0, 1),
+        record(6561000, 1, 1),
+        record(6561001, None, 1),
+        record(6561001, 0, 0),
+        record(6561001, 1, 0),
+    ]
+
+    summary = summarize(
+        records,
+        first_seed=6561000,
+        maps=2,
+        minimum_informative=4,
+        minimum_per_seat=2,
+    )
+
+    assert summary["games"] == 6
+    assert summary["pairs"] == 4
+    assert summary["informative_pairs"] == 4
+    assert summary["by_teacher_seat"][0]["source_preferred"] == 1
+    assert summary["by_teacher_seat"][0]["teacher_preferred"] == 1
+    assert summary["data_gate_passed"]
+    assert not summarize(
+        records,
+        first_seed=6561000,
+        maps=2,
+        minimum_informative=5,
+        minimum_per_seat=2,
+    )["data_gate_passed"]

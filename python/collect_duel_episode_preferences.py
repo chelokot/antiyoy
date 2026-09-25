@@ -81,12 +81,18 @@ def verify_trace(record: dict[str, object]) -> None:
         raise ValueError("replayed final outcome differs")
 
 
-def summarize(records: list[dict[str, object]]) -> dict[str, object]:
+def summarize(
+    records: list[dict[str, object]],
+    first_seed: int = SEED_FIRST,
+    maps: int = MAPS,
+    minimum_informative: int = 8,
+    minimum_per_seat: int = 2,
+) -> dict[str, object]:
     indexed = {
         (cast(int, record["seed"]), record["teacher_seat"]): record
         for record in records
     }
-    if len(records) != MAPS * 3 or len(indexed) != MAPS * 3:
+    if len(records) != maps * 3 or len(indexed) != maps * 3:
         raise ValueError("expected exactly one source and two teacher games per map")
     by_seat = []
     for seat in (0, 1):
@@ -96,7 +102,7 @@ def summarize(records: list[dict[str, object]]) -> dict[str, object]:
             "same_terminal_outcome": 0,
             "censored": 0,
         }
-        for seed in range(SEED_FIRST, SEED_FIRST + MAPS):
+        for seed in range(first_seed, first_seed + maps):
             reference = cast(dict[str, object], indexed[seed, None]["outcome"])
             teacher = cast(dict[str, object], indexed[seed, seat]["outcome"])
             if not reference["terminal"] or not teacher["terminal"]:
@@ -120,18 +126,22 @@ def summarize(records: list[dict[str, object]]) -> dict[str, object]:
         for record in records
     )
     return {
-        "maps": MAPS,
+        "maps": maps,
         "games": len(records),
         "terminal_games": terminal_games,
-        "pairs": MAPS * 2,
+        "pairs": maps * 2,
         "informative_pairs": informative,
         "censored_pairs": censored,
         "by_teacher_seat": by_seat,
         "data_gate_passed": (
-            terminal_games == MAPS * 3
+            terminal_games == maps * 3
             and censored == 0
-            and informative >= 8
-            and all(item["teacher_preferred"] + item["source_preferred"] >= 2 for item in by_seat)
+            and informative >= minimum_informative
+            and all(
+                item["teacher_preferred"] + item["source_preferred"]
+                >= minimum_per_seat
+                for item in by_seat
+            )
         ),
     }
 
