@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_exact_beam_frontier_overlap",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-beam-frontier-overlap-v1.json",
+  "predeclared_protocol_commit": "bf74fb2",
+  "arena": "Classic Generic procedural_v2 11x9 two-player",
+  "search": "Native three-turn root256/top8/opponent64/followup32, replanned at every atomic action, exact one-slate score cache enabled",
+  "window": {
+    "first_seed": 6640000,
+    "independent_maps": 4,
+    "sampled_turn_starts_per_seat_per_map": 4,
+    "sampled_roots": 32,
+    "self_play_actions_until_sampling_complete": 65,
+    "maps_terminal_when_sampling_stopped": 0,
+    "maps_stopped_by_action_limit": 0
+  },
+  "exact_full_game_frontier_overlap": {
+    "retained_beam_slots": 1033,
+    "duplicate_slots": 334,
+    "duplicate_slot_fraction": 0.3233301064859632,
+    "roots_with_at_least_one_duplicate": 18,
+    "fraction_of_roots_with_duplicate": 0.5625,
+    "seat_0": {"retained_beam_slots": 550, "duplicate_slots": 183},
+    "seat_1": {"retained_beam_slots": 483, "duplicate_slots": 151},
+    "by_seed": [
+      {"seed": 6640000, "retained_beam_slots": 255, "duplicate_slots": 69},
+      {"seed": 6640001, "retained_beam_slots": 252, "duplicate_slots": 96},
+      {"seed": 6640002, "retained_beam_slots": 257, "duplicate_slots": 77},
+      {"seed": 6640003, "retained_beam_slots": 269, "duplicate_slots": 92}
+    ]
+  },
+  "predeclared_advance_criterion": {
+    "aggregate_duplicate_fraction_at_least_10_percent": true,
+    "roots_with_duplicate_at_least_25_percent": true,
+    "passes_for_separate_strength_experiment": true
+  },
+  "method": "A temporary ignored Rust unit test replayed the existing root beam expansion and counted full Game equality among the first beam_width score-sorted continuing candidates at each depth before truncation. It retained the original duplicated frontier for subsequent depths. Normal native replanned three-turn agents generated the sampled states. The temporary diagnostic was removed from the local working tree after the read-only run; no search policy changed.",
+  "raw_result": {
+    "server_path": "/tmp/antiyoy-residual.n17QTu/frontier-overlap-6640000.log",
+    "sha256": "0aa16e7fbc8dfad0de6094eb2a767c2e7787742af55c2b9b8f03590b964c210f",
+    "temporary_instrumented_search_source_sha256": "1023c73c49b61772f359ee837e2f2fe3c931d0fe3152354519dd4f5cc6074382",
+    "unaltered_search_source_sha256": "763b87e9f45cddca1d07868ef5e2275c74fbd8e5d521e650edb72c611af6e700",
+    "rust_test_result": "1 passed, 0 failed"
+  },
+  "decision": "The predeclared audit criterion passes. A separately predeclared deduplicated-beam candidate merits testing on new independent maps, but no candidate is promoted or deployed from this diagnostic.",
+  "qualification": "Only 32 early turn-start states on four maps were sampled. The games were intentionally stopped after sampling, so there are no terminal outcomes, strength, Elo or runtime-improvement claims. Deduplication could change the policy and must pass fresh complete both-seat games and runtime/profile gates before use."
+}
