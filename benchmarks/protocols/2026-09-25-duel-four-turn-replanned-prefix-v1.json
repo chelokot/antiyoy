@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "kind": "fit_only_four_turn_replanned_prefix_counterfactual",
+  "question": "Can a four-root-turn native replanned-search prefix change eventual terminal outcomes versus a four-root-turn frozen direct prefix when both branches thereafter use the SAME persistent replanned search?",
+  "motivation": "The separate exact-teacher coverage confirmation found a four-root-turn dose improves complete games against the direct opponent, while a first-action-only common-replanned-continuation probe on previously inspected fit maps gave one benefit, one harm and thirty ties. A block-level target may carry outcome signal that isolated atomic labels do not.",
+  "existing_data": {
+    "dataset": "three-turn-plan-fit-6451000.json.gz",
+    "dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "first_seed": 6451000,
+    "maps": 128,
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "arena": "Classic Generic procedural_v2 11x9 two-player, 2400-action original cap, material adjudication explicitly nonterminal"
+  },
+  "selection": "Replay old saved self-play roll-ins exactly. In ascending seed and record order choose the FIRST turn-start position per map whose saved teacher first action differs from the frozen direct policy. Verify each saved first action equals a new every-action-replanned teacher query from that same state. Take the first32 eligible distinct maps, no replacement by root seat, score or outcome. This is intentionally the identical selection rule and map prefix as the predeclared first-action probe, but no previous branch outcome is used to alter it.",
+  "branches": "Fork identical complete pre-action state twice. In one branch native root256/top8/opponent64/followup32 with replan_each_action=true selects every atomic action from root turn0 onward. In the other, frozen routed-v6 direct controls the first four COMPLETED root turns and then the identical native replanned controller takes over. The frozen direct opponent plays every opponent action in both branches. Count a root turn when play passes to the opponent or the game finishes; report if a game ends before four root turns. Continue to terminal or the same 2400-action cap. No search tuning, terminal oracle or material substitution.",
+  "analysis": "Report every map/seat branch winner, terminal/nonterminal flag, action count and root prefix turns completed. Compare terminal root-seat outcomes by independent map as teacher-prefix better, direct-prefix better or same, with both root-seat strata and exact two-sided sign p; censored branches remain censored and count as direct-prefix better in worst-case sensitivity.",
+  "exploratory_advance_condition": "Only predeclare NEW independent-map confirmation if32 selected maps are complete, every branch is terminal, teacher-prefix better is at least twice direct-prefix better, both seat strata have nonnegative teacher-minus-direct counts, and independent-map exact two-sided sign p<0.05. Otherwise stop this four-turn prefix label hypothesis without changing k, selection, maps or the continuation on inspected data.",
+  "qualification": "Post hoc exploratory conditional result on previously inspected fit maps, not a fresh complete-game policy gate, student training target, Elo or evidence that four consecutive search turns are uniquely superior to spaced turns. Passing only permits independent confirmation before new fit/calibration/validation windows.",
+  "resources": "SSH server fedora-toolbox scratch only, one CPU15 pinned nice19 with Rayon/BLAS capped at one, timeout30 minutes, tiny output, no GPU or parallel heavy job; preserve original dirty remote repository and reserved validation/final seeds."
+}
