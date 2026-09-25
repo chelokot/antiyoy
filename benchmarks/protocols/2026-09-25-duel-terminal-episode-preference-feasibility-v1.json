@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_terminal_whole_episode_preference_feasibility",
+  "question": "Do same-map, same-seat complete games versus one frozen routed-v6 opponent yield enough uncensored outcome-discordant trajectory pairs for a genuinely outcome-aligned multi-turn distillation target?",
+  "arena": "Classic Generic procedural_v2 11x9 two-player with 2400-action limit; no material-adjudicated game counts as a terminal preference",
+  "feasibility_window": {
+    "first_seed": 6560000,
+    "independent_maps": 16,
+    "source_selfplay_games_per_map": 1,
+    "teacher_vs_source_games_per_map": 2,
+    "teacher_root_seats": [0, 1],
+    "excluded_from_all_future_fit_calibration_validation_and_game_windows": true
+  },
+  "frozen_source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "teacher": "Native replanned three-turn reply search, root256/slate8/opponent64/followup32, beam32/branch48, at every teacher atomic action",
+  "trace_contract": "Save every game as map seed, teacher seat or source-selfplay arm, ordered legal-action indices, acting seat at each action, terminal/truncated flags and winner. Replay every complete trace from a fresh procedural map, checking each acting seat and action index, exact termination position and final outcome. Do not save observations or query a terminal oracle during play.",
+  "pairing": "For each seed and root seat, pair that seat's source-selfplay trajectory with its teacher-versus-source trajectory. A pair is informative only if both games are terminal and their winners differ for that same seat. Record teacher-preferred and source-preferred pairs separately, along with tied and censored pairs. The opposing policy is frozen routed-v6 in both arms but encounters different game states after divergence.",
+  "advance_gate": "Advance only to a separately predeclared full training protocol if all 48 games and replays complete, no pair is censored, at least 8 of 32 seat-map pairs are informative, at least 2 informative pairs occur in each teacher root seat, and this one-core feasibility collection finishes within 10 minutes. These are data-availability and integrity requirements, not evidence that preference training works or that a student is strong.",
+  "interpretation_limits": "Complete-game preference removes dependence on local heuristic score, but different trajectories have different visited states and lengths. The feasibility window cannot select model architecture, optimizer, loss scaling, hyperparameters or thresholds and cannot be reused for fit, calibration or games. No training, student rating, deployment or Elo is authorized by this protocol.",
+  "compute": "SSH server fedora-toolbox scratch only, one CPU15 pinned nice19, Rayon/BLAS one thread, timeout600s, bounded tiny summary and compressed raw trace, no parallel heavy job"
+}
