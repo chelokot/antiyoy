@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "kind": "predeclared_native_deduplicated_beam_direct_head_to_head",
+  "motivation": "The separate seed6640000 four-map read-only audit found 334 exact duplicate full Game states in 1033 retained intermediate beam slots. This does not establish a strength or runtime gain.",
+  "candidate": "Opt-in only. After sorting continuing candidates by the existing score, action-count and action-lexicographic order, retain the first 32 distinct full Game states at each beam depth. Keep the highest-ranked path to each state. Apply identically at root, opponent reply and followup searches. Do not change legal actions, budgets, tactical ordering, evaluation, completed-turn deduplication, rules, rated bot or default search.",
+  "fresh_window": {
+    "first_seed": 6641000,
+    "independent_maps": 128,
+    "both_candidate_seats": true,
+    "arena": "Classic Generic procedural_v2 11x9 two-player",
+    "action_limit": 2400,
+    "both_controllers": "Native three-turn root256/top8/opponent64/followup32, replanned every atomic action, exact one-slate score cache enabled"
+  },
+  "measurements": "Play 256 direct games, candidate once in each seat per independent map against the unchanged replanned controller. Record every terminal winner and action-limit censor, per-seat wins, grouped two-game map signs and exact two-sided independent-map sign p. Time each complete turn by summing its per-action native one-core process CPU and wall time, reporting pooled median/p95 and per-seat medians. Report the full 256-game fixed-pool Elo only if every game is terminal; use map bootstrap for its uncertainty. Never label action-limit adjudication terminal.",
+  "advance_gate": "Require zero action-limit censors, candidate wins at least 64 of 128 games in each candidate seat, exact independent-map sign p<0.05 favoring candidate, candidate median complete-turn process CPU at most 125% of baseline, and candidate p95 complete-turn wall time below 1000ms. If any gate fails, reject the candidate and leave the default search unchanged; do not retune on seed6641000.",
+  "subsequent_gates": "Only after this direct search-versus-search gate passes, predeclare disjoint frozen direct-model games and Online Default/Classic Slay runtime/outcome profiles. No neural student, rated bot, Site or global Elo claim follows from this experiment alone.",
+  "compute": "SSH server fedora-toolbox scratch only, one CPU15 pinned nice19, Rayon/BLAS one thread, 2700-second hard timeout, bounded JSON output, no GPU or parallel heavy job. Reinspect shared load and never touch the dirty original remote repository."
+}
