@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "kind": "deduplicated_beam_direct_head_to_head_gate_failed",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-deduplicated-frontier-head-to-head-v1.json",
+  "predeclared_protocol_commit": "5838a25",
+  "candidate_and_evaluator_commit": "b222504",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, native root256/top8/opponent64/followup32 replanned at every atomic action, exact one-slate score cache in both controllers",
+  "fresh_window": {"first_seed": 6641000, "independent_maps": 128, "both_candidate_seats": true, "action_limit": 2400},
+  "games": {
+    "direct_games": 256,
+    "terminal_games": 256,
+    "action_limit_censored_games": 0,
+    "candidate_wins_by_candidate_seat": [75, 53],
+    "candidate_total_wins": 128,
+    "baseline_total_wins": 128,
+    "paired_independent_maps": {"candidate_better": 0, "baseline_better": 0, "same": 128, "exact_two_sided_sign_test_p": 1.0},
+    "maps_with_the_same_winning_seat_in_both_rotations": 128,
+    "fixed_pool_head_to_head_elo_candidate_over_baseline": 0.0,
+    "map_bootstrap_95_fixed_pool_elo": [0.0, 0.0]
+  },
+  "native_one_core_runtime": {
+    "baseline_complete_turns": 5071,
+    "candidate_complete_turns": 5071,
+    "baseline_median_complete_turn_process_cpu_ms": 28.43606399999743,
+    "candidate_median_complete_turn_process_cpu_ms": 34.29878200000758,
+    "candidate_to_baseline_median_cpu_ratio": 1.206171923090716,
+    "baseline_complete_turn_p95_wall_ms": 128.15231760032475,
+    "candidate_complete_turn_p95_wall_ms": 140.12164832092822
+  },
+  "predeclared_gate": {
+    "zero_action_limit_censors": true,
+    "candidate_at_least_64_wins_each_seat": false,
+    "independent_map_sign_p_below_0_05_favoring_candidate": false,
+    "median_process_cpu_at_most_125_percent_baseline": true,
+    "candidate_p95_wall_below_1000ms": true,
+    "overall_pass": false
+  },
+  "raw_result": {
+    "server_path": "/tmp/antiyoy-residual.n17QTu/deduplicated-frontier-6641000.json",
+    "sha256": "6f9148cabe3b1013cd555a6a3bb65dded1c4c9cfe455e193c72533",
+    "exit_code": 0,
+    "stderr_bytes": 0,
+    "runner_sha256": "3b391c7fe8e88577d590faa7ef90bc59c2bc55586c2dc8f73b912a722992e7fc",
+    "candidate_search_source_sha256": "c5e057049e8c36ce360bdf2b95ca66e00db5463547e5c9fc61177846eda650b3",
+    "candidate_python_binding_source_sha256": "3e4873659ba6343b3e8856424412218a8a4106bc367f89e1125a4580e6fc947a",
+    "candidate_evaluator_source_sha256": "21bfcfdc66600e60cb816d18a4b417014b88f1aa8b35b82303e612fde805ceba",
+    "candidate_native_extension_sha256": "e6f80b0c699416da2649bc3af1811ab72934c5584b4a1d45d35f9f75ec160b8d"
+  },
+  "independent_record_checks": "Validated all256 raw records are unique seed-seat pairs covering both seats for each seed6641000..6641127, terminal with a winner0/1, uncensored and within the action limit. Recomputed the winner-seat consistency and candidate seat wins directly from raw records, independently of the evaluator summary.",
+  "posthoc_old_map_sanity_check": {
+    "window": "Previously inspected beam-overlap seeds6640000..6640003, not new strength evidence",
+    "same_state_atomic_actions_compared": 512,
+    "candidate_baseline_action_disagreements": 0,
+    "raw_server_path": "/tmp/antiyoy-residual.n17QTu/dedup-disagreement-old-6640000.json",
+    "raw_sha256": "6dc4f07488eb8e69eaa67c244fefe50fb978ab5e30d2ced5f5ec5014181e30aa",
+    "diagnostic_source_sha256": "2d40a5e7d0b773404f19419a8d06c7a4c334160c05269eac660aafcea6133acf"
+  },
+  "verification": "The opt-in candidate passed 24 Rust agent tests, affected Rust Clippy, 516 Python tests/Ruff and full GitHub CI run36151771017. Server workspace-wide Rust tests could not read an unrelated root-owned fnv Cargo registry file; affected crate tests and CI passed.",
+  "decision": "Reject the deduplicated-frontier candidate: the fixed both-seat strength gate fails, every paired map ties, and median native search CPU is 20.6% higher. Restore the pre-candidate search and Python binding; do not retune or rerun seed6641000. No neural student, rated bot or Site promotion.",
+  "qualification": "The exactly zero fixed-pool Elo and degenerate map bootstrap reflect this specific 128-map, two-rotation pool; they do not imply global equivalence. The old-map action check is posthoc and descriptive only. Native process CPU and wall time are not browser WASM latency."
+}
