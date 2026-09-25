@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_spatial_turn_process_runtime_feasibility",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-spatial-process-feasibility-v1.json",
+  "code_commit": "7c2e44b",
+  "code_ci_run": 36098289534,
+  "arena": "Classic Generic procedural_v2 11x9 two-player, native replanned three-turn search at every atomic action, action limit2400",
+  "fixed_window": {
+    "first_seed": 6570000,
+    "independent_maps": 8,
+    "same_state_seat_samples": 16,
+    "sample_rule": "First live decision of each seat during exact native-replanned self-play"
+  },
+  "frozen_encoder_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+  "selected_experts_by_seat": [
+    "context:b02423ddd2f8cdf9",
+    "context:b02423ddd2f8cdf9"
+  ],
+  "candidate_replay": {
+    "candidate_plans": 128,
+    "terminal_candidate_plans": 0,
+    "illegal_actions": 0,
+    "static_score_mismatches": 0,
+    "action_limit_censoring": 0
+  },
+  "same_state_cpu_wall_seconds": {
+    "native_three_turn_teacher_median": 0.0012906293850392103,
+    "native_three_turn_teacher_p95": 0.0020226016640663147,
+    "root_slate_candidate_replay_batched_spatial_encoder_median": 0.011370701948180795,
+    "root_slate_candidate_replay_batched_spatial_encoder_p95": 0.7108523892238736,
+    "first_batched_encoder_call_seconds": 0.7102631162852049,
+    "median_ratio_candidate_pipeline_to_teacher": 8.81019917877923
+  },
+  "predeclared_advance_gate": {
+    "all_sixteen_samples_and_exact_candidate_replay": true,
+    "median_pipeline_at_most_75_percent_of_teacher": false,
+    "pipeline_p95_no_greater_than_teacher_p95": false,
+    "overall_pass": false
+  },
+  "raw_result": "/tmp/antiyoy-residual.n17QTu/spatial-process-feasibility-6570000.json on the SSH server",
+  "raw_result_sha256": "0f7ed79614dc3063d2fff40283853af3f4c622c93c90851485f645fbcb64e637",
+  "verification": "Every indexed completed-turn plan replayed exactly to its native static score. The existing full Python suite passed 491 tests and Ruff passed on one low-priority pinned SSH-server CPU. Rust, Python and web CI passed for the code commit. No model was trained or used to select a move.",
+  "interpretation": "The proposed full-spatial candidate pipeline is about 8.8 times slower at these easy first-seat states than the already-strong native three-turn search. One cold encoder call dominates p95, but the warm median alone fails the fixed gate. These first decisions do not represent later crowded states, so this is a narrow interface/runtime no-go, not a claim that all neural process models or later-game inference are too slow. Do not retune the predeclared gate or train a selector from this failed feasibility window.",
+  "next": "Seek a structurally different process compression with a credible per-action runtime budget before fresh, fully disjoint fit/calibration/offline/game/final data. Keep the rejected episode-preference checkpoint rejected and its reserved game seeds untouched. Any future promotion needs fresh complete both-seat independent-map games versus the frozen direct model and native replanned teacher plus runtime/profile gates."
+}
