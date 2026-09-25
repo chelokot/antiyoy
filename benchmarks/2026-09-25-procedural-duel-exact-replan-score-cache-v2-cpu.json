@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "kind": "native_replanned_exact_score_cache_cpu_and_equivalence",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-exact-replan-score-cache-v1.json",
+  "code_commit": "077d661",
+  "code_ci_run": 36101090841,
+  "arena": "Classic Generic procedural_v2 11x9 two-player, native three-turn root256/top8/opponent64/followup32 replanned at every atomic action, action limit2400",
+  "fixed_window": {
+    "first_seed": 6580000,
+    "independent_maps": 16,
+    "controllers": "Separate identical environments in lockstep, uncached versus exact-score-cached native replanning, both seats in each game",
+    "search_cpu": "One pinned CPU15, nice19, Rayon/BLAS one thread on the SSH server"
+  },
+  "equivalence": {
+    "games": 16,
+    "terminal_games": 16,
+    "action_limit_censored_games": 0,
+    "atomic_actions_compared": 2833,
+    "batch_observation_action_step_and_terminal_mismatches": 0,
+    "exact_cached_score_reuses": 3109,
+    "minimum_cache_reuses_per_map": 89,
+    "maximum_cache_reuses_per_map": 333
+  },
+  "native_search_runtime": {
+    "plain_total_process_cpu_seconds": 31.473558828999696,
+    "cached_total_process_cpu_seconds": 26.34919061300008,
+    "median_paired_map_cpu_improvement_fraction": 0.15966324566615736,
+    "median_cpu_improvement_fraction_by_active_seat": [
+      0.15101150007307595,
+      0.1687444136147367
+    ],
+    "plain_pooled_action_wall_p95_seconds": 0.027422113344073296,
+    "cached_pooled_action_wall_p95_seconds": 0.023574192076921463,
+    "plain_pooled_action_wall_median_seconds": 0.010110493283718824,
+    "cached_pooled_action_wall_median_seconds": 0.008392451796680689
+  },
+  "predeclared_gate": {
+    "all_games_terminal": true,
+    "exact_observations_actions_and_outcomes": true,
+    "at_least_one_exact_score_reuse": true,
+    "median_paired_map_cpu_improvement_at_least_ten_percent": true,
+    "both_seats_median_cpu_nonnegative": true,
+    "cached_pooled_action_wall_p95_at_most_110_percent_plain": true,
+    "overall_pass": true
+  },
+  "raw_result": "/tmp/antiyoy-residual.n17QTu/procedural-duel-exact-score-cache-6580000.json on the SSH server",
+  "raw_result_sha256": "bfd81b41c7ea8cc130150534f02a441a59b957468e70081cfc5c7953c586d3e4",
+  "raw_stderr_bytes": 0,
+  "verification": "Full Python suite passed 493 tests, full Python Ruff passed, all 22 antiyoy-agents Rust tests passed, and agents/Python Clippy passed. GitHub Rust/Python/web/WASM CI passed for the code and protocol commit. Remote workspace-wide Clippy could not read an unrelated fnv registry file owned by another user, so the affected crates were checked separately and passed.",
+  "interpretation": "This is an exact semantic-preserving cache of deterministic reply/followup scores keyed by full Game equality and root player. It improves measured one-core native search time without changing any paired action or outcome. It is not stronger play, a neural student, Elo gain, browser latency, or evidence across other rule profiles. Cache remains opt-in and the rated/browser agents are unchanged; independent profile and browser runtime checks are needed before promotion."
+}
