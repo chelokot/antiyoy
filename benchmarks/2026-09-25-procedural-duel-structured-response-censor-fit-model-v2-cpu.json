@@ -1,0 +1,30 @@
+{
+  "schema_version": 2,
+  "kind": "censor_aware_structured_response_process_fit",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-structured-response-censor-aware-v2.json",
+  "trainer_commit": "889dfca",
+  "fit": {
+    "first_seed": 6610000,
+    "independent_maps": 128,
+    "games": 512,
+    "terminal_games": 512,
+    "action_limit_censored_games": 0,
+    "sampled_root_decisions": 3973,
+    "candidate_branches": 21024,
+    "raw_sha256": "f7a3e51c3659b4183dd87c759ff38175c630a6a345b366eda61b825d949b6da8",
+    "map_balanced_epoch_losses": [68279.60788867052, 6090.5006907654315]
+  },
+  "checkpoint": {
+    "server_path": "/tmp/antiyoy-residual.n17QTu/structured-process-censor-model-6610000.pt",
+    "bytes": 36663,
+    "sha256": "dae02675c4a6a66ad3c0aec131515c7fc6abc8b7c8836b79a036486497cfb507",
+    "all_parameters_finite": true
+  },
+  "runner": {
+    "summary_path": "/tmp/antiyoy-residual.n17QTu/structured-process-censor-train-6610000.json",
+    "summary_sha256": "391a1e992cf9c6b3fcb6710fb972eea731cf4236295ca20d202217f34a74dd66",
+    "exit_code": 0,
+    "stderr": "An AMD GPU metadata path warning was emitted; training was explicitly CPU15-pinned with one Torch/BLAS/Rayon thread."
+  },
+  "qualification": "Exactly one predeclared two-epoch map-balanced process fit was completed. Large positive training losses are reported without retuning or strength inference. This checkpoint has not passed the independent offline gate, played autonomous games, earned Elo, or been deployed."
+}
