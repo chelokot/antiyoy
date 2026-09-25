@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_turn_trace_process_runtime_feasibility",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-turn-trace-process-feasibility-v1.json",
+  "code_commit": "6dfb1c1",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, native replanned three-turn self-play, action limit2400",
+  "window": {
+    "first_seed": 6590000,
+    "independent_maps": 8,
+    "first_live_root_decision_per_seat": true,
+    "same_state_samples": 16
+  },
+  "candidate_process": {
+    "completed_turn_plans_replayed": 128,
+    "indexed_action_tokens_replayed": 243,
+    "illegal_indexed_actions": 0,
+    "native_static_score_mismatches": 0,
+    "action_limit_censoring": 0,
+    "random_hidden_width": 32,
+    "trained_model": false
+  },
+  "same_state_warm_cpu_wall_seconds": {
+    "native_three_turn_teacher_median": 0.001306275138631463,
+    "slate_trace_gru_pipeline_median": 0.0010739953722804785,
+    "slate_trace_gru_pipeline_p95": 0.019389336463063955,
+    "pipeline_median_by_root_seat": [
+      0.0010291524231433868,
+      0.0011399544309824705
+    ],
+    "first_trace_extraction": 0.018516819924116135
+  },
+  "predeclared_advance_gate": {
+    "all_both_seat_samples": true,
+    "both_seat_medians_at_most_three_ms": true,
+    "median_pipeline_at_most_three_ms": true,
+    "p95_pipeline_at_most_six_ms": false,
+    "overall_pass": false
+  },
+  "raw_result": "/tmp/antiyoy-residual.n17QTu/turn-trace-process-6590000.json on the SSH server",
+  "raw_result_sha256": "eabba5bc0e0bf1773d2bb037e842e58172159a0aa0eecb8f4076e181a0b63a32",
+  "verification": "The SSH-server Python suite passed 497 tests and Ruff passed with one low-priority pinned CPU. The source protocol, feasibility code and focused unit tests were committed before seed6590000 was run.",
+  "interpretation": "All candidate turns replayed to their exact native static scores and the lightweight sequence pipeline had a low median, but the first measured trace extraction had an 18.5-ms outlier. With 16 samples, the predeclared p95 is the maximum, so the fixed 6-ms tail gate fails. The protocol warmed the random GRU, not the native fork/trace interface. This is a narrow interface/runtime failure, not a claim that a trained sequence policy would be weak or that every later action is slow. Do not rerun, warm away this outlier, relax the gate, train, rate or deploy this candidate on seed6590000. A future approach would need a structurally different native trace interface and fully disjoint predeclared windows.",
+  "qualification": "No training, autonomous student game, terminal outcome comparison, Elo, or browser model deployment occurred. The opt-in exact-score cache Site v64 and rated bot were unchanged."
+}
