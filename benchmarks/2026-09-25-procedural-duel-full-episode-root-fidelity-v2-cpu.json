@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_full_episode_vs_reset64_teacher_root_fidelity",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-full-episode-root-fidelity-v1.json",
+  "protocol_and_code_commit": "743d329",
+  "implementation": "python/audit_duel_markov_root_fidelity.py",
+  "sample": {
+    "previously_inspected_independent_maps": 128,
+    "first_seed": 6451000,
+    "root_positions": 587,
+    "seat_positions": [297, 290],
+    "dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "full_episode_checkpoint_sha256": "6f0670cccff396de22e780cc54bb4125d8b3267e28cc8bf0d29d0c0c6aa961f8",
+    "reset64_checkpoint_sha256": "d0f6ccd1563c1684675ef4c44917f7e57ccba3ea20873b071d6989cbbd0f1d72",
+    "teacher_label": "First action of the selected three-turn search plan only; a separate same-state audit matched cached and replanned search first actions on 2548/2548 states."
+  },
+  "same_root_first_action_agreement": {
+    "source_matches_teacher": 227,
+    "full_episode_matches_teacher": 261,
+    "reset64_matches_teacher": 257,
+    "full_episode_minus_reset64": 4,
+    "by_root_seat": [
+      {"seat": 0, "source": 113, "full_episode": 122, "reset64": 123},
+      {"seat": 1, "source": 114, "full_episode": 139, "reset64": 134}
+    ],
+    "full_episode_exact_corrections_from_source": 76,
+    "reset64_exact_corrections_from_source": 73,
+    "full_episode_off_target_departures_from_source": 124,
+    "reset64_off_target_departures_from_source": 125,
+    "paired_independent_maps_full_episode_vs_reset64": {
+      "full_episode_higher": 27,
+      "reset64_higher": 23,
+      "same": 78,
+      "exact_two_sided_sign_test_p": 0.6718110337653656
+    }
+  },
+  "teacher_action_kind": {
+    "move": {"positions": 436, "source": 168, "full_episode": 199, "reset64": 192},
+    "recruit": {"positions": 87, "source": 31, "full_episode": 28, "reset64": 32},
+    "end_turn": {"positions": 46, "source": 27, "full_episode": 28, "reset64": 26},
+    "build": {"positions": 18, "source": 1, "full_episode": 6, "reset64": 7}
+  },
+  "raw": {
+    "directory": "/tmp/antiyoy-residual.n17QTu on the SSH server",
+    "full_episode_file": "full-episode-root-fidelity-6540000.json",
+    "full_episode_sha256": "f3f317ae9f4c99a04f6433f62a80db18a56179647d8c9a358e3707fb55ff5961",
+    "reset64_file": "reset64-root-fidelity-6540000.json",
+    "reset64_sha256": "52559595511ef5ab77d87fb27a808b92e42ceacd090455ac176d3e2f3ef25c4e"
+  },
+  "verification": "Both audits completed exit0 using the same hash-checked 587 positions across all 128 maps. All 466 Python tests and Ruff passed on one pinned nice19 SSH-server CPU. No new maps, search, training, game evaluations or GPU were used.",
+  "interpretation": "Full-episode roll-ins did not yield a convincing first-action fidelity gain over the matched reset64 control on these identical previously inspected roots. The four extra matches and 27/23 map split cannot explain a robust game advantage. This retrospective agreement audit is neither a causal mechanism test nor a strength gate; the full-episode student's fresh complete-game direct-source gate failed, and both checkpoints remain rejected, unrated and undeployed.",
+  "stop_rule": "Do not tune on these previously inspected maps or the failed game window, run reserved seed6551000/6552000, promote, rate or deploy either checkpoint."
+}
