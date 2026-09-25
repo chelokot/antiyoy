@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "kind": "fit_only_four_turn_replanned_prefix_counterfactual",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-four-turn-replanned-prefix-v1.json",
+  "protocol_and_code_commit": "ed2e7d3",
+  "sample": {
+    "previously_inspected_fit_dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "frozen_direct_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "first_eligible_seed": 6451000,
+    "last_eligible_seed": 6451034,
+    "independent_eligible_maps": 32,
+    "root_seat_maps": [23, 9],
+    "selection": "First recorded teacher/direct first-action divergence per map, the same previously inspected fit-map prefix as the first-action counterfactual. Every saved teacher first action matched a fresh native replanned search query."
+  },
+  "branches": {
+    "teacher": "Native root256/top8/opponent64/followup32 search replanned on every root atomic action from the starting state onward.",
+    "source_prefix": "Frozen routed-v6 direct controls the first four completed root turns, followed by identical every-action native replanned search.",
+    "common_opponent": "The frozen routed-v6 direct policy controls every opponent action in both branches."
+  },
+  "results": {
+    "branch_games": 64,
+    "terminal_games": 64,
+    "nonterminal_action_limit_games": 0,
+    "teacher_prefix_better_maps": 6,
+    "source_prefix_better_maps": 2,
+    "same_outcome_maps": 24,
+    "exact_two_sided_independent_map_sign_test_p": 0.2890625,
+    "by_root_seat": [
+      {"seat": 0, "maps": 23, "teacher_better": 3, "source_better": 1, "same": 19, "censored": 0},
+      {"seat": 1, "maps": 9, "teacher_better": 3, "source_better": 1, "same": 5, "censored": 0}
+    ],
+    "both_branches_completed_four_root_prefix_turns": 30,
+    "early_terminal_before_four_root_turns": 2,
+    "predeclared_exploratory_advance_condition_passed": false
+  },
+  "verification": "All 32 pairs forked identical full observations and legal-action order; forced first actions were legal. Both branches terminated on all 32 maps. The two maps with fewer than four completed root turns were same-outcome maps. The SSH server passed 473 Python tests and Ruff on one pinned nice19 CPU, without GPU or another heavy job.",
+  "raw": {
+    "path": "/tmp/antiyoy-residual.n17QTu/four-turn-prefix-6451000.json on the SSH server",
+    "sha256": "93a6c2651b8d6231e5880986c9f5952ec5f51fadd8d9201618bfeec643643d1f"
+  },
+  "interpretation": "Four initial replanned-search root turns had a positive but statistically inconclusive conditional result on previously inspected fit maps. The fixed advance gate failed. This is not fresh policy strength, a trained student, Elo, or evidence that contiguous search turns have a unique advantage; it does not overturn independent complete-game search results.",
+  "stop_rule": "Do not tune prefix length, selection, opponent or continuation on these fit maps; do not confirm or train from this failed conditional label, run reserved student teacher/final windows, rate or deploy a student, or change the playable/rated bot."
+}
