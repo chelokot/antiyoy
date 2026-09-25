@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_frozen_encoder_action_feature_alias",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-action-feature-alias-v1.json",
+  "protocol_and_code_commit": "ade50cd",
+  "sample": {
+    "previously_inspected_fit_maps": 128,
+    "first_seed": 6451000,
+    "turn_start_positions": 587,
+    "root_seat_positions": [297, 290],
+    "dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "frozen_source_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867"
+  },
+  "result": {
+    "teacher_first_action_with_at_least_one_other_exactly_equal_action_feature_row": 0,
+    "positions_where_source_top1_exactly_aliases_different_teacher_action": 0,
+    "source_teacher_first_action_disagreements": 360,
+    "teacher_action_aliases_on_disagreements": 0,
+    "teacher_action_aliases_by_root_seat": [0, 0],
+    "teacher_action_aliases_by_kind": {
+      "move": 0,
+      "recruit": 0,
+      "end_turn": 0,
+      "build": 0
+    }
+  },
+  "verification": "Every sampled root was reconstructed from its saved legal roll-in indices. The 587 positions, 297/290 seat split and 360 source-teacher disagreements reproduced the earlier source-rank audit. Frozen source feature rows and logits were computed on every legal action, and exactly equal rows were required to have equal logits. Two focused tests, all 480 Python tests and Ruff passed on one nice19 pinned SSH-server CPU. No teacher search, new maps, training or game evaluation was run.",
+  "raw": {
+    "path": "/tmp/antiyoy-residual.n17QTu/action-feature-alias-6451000.json on the SSH server",
+    "sha256": "3a5b7f3ba077af884c76107c92a11732d410699b22333bdfcdd253f9b83802b3"
+  },
+  "interpretation": "On these previously inspected root positions, the selected teacher first action is not exactly indistinguishable from another legal action at the frozen routed-v6 action-head input. This rejects exact frozen-feature aliasing as a direct explanation for the 360 same-root source-teacher disagreements. It does not show that an action head can learn the correct ranking, rule out near-equal or poorly conditioned features, test later actions or student-visited states, establish terminal outcome credit, or explain the rejected students' complete-game failures.",
+  "stop_rule": "Do not tune a distance threshold, architecture or student on these old fit roots, run reserved game seeds, infer Elo or promote a policy from this negative diagnostic."
+}
