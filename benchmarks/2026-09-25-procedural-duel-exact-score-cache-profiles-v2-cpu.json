@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "kind": "native_replanned_exact_score_cache_cross_profile_cpu_and_equivalence",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-exact-score-cache-profile-v1.json",
+  "code_commit": "e568ca2",
+  "code_ci_run": 36102100879,
+  "arena": "procedural_v2 11x9 two-player, native three-turn root256/top8/opponent64/followup32 replanned at every atomic action, action limit2400",
+  "design": "For each fresh map, separate cached and uncached native self-play environments ran in lockstep on one pinned CPU15 nice19, with call order alternated by seed/action parity. Every BatchObservation, action, step result and final outcome matched exactly.",
+  "online_default_v1": {
+    "seed_first": 6581000,
+    "independent_maps": 16,
+    "terminal_games": 16,
+    "nonterminal_action_limit_games": 0,
+    "atomic_actions_compared": 3261,
+    "exact_score_reuses": 3685,
+    "plain_total_search_process_cpu_seconds": 34.89082764000005,
+    "cached_total_search_process_cpu_seconds": 29.088164497000044,
+    "median_paired_map_cpu_improvement_fraction": 0.16350876744120663,
+    "median_cpu_improvement_fraction_by_active_seat": [
+      0.15397112160691406,
+      0.16675512580525365
+    ],
+    "pooled_action_wall_p95_seconds": {
+      "plain": 0.025985921267420053,
+      "cached": 0.022276549134403467
+    },
+    "predeclared_profile_gate_passed": true,
+    "raw_result": "/tmp/antiyoy-residual.n17QTu/procedural-duel-exact-score-cache-online-default-6581000.json on the SSH server",
+    "raw_result_sha256": "f401a82220ae5c3fb71eae69620abccac485e84589e7f0cc50f557a14a277cbe"
+  },
+  "classic_slay_2022": {
+    "seed_first": 6582000,
+    "independent_maps": 16,
+    "terminal_games": 15,
+    "nonterminal_action_limit_games": 1,
+    "atomic_actions_compared": 6449,
+    "exact_score_reuses": 5225,
+    "plain_total_search_process_cpu_seconds": 22.045377909999978,
+    "cached_total_search_process_cpu_seconds": 18.84580067600015,
+    "median_paired_map_cpu_improvement_fraction": 0.15146363969954274,
+    "median_cpu_improvement_fraction_by_active_seat": [
+      0.1364651633217201,
+      0.13724262875887866
+    ],
+    "pooled_action_wall_p95_seconds": {
+      "plain": 0.011187879834324121,
+      "cached": 0.009730026125907898
+    },
+    "predeclared_profile_gate_passed": true,
+    "strict_all_terminal_generic_gate_passed": false,
+    "raw_result": "/tmp/antiyoy-residual.n17QTu/procedural-duel-exact-score-cache-slay-6582000.json on the SSH server",
+    "raw_result_sha256": "7a06234fecec776544709702281412c8d6c9a3482c6dd45c18a011d047d23396"
+  },
+  "raw_stderr_bytes_by_profile": {
+    "online_default_v1": 0,
+    "classic_slay_2022": 0
+  },
+  "verification": "Full SSH-server Python suite passed 494 tests and Python Ruff passed on one low-priority pinned CPU. Rust code was unchanged from the previous fully tested, CI-green exact-cache implementation. GitHub Rust/Python/web/WASM CI passed for the code and profile protocol commit.",
+  "interpretation": "Both fresh profile windows passed their predeclared exact-equivalence and native-CPU gates. The single Slay action-limit outcome is identical in both arms but remains explicitly NONTERMINAL; no Slay terminal-win or Elo claim follows. This cache does not change play strength, and these measurements are not browser WASM latency. The cache remains opt-in, with rated bot and owner-private Site unchanged pending separate browser runtime and UX checks."
+}
