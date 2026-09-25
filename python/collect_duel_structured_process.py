@@ -46,10 +46,13 @@ def replay_record(
     posts: list[list[int]],
     targets: list[tuple],
     root: int,
+    branch_action_limit: int | None = None,
 ) -> None:
     for plan, static, post, target in zip(plans, scores, posts, targets, strict=True):
         reply, followup, reply_components, final_components, classes, score = target
-        branch = environment.fork(np.asarray([0], dtype=np.uint64))
+        branch = environment.fork(
+            np.asarray([0], dtype=np.uint64), action_limit=branch_action_limit
+        )
         for stage, actions in enumerate((plan, reply, followup)):
             for action in actions:
                 legal = int(branch.observe()["action_offsets"][1])
@@ -81,6 +84,7 @@ def state_record(
     opponent: str,
     own_action_index: int,
     teacher_action: int,
+    branch_action_limit: int | None = None,
 ) -> dict:
     plans, static, traces, roots, posts = environment.search_turn_plan_process(
         node_budget=256,
@@ -102,7 +106,15 @@ def state_record(
         raise ValueError("process and response root slates disagree")
     if roots[0] != environment.position_components(root)[0]:
         raise ValueError("root components disagree with live state")
-    replay_record(environment, plans[0], static[0], posts[0], targets[0], root)
+    replay_record(
+        environment,
+        plans[0],
+        static[0],
+        posts[0],
+        targets[0],
+        root,
+        branch_action_limit,
+    )
     chosen = max(
         range(len(plans[0])),
         key=lambda index: (targets[0][index][5], static[0][index], -index),
@@ -138,7 +150,15 @@ def state_record(
     }
 
 
-def collect(source_path: Path, output: Path) -> dict:
+def collect(
+    source_path: Path,
+    output: Path,
+    first_seed: int = FIRST_SEED,
+    maps: int = MAPS,
+    protocol: str = PROTOCOL,
+    allow_rollin_censor: bool = False,
+    branch_action_limit: int | None = None,
+) -> dict:
     if digest(source_path) != CHECKPOINT_SHA256:
         raise ValueError("frozen source checkpoint disagrees with the protocol")
     torch.set_num_threads(1)
@@ -160,17 +180,17 @@ def collect(source_path: Path, output: Path) -> dict:
                 {
                     "type": "header",
                     "kind": "structured_multi_turn_response_process_fit",
-                    "protocol": PROTOCOL,
+                    "protocol": protocol,
                     "source_sha256": CHECKPOINT_SHA256,
-                    "first_seed": FIRST_SEED,
-                    "maps": MAPS,
+                    "first_seed": first_seed,
+                    "maps": maps,
                     "experts": experts,
                 },
                 sort_keys=True,
             )
             + "\n"
         )
-        for seed in range(FIRST_SEED, FIRST_SEED + MAPS):
+        for seed in range(first_seed, first_seed + maps):
             for root in (0, 1):
                 for opponent in ("source", "teacher"):
                     environment = create_environment(seed)
@@ -178,7 +198,7 @@ def collect(source_path: Path, output: Path) -> dict:
                         environment.rules_jsons(), torch.device("cpu")
                     )
                     own_action_index = 0
-                    game_samples = 0
+                    game_records = []
                     steps = 0
                     result = None
                     while not environment.done()[0]:
@@ -196,11 +216,9 @@ def collect(source_path: Path, output: Path) -> dict:
                                     opponent,
                                     own_action_index,
                                     int(action[0]),
+                                    branch_action_limit,
                                 )
-                                raw.write(json.dumps(record, sort_keys=True) + "\n")
-                                samples += 1
-                                candidates += len(record["candidates"])
-                                game_samples += 1
+                                game_records.append(record)
                             own_action_index += 1
                         elif opponent == "teacher":
                             action = native_teacher_action(
@@ -214,38 +232,49 @@ def collect(source_path: Path, output: Path) -> dict:
                         raise ValueError("fit game ended without an action")
                     is_terminal = bool(result["terminal"][0])
                     is_censored = bool(result["truncated"][0])
-                    raw.write(
-                        json.dumps(
-                            {
-                                "type": "game",
-                                "seed": seed,
-                                "root_seat": root,
-                                "opponent": opponent,
-                                "steps": steps,
-                                "samples": game_samples,
-                                "terminal": is_terminal,
-                                "truncated": is_censored,
-                                "winner": int(result["winners"][0]),
-                            },
-                            sort_keys=True,
+                    if not is_terminal and not is_censored:
+                        raise ValueError(
+                            "fit collection game ended without terminal or censor"
                         )
-                        + "\n"
-                    )
+                    for record in game_records:
+                        if allow_rollin_censor:
+                            record["rollin_censored"] = is_censored
+                        raw.write(json.dumps(record, sort_keys=True) + "\n")
+                        samples += 1
+                        candidates += len(record["candidates"])
+                    game_record = {
+                        "type": "game",
+                        "seed": seed,
+                        "root_seat": root,
+                        "opponent": opponent,
+                        "steps": steps,
+                        "samples": len(game_records),
+                        "terminal": is_terminal,
+                        "truncated": is_censored,
+                        "winner": int(result["winners"][0]),
+                    }
+                    if allow_rollin_censor:
+                        game_record["adjudicated_winner"] = (
+                            int(result["adjudicated_winners"][0])
+                            if is_censored
+                            else None
+                        )
+                    raw.write(json.dumps(game_record, sort_keys=True) + "\n")
                     games += 1
                     terminal += is_terminal
                     censored += is_censored
-                    if is_censored or not is_terminal:
+                    if is_censored and not allow_rollin_censor:
                         raise ValueError("fit collection game was not terminal")
-    if games != MAPS * 4:
+    if games != maps * 4:
         raise ValueError("fit collection missed a predeclared game")
     os.replace(temporary, output)
     with output.open("rb") as raw:
         raw_sha256 = hashlib.file_digest(raw, "sha256").hexdigest()
     return {
         "kind": "structured_multi_turn_response_process_fit_collection",
-        "protocol": PROTOCOL,
-        "first_seed": FIRST_SEED,
-        "maps": MAPS,
+        "protocol": protocol,
+        "first_seed": first_seed,
+        "maps": maps,
         "games": games,
         "terminal_games": terminal,
         "censored_games": censored,

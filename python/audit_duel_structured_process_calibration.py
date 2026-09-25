@@ -119,9 +119,12 @@ def validate_candidates(
     scores: list[int],
     posts: list[list[int]],
     root: int,
+    branch_action_limit: int | None = None,
 ) -> None:
     for plan, score, components in zip(plans, scores, posts, strict=True):
-        branch = environment.fork(np.asarray([0], dtype=np.uint64))
+        branch = environment.fork(
+            np.asarray([0], dtype=np.uint64), action_limit=branch_action_limit
+        )
         for action in plan:
             legal = int(branch.observe()["action_offsets"][1])
             if not 0 <= action < legal:
@@ -137,7 +140,12 @@ def validate_candidates(
             raise ValueError("native candidate did not complete the root turn")
 
 
-def summarize(samples: list[dict[str, float | int | str]], games: list[dict]) -> dict:
+def summarize(
+    samples: list[dict[str, float | int | str]],
+    games: list[dict],
+    maps: int = MAPS,
+    allow_rollin_censor: bool = False,
+) -> dict:
     teacher = [float(sample["teacher_seconds"]) for sample in samples]
     candidate = [
         float(sample["slate_seconds"]) + float(sample["model_seconds"])
@@ -159,10 +167,11 @@ def summarize(samples: list[dict[str, float | int | str]], games: list[dict]) ->
         for seat in (0, 1)
     ]
     censored = sum(game["truncated"] for game in games)
+    game_gate = "all_arms_attempted" if allow_rollin_censor else "all_arms_terminal"
     gates = {
-        "all_arms_terminal": len(games) == MAPS * 4
-        and censored == 0
-        and all(game["terminal"] for game in games),
+        game_gate: len(games) == maps * 4
+        and all(game["terminal"] != game["truncated"] for game in games)
+        and (allow_rollin_censor or censored == 0),
         "every_game_sampled": all(game["samples"] > 0 for game in games),
         "candidate_replay_exact": True,
         "median_at_most_eighty_percent_teacher": statistics.median(candidate)
@@ -188,7 +197,14 @@ def summarize(samples: list[dict[str, float | int | str]], games: list[dict]) ->
     }
 
 
-def audit(source_path: Path) -> dict:
+def audit(
+    source_path: Path,
+    first_seed: int = FIRST_SEED,
+    maps: int = MAPS,
+    protocol: str = PROTOCOL,
+    allow_rollin_censor: bool = False,
+    branch_action_limit: int | None = None,
+) -> dict:
     if digest(source_path) != CHECKPOINT_SHA256:
         raise ValueError("frozen source checkpoint disagrees with the protocol")
     torch.set_num_threads(1)
@@ -205,7 +221,7 @@ def audit(source_path: Path) -> dict:
         policy, experts = load_routed_policy(source_path)
         samples: list[dict[str, float | int | str]] = []
         games: list[dict] = []
-        for seed in range(FIRST_SEED, FIRST_SEED + MAPS):
+        for seed in range(first_seed, first_seed + maps):
             for root in (0, 1):
                 for opponent in ("source", "teacher"):
                     environment = create_environment(seed)
@@ -240,7 +256,12 @@ def audit(source_path: Path) -> dict:
                                         environment, model
                                     )
                                 validate_candidates(
-                                    environment, plans, scores, posts, root
+                                    environment,
+                                    plans,
+                                    scores,
+                                    posts,
+                                    root,
+                                    branch_action_limit,
                                 )
                                 samples.append(
                                     {
@@ -268,24 +289,29 @@ def audit(source_path: Path) -> dict:
                         steps += 1
                     if result is None:
                         raise ValueError("calibration game ended without actions")
-                    games.append(
-                        {
-                            "seed": seed,
-                            "root_seat": root,
-                            "opponent": opponent,
-                            "steps": steps,
-                            "samples": game_samples,
-                            "terminal": bool(result["terminal"][0]),
-                            "truncated": bool(result["truncated"][0]),
-                            "winner": int(result["winners"][0]),
-                        }
-                    )
+                    game = {
+                        "seed": seed,
+                        "root_seat": root,
+                        "opponent": opponent,
+                        "steps": steps,
+                        "samples": game_samples,
+                        "terminal": bool(result["terminal"][0]),
+                        "truncated": bool(result["truncated"][0]),
+                        "winner": int(result["winners"][0]),
+                    }
+                    if allow_rollin_censor:
+                        game["adjudicated_winner"] = (
+                            int(result["adjudicated_winners"][0])
+                            if game["truncated"]
+                            else None
+                        )
+                    games.append(game)
     return {
         "kind": "structured_multi_turn_response_process_resource_calibration",
-        "protocol": PROTOCOL,
+        "protocol": protocol,
         "source_sha256": CHECKPOINT_SHA256,
         "selected_experts_by_seat": experts,
-        "summary": summarize(samples, games),
+        "summary": summarize(samples, games, maps, allow_rollin_censor),
         "samples": samples,
         "games": games,
         "qualification": "Random process model feasibility only; no training, autonomous games, strength or Elo",

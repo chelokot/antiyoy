@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 pytest.importorskip("torch")
@@ -44,3 +45,23 @@ def test_response_replay_rejects_changed_followup_components() -> None:
 
     with pytest.raises(ValueError, match="followup components disagree"):
         replay_record(environment, plans[0], scores[0], posts[0], targets[0], root)
+
+
+def test_extended_hypothetical_fork_preserves_live_rollin_limit() -> None:
+    environment = VectorEnv(1, width=7, height=5, seed=29, action_limit=1)
+    root = int(environment.observe()["active_players"][0])
+    before = environment.observe()
+    teacher = int(native_teacher_action(environment, FOLLOWUP_NODES, True)[0])
+
+    record = state_record(
+        environment, 29, root, "teacher", 0, teacher, branch_action_limit=2**32 - 1
+    )
+
+    assert record["candidates"][record["teacher_selected_index"]]["plan"][0] == teacher
+    assert (
+        environment.observe()["action_offsets"].tolist()
+        == before["action_offsets"].tolist()
+    )
+    assert not environment.done()[0]
+    result = environment.step(np.asarray([teacher], dtype=np.uint64))
+    assert bool(result["truncated"][0])
