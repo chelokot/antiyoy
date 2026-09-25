@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "kind": "fit_only_first_action_replanned_continuation_counterfactual",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-first-action-replanned-continuation-v1.json",
+  "protocol_and_code_commit": "9dc72fa",
+  "sample": {
+    "previously_inspected_fit_dataset_sha256": "252f82f070c4fee9c707365d72c96766385afb4827276ce7030d837f8e7a7191",
+    "frozen_direct_checkpoint_sha256": "68549a5af87e4d2d065a164e39bc515c2c1d48276f437494d757e25c3ef28867",
+    "first_eligible_seed": 6451000,
+    "last_eligible_seed": 6451034,
+    "independent_eligible_maps": 32,
+    "root_seat_maps": [23, 9],
+    "forced_first_actions": "Teacher first action versus frozen direct first action from exactly the same pre-action state; all32 saved teacher first actions matched a fresh native replanned search query.",
+    "common_continuation": "Root replanned native three-turn search on EVERY subsequent atomic action, root256/top8/opponent64/followup32, versus the same frozen routed-v6 direct opponent, to terminal or the original 2400-action cap."
+  },
+  "branch_results": {
+    "branch_games": 64,
+    "terminal_games": 64,
+    "nonterminal_action_limit_games": 0,
+    "teacher_first_action_better_maps": 1,
+    "source_first_action_better_maps": 1,
+    "same_outcome_maps": 30,
+    "exact_two_sided_independent_map_sign_test_p": 1.0,
+    "by_root_seat": [
+      {"seat": 0, "maps": 23, "teacher_better": 0, "source_better": 1, "same": 22, "censored": 0},
+      {"seat": 1, "maps": 9, "teacher_better": 1, "source_better": 0, "same": 8, "censored": 0}
+    ],
+    "predeclared_exploratory_advance_condition_passed": false
+  },
+  "verification": "All32 branch pairs forked identical complete BatchObservations and legal-action order, and each forced first action was legal. All32 teacher labels matched new same-state replan queries. Every branch reached terminal state without material adjudication. The full Python suite passed470 tests, and Ruff passed on the SSH server using one pinned nice19 CPU, with no GPU or parallel heavy job.",
+  "raw": {
+    "path": "/tmp/antiyoy-residual.n17QTu/first-action-replanned-continuation-6451000.json on the SSH server",
+    "sha256": "b0c88338e9c9a7133f543a9dbe069794310b41afb6c1e75754b95024c23b578b"
+  },
+  "interpretation": "Changing only the first action usually left the eventual terminal winner unchanged under identical strong replanned continuation. This exploratory fit-only conditional result does not support a useful first-action terminal preference label, even with the strong continuation. It does not contradict the validated strength of persistent replanned search, prove all first actions unimportant, or measure a trained student's strength.",
+  "stop_rule": "Do not run a fresh confirmation or train on this conditional first-action target, tune on these inspected fit maps, touch reserved teacher/final seeds, rate or deploy a neural student, or change the playable/rated bot."
+}
