@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "kind": "read_only_native_turn_trace_interface_feasibility",
+  "protocol": "benchmarks/protocols/2026-09-25-duel-native-turn-trace-interface-v1.json",
+  "code_commit": "d73a092",
+  "arena": "Classic Generic procedural_v2 11x9 two-player, native replanned three-turn self-play to the first decision of each root seat, action limit2400",
+  "window": {
+    "first_seed": 6591000,
+    "independent_maps": 8,
+    "both_seat_same_state_samples": 16
+  },
+  "exactness": {
+    "completed_turn_plans": 128,
+    "action_trace_tokens": 242,
+    "indexed_plan_or_static_score_mismatches": 0,
+    "trace_element_mismatches_above_float32_tolerance_1e_6": 0,
+    "illegal_indexed_actions": 0,
+    "action_limit_censoring": 0
+  },
+  "same_state_warm_cpu_wall_seconds": {
+    "native_three_turn_teacher_median": 0.0011297864839434624,
+    "root_slate_native_trace_random_gru_pipeline_median": 0.000935024581849575,
+    "root_slate_native_trace_random_gru_pipeline_p95": 0.001052588690072298,
+    "pipeline_median_by_root_seat": [
+      0.0008953833021223545,
+      0.0009695268236100674
+    ],
+    "first_sample_slate_trace": 0.000233581755310297,
+    "first_sample_gru_and_tensor_assembly": 0.0006928988732397556
+  },
+  "predeclared_advance_gate": {
+    "all_both_seat_samples": true,
+    "both_seat_medians_at_most_three_ms": true,
+    "median_pipeline_at_most_three_ms": true,
+    "p95_pipeline_at_most_six_ms": true,
+    "overall_pass": true
+  },
+  "raw_result": "/tmp/antiyoy-residual.n17QTu/native-turn-trace-6591000.json on the SSH server",
+  "raw_result_sha256": "db91e0ac87c5a10d2fe81465964d27fbf6edcf7edc874fed651a8fe62a68fe25",
+  "verification": "The native replay method, predeclared protocol and auditor were committed before this fresh window was opened. Every returned trace was independently compared against the original Python-fork candidate_trace implementation; indexed plans and static scores were compared against the prior search_turn_plans API. SSH-server Python498 tests, Rust agents22 tests, focused Rust Clippy and Ruff passed on one low-priority pinned CPU.",
+  "interpretation": "The separate native trace interface avoided the extra Python fork/observe/step boundary and passed the same fixed warm CPU tail gate that the prior Python-fork feasibility attempt failed on disjoint seed6590000. It permits, but does not constitute, a separately predeclared outcome-aligned multi-turn distillation study on fully disjoint fit/calibration/offline/game/final windows. These first-seat decisions do not establish later crowded-state runtime, trained-selector quality, game strength, or browser WASM latency.",
+  "qualification": "The GRU was randomly initialized and never selected a played action. No neural student was trained, rated or deployed; the native replanned teacher, opt-in Site bot, rated bot and game rules are unchanged."
+}
