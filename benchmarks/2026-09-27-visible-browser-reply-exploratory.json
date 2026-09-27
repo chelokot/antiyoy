@@ -1,0 +1,41 @@
+{
+  "status": "visible_paint_verified_not_release_gate",
+  "candidate_commit": "912a81c",
+  "candidate": "cooperative yield between cached replanned WebAssembly atomic actions",
+  "site_deployment": "Owner-private Site v64 unchanged; candidate served from a local Site source mirror",
+  "environment": {
+    "browser": "Zen 1.22.3b with a fresh isolated profile",
+    "display": "1440x900 private Xvfb desktop with a visible browser window",
+    "source_parity": "Site mirror Arena.tsx, bot-reply.ts, and package.json byte-identical to candidate branch",
+    "browser_capture": "12-20 fps X11 screen recording plus in-page requestAnimationFrame probe"
+  },
+  "scenario": {
+    "rules": "classic_generic_2022",
+    "map": "symmetric_duel_v1",
+    "seed": 47,
+    "human_seat": 0,
+    "bot_seat": 1,
+    "human_actions": "End turn without other moves",
+    "opponent": "opt-in cached replanned three-turn search"
+  },
+  "observations": [
+    "The visible-window recording captured BOT THINKING in painted frames during later bot replies.",
+    "The local match advanced from turn 1 to a terminal amber win at turn 11 without a UI error."
+  ],
+  "animation_frame_probe": {
+    "observed_seconds": 9,
+    "sampled_frames": 462,
+    "terminal_reply_bot_thinking_frames": 21,
+    "terminal_reply_bot_thinking_span_ms": 1780,
+    "maximum_gap_while_bot_thinking_ms": 136,
+    "p95_gap_while_bot_thinking_ms": 136,
+    "gaps_over_100_ms_while_bot_thinking": 6
+  },
+  "limitations": [
+    "The frame probe covers one terminal reply on a fixed duel map, not a controlled distribution of procedural maps or both seats.",
+    "This is a local development server in Zen on Xvfb, not the owner-private in-app browser deployment or a device-representative browser latency benchmark.",
+    "There is no same-hardware synchronous baseline frame trace or predeclared responsiveness threshold; these observations do not establish a release-worthy improvement.",
+    "The observed game is a UI smoke test, not a complete-state trajectory parity or search-strength evaluation."
+  ],
+  "decision": "Keep cooperative scheduling on the experimental branch and Site v64 unpublished until a controlled browser responsiveness and exact-action parity gate is complete."
+}
