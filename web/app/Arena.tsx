@@ -7,6 +7,7 @@ import type {
   WasmGame as WasmGameType,
   WasmReplay as WasmReplayType,
 } from "@/lib/antiyoy-wasm/antiyoy_wasm";
+import { advanceBotReply, advanceBotReplyCooperatively } from "./bot-reply";
 import { RoutedBrowserPolicy, type PolicyDecision } from "./browser-policy";
 import type { CellView, CoreAction, EconomyRulesView, StateView } from "./game-types";
 import { GamePiece, ShopPiece } from "./GamePiece";
@@ -248,16 +249,23 @@ function advanceBotsUntilHuman(
   humanSeat: number,
   mode: BotSearchMode,
 ): { state: StateView; actions: number } {
-  let state = initial;
-  let actions = 0;
-  while (!state.terminal && state.active_player !== humanSeat && actions < 2_000) {
-    state = parseState(stepBotSearch(instance, mode));
-    actions += 1;
-  }
-  if (!state.terminal && state.active_player !== humanSeat) {
-    throw new Error("Bot response exceeded 2000 actions");
-  }
-  return { state, actions };
+  return advanceBotReply(initial, humanSeat, () => parseState(stepBotSearch(instance, mode)));
+}
+
+function advanceBotsUntilHumanCooperatively(
+  instance: WasmGameType,
+  initial: StateView,
+  humanSeat: number,
+  mode: BotSearchMode,
+  isCurrent: () => boolean,
+): Promise<{ state: StateView; actions: number } | null> {
+  return advanceBotReplyCooperatively(
+    initial,
+    humanSeat,
+    () => parseState(stepBotSearch(instance, mode)),
+    () => new Promise<void>((resolve) => window.setTimeout(resolve, 0)),
+    isCurrent,
+  );
 }
 
 async function advancePoliciesUntilHuman(
@@ -424,6 +432,7 @@ export default function Arena() {
   const multiplayerConnection = useRef<MultiplayerConnection | null>(null);
   const leagueRequest = useRef(0);
   const botResponseInFlight = useRef(false);
+  const cooperativeReply = useRef<symbol | null>(null);
   const placementRecorded = useRef(false);
   const boardViewport = useRef<HTMLDivElement | null>(null);
   const boardContent = useRef<HTMLDivElement | null>(null);
@@ -473,6 +482,14 @@ export default function Arena() {
   const activePolicyKey = policyKeyForProfile(activeConfig.profile, neuralPolicySeat);
   const policyStatus = policyStatuses[activePolicyKey];
 
+  const cancelCooperativeReply = useCallback(() => {
+    if (cooperativeReply.current !== null) {
+      cooperativeReply.current = null;
+      botResponseInFlight.current = false;
+      setBotThinking(false);
+    }
+  }, []);
+
   const refreshLeague = useCallback(async () => {
     const request = leagueRequest.current + 1;
     leagueRequest.current = request;
@@ -497,6 +514,7 @@ export default function Arena() {
   }, [onlineEndpoint]);
 
   const beginOnlineSession = useCallback((session: OnlineSession) => {
+    cancelCooperativeReply();
     multiplayerConnection.current?.disconnect();
     replay.current?.free();
     replay.current = null;
@@ -542,7 +560,7 @@ export default function Arena() {
     );
     multiplayerConnection.current = connection;
     connection.connect();
-  }, [refreshLeague]);
+  }, [cancelCooperativeReply, refreshLeague]);
 
   const disconnectOnline = useCallback(() => {
     multiplayerConnection.current?.disconnect();
@@ -656,6 +674,7 @@ export default function Arena() {
     });
     return () => {
       disposed = true;
+      cooperativeReply.current = null;
       replay.current?.free();
       replay.current = null;
       game.current?.free();
@@ -767,9 +786,10 @@ export default function Arena() {
     }
     let candidate: WasmGameType | null = null;
     try {
-      disconnectOnline();
       candidate = createGame(bindings, draftConfig);
       const next = parseState(candidate.state_json());
+      cancelCooperativeReply();
+      disconnectOnline();
       replay.current?.free();
       replay.current = null;
       game.current?.free();
@@ -799,7 +819,7 @@ export default function Arena() {
       setPlaying(false);
       setError(reason instanceof Error ? reason.message : String(reason));
     }
-  }, [disconnectOnline, draftConfig, policyStatuses]);
+  }, [cancelCooperativeReply, disconnectOnline, draftConfig, policyStatuses]);
 
   const startPlacement = useCallback(() => {
     const bindings = wasmModule.current;
@@ -819,7 +839,6 @@ export default function Arena() {
     };
     let candidate: WasmGameType | null = null;
     try {
-      disconnectOnline();
       candidate = createGame(bindings, placementConfig);
       const advanced = advanceBotsUntilHuman(
         candidate,
@@ -827,6 +846,8 @@ export default function Arena() {
         seat,
         { kind: "single", nodes: RATED_SEARCH_NODES },
       );
+      cancelCooperativeReply();
+      disconnectOnline();
       replay.current?.free();
       replay.current = null;
       game.current?.free();
@@ -854,7 +875,7 @@ export default function Arena() {
       candidate?.free();
       setError(reason instanceof Error ? reason.message : String(reason));
     }
-  }, [disconnectOnline, placement]);
+  }, [cancelCooperativeReply, disconnectOnline, placement]);
 
   const step = useCallback(async () => {
     const replayInstance = replay.current;
@@ -937,6 +958,7 @@ export default function Arena() {
     }
     botResponseInFlight.current = true;
     setBotThinking(true);
+    let cooperativeToken: symbol | null = null;
     try {
       const initial = parseState(instance.reset());
       setHumanSeat(seat);
@@ -962,12 +984,25 @@ export default function Arena() {
           opponentActions = response.actions;
           decision = response.decision;
         } else {
-          const response = advanceBotsUntilHuman(
-            instance,
-            initial,
-            seat,
-            botSearchMode(botOpponent),
-          );
+          const searchMode = botSearchMode(botOpponent);
+          let response: { state: StateView; actions: number };
+          if (searchMode.kind === "three-turn" && searchMode.replan) {
+            cooperativeToken = Symbol();
+            cooperativeReply.current = cooperativeToken;
+            const advanced = await advanceBotsUntilHumanCooperatively(
+              instance,
+              initial,
+              seat,
+              searchMode,
+              () => cooperativeReply.current === cooperativeToken && game.current === instance,
+            );
+            if (advanced === null) {
+              return;
+            }
+            response = advanced;
+          } else {
+            response = advanceBotsUntilHuman(instance, initial, seat, searchMode);
+          }
           next = response.state;
           opponentActions = response.actions;
         }
@@ -978,12 +1013,17 @@ export default function Arena() {
       setPolicyDecision(decision);
       setError(null);
     } catch (reason: unknown) {
-      setState(parseState(instance.state_json()));
+      if (game.current === instance) {
+        setState(parseState(instance.state_json()));
+      }
       setPlaying(false);
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
-      botResponseInFlight.current = false;
-      setBotThinking(false);
+      if (cooperativeToken === null || cooperativeReply.current === cooperativeToken) {
+        cooperativeReply.current = null;
+        botResponseInFlight.current = false;
+        setBotThinking(false);
+      }
     }
   }, [activeConfig.profile, botOpponent, humanMode]);
 
@@ -1068,6 +1108,7 @@ export default function Arena() {
     }
     botResponseInFlight.current = true;
     setBotThinking(true);
+    let cooperativeToken: symbol | null = null;
     try {
       const afterHuman = parseState(instance.step(actionIndex));
       setState(afterHuman);
@@ -1088,7 +1129,24 @@ export default function Arena() {
         const searchMode = placementMode
           ? { kind: "single" as const, nodes: RATED_SEARCH_NODES }
           : botSearchMode(botOpponent as BotStrengthName);
-        const response = advanceBotsUntilHuman(instance, afterHuman, humanSeat, searchMode);
+        let response: { state: StateView; actions: number };
+        if (searchMode.kind === "three-turn" && searchMode.replan) {
+          cooperativeToken = Symbol();
+          cooperativeReply.current = cooperativeToken;
+          const advanced = await advanceBotsUntilHumanCooperatively(
+            instance,
+            afterHuman,
+            humanSeat,
+            searchMode,
+            () => cooperativeReply.current === cooperativeToken && game.current === instance,
+          );
+          if (advanced === null) {
+            return;
+          }
+          response = advanced;
+        } else {
+          response = advanceBotsUntilHuman(instance, afterHuman, humanSeat, searchMode);
+        }
         responseState = response.state;
         responseActions = response.actions;
       }
@@ -1100,8 +1158,11 @@ export default function Arena() {
       setPlaying(false);
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
-      botResponseInFlight.current = false;
-      setBotThinking(false);
+      if (cooperativeToken === null || cooperativeReply.current === cooperativeToken) {
+        cooperativeReply.current = null;
+        botResponseInFlight.current = false;
+        setBotThinking(false);
+      }
     }
   }, [activeConfig.profile, botOpponent, humanSeat, onlineSession, placementMode]);
 
@@ -1153,11 +1214,12 @@ export default function Arena() {
     }
     let candidate: WasmReplayType | null = null;
     try {
-      disconnectOnline();
       candidate = new bindings.WasmReplay(new Uint8Array(await file.arrayBuffer()));
       const instance = candidate;
       const metadata = JSON.parse(instance.metadata_json()) as ReplayMetadata;
       const initialState = parseState(instance.seek(0));
+      cancelCooperativeReply();
+      disconnectOnline();
       replay.current?.free();
       replay.current = instance;
       candidate = null;
@@ -1175,9 +1237,10 @@ export default function Arena() {
       candidate?.free();
       setError(reason instanceof Error ? reason.message : String(reason));
     }
-  }, [disconnectOnline]);
+  }, [cancelCooperativeReply, disconnectOnline]);
 
   const restoreLive = useCallback(() => {
+    cancelCooperativeReply();
     disconnectOnline();
     replay.current?.free();
     replay.current = null;
@@ -1193,7 +1256,7 @@ export default function Arena() {
     setActions(0);
     setPlaying(false);
     setError(null);
-  }, [disconnectOnline]);
+  }, [cancelCooperativeReply, disconnectOnline]);
 
   const boardSize = hexBoardSize(state?.width ?? WIDTH, state?.height ?? HEIGHT);
   const selected = state?.cells[selectedId] ?? null;
