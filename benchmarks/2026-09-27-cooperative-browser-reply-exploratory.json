@@ -17,13 +17,18 @@
   "candidate_click_to_return_ms": [127, 171, 142, 182, 198],
   "candidate_observed_reply_completion_ms": [498, 867, 761, 1219, 1556],
   "observations": [
-    "Candidate showed BOT THINKING during every paired reply.",
+    "The candidate accessibility tree exposed BOT THINKING during every paired reply; painted visibility was not verified.",
     "Both tabs reached turn 11 with 99 of 99 visible hex labels matching and the same displayed economy.",
     "Generating a new map during a candidate reply returned in 59 ms, reset to turn 1, and the cancelled reply did not overwrite the new state."
   ],
+  "follow_up_calibration": {
+    "unrelated_control_click_ms": [41, 269, 763, 824, 762, 784],
+    "hidden_tab_animation_frame": "A temporary double-requestAnimationFrame probe did not fire in the hidden in-app browser tab; the probe was removed without committing it."
+  },
   "limitations": [
     "One inspected seed and one human seat; not an independent-map or both-seat release gate.",
-    "UI automation click and polling times include tool overhead and are not controlled browser-performance traces.",
+    "UI automation click times include highly variable tool overhead; the baseline-candidate click arrays cannot establish a responsiveness improvement.",
+    "A hidden browser tab does not establish when the thinking state actually paints to the user.",
     "The displayed board and economy comparison is not a full-game digest or complete trajectory proof.",
     "No player-strength or Elo conclusion follows from this scheduling-only test."
   ]
