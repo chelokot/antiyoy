@@ -1,0 +1,90 @@
+{
+  "status": "controlled_fixed_map_diagnostic_not_release_gate",
+  "baseline_commit": "b7abba5",
+  "candidate_commit": "0957ffb",
+  "change": "Yield to the browser event loop between cached replanned WebAssembly atomic actions, without changing the search or game rules.",
+  "site_deployment": "Owner-private Site v64 unchanged; both versions served locally.",
+  "environment": {
+    "browser": "Zen 1.22.3b with the same isolated profile for both runs",
+    "display": "1440x900 private Xvfb desktop with a visible browser window",
+    "server": "Local development server, baseline and candidate run serially",
+    "wasm_artifacts": "Baseline and candidate WebAssembly SHA-256 identical",
+    "probe": "Capture end-turn click timestamps, requestAnimationFrame timestamps, painted turn/status text, and final viewport pixels"
+  },
+  "scenario": {
+    "rules": "classic_generic_2022",
+    "map": "symmetric_duel_v1",
+    "seed": 47,
+    "opponent": "Opt-in cached replanned three-turn search",
+    "human_actions": "End turn only; no purchases or moves",
+    "click_spacing_ms": 4000
+  },
+  "columns": [
+    "turn_before_click",
+    "click_to_first_painted_frame_ms",
+    "click_to_next_human_turn_or_terminal_paint_ms",
+    "maximum_observed_animation_frame_gap_ms",
+    "painted_bot_thinking_frames"
+  ],
+  "human_seat_0": {
+    "baseline": [
+      [1, 18, 18, 34, 0],
+      [2, 36, 36, 51, 0],
+      [3, 87, 87, 101, 0],
+      [4, 145, 145, 153, 0],
+      [5, 217, 217, 220, 0],
+      [6, 360, 360, 373, 0],
+      [7, 655, 655, 661, 0],
+      [8, 577, 577, 593, 0],
+      [9, 1042, 1042, 1051, 0],
+      [10, 1367, 1367, 1372, 0]
+    ],
+    "candidate": [
+      [1, 13, 29, 17, 1],
+      [2, 16, 50, 34, 1],
+      [3, 46, 165, 51, 4],
+      [4, 45, 231, 85, 4],
+      [5, 60, 331, 86, 6],
+      [6, 93, 585, 102, 8],
+      [7, 136, 1000, 136, 10],
+      [8, 80, 809, 102, 15],
+      [9, 4, 1495, 152, 18],
+      [10, 4, 2207, 221, 18]
+    ],
+    "outcome": "Both runs reached the same nonterminal turn-11 human position.",
+    "game_viewport_absolute_pixel_error": 0
+  },
+  "human_seat_1": {
+    "measurement_window": "Turns 6 through 10, after identical unmeasured turn-1-through-5 setup",
+    "baseline": [
+      [6, 562, 562, 17, 0],
+      [7, 698, 698, 17, 0],
+      [8, 1380, 1380, 17, 0],
+      [9, 1582, 1582, 17, 0],
+      [10, 44, 44, 18, 0]
+    ],
+    "candidate": [
+      [6, 8, 720, 119, 9],
+      [7, 0, 831, 136, 12],
+      [8, 126, 1448, 136, 17],
+      [9, 6, 1566, 237, 23],
+      [10, 31, 48, 18, 1]
+    ],
+    "outcome": "Both runs reached the same turn-11 cyan terminal win after 96 actions.",
+    "game_viewport_absolute_pixel_error": 0
+  },
+  "interpretation": [
+    "The synchronous baseline did not paint BOT THINKING on any measured reply; its first post-click paint was the completed turn.",
+    "The candidate painted BOT THINKING on every measured reply, with maximum click-to-first-paint 136 ms across these two fixed-seat windows.",
+    "The candidate did not reduce total reply latency: its complete replies were generally slower, especially the seat-0 turn-10 reply (2207 versus 1367 ms).",
+    "Exact viewport pixel agreement at the end of each deterministic seat run supports visible outcome parity, but does not prove complete hidden-state or per-action parity."
+  ],
+  "limitations": [
+    "One inspected symmetric map and one browser/profile, with no predeclared responsiveness threshold or procedural-map distribution.",
+    "RequestAnimationFrame timing and painted DOM text are browser observations, not a device-representative input-latency guarantee.",
+    "The seat-1 first monitor expired before the first five clicks, so only turns 6-10 have paired frame measurements.",
+    "The seat-0 maximum frame gaps include the blocked click-to-first-frame interval; seat-1 maximum subsequent gaps exclude that interval, which is separately reported as click-to-first-paint.",
+    "This is a local development server, not the deployed owner-private Site or its in-app browser."
+  ],
+  "decision": "Keep the cooperative scheduler on the experimental branch and leave Site v64 unchanged pending a predeclared procedural-map, both-seat browser responsiveness and complete-action parity gate."
+}
